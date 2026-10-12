@@ -1,0 +1,984 @@
+<title>MQTT Panel Mockups</title>
+<style>
+/* Layout: Swiss grid, 8px unit, flush-left type, one content column of 72ch for prose, full width for tables and mockups. mqtt-panel.com palette. */
+:root {
+  --paper: #F3F1EC; --surface: #FFFFFF; --ink: #1D1D1B; --ink-2: #6B6760; --line: rgba(29,29,27,.12); --line-2: rgba(29,29,27,.06);
+  --sage: #5E7A6E; --sage-soft: rgba(94,122,110,.14); --slate: #56697A; --clay: #85602F; --clay-soft: rgba(184,138,90,.18); --brick: #9A4B3C; --brick-soft: rgba(154,75,60,.14);
+  --code-bg: #ECE9E2; --sel: rgba(94,122,110,.10);
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #161615; --surface: #222220; --ink: #EDEBE6; --ink-2: #A19D95; --line: rgba(237,235,230,.14); --line-2: rgba(237,235,230,.07);
+  --sage: #8FAA9D; --sage-soft: rgba(143,170,157,.16); --slate: #8FA3B5; --clay: #D0A67A; --clay-soft: rgba(208,166,122,.16); --brick: #D08A7A; --brick-soft: rgba(208,138,122,.16);
+  --code-bg: #1C1C1B; --sel: rgba(143,170,157,.14); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #161615; --surface: #222220; --ink: #EDEBE6; --ink-2: #A19D95; --line: rgba(237,235,230,.14); --line-2: rgba(237,235,230,.07);
+  --sage: #8FAA9D; --sage-soft: rgba(143,170,157,.16); --slate: #8FA3B5; --clay: #D0A67A; --clay-soft: rgba(208,166,122,.16); --brick: #D08A7A; --brick-soft: rgba(208,138,122,.16);
+  --code-bg: #1C1C1B; --sel: rgba(143,170,157,.14); color-scheme: dark }
+
+* { box-sizing: border-box }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; padding-inline: max(16px, env(safe-area-inset-left)); font-variant-numeric: tabular-nums }
+.wrap { max-width: 1180px; margin-inline: auto; padding-block: 0 80px }
+h1, h2, h3, h4, p { margin: 0 }
+h1, h2, h3 { text-wrap: balance; letter-spacing: -.025em; line-height: 1.1 }
+h1 { font-size: clamp(34px, 5vw, 56px); font-weight: 800 }
+h2 { font-size: 28px; font-weight: 700; margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line) }
+h3 { font-size: 19px; font-weight: 700; margin-top: 32px }
+h4 { font-size: 15px; font-weight: 700; margin-top: 20px }
+p { max-width: 72ch; margin-top: 10px }
+ul, ol { max-width: 72ch; margin: 10px 0 0; padding-left: 22px }
+li { margin-top: 4px }
+li > ul { margin-top: 2px }
+a { color: inherit }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--sage); outline-offset: 3px }
+code { font-family: var(--mono); font-size: .92em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px }
+pre { font-family: var(--mono); font-size: 13px; line-height: 1.5; background: var(--code-bg); border: 1px solid var(--line-2); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin-top: 12px; max-width: 100% }
+pre code { background: none; padding: 0 }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2) }
+.muted { color: var(--ink-2) }
+.small { font-size: 13px }
+strong { font-weight: 700 }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 22px; flex-wrap: wrap; border-bottom: 1px solid var(--line) }
+.brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 18px; letter-spacing: -.02em }
+.mark { width: 28px; height: 28px; color: var(--sage) }
+.mark svg { width: 100%; height: 100% }
+.toggle { display: flex; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; font-size: 13px; font-weight: 600 }
+.toggle button { background: none; border: 0; padding: 5px 12px; color: var(--ink-2); font: inherit; cursor: pointer }
+.toggle button[aria-pressed="true"] { background: var(--ink); color: var(--paper) }
+
+.hero { padding-block: 48px 32px; display: grid; gap: 16px }
+.hero .lead { font-size: 19px; color: var(--ink-2); max-width: 60ch }
+.facts { display: flex; gap: 20px; flex-wrap: wrap; font-size: 14px; color: var(--ink-2) }
+.facts span::before { content: "✓ "; color: var(--sage); font-weight: 700 }
+
+.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--paper); display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); padding-block: 8px; scrollbar-width: none }
+.tabs button { background: none; border: 0; font: inherit; font-weight: 600; font-size: 14px; color: var(--ink-2); padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--paper) }
+.panel { padding-top: 8px }
+
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin-top: 14px }
+.tablewrap { overflow-x: auto; max-width: 100% }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line) }
+th { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); font-weight: 700 }
+td:last-child, th:last-child { padding-right: 0 }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap }
+.pill.req { background: var(--sage-soft); color: var(--sage) }
+.pill.prop { background: var(--clay-soft); color: var(--clay) }
+.pill.par { background: var(--line-2); color: var(--ink-2) }
+.pill.later { background: var(--line-2); color: var(--ink-2) }
+.pill.fact { background: var(--sage-soft); color: var(--sage) }
+.pill.verify { background: var(--clay-soft); color: var(--clay) }
+.pill.no { background: var(--brick-soft); color: var(--brick) }
+
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 16px }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border-block: 1px solid var(--line); margin-top: 20px }
+.cell { background: var(--paper); padding: 18px 18px 22px; min-width: 0 }
+.cell h4 { margin-top: 0 }
+.cell p { font-size: 14px; color: var(--ink-2); max-width: none }
+.callout { border-left: 3px solid var(--sage); padding: 10px 16px; margin-top: 16px; background: var(--sel); border-radius: 0 8px 8px 0; max-width: 80ch }
+.callout.warn { border-color: var(--clay); background: var(--clay-soft) }
+.callout p { margin-top: 4px; max-width: none }
+
+/* architecture diagram */
+.arch { display: grid; gap: 10px; margin-top: 20px; font-size: 13px }
+.arch .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px }
+.box { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); min-width: 0 }
+.box b { display: block; font-size: 13px }
+.box span { color: var(--ink-2); font-size: 12px }
+.box.core { border-color: var(--sage); background: var(--sage-soft) }
+.box.ext { border-style: dashed }
+.arrow { text-align: center; color: var(--ink-2); font-size: 12px; letter-spacing: .08em }
+
+ul.checks { list-style: none; padding-left: 0 }
+ul.checks li { display: flex; gap: 10px; align-items: flex-start }
+ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px solid var(--ink-2); border-radius: 3px; flex: none; margin-top: 5px }
+
+/* ---------- mockups ---------- */
+.shotwrap { overflow-x: auto; max-width: 100%; margin-top: 16px; padding-bottom: 6px }
+.app { width: 1280px; height: 700px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); display: grid; grid-template-rows: 44px 1fr; box-shadow: 0 20px 50px rgba(29,29,27,.10); font-size: 13px; color: var(--ink) }
+.tb { display: flex; align-items: center; justify-content: space-between; padding: 0 14px 0 16px; border-bottom: 1px solid var(--line); background: var(--paper) }
+.tb .name { font-weight: 800; letter-spacing: -.02em; font-size: 14px; white-space: nowrap }
+.conn { white-space: nowrap }
+.tb .mark { width: 20px; height: 20px }
+.conn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 14px; padding: 3px 10px 3px 8px; font-size: 12px; color: var(--ink-2); background: var(--surface) }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); display: inline-block }
+.dot.off { background: var(--ink-2); opacity: .5 }
+.dot.warn { background: var(--clay) }
+.body { display: grid; grid-template-columns: 92px 1fr; min-height: 0 }
+.rail { background: var(--paper); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 10px 8px; gap: 4px }
+.rail a { display: grid; justify-items: center; gap: 3px; padding: 9px 4px; border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--ink-2); text-decoration: none }
+.rail a svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
+.rail a.on { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line) }
+.rail .sp { flex: 1 }
+.main { display: grid; min-height: 0; min-width: 0 }
+.cols { display: grid; min-height: 0 }
+.pane { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column }
+.pane.side { border-right: 1px solid var(--line); background: var(--paper) }
+.pane.right { border-left: 1px solid var(--line) }
+.ph { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); min-height: 44px }
+.ph h5 { margin: 0; font-size: 13px; font-weight: 700 }
+.pc { padding: 12px 14px; overflow: auto; flex: 1 }
+.btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 600; white-space: nowrap }
+.btn.pri { background: var(--sage); border-color: var(--sage); color: #fff }
+.btn.danger { color: var(--brick); border-color: var(--brick-soft) }
+.btn.sm { padding: 3px 8px; font-size: 11px }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 12px; font-weight: 600 }
+.seg span { padding: 4px 10px; color: var(--ink-2); white-space: nowrap }
+.seg { flex: none }
+.seg span.on { background: var(--ink); color: var(--paper) }
+.input { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface); font-size: 12px; color: var(--ink); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.input.mono { font-family: var(--mono) }
+.input .ph-text { color: var(--ink-2) }
+.search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; background: var(--surface); color: var(--ink-2); font-size: 12px; flex: 1; min-width: 0 }
+.kbd { font-family: var(--mono); font-size: 10px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--ink-2) }
+.chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; border-radius: 12px; padding: 2px 9px; font-size: 11px; font-weight: 600; background: var(--line-2); color: var(--ink-2) }
+.chip.on { background: var(--sage-soft); color: var(--sage) }
+.chip.clay { background: var(--clay-soft); color: var(--clay) }
+.chip.brick { background: var(--brick-soft); color: var(--brick) }
+.mono { font-family: var(--mono) }
+.form { display: grid; gap: 10px }
+.f { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: center; font-size: 12px }
+.f label, .f .row2 > .muted, .f .row2 > .small, .f .row2 > .chip { white-space: nowrap }
+.f label { color: var(--ink-2) }
+.f .input { display: block }
+.f .row2 { display: flex; gap: 8px; align-items: center; min-width: 0 }
+.sw { width: 30px; height: 17px; border-radius: 9px; background: var(--line); position: relative; display: inline-block; flex: none }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--surface) }
+.sw.on { background: var(--sage) } .sw.on::after { left: 15px }
+.sec { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin-top: 8px }
+.list { display: grid; gap: 6px }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface) }
+.card.on { border-color: var(--sage); box-shadow: 0 0 0 1px var(--sage) }
+.card .t { font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.card .s { color: var(--ink-2); font-size: 12px; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+
+/* tree */
+.tree { font-family: var(--mono); font-size: 12px; line-height: 1.2 }
+.tree .n { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 6px; white-space: nowrap }
+.tree .n.sel { background: var(--sel) }
+.tree .n .k { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden }
+.tree .n .v { color: var(--ink-2); font-size: 11px; display: flex; gap: 10px; align-items: center }
+.tree .n .v em { font-style: normal; color: var(--sage) }
+.tree .n .cnt { background: var(--line-2); border-radius: 8px; padding: 0 6px; font-size: 10px; color: var(--ink-2) }
+.tree .n .tw { color: var(--ink-2); width: 10px; display: inline-block }
+.act { width: 6px; height: 6px; border-radius: 50%; background: var(--sage); display: inline-block; flex: none }
+.act.idle { background: var(--line) }
+.spark { width: 42px; height: 12px }
+.spark polyline { fill: none; stroke: var(--sage); stroke-width: 1.2 }
+
+/* table view */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; margin: 0 }
+.tbl th { font-size: 10px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--paper); position: sticky; top: 0 }
+.tbl td { padding: 6px 8px; border-bottom: 1px solid var(--line-2); white-space: nowrap; vertical-align: middle }
+.tbl td.mono, .tbl th.mono { font-family: var(--mono) }
+.tbl tr.sel td { background: var(--sel) }
+
+/* detail */
+.meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--ink-2) }
+.meta b { color: var(--ink); font-weight: 600 }
+.dtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 14px }
+.dtabs span { padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px }
+.dtabs span.on { color: var(--ink); border-bottom-color: var(--sage) }
+.json { font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre; background: var(--code-bg); border-radius: 8px; padding: 10px 12px; overflow: auto }
+.json .k { color: var(--slate) } .json .s { color: var(--sage) } .json .num { color: var(--clay) }
+.json .add { background: var(--sage-soft) } .json .del { background: var(--brick-soft); text-decoration: line-through; color: var(--ink-2) }
+
+/* chart */
+.chart { width: 100%; height: auto; display: block }
+.chart .grid line { stroke: var(--line-2) } .chart .axis text { fill: var(--ink-2); font-size: 10px; font-family: var(--sans) }
+.chart .axis line { stroke: var(--line) }
+.chart .s1 { stroke: var(--sage); fill: none; stroke-width: 1.6 } .chart .s1a { fill: var(--sage); opacity: .10 }
+.chart .s2 { stroke: var(--clay); fill: none; stroke-width: 1.6 }
+.chart .s3 { stroke: var(--slate); fill: none; stroke-width: 1.6; stroke-dasharray: 4 3 }
+.chart .pt { fill: var(--sage) }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; align-items: center }
+.legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; margin-right: 6px; vertical-align: middle }
+
+/* stat tiles */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px }
+.stat { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface) }
+.stat .l { font-size: 11px; color: var(--ink-2) } .stat .v { font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px }
+.stat .v small { font-size: 11px; color: var(--ink-2); font-weight: 500; margin-left: 4px }
+
+.log { font-family: var(--mono); font-size: 11px; line-height: 1.55; color: var(--ink-2) }
+.log b { color: var(--ink); font-weight: 500 }
+
+.cap { font-size: 13px; color: var(--ink-2); margin-top: 8px; max-width: 80ch }
+.shot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 40px; flex-wrap: wrap }
+.shot-head h3 { margin-top: 0 }
+
+@media (max-width: 760px) {
+  .grid2 { grid-template-columns: 1fr } .grid3 { grid-template-columns: 1fr }
+  h2 { font-size: 24px }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+<style>
+/* additions for the detailed mockups */
+.app { position: relative }
+.tree .n.new { box-shadow: inset 2px 0 0 var(--sage); background: var(--sage-soft) }
+.tree .msgs { font-size: 10px; color: var(--ink-2); font-family: var(--sans) }
+.osbar { width: 1280px; height: 26px; display: flex; align-items: center; gap: 18px; padding: 0 14px; font-size: 12px; border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--paper); color: var(--ink) }
+.osbar.mac { justify-content: flex-start } .osbar.mac b { font-weight: 700 }
+.osbar.win { gap: 14px; font-family: "Segoe UI", var(--sans) }
+.osbar .sp { flex: 1 } .osbar .lights { display: flex; gap: 6px } .osbar .lights i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,.15) }
+.osbar .wbtn { display: inline-flex; gap: 14px; font-size: 13px; color: var(--ink-2) }
+.shotwrap .app.under { border-top-left-radius: 0; border-top-right-radius: 0 }
+.overlay { position: absolute; inset: 0; background: rgba(29,29,27,.28); display: flex; align-items: center; justify-content: center; z-index: 3 }
+.modal { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; width: 640px; max-width: 92%; box-shadow: 0 24px 60px rgba(0,0,0,.25); display: flex; flex-direction: column; max-height: 92% }
+.modal .mh { padding: 14px 18px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 14px }
+.modal .mb { padding: 14px 18px; overflow: auto; font-size: 13px; display: grid; gap: 10px }
+.modal .mf { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; align-items: center }
+.kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 12px }
+.kv dt { color: var(--ink-2) } .kv dd { margin: 0; font-family: var(--mono); word-break: break-all }
+.ctx { position: absolute; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.18); padding: 4px; font-size: 12px; min-width: 220px; z-index: 4 }
+.ctx div { padding: 6px 10px; border-radius: 5px; display: flex; justify-content: space-between; gap: 16px }
+.ctx div.on { background: var(--sel) } .ctx div.danger { color: var(--brick) } .ctx hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0 }
+.ctx .kbd { font-family: var(--mono); font-size: 10px; color: var(--ink-2) }
+.bubble { position: absolute; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 24px rgba(0,0,0,.16); padding: 10px 12px; font-size: 12px; width: 300px; z-index: 4; line-height: 1.45 }
+.bubble b { display: block; margin-bottom: 2px }
+.radio { display: flex; gap: 8px; align-items: flex-start } .radio i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--ink-2); flex: none; margin-top: 2px; display: inline-block; position: relative }
+.radio i.on { border-color: var(--sage) } .radio i.on::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--sage) }
+.chk { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid var(--ink-2); display: inline-block; vertical-align: middle; margin-right: 6px; position: relative }
+.chk.on { background: var(--sage); border-color: var(--sage) } .chk.on::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) }
+.empty { display: grid; place-items: center; text-align: center; color: var(--ink-2); padding: 40px; gap: 10px }
+.empty h4 { margin: 0; color: var(--ink); font-size: 16px }
+.big { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px }
+.big .card { padding: 16px; display: grid; gap: 6px } .big .card .t { font-size: 14px } .big .card .s { display: block }
+.palette { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); width: 620px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 24px 60px rgba(0,0,0,.25); z-index: 4; font-size: 13px }
+.palette .in { padding: 12px 14px; border-bottom: 1px solid var(--line); font-family: var(--mono); display: flex; gap: 8px; align-items: center }
+.palette .row { padding: 8px 14px; display: flex; justify-content: space-between; gap: 12px } .palette .row.on { background: var(--sel) }
+.palette .row span:last-child { color: var(--ink-2); font-size: 11px }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px }
+.toc a { font-size: 12px; font-weight: 600; text-decoration: none; border: 1px solid var(--line); border-radius: 14px; padding: 4px 10px; color: var(--ink-2) }
+.toc a:hover { color: var(--ink) }
+.reply { border: 1px solid var(--sage); border-radius: 8px; padding: 8px 10px; background: var(--sage-soft); font-size: 12px }
+.warnstrip { border-left: 3px solid var(--clay); background: var(--clay-soft); padding: 6px 10px; border-radius: 0 6px 6px 0; font-size: 12px }
+:root[data-accent="slate"] { --sage: #56697A; --sage-soft: rgba(86,105,122,.14); --sel: rgba(86,105,122,.10) }
+:root[data-accent="clay"] { --sage: #85602F; --sage-soft: rgba(184,138,90,.18); --sel: rgba(184,138,90,.12) }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-accent="slate"] { --sage: #8FA3B5; --sage-soft: rgba(143,163,181,.16); --sel: rgba(143,163,181,.14) }
+  :root:not([data-theme="light"])[data-accent="clay"] { --sage: #D0A67A; --sage-soft: rgba(208,166,122,.16); --sel: rgba(208,166,122,.14) }
+}
+:root[data-theme="dark"][data-accent="slate"] { --sage: #8FA3B5; --sage-soft: rgba(143,163,181,.16); --sel: rgba(143,163,181,.14) }
+:root[data-theme="dark"][data-accent="clay"] { --sage: #D0A67A; --sage-soft: rgba(208,166,122,.16); --sel: rgba(208,166,122,.14) }
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><path id="mqtt-panel" fill="currentColor" d="M0 0h1v1h-1zM2 0h1v1h-1zM4 0h1v1h-1zM5 0h1v1h-1zM6 0h1v1h-1zM8 0h1v1h-1zM1 1h1v1h-1zM3 1h1v1h-1zM5 1h1v1h-1zM6 1h1v1h-1zM7 1h1v1h-1zM9 1h1v1h-1zM0 2h1v1h-1zM2 2h1v1h-1zM4 2h1v1h-1zM6 2h1v1h-1zM7 2h1v1h-1zM8 2h1v1h-1zM1 3h1v1h-1zM3 3h1v1h-1zM5 3h1v1h-1zM7 3h1v1h-1zM8 3h1v1h-1zM9 3h1v1h-1zM0 4h1v1h-1zM2 4h1v1h-1zM4 4h1v1h-1zM6 4h1v1h-1zM8 4h1v1h-1zM9 4h1v1h-1zM0 5h1v1h-1zM1 5h1v1h-1zM3 5h1v1h-1zM5 5h1v1h-1zM7 5h1v1h-1zM9 5h1v1h-1zM0 6h1v1h-1zM1 6h1v1h-1zM2 6h1v1h-1zM4 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM1 7h1v1h-1zM2 7h1v1h-1zM3 7h1v1h-1zM5 7h1v1h-1zM7 7h1v1h-1zM9 7h1v1h-1zM0 8h1v1h-1zM2 8h1v1h-1zM3 8h1v1h-1zM4 8h1v1h-1zM6 8h1v1h-1zM8 8h1v1h-1zM1 9h1v1h-1zM3 9h1v1h-1zM4 9h1v1h-1zM5 9h1v1h-1zM7 9h1v1h-1zM9 9h1v1h-1z"/></defs></svg>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true"><use href="#mark"/></svg></span>MQTT Panel <span class="muted" style="font-weight:500">· mockups for review</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="toggle" role="group" aria-label="Theme"><button type="button" data-theme-choice="system" aria-pressed="true">System</button><button type="button" data-theme-choice="light" aria-pressed="false">Light</button><button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button></div>
+      <div class="toggle" role="group" aria-label="Accent"><button type="button" data-accent="sage" aria-pressed="true">Sage</button><button type="button" data-accent="slate" aria-pressed="false">Slate</button><button type="button" data-accent="clay" aria-pressed="false">Clay</button></div>
+    </div>
+  </header>
+  <section class="hero" style="padding-block:32px 8px">
+    <div class="eyebrow">Mockups · v1.0 · for final review · 12 Oct 2026</div>
+    <h1 style="font-size:40px">Every screen and state</h1>
+    <p class="lead" style="font-size:16px">Twenty-two screens at 1280 × 700, following the settled spec. They render in light and dark with the three accents; use the switches above. Window chrome, menus, dialogs and scrollbars will be the native ones of each OS; two screens carry a sample macOS and Windows menu bar to show the intent. All data is example data. Comment on anything; once validated, this file goes into the repository as the implementation reference.</p>
+    <nav class="toc" aria-label="Screens">
+      <a href="#s01">01 First launch</a><a href="#s02">02 Connections</a><a href="#s03">03 Trust certificate</a><a href="#s04">04 Explorer tree</a><a href="#s05">05 Explorer table</a><a href="#s06">06 Diff</a><a href="#s07">07 Properties</a><a href="#s08">08 Publish</a><a href="#s09">09 Delete retained</a><a href="#s10">10 Charts</a><a href="#s10b">10b Add to chart</a><a href="#s11">11 Export</a><a href="#s12">12 Broker</a><a href="#s12b">12b Anonymous</a><a href="#s13">13 Add listener 1</a><a href="#s14">14 Add listener 2</a><a href="#s15">15 Issue client cert</a><a href="#s16">16 Settings</a><a href="#s17">17 Data and privacy</a><a href="#s18">18 Command palette</a><a href="#s19">19 French</a><a href="#s20">20 German</a>
+    </nav>
+  </section>
+  <!-- 01 First launch -->
+  <div class="shot-head" id="s01"><h3>01 · First launch, no connections yet</h3><span class="muted small">Empty state with three ways in</span></div>
+  <div class="shotwrap"><div class="app">
+    <div class="tb" data-conn="Not connected" data-dot="off"></div>
+    <div class="body"><nav class="rail" data-on="connect"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 320px 1fr">
+        <div class="pane side"><div class="ph"><h5>Connections</h5><span class="btn pri sm">+ New</span></div>
+          <div class="pc"><div class="empty" style="padding:30px 10px"><h4>No connections yet</h4><span class="small">Your saved brokers will appear here. Passwords and keys go to the system keychain, never into files.</span></div></div></div>
+        <div class="pane"><div class="pc" style="display:grid;align-content:center;gap:18px;padding:40px">
+          <div><h4 style="margin:0;font-size:20px">Welcome to MQTT Panel</h4><p class="muted" style="margin-top:6px;max-width:60ch">See what is happening on a broker: topics, last values, history, and a place to publish. Start with one of these.</p></div>
+          <div class="big">
+            <div class="card"><div class="t">New connection</div><span class="s">Host, port, TLS and certificates. Try it before saving.</span><span class="btn pri" style="justify-self:start;margin-top:6px">Create…</span></div>
+            <div class="card"><div class="t">Start a local broker</div><span class="s">Runs inside the app, encrypted by default, with a one-click connection.</span><span class="btn" style="justify-self:start;margin-top:6px">Start and connect</span></div>
+            <div class="card"><div class="t">Import from other tools</div><span class="s">Bring your saved connections from another client. Secrets are never imported silently.</span><span class="btn" style="justify-self:start;margin-top:6px">Choose file…</span></div>
+          </div>
+          <div class="muted small">Or press <span class="kbd">⌘K</span> for the command palette at any time.</div>
+        </div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">On launch nothing is connected. The Explorer, Publish and Charts screens show "Choose a connection" until a profile is connected.</p>
+
+  <!-- 02 Connections -->
+  <div class="shot-head" id="s02"><h3>02 · Connections, editing a profile</h3><span class="muted small">File pickers, info bubbles, subscriptions chips, embedded broker as target</span></div>
+  <div class="shotwrap"><div class="app">
+    <div class="tb" data-conn="Not connected" data-dot="off"></div>
+    <div class="body"><nav class="rail" data-on="connect"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 320px 1fr">
+        <div class="pane side"><div class="ph"><h5>Connections</h5><span class="btn pri sm">+ New</span></div>
+          <div class="pc"><div class="search" style="margin-bottom:10px">Search profiles<span style="flex:1"></span><span class="kbd">⌘K</span></div>
+            <div class="list">
+              <div class="card on"><div class="t">Plant broker <span class="chip on">TLS · mTLS</span></div><div class="s"><span class="mono">mqtts://broker.plant.example:8883</span></div><div class="s">MQTT 5 · 3 subscriptions · used today</div></div>
+              <div class="card"><div class="t">Local broker <span class="chip on">TLS</span></div><div class="s"><span class="mono">mqtts://localhost:8883</span></div><div class="s">Embedded · MQTT 5 · used today</div></div>
+              <div class="card"><div class="t">Lab Mosquitto <span class="chip clay">no TLS</span></div><div class="s"><span class="mono">mqtt://10.20.4.17:1883</span></div><div class="s">MQTT 3.1.1 · 1 subscription · 3 days ago</div></div>
+              <div class="card"><div class="t">Cloud EMQX (WS) <span class="chip on">WSS</span></div><div class="s"><span class="mono">wss://demo.emqx.example:8084/mqtt</span></div><div class="s">MQTT 5 · 2 subscriptions · last week</div></div>
+            </div>
+            <div class="sec" style="margin-top:16px">Import</div><div class="s muted small" style="margin-top:4px">Drop a file here, or Import from other tools…</div></div></div>
+        <div class="pane"><div class="ph"><h5>Plant broker</h5><div style="display:flex;gap:8px"><span class="btn">Duplicate</span><span class="btn">Try connect</span><span class="btn pri">Connect</span></div></div>
+          <div class="pc"><div class="form">
+            <div class="sec">Basics</div>
+            <div class="f"><label>Name</label><span class="input">Plant broker</span></div>
+            <div class="f"><label>Target <span class="chip">ⓘ</span></label><span class="row2"><span class="seg"><span class="on">Another broker</span><span>This app's broker</span></span><span class="muted small">Fills host, port and certificates.</span></span></div>
+            <div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="flex:1">broker.plant.example</span><span class="input mono" style="width:80px">8883</span></span></div>
+            <div class="f"><label>Transport</label><span class="row2"><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span><span class="seg"><span>3.1.1</span><span class="on">5</span><span>auto</span></span></span></div>
+            <div class="f"><label>Client ID</label><span class="row2"><span class="input mono" style="flex:1">mqttpanel-7f3a</span><span class="btn sm">Random</span></span></div>
+            <div class="f"><label>Username</label><span class="input">commissioning</span></div>
+            <div class="f"><label>Password</label><span class="row2"><span class="input" style="flex:1">••••••••••••</span><span class="chip on">Keychain</span></span></div>
+            <div class="sec">Security</div>
+            <div class="f"><label>Verify server <span class="chip">ⓘ</span></label><span class="row2"><span class="sw on"></span><span class="muted">System roots plus the CA below.</span></span></div>
+            <div class="f"><label>CA certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">plant-root-ca.pem</span><span class="btn sm">Browse…</span><span class="chip on">until 2031-03</span></span></div>
+            <div class="f"><label>Client certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">commissioning-laptop.pem</span><span class="btn sm">Browse…</span><span class="chip on">CN=commissioning-laptop</span></span></div>
+            <div class="f"><label>Client key <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">commissioning-laptop.key</span><span class="btn sm">Browse…</span><span class="chip on">Keychain</span></span></div>
+            <div class="f"><label>Server name (SNI) <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1"><span class="ph-text">optional</span></span><span class="muted small">Only if the broker serves several names.</span></span></div>
+            <div class="f"><label>Protocol tag (ALPN) <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:140px">mqtt</span><span class="muted small">Some cloud brokers require it.</span></span></div>
+            <div class="callout" style="padding:6px 12px;margin-top:0"><p class="small" style="margin:0"><strong>CA certificate.</strong> The certificate of the authority that signed the broker's certificate. Needed when the broker uses a private or self-signed certificate; leave empty for brokers with a public certificate. Choose the file with Browse or drop it onto the field.</p></div>
+            <div class="sec">Session</div>
+            <div class="f"><label>Keep-alive</label><span class="row2"><span class="input mono" style="width:80px">60 s</span><span class="muted">Clean start</span><span class="sw on"></span></span></div>
+            <div class="f"><label>Session expiry</label><span class="row2"><span class="input mono" style="width:100px">0 (none)</span></span></div>
+            <div class="f"><label>Last will</label><span class="row2"><span class="input mono" style="flex:1"><span class="ph-text">topic (optional)</span></span><span class="input mono" style="flex:1"><span class="ph-text">payload</span></span></span></div>
+            <div class="sec">Subscriptions</div>
+            <div class="f"><label>Filters <span class="chip">ⓘ</span></label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">building/# · QoS 1 <span style="opacity:.6">✕</span></span><span class="chip mono">$SYS/broker/clients/# · QoS 0 <span style="opacity:.6">✕</span></span><span class="chip mono">spBv1.0/# · QoS 0 <span style="opacity:.6">✕</span></span><span class="btn sm">+ Add</span></span></div>
+            <div class="sec">Decoders</div>
+            <div class="f"><label>Protobuf schemas</label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">plant.proto → spBv1.0/# · Payload <span style="opacity:.6">✕</span></span><span class="btn sm">Browse…</span></span></div>
+          </div>
+          <div class="callout" style="margin-top:16px"><div class="eyebrow">Last test · 2 min ago</div><p class="small">Connected in 84 ms. Server certificate CN=broker.plant.example, issued by Plant Root CA, valid until 2027-06-30. Negotiated MQTT 5, max packet 1 MB.</p></div>
+        </div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">Every file field has Browse and accepts a dropped file; nobody types a path. Every security field has an ⓘ bubble in plain words (the CA one is shown open). Subscriptions start at "#"; each chip has an ✕.</p>
+
+  <!-- 03 Trust certificate -->
+  <div class="shot-head" id="s03"><h3>03 · Connecting to a self-signed broker</h3><span class="muted small">The certificate is shown; trust it by fingerprint for this profile</span></div>
+  <div class="shotwrap"><div class="app">
+    <div class="tb" data-conn="Lab Mosquitto · connecting…" data-dot="warn"></div>
+    <div class="body"><nav class="rail" data-on="connect"></nav>
+      <div class="main"><div class="pane"><div class="ph"><h5>Lab Mosquitto</h5><div style="display:flex;gap:8px"><span class="btn">Try connect</span><span class="btn pri">Connect</span></div></div><div class="pc"><div class="form"><div class="sec">Basics</div><div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="flex:1">10.20.4.17</span><span class="input mono" style="width:80px">8883</span></span></div><div class="f"><label>Transport</label><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span></div><div class="sec">Security</div><div class="f"><label>Verify server <span class="chip">ⓘ</span></label><span class="row2"><span class="sw on"></span><span class="muted">On</span></span></div><div class="f"><label>CA certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1"><span class="ph-text">none</span></span><span class="btn sm">Browse…</span></span></div></div></div></div></div>
+    </div>
+    <div class="overlay"><div class="modal">
+      <div class="mh">This broker presents a certificate MQTT Panel cannot verify</div>
+      <div class="mb">
+        <div class="warnstrip">Reason: the certificate is self-signed. Nobody vouches for it, so compare the fingerprint with the one shown on the broker before trusting it.</div>
+        <dl class="kv"><dt>Subject</dt><dd>CN=mosquitto-lab</dd><dt>Issuer</dt><dd>CN=mosquitto-lab (self-signed)</dd><dt>Names (SAN)</dt><dd>mosquitto-lab, 10.20.4.17</dd><dt>Valid</dt><dd>2026-09-01 → 2027-09-01</dd><dt>SHA-256 fingerprint</dt><dd>3F:9A:12:7C:E0:44:B1:9D:5A:0E:88:C2:17:6B:F3:2A:9C:41:D8:70:1E:55:A2:3B:8F:64:CC:09:D1:7E:B6:C1</dd><dt>Key</dt><dd>ECDSA P-256</dd></dl>
+              </div>
+      <div class="mf" style="flex-direction:column;align-items:stretch;gap:6px"><div style="display:flex;gap:8px;justify-content:flex-end"><span class="btn">Cancel</span><span class="btn pri">Trust this certificate</span></div><div class="muted small" style="text-align:right">This certificate only, for the profile "Lab Mosquitto". If the broker presents a different one, you are asked again.</div></div>
+    </div></div>
+  </div></div>
+  <p class="cap">One choice for a self-signed certificate: trust it or not. When the broker presents a chain ending in a private CA instead, a second button "Trust anything this CA signs" appears with its own one-line scope ("future certificates from this CA too"). Both Connect and Try connect open this prompt the first time. The lab-only "skip certificate verification" toggle lives in Settings, off by default, and shows in the title bar pill while active.</p>
+
+  <!-- 04 Explorer tree -->
+  <div class="shot-head" id="s04"><h3>04 · Explorer, tree view, with context menu</h3><span class="muted small">Quick publish row, follow mode, highlight and counts, macOS menu bar sample</span></div>
+  <div class="shotwrap"><div class="osbar mac"><span class="lights"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span><b style="margin-left:10px">MQTT Panel</b><span>File</span><span>Edit</span><span>View</span><span>Connection</span><span>Window</span><span>Help</span></div><div class="app under">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="explore"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 1fr 440px">
+        <div class="pane" style="position:relative">
+          <div class="ph"><div class="search">building/+/+/temp<span style="flex:1"></span><span class="kbd">/</span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span><span class="seg"><span class="on">Default view</span><span>▾</span></span><span class="btn sm">Filters · 1</span><span class="btn sm">Expand ▾</span></div>
+          <div style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center"><span class="muted small">Pinned</span><span class="chip on mono">…/r204/temperature 22.4</span><span class="chip on mono">…/r204/setpoint 21.5</span><span class="chip on mono">…/ahu01/status running</span><span class="chip mono">+ pin</span></div>
+          <div class="pc tree">
+            <div class="n"><span class="k"><span class="tw">▾</span>building <span class="cnt">1 102</span></span><span class="v"><span class="msgs">48 213 since connect</span><span class="act"></span>188 msg/s</span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f1 <span class="cnt">320</span></span><span class="v"><span class="msgs">15 902</span><span class="act"></span>61 msg/s</span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▾</span>f2 <span class="cnt">296</span></span><span class="v"><span class="msgs">14 870</span><span class="act"></span>58 msg/s</span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r201 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 004</span><span class="act idle"></span>4 msg/s</span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r202 <span class="cnt">12</span></span><span class="v"><span class="msgs">998</span><span class="act idle"></span>4 msg/s</span></div>
+            <div class="n new" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r203 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 012</span><span class="act"></span>4 msg/s</span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▾</span>r204 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 318</span><span class="act"></span>5 msg/s</span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>temperature</span><span class="v"><span class="msgs">1 843</span><svg class="spark" viewBox="0 0 42 12"><polyline points="0,8 5,7 10,6 15,5 20,3 25,2 30,3 35,4 42,4"/></svg><em>{"value":22.4,"unit":"°C"}</em><span class="chip">R</span>2 s</span></div>
+            <div class="n sel" style="padding-left:56px"><span class="k"><span class="tw"></span>setpoint</span><span class="v"><span class="msgs">4</span><svg class="spark" viewBox="0 0 42 12"><polyline points="0,5 20,5 20,8 42,8"/></svg><em>{"value":21.5}</em><span class="chip">R</span>14 min</span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>humidity</span><span class="v"><span class="msgs">1 840</span><svg class="spark" viewBox="0 0 42 12"><polyline points="0,6 7,6 14,5 21,7 28,6 35,5 42,6"/></svg><em>41.8</em>2 s</span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>co2</span><span class="v"><span class="msgs">1 840</span><svg class="spark" viewBox="0 0 42 12"><polyline points="0,9 7,8 14,7 21,5 28,4 35,3 42,2"/></svg><em>612</em>2 s</span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>occupancy</span><span class="v"><span class="msgs">6</span><em>true</em><span class="chip">R</span>9 min</span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw">▸</span>valve <span class="cnt">3</span></span><span class="v"><span class="msgs">312</span><span class="act idle"></span>1 msg/s</span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r205 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 001</span><span class="act"></span>4 msg/s</span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>ahu01 <span class="cnt">38</span></span><span class="v"><span class="msgs">4 310</span><span class="act"></span>17 msg/s</span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f3 <span class="cnt">302</span></span><span class="v"><span class="msgs">14 112</span><span class="act"></span>55 msg/s</span></div>
+            <div class="n"><span class="k"><span class="tw">▸</span>spBv1.0 <span class="cnt">96</span></span><span class="v"><span class="msgs">25 400</span><span class="act"></span>Sparkplug B · 98 msg/s</span></div>
+            <div class="n"><span class="k"><span class="tw">▸</span>$SYS <span class="cnt">86</span></span><span class="v"><span class="msgs">6 700</span><span class="act idle"></span>26 msg/s</span></div>
+          </div>
+          <div class="ctx" style="left:360px;top:330px"><div>Pin<span class="kbd">P</span></div><div>Publish here<span class="kbd">⇧P</span></div><div>Add to chart<span class="kbd">C</span></div><hr><div>Copy topic<span class="kbd">⌘C</span></div><div>Copy payload</div><div>Copy as CLI command</div><div>Export subtree…</div><hr><div class="danger">Delete retained…</div><div class="danger">Delete retained in subtree…</div><div>Clear history</div></div>
+        </div>
+        <div class="pane right">
+          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/r204/setpoint</h5><div style="display:flex;gap:6px"><span class="btn sm">Pinned ★</span><span class="btn sm">Publish here</span><span class="btn sm">⋯</span></div></div>
+          <div style="padding:8px 14px" class="meta"><span>Received <b>10:44:12.004</b></span><span>QoS <b>1</b></span><span><b>Retained</b></span><span>Size <b>15 B</b></span><span>Follow <span class="sw on" style="vertical-align:middle"></span></span></div>
+          <div style="display:flex;gap:6px;padding:0 14px 8px;align-items:center;flex-wrap:wrap"><span class="muted small">Quick publish</span><span class="input mono" style="flex:1;min-width:120px">{"value":22}</span><span class="seg"><span>0</span><span class="on">1</span><span>2</span></span><span class="muted small">Retain</span><span class="sw on"></span><span class="btn pri sm">Send</span></div>
+          <div class="dtabs"><span class="on">Payload</span><span>Diff</span><span>History · 4</span><span>Chart</span><span>Properties · 2</span></div>
+          <div class="pc"><div class="json">{
+  <span class="k">"value"</span>: <span class="num">21.5</span>
+}</div>
+            <div class="sec" style="margin-top:14px">Chart · value</div>
+            <svg class="chart" viewBox="0 0 400 120" aria-label="Setpoint over the last hour" style="margin-top:6px"><g class="grid"><line x1="30" y1="20" x2="390" y2="20"/><line x1="30" y1="55" x2="390" y2="55"/><line x1="30" y1="90" x2="390" y2="90"/></g><g class="axis"><text x="26" y="24" text-anchor="end">23</text><text x="26" y="59" text-anchor="end">22</text><text x="26" y="94" text-anchor="end">21</text><text x="30" y="112">09:59</text><text x="390" y="112" text-anchor="end">10:59</text></g><polyline class="s1" points="30,55 250,55 250,72 390,72"/><circle class="pt" cx="390" cy="72" r="3"/></svg>
+            <div class="sec" style="margin-top:14px">Recent</div>
+            <table class="tbl"><tr><th>Time</th><th>Value</th><th>QoS</th><th>Size</th></tr><tr class="sel"><td class="mono">10:44:12.004</td><td class="mono">21.5</td><td>1</td><td>15 B</td></tr><tr><td class="mono">10:20:03.110</td><td class="mono">22.0</td><td>1</td><td>15 B</td></tr><tr><td class="mono">09:58:41.200</td><td class="mono">22.0</td><td>1</td><td>15 B</td></tr><tr><td class="mono">08:48:12.000</td><td class="mono">21.0</td><td>1</td><td>15 B</td></tr></table>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">Right-click on a topic opens the native context menu shown here. Room r203 is highlighted because a message just arrived under it; the discreet grey numbers are messages since connection. The quick publish row sends to the selected topic without leaving the Explorer.</p>
+
+  <!-- 05 Explorer table -->
+  <div class="shot-head" id="s05"><h3>05 · Explorer, table view</h3><span class="muted small">Windows menu bar sample; flat, sortable, exportable</span></div>
+  <div class="shotwrap"><div class="osbar win"><span class="wbtn"><span>File</span><span>Edit</span><span>View</span><span>Connection</span><span>Help</span></span><span class="sp"></span><span class="wbtn" style="gap:22px;font-size:14px"><span>─</span><span>☐</span><span>✕</span></span></div><div class="app under">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="explore"></nav>
+      <div class="main"><div class="pane">
+        <div class="ph"><div class="search">building/f2/#<span style="flex:1"></span><span class="kbd">/</span></div><span class="seg"><span>Tree</span><span class="on">Table</span></span><span class="seg"><span class="on">Commissioning f2</span><span>▾</span></span><span class="btn sm">Filters · 2</span><span class="btn sm">Columns</span><span class="btn sm">Export…</span></div>
+        <div class="pc" style="padding:0"><table class="tbl">
+          <tr><th>⌖</th><th>Topic ▴</th><th>Value</th><th>Value · last 10</th><th>Updated</th><th>Rate</th><th>Since connect</th><th>QoS</th><th>Ret.</th><th>Size</th></tr>
+          <tr><td>★</td><td class="mono">building/f2/r204/temperature</td><td class="mono">22.4 °C</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,8 5,7 10,6 15,5 20,3 25,2 30,3 35,4 42,4"/></svg></td><td class="mono">2 s</td><td class="mono">0.5/s</td><td class="mono">1 843</td><td>1</td><td>R</td><td>31 B</td></tr>
+          <tr><td>★</td><td class="mono">building/f2/r204/setpoint</td><td class="mono">21.5</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,5 20,5 20,8 42,8"/></svg></td><td class="mono">14 min</td><td class="mono">—</td><td class="mono">4</td><td>1</td><td>R</td><td>15 B</td></tr>
+          <tr><td>★</td><td class="mono">building/f2/ahu01/status</td><td class="mono">running</td><td></td><td class="mono">41 s</td><td class="mono">—</td><td class="mono">3</td><td>1</td><td>R</td><td>9 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/r201/temperature</td><td class="mono">21.9 °C</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,6 7,6 14,6 21,5 28,5 35,5 42,5"/></svg></td><td class="mono">1 s</td><td class="mono">0.5/s</td><td class="mono">1 844</td><td>1</td><td>R</td><td>31 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/r201/humidity</td><td class="mono">43.1</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,6 7,7 14,6 21,6 28,7 35,6 42,6"/></svg></td><td class="mono">1 s</td><td class="mono">0.5/s</td><td class="mono">1 840</td><td>0</td><td></td><td>4 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/r202/temperature</td><td class="mono">22.1 °C</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,7 7,7 14,6 21,6 28,5 35,5 42,5"/></svg></td><td class="mono">1 s</td><td class="mono">0.5/s</td><td class="mono">1 839</td><td>1</td><td>R</td><td>31 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/r203/co2</td><td class="mono">734</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,9 7,8 14,6 21,5 28,4 35,3 42,2"/></svg></td><td class="mono">2 s</td><td class="mono">0.5/s</td><td class="mono">1 838</td><td>0</td><td></td><td>3 B</td></tr>
+          <tr class="sel"><td></td><td class="mono">building/f2/r204/co2</td><td class="mono">612</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,9 7,8 14,7 21,5 28,4 35,3 42,2"/></svg></td><td class="mono">2 s</td><td class="mono">0.5/s</td><td class="mono">1 840</td><td>0</td><td></td><td>3 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/r204/humidity</td><td class="mono">41.8</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,6 7,6 14,5 21,7 28,6 35,5 42,6"/></svg></td><td class="mono">2 s</td><td class="mono">0.5/s</td><td class="mono">1 840</td><td>0</td><td></td><td>4 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/r204/occupancy</td><td class="mono">true</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,9 10,9 10,3 30,3 30,9 42,9"/></svg></td><td class="mono">9 min</td><td class="mono">—</td><td class="mono">6</td><td>1</td><td>R</td><td>4 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/r204/valve/position</td><td class="mono">38</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,4 7,5 14,6 21,6 28,7 35,8 42,8"/></svg></td><td class="mono">6 s</td><td class="mono">0.2/s</td><td class="mono">312</td><td>0</td><td></td><td>2 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/ahu01/supply_temp</td><td class="mono">18.2 °C</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,5 7,5 14,5 21,5 28,6 35,6 42,6"/></svg></td><td class="mono">1 s</td><td class="mono">1/s</td><td class="mono">3 680</td><td>0</td><td></td><td>31 B</td></tr>
+          <tr><td></td><td class="mono">building/f2/ahu01/fan/speed</td><td class="mono">72</td><td><svg class="spark" viewBox="0 0 42 12"><polyline points="0,6 7,6 14,6 21,5 28,5 35,5 42,5"/></svg></td><td class="mono">1 s</td><td class="mono">1/s</td><td class="mono">3 679</td><td>0</td><td></td><td>2 B</td></tr>
+        </table><div class="muted small" style="padding:8px 14px">296 topics in this view · 13 rows match the filters "changed in last 10 min" and "has value" · virtualised, 100 000 rows scroll at full speed</div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">"Value · last 10" is a sparkline of the cast value, the same series the chart draws (occupancy shows its boolean as a 0/1 step). Rate and "Since connect" are separate columns. Clicking a row opens the same detail pane as the tree.</p>
+  <!-- 06 Diff -->
+  <div class="shot-head" id="s06"><h3>06 · Message inspection, Diff tab</h3><span class="muted small">Any history entry can be the baseline</span></div>
+  <div class="shotwrap"><div class="app" style="height:600px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="explore"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 1fr 520px">
+        <div class="pane"><div class="ph"><div class="search">ahu01<span style="flex:1"></span><span class="kbd">/</span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div>
+          <div class="pc tree"><div class="n"><span class="k"><span class="tw">▾</span>building / f2 / ahu01 <span class="cnt">38</span></span><span class="v"><span class="act"></span>17 msg/s</span></div>
+            <div class="n sel" style="padding-left:24px"><span class="k"><span class="tw"></span>state</span><span class="v"><em>{"mode":"cooling",…}</em><span class="chip">R</span>3 s</span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>supply_temp</span><span class="v"><em>18.2</em>1 s</span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>return_temp</span><span class="v"><em>22.9</em>1 s</span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>fan <span class="cnt">4</span></span><span class="v"><span class="act"></span>4 msg/s</span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>alarms <span class="cnt">6</span></span><span class="v"><span class="act idle"></span>0 msg/s</span></div></div></div>
+        <div class="pane right">
+          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/ahu01/state</h5><div style="display:flex;gap:6px"><span class="btn sm">Pin</span><span class="btn sm">Publish here</span><span class="btn sm">⋯</span></div></div>
+          <div class="ctx" style="left:1000px;top:238px;min-width:240px"><div class="on">Add supply.temp to chart<span class="kbd">C</span></div><div>Copy path · $.supply.temp</div><div>Copy value · 18.2</div><hr><div>Show only this field in history</div></div>
+          <div class="dtabs"><span>Payload</span><span class="on">Diff</span><span>History · 200</span><span>Chart</span><span>Properties · 4</span></div>
+          <div class="pc">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted small">Compare</span><span class="seg"><span class="on">current 11:02:14</span></span><span class="muted small">with</span><span class="seg"><span class="on">previous 11:02:11</span><span>pick from history ▾</span></span><span style="flex:1"></span><span class="chip">3 changes</span><span class="btn sm">Highlight off</span></div>
+            <div class="json" style="margin-top:10px">{
+  <span class="k">"mode"</span>: <span class="s del">"heating"</span> <span class="s add">"cooling"</span>,
+  <span class="k">"setpoint"</span>: <span class="num">21.0</span>,
+  <span class="k">"supply"</span>: {
+<span style="background:var(--sel);border-radius:3px;display:inline-block;width:100%">    <span class="k">"temp"</span>: <span class="num del">19.6</span> <span class="num add">18.2</span>,</span>
+    <span class="k">"fan"</span>: <span class="num">72</span>
+  },
+  <span class="k">"alarm"</span>: <span class="s">null</span>,
+  <span class="k">"ts"</span>: <span class="s del">"…:02:11Z"</span> <span class="s add">"…:02:14Z"</span>
+}</div>
+            <div class="sec" style="margin-top:14px">History</div>
+            <table class="tbl"><tr><th>Time</th><th>Changed keys</th><th>Size</th><th></th></tr>
+              <tr class="sel"><td class="mono">11:02:14.021</td><td class="mono">mode, supply.temp, ts</td><td>118 B</td><td><span class="btn sm">Baseline</span></td></tr>
+              <tr><td class="mono">11:02:11.018</td><td class="mono">ts</td><td>118 B</td><td><span class="btn sm">Baseline</span></td></tr>
+              <tr><td class="mono">11:02:08.020</td><td class="mono">supply.fan, ts</td><td>118 B</td><td><span class="btn sm">Baseline</span></td></tr>
+              <tr><td class="mono">11:02:05.019</td><td class="mono">ts</td><td>118 B</td><td><span class="btn sm">Baseline</span></td></tr></table>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">Removed values are struck through in brick, added ones carry a sage background. Right-click on any key or value in the Payload or Diff view (here supply.temp) offers "Add to chart", which opens the field picker with that field already checked; numeric and boolean fields go straight into a series, text fields such as mode show the item disabled with "text, not plottable". Copy path and Copy value sit in the same menu. Text payloads get a line diff. The History tab lists which keys changed per message.</p>
+
+  <!-- 07 Properties -->
+  <div class="shot-head" id="s07"><h3>07 · Message inspection, Properties tab (MQTT 5)</h3><span class="muted small">Negotiated protocol version always first</span></div>
+  <div class="shotwrap"><div class="app" style="height:560px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="explore"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 1fr 520px">
+        <div class="pane"><div class="ph"><div class="search">ahu01/cmd<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw"></span>building / f2 / ahu01 / cmd</span><span class="v"><em>{"cmd":"restart","delay":5}</em>9 min</span></div><div class="n"><span class="k"><span class="tw"></span>building / f2 / ahu01 / cmd / ack</span><span class="v"><em>{"ok":true,"id":"c-1041"}</em>9 min</span></div></div></div>
+        <div class="pane right">
+          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/ahu01/cmd</h5><div style="display:flex;gap:6px"><span class="btn sm">Pin</span><span class="btn sm">Publish here</span><span class="btn sm">⋯</span></div></div>
+          <div class="dtabs"><span>Payload</span><span>Diff</span><span>History · 12</span><span>Chart</span><span class="on">Properties · 4</span></div>
+          <div class="pc">
+            <dl class="kv" style="grid-template-columns:170px 1fr">
+              <dt>Protocol</dt><dd>MQTT 5 <span class="muted" style="font-family:var(--sans)">negotiated; profile asked "auto"</span></dd>
+              <dt>Received</dt><dd>10:52:03.410</dd><dt>QoS</dt><dd>2</dd><dt>Retained</dt><dd>no</dd><dt>Duplicate</dt><dd>no</dd><dt>Size</dt><dd>27 B</dd>
+            </dl>
+            <div class="sec" style="margin-top:14px">MQTT 5 properties</div>
+            <dl class="kv" style="grid-template-columns:170px 1fr;margin-top:6px">
+              <dt>Content type</dt><dd>application/json</dd>
+              <dt>Payload format</dt><dd>1 (UTF-8)</dd>
+              <dt>Response topic</dt><dd>building/f2/ahu01/cmd/ack</dd>
+              <dt>Correlation data</dt><dd>c-1041</dd>
+              <dt>Message expiry</dt><dd>30 s <span class="muted" style="font-family:var(--sans)">(21 s left when received)</span></dd>
+              <dt>User properties</dt><dd>operator = commissioning<br>source = mqttpanel-desktop</dd>
+            </dl>
+            <div class="reply" style="margin-top:14px"><strong>Reply received</strong> on building/f2/ahu01/cmd/ack after 84 ms, correlation c-1041: <span class="mono">{"ok":true,"id":"c-1041"}</span></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">On a 3.1.1 connection this tab shows "Protocol MQTT 3.1.1" and the standard fields only; the MQTT 5 block is absent, not empty.</p>
+
+  <!-- 08 Publish -->
+  <div class="shot-head" id="s08"><h3>08 · Publish, one-off composer with request and response</h3><span class="muted small">Templates only on request, sent log with broker acknowledgements and replies</span></div>
+  <div class="shotwrap"><div class="app">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="publish"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 250px 1fr 340px">
+        <div class="pane side"><div class="ph"><h5>Templates</h5><span class="muted small">saved on request only</span></div>
+          <div class="pc"><div class="sec">Commissioning</div><div class="list" style="margin-top:6px"><div class="card"><div class="t">Set room setpoint</div><div class="s mono">building/f2/{room}/setpoint</div></div><div class="card"><div class="t">Force valve</div><div class="s mono">building/f2/{room}/valve/cmd</div></div><div class="card"><div class="t">AHU restart</div><div class="s mono">building/f2/ahu01/cmd</div></div></div>
+            <div class="sec" style="margin-top:14px">Simulation</div><div class="list" style="margin-top:6px"><div class="card"><div class="t">Fake temperature <span class="chip clay">repeat 2 s</span></div><div class="s mono">sim/room/temperature</div></div><div class="card"><div class="t">Sparkplug NBIRTH</div><div class="s mono">spBv1.0/plant/NBIRTH/edge01</div></div></div>
+            <div class="muted small" style="margin-top:14px">A template is created only with "Save as template". Sending never creates one.</div></div></div>
+        <div class="pane"><div class="ph"><h5>Compose <span class="muted" style="font-weight:500">· one-off by default</span></h5><div style="display:flex;gap:6px"><span class="btn sm">Clear</span><span class="btn sm">Save as template</span><span class="btn sm">Copy as CLI</span></div></div>
+          <div class="pc"><div class="form">
+            <div class="f"><label>Topic</label><span class="input mono">building/f2/ahu01/cmd</span></div>
+            <div class="f"><label>Options</label><span class="row2" style="flex-wrap:wrap"><span class="muted">QoS</span><span class="seg"><span>0</span><span>1</span><span class="on">2</span></span><span class="muted">Retain</span><span class="sw"></span><span class="muted">Format</span><span class="seg"><span class="on">JSON</span><span>Text</span><span>Hex</span><span>Base64</span></span></span></div></div>
+            <div class="json" style="margin-top:12px;min-height:110px">{
+  <span class="k">"cmd"</span>: <span class="s">"restart"</span>,
+  <span class="k">"delay"</span>: <span class="num">5</span>
+}</div><div class="muted small" style="margin-top:6px">Valid JSON · 27 bytes</div>
+            <div class="sec" style="margin-top:14px">Request and response <span class="chip on" style="text-transform:none;letter-spacing:0">MQTT 5</span> <span class="chip">ⓘ</span></div>
+            <div class="callout" style="margin-top:6px;padding:6px 12px"><p class="small" style="margin:0"><strong>How this works in MQTT 5.</strong> Your message carries a response topic and a correlation ID. The device answers on that response topic and copies the correlation ID into its reply. MQTT Panel subscribes to the response topic for you, matches the reply by correlation ID and shows it next to the sent entry. Broker and device must both speak MQTT 5; on 3.1.1 this section is not available.</p></div>
+            <div class="form" style="margin-top:8px"><div class="f"><label>Response topic</label><span class="row2"><span class="input mono" style="flex:1">building/f2/ahu01/cmd/ack</span><span class="muted small">subscribed automatically</span></span></div><div class="f"><label>Correlation data</label><span class="row2"><span class="input mono" style="width:140px">auto (c-1042)</span><span class="muted small">Wait up to</span><span class="input mono" style="width:70px">10 s</span></span></div></div>
+            <div class="sec" style="margin-top:14px">MQTT 5 properties <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">· 2 set</span></div>
+            <div class="form" style="margin-top:8px"><div class="f"><label>Content type</label><span class="input mono">application/json</span></div><div class="f"><label>User properties</label><span class="row2"><span class="input mono" style="width:120px">operator</span><span class="input mono" style="flex:1">commissioning</span><span class="btn sm">+</span></span></div><div class="f"><label>Expiry</label><span class="input mono" style="width:100px">30 s</span></div></div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:18px;flex-wrap:wrap"><span class="btn pri">Send <span class="kbd" style="color:#fff;border-color:rgba(255,255,255,.4)">⌘↵</span></span><span class="btn">Send and clear</span><span class="muted">Repeat every</span><span class="input mono" style="width:60px">—</span><span class="muted">s</span><span style="flex:1"></span><span class="btn danger">Delete retained…</span></div>
+          </div></div>
+        <div class="pane right"><div class="ph"><h5>Sent · 24 this session</h5><div style="display:flex;gap:6px"><span class="btn sm">Export</span><span class="btn sm">Clear</span></div></div>
+          <div class="pc" style="padding:0"><table class="tbl"><tr><th>Time</th><th>Topic</th><th>QoS</th><th>Status</th></tr>
+            <tr class="sel"><td class="mono">10:52:03</td><td class="mono">…/ahu01/cmd</td><td>2</td><td><span class="chip on">acked · replied</span></td></tr>
+            <tr><td class="mono">10:57:12</td><td class="mono">…/r204/setpoint</td><td>1 R</td><td><span class="chip on">acked</span></td></tr>
+            <tr><td class="mono">10:51:58</td><td class="mono">…/ahu01/cmd</td><td>2</td><td><span class="chip brick">failed · not authorized</span></td></tr>
+            <tr><td class="mono">10:49:30</td><td class="mono">…/r203/valve/cmd</td><td>0</td><td><span class="chip">sent</span></td></tr>
+            <tr><td class="mono">10:48:11</td><td class="mono">sim/room/temperature</td><td>0</td><td><span class="chip clay">repeat · 240×</span></td></tr>
+            <tr><td class="mono">10:40:05</td><td class="mono">…/r202/setpoint</td><td>1 R</td><td><span class="chip">deleted retained</span></td></tr></table>
+            <div style="padding:10px 14px;border-top:1px solid var(--line)"><div class="sec">Selected · 10:52:03</div><div class="json" style="margin-top:6px;font-size:11px">{"cmd":"restart","delay":5}</div><div class="reply" style="margin-top:8px"><strong>Reply in 84 ms</strong> · correlation c-1041<br><span class="mono">{"ok":true,"id":"c-1041"}</span></div><div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><span class="btn sm">Re-send</span><span class="btn sm">Load in composer</span><span class="btn sm">Save as template</span></div></div></div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">The request and response section appears only on a connection that negotiated MQTT 5; on 3.1.1 one line replaces it: "Request and response needs MQTT 5; this broker negotiated 3.1.1." Replies are matched by correlation data and shown with the sent entry.</p>
+
+  <!-- 09 Delete retained + repeat running -->
+  <div class="shot-head" id="s09"><h3>09 · Delete retained confirmation, repeat publish running</h3><span class="muted small">Destructive action is explicit; repeat has a visible stop</span></div>
+  <div class="shotwrap"><div class="app" style="height:600px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="publish"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 250px 1fr 340px">
+        <div class="pane side"><div class="ph"><h5>Templates</h5></div><div class="pc"><div class="list"><div class="card on"><div class="t">Fake temperature <span class="chip clay">running</span></div><div class="s mono">sim/room/temperature</div></div></div></div></div>
+        <div class="pane"><div class="ph"><h5>Compose</h5></div><div class="pc"><div class="form"><div class="f"><label>Topic</label><span class="input mono">sim/room/temperature</span></div><div class="f"><label>Options</label><span class="row2"><span class="muted">QoS</span><span class="seg"><span class="on">0</span><span>1</span><span>2</span></span><span class="muted">Retain</span><span class="sw"></span></span></div></div><div class="json" style="margin-top:12px">{"value": 21.{{rand 0-9}}}</div>
+          <div class="callout" style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="dot"></span><strong>Repeating every 2 s</strong><span class="muted small">48 sent · next in 1 s · stops on disconnect</span><span style="flex:1"></span><span class="btn danger">Stop</span></div></div></div>
+        <div class="pane right"><div class="ph"><h5>Sent · 72 this session</h5></div><div class="pc" style="padding:0"><table class="tbl"><tr><th>Time</th><th>Topic</th><th>Status</th></tr><tr><td class="mono">11:04:40</td><td class="mono">sim/room/temperature</td><td><span class="chip clay">repeat · 48×</span></td></tr><tr><td class="mono">11:03:02</td><td class="mono">…/r204/setpoint</td><td><span class="chip on">acked</span></td></tr></table></div></div>
+      </div></div>
+    </div>
+    <div class="overlay"><div class="modal" style="width:520px">
+      <div class="mh">Delete the retained message?</div>
+      <div class="mb"><div><span class="mono">building/f2/r204/setpoint</span></div><div class="muted small">The broker will stop sending this message to new subscribers. Devices that already received it keep their copy. Current retained value:</div><div class="json" style="font-size:11px">{"value":21.5}</div><div class="muted small">This sends an empty message with the retain flag, QoS 1. It cannot be undone from here; you can publish the value again.</div></div>
+      <div class="mf"><span class="btn">Cancel</span><span class="btn danger" style="background:var(--brick);color:#fff;border-color:var(--brick)">Delete retained</span></div>
+    </div></div>
+  </div></div>
+  <p class="cap">Deleting a retained message is never behind Send. Subtree deletion from the Explorer shows the list of affected topics before confirming.</p>
+
+  <!-- 10 Charts -->
+  <div class="shot-head" id="s10"><h3>10 · Charts</h3><span class="muted small">Several series, two axes, boolean as step, pause, hover readout</span></div>
+  <div class="shotwrap"><div class="app" style="height:640px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="charts"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 1fr 300px">
+        <div class="pane"><div class="ph"><h5>Room 204 · comfort</h5><div style="display:flex;gap:6px;align-items:center"><span class="seg"><span>5 min</span><span>15 min</span><span class="on">1 h</span><span>Session</span><span>Custom</span></span><span class="btn sm">Pause</span><span class="btn sm">Export…</span></div></div>
+          <div class="pc"><svg class="chart" viewBox="0 0 820 300" aria-label="Temperature, setpoint, humidity and occupancy over the last hour">
+            <g class="grid"><line x1="50" y1="20" x2="790" y2="20"/><line x1="50" y1="60" x2="790" y2="60"/><line x1="50" y1="100" x2="790" y2="100"/><line x1="50" y1="140" x2="790" y2="140"/><line x1="50" y1="180" x2="790" y2="180"/><line x1="50" y1="220" x2="790" y2="220"/><line x1="50" y1="260" x2="790" y2="260"/></g>
+            <g class="axis"><line x1="50" y1="260" x2="790" y2="260"/><text x="44" y="24" text-anchor="end">25</text><text x="44" y="64" text-anchor="end">24</text><text x="44" y="104" text-anchor="end">23</text><text x="44" y="144" text-anchor="end">22</text><text x="44" y="184" text-anchor="end">21</text><text x="44" y="224" text-anchor="end">20</text><text x="44" y="264" text-anchor="end">19</text><text x="800" y="24">100</text><text x="800" y="104">75</text><text x="800" y="184">50</text><text x="800" y="264">25</text><text x="50" y="282">10:20</text><text x="173" y="282" text-anchor="middle">10:30</text><text x="297" y="282" text-anchor="middle">10:40</text><text x="420" y="282" text-anchor="middle">10:50</text><text x="543" y="282" text-anchor="middle">11:00</text><text x="667" y="282" text-anchor="middle">11:10</text><text x="790" y="282" text-anchor="end">11:20</text><text x="14" y="140" transform="rotate(-90 14 140)" text-anchor="middle">°C</text><text x="812" y="140" transform="rotate(90 812 140)" text-anchor="middle">% rh</text></g>
+            <path class="s1a" d="M50,164 L112,156 L173,144 L235,128 L297,108 L358,96 L420,100 L482,116 L543,132 L605,144 L667,152 L728,160 L790,156 L790,260 L50,260 Z"/>
+            <polyline class="s1" points="50,164 112,156 173,144 235,128 297,108 358,96 420,100 482,116 543,132 605,144 667,152 728,160 790,156"/>
+            <polyline class="s2" points="50,140 543,140 543,160 790,160"/>
+            <polyline class="s3" points="50,190 112,188 173,184 235,178 297,174 358,170 420,166 482,168 543,172 605,176 667,180 728,182 790,182"/>
+            <polyline points="50,258 200,258 200,244 480,244 480,258 620,258 620,244 790,244" fill="none" stroke="var(--ink-2)" stroke-width="1.4" stroke-dasharray="1 2"/>
+            <line x1="482" y1="20" x2="482" y2="260" stroke="var(--ink-2)" stroke-dasharray="2 3"/><circle class="pt" cx="482" cy="116" r="3.5"/><circle cx="482" cy="140" r="3.5" fill="var(--clay)"/><circle cx="482" cy="168" r="3.5" fill="var(--slate)"/>
+            <rect x="492" y="26" width="160" height="76" rx="6" fill="var(--surface)" stroke="var(--line)"/><text x="500" y="42" fill="var(--ink-2)" font-size="10" font-family="var(--sans)">10:55:00</text><text x="500" y="57" fill="var(--ink)" font-size="11" font-family="var(--mono)">temperature 22.60 °C</text><text x="500" y="70" fill="var(--ink)" font-size="11" font-family="var(--mono)">setpoint    22.00 °C</text><text x="500" y="83" fill="var(--ink)" font-size="11" font-family="var(--mono)">humidity    48.0 %</text><text x="500" y="96" fill="var(--ink)" font-size="11" font-family="var(--mono)">occupancy   1 (true)</text>
+          </svg>
+          <div class="legend" style="margin-top:8px"><span><i style="background:var(--sage)"></i>temperature · $.value</span><span><i style="background:var(--clay)"></i>setpoint · $.value (step)</span><span><i style="background:var(--slate)"></i>humidity · right axis</span><span><i style="background:var(--ink-2)"></i>occupancy · boolean as 0/1 step</span></div>
+          <div class="sec" style="margin-top:18px">Other charts in this session</div><div class="list" style="margin-top:6px;grid-template-columns:1fr 1fr;display:grid;gap:8px"><div class="card"><div class="t">AHU 01 · supply and return</div><div class="s">2 series · 1 h</div></div><div class="card"><div class="t">CO₂ floor 2</div><div class="s">5 series · session</div></div></div></div></div>
+        <div class="pane right"><div class="ph"><h5>Series</h5><span class="btn sm">+ Add</span></div><div class="pc"><div class="list">
+          <div class="card on"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--sage);display:inline-block"></i>Editing series</span><span class="btn sm">Done</span></div>
+            <div class="form" style="margin-top:8px;gap:6px">
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Name</label><span class="input" style="display:block">temperature</span></div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Topic</label><span class="input mono" style="display:block">building/f2/r204/temperature</span></div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Field</label><span class="row2"><span class="input mono" style="flex:1">$.value</span><span class="chip">number</span></span></div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label></label><span class="muted small">or pick from the last message (click a field):</span></div>
+              <div class="json" style="font-size:11px;line-height:1.6;margin-left:70px">{
+  <span class="k" style="text-decoration:underline;text-decoration-style:dotted;cursor:pointer;background:var(--sel);border-radius:3px">"value"</span>: <span class="num">22.4</span>,
+  <span class="k" style="opacity:.5">"unit"</span>: <span class="s" style="opacity:.5">"°C"</span>  <span class="muted">text, not plottable</span>,
+  <span class="k" style="opacity:.5">"quality"</span>: <span class="s" style="opacity:.5">"good"</span>,
+  <span class="k" style="text-decoration:underline;text-decoration-style:dotted;cursor:pointer">"online"</span>: <span class="num">true</span>  <span class="muted">boolean → 0/1</span>
+}</div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Colour</label><span class="row2"><i style="width:16px;height:16px;border-radius:50%;background:var(--sage);display:inline-block;box-shadow:0 0 0 2px var(--surface),0 0 0 3px var(--sage)"></i><i style="width:16px;height:16px;border-radius:50%;background:var(--clay);display:inline-block"></i><i style="width:16px;height:16px;border-radius:50%;background:var(--slate);display:inline-block"></i><i style="width:16px;height:16px;border-radius:50%;background:var(--brick);display:inline-block"></i><i style="width:16px;height:16px;border-radius:50%;background:var(--ink-2);display:inline-block"></i></span></div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Style</label><span class="row2"><span class="seg"><span class="on">Line</span><span>Step</span><span>Points</span></span><span class="seg"><span class="on">Left axis</span><span>Right axis</span></span></span></div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Unit</label><span class="row2"><span class="input mono" style="width:60px">°C</span><span class="muted small">shown on the axis and in the readout</span></span></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px"><span class="muted small">1 843 points · 0 skipped</span><span class="btn sm danger">Remove series</span></div></div>
+          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--clay);display:inline-block"></i>setpoint</span><span class="sw on"></span></div><div class="s mono">building/f2/r204/setpoint</div><div class="s">path <span class="mono">$.value</span> · number · step · left · 4 points</div></div>
+          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--slate);display:inline-block"></i>humidity</span><span class="sw on"></span></div><div class="s mono">building/f2/r204/humidity</div><div class="s">raw · parsed number · line · right · 1 840 points · 2 skipped</div></div>
+          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--ink-2);display:inline-block"></i>occupancy</span><span class="sw on"></span></div><div class="s mono">building/f2/r204/occupancy</div><div class="s">raw · boolean → 0/1 · step · left · 6 points</div></div></div>
+          <div class="sec" style="margin-top:16px">Memory</div><div class="muted small" style="margin-top:4px">This chart holds 3 693 points (≈ 60 KB). Session total 12.4 MB of 256 MB. History is not saved to disk; export what you need before closing.</div></div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">Each series card states its cast rule (number, parsed number, boolean to 0/1) and how many values could not be cast. Pause freezes the view while data keeps arriving.</p>
+  <!-- 10b Add to chart field picker -->
+  <div class="shot-head" id="s10b"><h3>10b · Add to chart: pick the fields</h3><span class="muted small">A series is one topic plus one field; you choose which, never all</span></div>
+  <div class="shotwrap"><div class="app" style="height:600px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="explore"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 1fr 520px">
+        <div class="pane"><div class="ph"><div class="search">ahu01<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw"></span>building / f2 / ahu01 / state</span><span class="v"><em>{"mode":"cooling",…}</em><span class="chip">R</span>3 s</span></div></div></div>
+        <div class="pane right"><div class="ph"><h5 class="mono" style="font-weight:600">building/f2/ahu01/state</h5></div>
+          <div class="dtabs"><span>Payload</span><span>Diff</span><span>History · 200</span><span class="on">Chart</span><span>Properties · 4</span></div>
+          <div class="pc"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted small">Charted fields</span><span class="chip on mono">supply.temp ✕</span><span class="chip on mono">supply.fan ✕</span><span class="btn sm">+ Field…</span></div>
+            <svg class="chart" viewBox="0 0 480 150" aria-label="supply.temp and supply.fan over the last 15 minutes" style="margin-top:10px"><g class="grid"><line x1="30" y1="20" x2="450" y2="20"/><line x1="30" y1="65" x2="450" y2="65"/><line x1="30" y1="110" x2="450" y2="110"/></g><g class="axis"><text x="26" y="24" text-anchor="end">22</text><text x="26" y="69" text-anchor="end">20</text><text x="26" y="114" text-anchor="end">18</text><text x="460" y="24">100</text><text x="460" y="114">50</text><text x="30" y="140">10:50</text><text x="450" y="140" text-anchor="end">11:05</text></g><polyline class="s1" points="30,60 90,58 150,62 210,70 270,86 330,96 390,104 450,106"/><polyline class="s2" points="30,80 90,80 150,74 210,66 270,60 330,58 390,56 450,56"/></svg>
+            <div class="legend" style="margin-top:6px"><span><i style="background:var(--sage)"></i>supply.temp · °C · left</span><span><i style="background:var(--clay)"></i>supply.fan · % · right</span></div>
+          </div></div>
+      </div></div>
+    </div>
+    <div class="overlay"><div class="modal" style="width:520px">
+      <div class="mh">Add to chart <span class="muted" style="font-weight:500">· building/f2/ahu01/state</span></div>
+      <div class="mb">
+        <div class="muted small">Fields found in the last message. Only numbers and booleans can be charted; each checked field becomes its own series.</div>
+        <table class="tbl"><tr><th></th><th>Field</th><th>Last value</th><th>Cast</th></tr>
+          <tr><td><span class="chk on"></span></td><td class="mono">supply.temp</td><td class="mono">18.2</td><td>number</td></tr>
+          <tr><td><span class="chk on"></span></td><td class="mono">supply.fan</td><td class="mono">72</td><td>number</td></tr>
+          <tr><td><span class="chk"></span></td><td class="mono">setpoint</td><td class="mono">21.0</td><td>number</td></tr>
+          <tr><td><span class="chk"></span></td><td class="mono">alarm.active</td><td class="mono">false</td><td>boolean → 0/1</td></tr>
+          <tr style="color:var(--ink-2)"><td></td><td class="mono">mode</td><td class="mono">"cooling"</td><td>text, not plottable</td></tr>
+          <tr style="color:var(--ink-2)"><td></td><td class="mono">ts</td><td class="mono">"2026-10-12T09:02:14Z"</td><td>text, not plottable</td></tr></table>
+        <div style="display:flex;gap:8px;align-items:center"><span class="muted small">Other path</span><span class="input mono" style="flex:1"><span class="ph-text">$.supply.pressure</span></span><span class="btn sm">Add</span></div>
+        <div style="display:flex;gap:8px;align-items:center"><span class="muted small">Add to</span><span class="seg"><span class="on">Room 204 · comfort</span><span>AHU 01</span><span>New chart</span></span></div>
+      </div>
+      <div class="mf"><span class="btn">Cancel</span><span class="btn pri">Add 2 series</span></div>
+    </div></div>
+  </div></div>
+  <p class="cap">"Add to chart" from the context menu, the Chart tab or the Charts screen opens this picker. Nothing is preselected; strings are listed greyed so you can see why they cannot be charted. The engine keeps history for every numeric and boolean field anyway, so a field picked later already has its past values.</p>
+
+  <!-- 11 Export -->
+  <div class="shot-head" id="s11"><h3>11 · Export selected data</h3><span class="muted small">Scope, time range, format, size estimate, native save dialog</span></div>
+  <div class="shotwrap"><div class="app" style="height:560px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="explore"></nav>
+      <div class="main"><div class="pane"><div class="ph"><div class="search">building/f2/r204<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw">▾</span>building / f2 / r204 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 318</span><span class="act"></span>5 msg/s</span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>temperature</span><span class="v"><em>22.4</em>2 s</span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>setpoint</span><span class="v"><em>21.5</em>14 min</span></div></div></div></div>
+    </div>
+    <div class="overlay"><div class="modal" style="width:600px">
+      <div class="mh">Export data</div>
+      <div class="mb">
+        <div class="sec">What</div>
+        <div class="radio"><i></i><span>Selected topic only · <span class="mono">building/f2/r204/temperature</span></span></div>
+        <div class="radio"><i class="on"></i><span>Subtree · <span class="mono">building/f2/r204/#</span> · 12 topics</span></div>
+        <div class="radio"><i></i><span>Visible table rows · 13 topics</span></div>
+        <div class="sec" style="margin-top:6px">Time range</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="seg"><span>Last 15 min</span><span class="on">Last hour</span><span>Session</span><span>Custom</span></span><span class="muted small">from 10:04 to 11:04</span></div>
+        <div class="sec" style="margin-top:6px">Format</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="seg"><span class="on">CSV</span><span>JSON</span><span>NDJSON</span></span><span class="muted small">CSV: one row per message with time, topic, payload, QoS, retained. Numeric JSON fields are expanded into columns.</span></div>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:4px"><span><span class="chk on"></span>Include MQTT 5 properties</span><span><span class="chk"></span>Raw payload as base64</span></div>
+        <div class="callout" style="margin-top:4px;padding:8px 12px"><p class="small" style="margin:0"><strong>3 112 messages · about 215 KB.</strong> Nothing leaves memory until you choose where to save; the native save dialog opens next.</p></div>
+      </div>
+      <div class="mf"><span class="btn">Cancel</span><span class="btn pri">Save as…</span></div>
+    </div></div>
+  </div></div>
+  <p class="cap">Export is the only way to keep history, since nothing is written to disk otherwise. Charts have their own export (CSV with one column per series, or PNG).</p>
+
+  <!-- 12 Broker -->
+  <div class="shot-head" id="s12"><h3>12 · Broker</h3><span class="muted small">Status, listeners with reachability, client certificates first, broker certificates collapsed, authentication, clients, log</span></div>
+  <div class="shotwrap"><div class="app" style="height:760px">
+    <div class="tb" data-conn="Local broker · running · 7 clients" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="broker"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 1fr 380px">
+        <div class="pane"><div class="ph"><h5>Embedded broker</h5><div style="display:flex;gap:6px"><span class="btn">Restart</span><span class="btn danger">Stop</span><span class="btn pri">Connect Explorer here</span></div></div>
+          <div class="pc">
+            <div class="stats" style="grid-template-columns:repeat(5,minmax(0,1fr))"><div class="stat"><div class="l">Status</div><div class="v" style="display:flex;align-items:center;gap:8px"><span class="dot"></span>Running<small>2 h 14 min</small></div></div><div class="stat"><div class="l">Clients</div><div class="v">7<small>max 1 000</small></div></div><div class="stat" style="border-left:3px solid var(--sage)"><div class="l" style="color:var(--sage)">↓ Messages in</div><div class="v">148<small>/s</small></div></div><div class="stat" style="border-left:3px solid var(--clay)"><div class="l" style="color:var(--clay)">↑ Messages out</div><div class="v">392<small>/s</small></div></div><div class="stat"><div class="l">Retained</div><div class="v">1 212</div></div></div>
+            <div class="sec" style="margin-top:18px;display:flex;align-items:center;gap:8px">Listeners <span class="chip clay">restart to apply changes</span><span style="flex:1"></span><span class="btn pri sm">+ Add listener…</span></div>
+            <table class="tbl" style="margin-top:6px"><tr><th>On</th><th>Kind</th><th>Reachable from</th><th>Port</th><th>Setup</th><th>Login</th><th>Client cert</th><th></th></tr>
+              <tr><td><span class="sw on"></span></td><td>TCP</td><td><span class="seg"><span class="on">Network</span><span>Localhost</span></span> <span class="chip clay">unencrypted</span></td><td class="mono">1883</td><td>Plain, lab only</td><td><span class="mono">lab</span> · •••• <span class="btn sm">edit</span></td><td class="muted">—</td><td><span class="btn sm">⋯</span></td></tr>
+              <tr><td><span class="sw on"></span></td><td>TLS</td><td><span class="seg"><span class="on">Network</span><span>Localhost</span></span></td><td class="mono">8883</td><td>Mutual TLS</td><td><span class="btn sm">set…</span></td><td><span class="chip on">required</span></td><td><span class="btn sm">⋯</span></td></tr>
+              <tr><td><span class="sw on"></span></td><td>WebSocket</td><td><span class="seg"><span>Network</span><span class="on">Localhost</span></span></td><td class="mono">8083</td><td>Plain, lab only</td><td><span class="mono">dashboard</span> · •••• <span class="btn sm">edit</span></td><td class="muted">—</td><td><span class="btn sm">⋯</span></td></tr>
+              <tr><td><span class="sw"></span></td><td>Secure WebSocket</td><td><span class="seg"><span class="on">Network</span><span>Localhost</span></span></td><td class="mono">8084</td><td>Encrypted</td><td><span class="btn sm">set…</span></td><td><span class="chip">optional</span></td><td><span class="btn sm">⋯</span></td></tr></table>
+            <div class="callout warn" style="margin-top:8px;padding:8px 12px"><p class="small" style="margin:0"><strong>Reachable from the network.</strong> Any device that can reach this computer can connect to the listeners marked Network, subject to the authentication below. Switch a listener to Localhost to allow only programs on this computer. Devices connecting over TLS need CA.pem installed.</p></div>
+            <div class="sec" style="margin-top:18px">Client certificates <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">· one per device, issued by the local CA</span></div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><span class="btn pri">Issue client cert…</span><span class="btn sm">Import CSR…</span><span class="muted small">Export each certificate as PEM or PKCS#12 and install it on the device together with CA.pem.</span></div>
+            <table class="tbl" style="margin-top:8px"><tr><th>Name</th><th>Issued</th><th>Expires</th><th>Last seen</th><th></th></tr>
+              <tr><td class="mono">edge01</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip on">connected</span></td><td><span class="btn sm">PEM</span> <span class="btn sm">PKCS#12</span> <span class="btn sm danger">Revoke</span></td></tr>
+              <tr><td class="mono">sensor-r204</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip on">connected</span></td><td><span class="btn sm">PEM</span> <span class="btn sm">PKCS#12</span> <span class="btn sm danger">Revoke</span></td></tr>
+              <tr><td class="mono">sensor-r205</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip">2 min ago</span></td><td><span class="btn sm">PEM</span> <span class="btn sm">PKCS#12</span> <span class="btn sm danger">Revoke</span></td></tr>
+              <tr><td class="mono">ahu01-ctrl</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip">never</span></td><td><span class="btn sm">PEM</span> <span class="btn sm">PKCS#12</span> <span class="btn sm danger">Revoke</span></td></tr>
+              <tr><td class="mono">mqttpanel-desktop</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip on">connected</span></td><td><span class="muted small">used by "Connect Explorer here"</span></td></tr></table>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:14px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;flex-wrap:wrap"><span class="muted">▸</span><strong style="font-size:12px">Broker certificates</strong><span class="muted small">MQTT Panel Local CA and server certificate mqttpanel-local, both valid until 2028-10, ECDSA P-256. Click to show details, import, regenerate or rotate.</span><span style="flex:1"></span><span class="btn sm">Export CA.pem</span></div>
+            <div class="sec" style="margin-top:18px">Authentication</div>
+            <div class="form" style="margin-top:6px"><div class="f"><label>Anonymous <span class="chip">ⓘ</span></label><span class="row2"><span class="sw"></span><span class="muted">Off. Clients must authenticate with a password or a client certificate.</span></span></div><div class="f"><label>Users</label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">commissioning ✕</span><span class="chip mono">edge01 ✕</span><span class="chip mono">dashboard ✕</span><span class="btn sm">+ Add user</span></span></div><div class="f"><label>Client certificates <span class="chip">ⓘ</span></label><span class="row2"><span class="muted">Verify against</span><span class="seg"><span class="on">Local CA</span><span>Imported CA</span></span></span></div></div>
+          </div></div>
+        <div class="pane right"><div class="ph"><h5>Clients · 7</h5><span class="btn sm">Refresh</span></div>
+          <div class="pc" style="padding:0"><table class="tbl"><tr><th>Client ID</th><th>From</th><th>Proto</th><th>Subs</th><th></th></tr>
+            <tr><td class="mono">edge01</td><td class="mono">10.20.4.31</td><td>5 · TLS</td><td>3</td><td><span class="btn sm">⏏</span></td></tr><tr><td class="mono">mqttpanel-desktop</td><td class="mono">localhost</td><td>5 · TLS</td><td>2</td><td><span class="btn sm">⏏</span></td></tr><tr><td class="mono">dashboard-web</td><td class="mono">localhost</td><td>5 · WS</td><td>8</td><td><span class="btn sm">⏏</span></td></tr><tr><td class="mono">sensor-r204</td><td class="mono">10.20.4.88</td><td>3.1.1 · TLS</td><td>0</td><td><span class="btn sm">⏏</span></td></tr><tr><td class="mono">sensor-r205</td><td class="mono">10.20.4.89</td><td>3.1.1 · TLS</td><td>0</td><td><span class="btn sm">⏏</span></td></tr><tr><td class="mono">ahu01-ctrl</td><td class="mono">10.20.4.12</td><td>5 · TLS</td><td>5</td><td><span class="btn sm">⏏</span></td></tr><tr><td class="mono">cli-sub-21</td><td class="mono">localhost</td><td>5 · TCP</td><td>1</td><td><span class="btn sm">⏏</span></td></tr></table>
+            <div class="ph" style="border-top:1px solid var(--line)"><h5>Log</h5><span class="seg"><span>Debug</span><span class="on">Info</span><span>Warn</span></span></div>
+            <div class="log" style="padding:8px 14px"><div><b>11:02:14</b> client sensor-r205 connected from 10.20.4.89 (TLS, cert CN=sensor-r205)</div><div><b>11:01:50</b> client dashboard-web subscribed building/f2/#</div><div><b>11:01:02</b> <span style="color:var(--clay)">warn</span> client guest-7 rejected: bad username or password</div><div><b>10:59:31</b> retained store 1 212 entries</div><div><b>10:58:07</b> client cli-sub-21 connected (TCP)</div><div><b>10:48:00</b> <span style="color:var(--clay)">warn</span> TLS handshake failed from 10.20.4.90: unknown CA</div><div><b>08:48:12</b> broker started · 3 listeners</div></div></div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">Each listener can carry one login (username and password, stored in the keychain) in addition to the shared users list; "edit" or "set…" opens it in place. "Connect Explorer here" reuses the "Local broker" profile and the most secure enabled listener; each listener's ⋯ menu offers an explicit "Connect Explorer to this listener". Changing a listener's port opens a field limited to 1024 to 65535.</p>
+
+  <!-- 12b Broker anonymous -->
+  <div class="shot-head" id="s12b"><h3>12b · Broker with Anonymous on</h3><span class="muted small">Users, per-listener logins and client certificates are disabled together</span></div>
+  <div class="shotwrap"><div class="app" style="height:640px">
+    <div class="tb" data-conn="Local broker · running · anonymous · 3 clients" data-dot="warn"></div>
+    <div class="body"><nav class="rail" data-on="broker"></nav>
+      <div class="main"><div class="pane"><div class="ph"><h5>Embedded broker</h5><div style="display:flex;gap:6px"><span class="btn">Restart</span><span class="btn danger">Stop</span><span class="btn pri">Connect Explorer here</span></div></div>
+        <div class="pc">
+          <div class="warnstrip"><strong>Anonymous access is on.</strong> Anyone who can reach a listener can connect without a password or certificate. Users, per-listener logins and client certificates are kept but not checked until you turn Anonymous off.</div>
+          <div class="sec" style="margin-top:14px;display:flex;align-items:center;gap:8px">Listeners<span style="flex:1"></span><span class="btn pri sm">+ Add listener…</span></div>
+          <table class="tbl" style="margin-top:6px"><tr><th>On</th><th>Kind</th><th>Reachable from</th><th>Port</th><th>Setup</th><th>Login</th><th>Client cert</th><th></th></tr>
+            <tr><td><span class="sw on"></span></td><td>TCP</td><td><span class="seg"><span class="on">Network</span><span>Localhost</span></span> <span class="chip clay">unencrypted</span></td><td class="mono">1883</td><td>Plain, lab only</td><td style="opacity:.45"><span class="mono">lab</span> · ••••</td><td class="muted">—</td><td><span class="btn sm">⋯</span></td></tr>
+            <tr><td><span class="sw on"></span></td><td>TLS</td><td><span class="seg"><span class="on">Network</span><span>Localhost</span></span></td><td class="mono">8883</td><td>Mutual TLS</td><td style="opacity:.45">—</td><td><span class="chip clay">not checked</span></td><td><span class="btn sm">⋯</span></td></tr>
+            <tr><td><span class="sw on"></span></td><td>WebSocket</td><td><span class="seg"><span>Network</span><span class="on">Localhost</span></span></td><td class="mono">8083</td><td>Plain, lab only</td><td style="opacity:.45"><span class="mono">dashboard</span> · ••••</td><td class="muted">—</td><td><span class="btn sm">⋯</span></td></tr></table>
+          <div class="sec" style="margin-top:18px">Authentication</div>
+          <div class="form" style="margin-top:6px">
+            <div class="f"><label>Anonymous <span class="chip">ⓘ</span></label><span class="row2"><span class="sw on" style="background:var(--clay)"></span><span class="small" style="color:var(--clay)">On. No password or certificate is checked.</span></span></div>
+            <div class="f" style="opacity:.45"><label>Users</label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">commissioning</span><span class="chip mono">edge01</span><span class="chip mono">dashboard</span><span class="btn sm">+ Add user</span></span></div>
+            <div class="f" style="opacity:.45"><label>Client certificates <span class="chip">ⓘ</span></label><span class="row2"><span class="muted">Verify against</span><span class="seg"><span class="on">Local CA</span><span>Imported CA</span></span></span></div>
+          </div>
+          <div class="sec" style="margin-top:18px;opacity:.45">Client certificates <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">· not checked while Anonymous is on</span></div>
+          <div style="opacity:.45"><div style="display:flex;gap:8px;align-items:center;margin-top:6px"><span class="btn pri">Issue client cert…</span><span class="btn sm">Import CSR…</span></div>
+            <table class="tbl" style="margin-top:8px"><tr><th>Name</th><th>Issued</th><th>Expires</th><th>Last seen</th><th></th></tr><tr><td class="mono">edge01</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip">connected</span></td><td><span class="btn sm">PEM</span> <span class="btn sm">PKCS#12</span> <span class="btn sm">Revoke</span></td></tr><tr><td class="mono">sensor-r204</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip">connected</span></td><td><span class="btn sm">PEM</span> <span class="btn sm">PKCS#12</span> <span class="btn sm">Revoke</span></td></tr></table></div>
+        </div></div></div>
+    </div>
+  </div></div>
+  <p class="cap">Turning Anonymous on asks for confirmation and explains the effect. The disabled blocks keep their content, so turning it off again restores the previous setup without re-entering anything. Mutual-TLS listeners show "not checked" instead of "required" while Anonymous is on.</p>
+
+  <!-- 13 Add listener step 1 -->
+  <div class="shot-head" id="s13"><h3>13 · Add listener, step 1: choose a setup</h3><span class="muted small">Presets live here, not on the Broker screen</span></div>
+  <div class="shotwrap"><div class="app" style="height:600px">
+    <div class="tb" data-conn="Local broker · running · 7 clients" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="broker"></nav><div class="main"><div class="pane"><div class="ph"><h5>Embedded broker</h5></div><div class="pc"><div class="stats" style="grid-template-columns:repeat(5,minmax(0,1fr))"><div class="stat"><div class="l">Status</div><div class="v" style="display:flex;align-items:center;gap:8px"><span class="dot"></span>Running</div></div><div class="stat"><div class="l">Clients</div><div class="v">7</div></div><div class="stat" style="border-left:3px solid var(--sage)"><div class="l" style="color:var(--sage)">↓ In</div><div class="v">148<small>/s</small></div></div><div class="stat" style="border-left:3px solid var(--clay)"><div class="l" style="color:var(--clay)">↑ Out</div><div class="v">392<small>/s</small></div></div><div class="stat"><div class="l">Retained</div><div class="v">1 212</div></div></div></div></div></div></div>
+    <div class="overlay"><div class="modal" style="width:640px">
+      <div class="mh">Add listener <span class="muted" style="font-weight:500">· step 1 of 2 · choose a setup</span></div>
+      <div class="mb">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+          <div class="card"><div class="radio"><i></i><div><div class="t">Plain, lab only <span class="chip clay">ⓘ</span></div><div class="s">No encryption, anyone can connect. For a trusted lab network only.</div></div></div></div>
+          <div class="card"><div class="radio"><i></i><div><div class="t">Encrypted <span class="chip">ⓘ</span></div><div class="s">Clients verify the broker. Uses the local CA and server certificate.</div></div></div></div>
+          <div class="card"><div class="radio"><i></i><div><div class="t">Encrypted + passwords <span class="chip">ⓘ</span></div><div class="s">Encrypted, and each client needs a username and password.</div></div></div></div>
+          <div class="card on"><div class="radio"><i class="on"></i><div><div class="t">Mutual TLS <span class="chip">ⓘ</span></div><div class="s">Encrypted, and each device needs its own client certificate, issued on the Broker screen. No passwords.</div></div></div></div>
+        </div>
+        <div class="callout" style="padding:8px 12px"><p class="small" style="margin:0"><strong>What Mutual TLS means.</strong> The broker proves who it is with its server certificate, and each device proves who it is with a client certificate you issue. Install CA.pem on the device together with its certificate. This is the strongest setup and needs no passwords. It will turn on "require client certificate" for this listener and use the local CA; the other listeners are not changed.</p></div>
+      </div>
+      <div class="mf"><span class="btn">Cancel</span><span style="flex:1"></span><span class="btn pri">Next</span></div>
+    </div></div>
+  </div></div>
+  <p class="cap">Each setup's ⓘ opens the same plain-word explanation as the panel below the choice. The explanation states exactly what the setup will change.</p>
+
+  <!-- 14 Add listener step 2 -->
+  <div class="shot-head" id="s14"><h3>14 · Add listener, step 2: kind, port, reachability</h3><span class="muted small">Port validation and the network warning in context</span></div>
+  <div class="shotwrap"><div class="app" style="height:600px">
+    <div class="tb" data-conn="Local broker · running · 7 clients" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="broker"></nav><div class="main"><div class="pane"><div class="ph"><h5>Embedded broker</h5></div><div class="pc"><div class="stats" style="grid-template-columns:repeat(5,minmax(0,1fr))"><div class="stat"><div class="l">Status</div><div class="v" style="display:flex;align-items:center;gap:8px"><span class="dot"></span>Running</div></div><div class="stat"><div class="l">Clients</div><div class="v">7</div></div><div class="stat" style="border-left:3px solid var(--sage)"><div class="l" style="color:var(--sage)">↓ In</div><div class="v">148<small>/s</small></div></div><div class="stat" style="border-left:3px solid var(--clay)"><div class="l" style="color:var(--clay)">↑ Out</div><div class="v">392<small>/s</small></div></div><div class="stat"><div class="l">Retained</div><div class="v">1 212</div></div></div></div></div></div></div>
+    <div class="overlay"><div class="modal" style="width:640px">
+      <div class="mh">Add listener <span class="muted" style="font-weight:500">· step 2 of 2 · Mutual TLS</span></div>
+      <div class="mb">
+        <div class="form">
+          <div class="f"><label>Kind</label><span class="seg"><span>TCP</span><span class="on">TLS</span><span>WebSocket</span><span>Secure WebSocket</span></span></div>
+          <div class="f"><label>Port</label><span class="row2"><span class="input mono" style="width:90px;border-color:var(--brick)">443</span><span class="small" style="color:var(--brick);white-space:nowrap">Needs admin rights below 1024. Try 8883.</span></span></div>
+          <div class="f"><label>Reachable from <span class="chip">ⓘ</span></label><span class="row2"><span class="seg"><span class="on">Network</span><span>Localhost</span></span><span class="muted small">Any device on the network can connect.</span></span></div>
+          <div class="f"><label>Login <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:140px"><span class="ph-text">username</span></span><span class="input" style="width:140px"><span class="ph-text">password</span></span><span class="chip">optional · keychain</span></span></div>
+          <div class="f"><label>Client certificate</label><span class="row2"><span class="chip on">required</span><span class="muted small">Required by Mutual TLS, local CA.</span></span></div>
+          <div class="f"><label>Server certificate</label><span class="row2"><span class="chip on">mqttpanel-local · valid until 2028-10</span><span class="btn sm">Use another…</span></span></div>
+        </div>
+        <div class="warnstrip">After adding, restart the broker to apply. Devices need CA.pem and their own client certificate before they can connect to this listener.</div>
+      </div>
+      <div class="mf"><span class="btn">Back</span><span style="flex:1"></span><span class="btn">Cancel</span><span class="btn pri">Add listener</span></div>
+    </div></div>
+  </div></div>
+  <p class="cap">The port field refuses the privileged range with the reason and a suggestion. A port already in use is reported before the broker starts.</p>
+
+  <!-- 15 Issue client cert -->
+  <div class="shot-head" id="s15"><h3>15 · Issue a client certificate</h3><span class="muted small">Name, validity, export format, passphrase to the keychain</span></div>
+  <div class="shotwrap"><div class="app" style="height:560px">
+    <div class="tb" data-conn="Local broker · running · 7 clients" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="broker"></nav><div class="main"><div class="pane"><div class="ph"><h5>Embedded broker</h5></div><div class="pc"><div class="sec">Client certificates</div><table class="tbl" style="margin-top:6px"><tr><th>Name</th><th>Issued</th><th>Expires</th><th>Last seen</th></tr><tr><td class="mono">edge01</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip on">connected</span></td></tr><tr><td class="mono">sensor-r204</td><td class="mono">2026-10-12</td><td class="mono">2028-10-12</td><td><span class="chip on">connected</span></td></tr></table></div></div></div></div>
+    <div class="overlay"><div class="modal" style="width:560px">
+      <div class="mh">Issue client certificate</div>
+      <div class="mb">
+        <div class="form">
+          <div class="f"><label>Name <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">sensor-r206</span><span class="muted small">Used as the certificate's CN.</span></span></div>
+          <div class="f"><label>Valid for</label><span class="row2"><span class="seg"><span>1 year</span><span class="on">2 years</span><span>5 years</span></span><span class="muted small">until 2028-10-12</span></span></div>
+          <div class="f"><label>Key</label><span class="row2"><span class="seg"><span class="on">ECDSA P-256</span><span>RSA 2048</span></span><span class="muted small">RSA only for old devices.</span></span></div>
+          <div class="f"><label>Export as</label><span class="row2"><span class="seg"><span class="on">PEM (cert + key)</span><span>PKCS#12 (.p12)</span></span></span></div>
+          <div class="f"><label>Passphrase <span class="chip">ⓘ</span></label><span class="row2"><span class="input" style="flex:1">••••••••</span><span class="btn sm">Generate</span><span class="chip on">kept in keychain</span></span></div>
+          <div class="callout" style="padding:6px 12px;margin-top:0"><p class="small" style="margin:0"><strong>Passphrase.</strong> Protects only the exported file (the PKCS#12 bundle or the PEM key). It is not the broker login and not a listener password. The device asks for it once, when the certificate is installed.</p></div>
+          <div class="f"><label></label><span><span class="chk on"></span>Also save CA.pem next to it</span></div>
+        </div>
+        <div class="muted small">The private key is generated on this computer and saved only where you choose. To keep the key on the device instead, create a CSR there and use "Import CSR".</div>
+      </div>
+      <div class="mf"><span class="btn">Cancel</span><span class="btn pri">Issue and save…</span></div>
+    </div></div>
+  </div></div>
+  <p class="cap">"Issue and save…" opens the native save dialog. The new certificate then appears in the list with "never" as last seen until the device connects.</p>
+  <!-- 16 Settings -->
+  <div class="shot-head" id="s16"><h3>16 · Settings, appearance and language</h3><span class="muted small">Short on purpose</span></div>
+  <div class="shotwrap"><div class="app" style="height:560px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="settings"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 200px 1fr">
+        <div class="pane side"><div class="pc"><div class="list"><div class="card on"><div class="t">Appearance</div></div><div class="card"><div class="t">Language</div></div><div class="card"><div class="t">Data and memory</div></div><div class="card"><div class="t">Security</div></div><div class="card"><div class="t">Updates</div></div><div class="card"><div class="t">Shortcuts</div></div><div class="card"><div class="t">Privacy</div></div><div class="card"><div class="t">About and licences</div></div></div></div></div>
+        <div class="pane"><div class="ph"><h5>Appearance</h5></div><div class="pc"><div class="form">
+          <div class="f"><label>Theme</label><span class="seg"><span class="on">System</span><span>Light</span><span>Dark</span></span></div>
+          <div class="f"><label>Accent</label><span class="row2"><span class="seg"><span class="on">Sage</span><span>Slate</span><span>Clay</span></span><span class="muted">Only the accent changes.</span></span></div>
+          <div class="f"><label>Density</label><span class="seg"><span class="on">Comfortable</span><span>Compact</span></span></div>
+          <div class="f"><label>Monospace size</label><span class="row2"><span class="input mono" style="width:70px">12 px</span><span class="muted">Topics, payloads and the log.</span></span></div>
+          <div class="f"><label>Values in tree</label><span class="row2"><span class="sw on"></span><span class="muted">Last value and sparkline per row.</span></span></div>
+          <div class="f"><label>Motion</label><span class="row2"><span class="sw on"></span><span class="muted">Follows the system setting.</span></span></div></div>
+          <div class="sec" style="margin-top:20px">Language</div>
+          <div class="form" style="margin-top:8px"><div class="f"><label>Interface</label><span class="row2"><span class="seg"><span class="on">System</span><span>English</span><span>Français</span><span>Deutsch</span></span><span class="muted">Protocol words stay in English.</span></span></div></div>
+        </div></div>
+      </div></div>
+    </div>
+  </div></div>
+
+  <!-- 17 Data and privacy -->
+  <div class="shot-head" id="s17"><h3>17 · Settings, data, security, updates and privacy</h3><span class="muted small">Memory budget, lab-only toggle, update feed, the privacy statement</span></div>
+  <div class="shotwrap"><div class="app" style="height:640px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · skip-verify ON" data-dot="warn"></div>
+    <div class="body"><nav class="rail" data-on="settings"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 200px 1fr">
+        <div class="pane side"><div class="pc"><div class="list"><div class="card"><div class="t">Appearance</div></div><div class="card"><div class="t">Language</div></div><div class="card on"><div class="t">Data and memory</div></div><div class="card on"><div class="t">Security</div></div><div class="card on"><div class="t">Updates</div></div><div class="card"><div class="t">Shortcuts</div></div><div class="card on"><div class="t">Privacy</div></div><div class="card"><div class="t">About and licences</div></div></div></div></div>
+        <div class="pane"><div class="ph"><h5>Data and memory</h5></div><div class="pc">
+          <div class="form"><div class="f"><label>Messages per topic</label><span class="row2"><span class="input mono" style="width:80px">200</span><span class="muted">10 to 10 000</span></span></div><div class="f"><label>Points per series</label><span class="row2"><span class="input mono" style="width:80px">5 000</span></span></div><div class="f"><label>Memory budget</label><span class="row2"><span class="input mono" style="width:90px">256 MB</span><span class="muted">12.4 MB in use. Oldest dropped first.</span></span></div><div class="f"><label>Payload render limit</label><span class="row2"><span class="input mono" style="width:90px">256 KB</span><span class="muted">Larger payloads show a raw view.</span></span></div><div class="f"><label>History on disk</label><span class="row2"><span class="chip">Never</span><span class="muted">Export to keep history.</span></span></div><div class="f"><label></label><span class="btn danger">Clear all history…</span></div></div>
+          <div class="sec" style="margin-top:20px">Security</div>
+          <div class="form" style="margin-top:8px"><div class="f"><label>Skip verification <span class="chip">ⓘ</span></label><span class="row2"><span class="sw on"></span><span class="small" style="color:var(--clay)">Lab only. Accepts any certificate until next launch.</span></span></div><div class="f"><label>Trusted fingerprints</label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">Lab Mosquitto · 3F:9A:…:C1 ✕</span><span class="chip mono">Roof gateway · B2:07:…:4E ✕</span></span></div></div>
+          <div class="sec" style="margin-top:20px">Updates</div>
+          <div class="form" style="margin-top:8px"><div class="f"><label>Check automatically</label><span class="row2"><span class="sw on"></span><span class="muted">Daily, from the GitHub release feed.</span></span></div><div class="f"><label>Channel</label><span class="seg"><span class="on">Stable</span><span>Beta</span></span></div><div class="f"><label>Current</label><span class="row2"><span class="muted">1.0.0-beta.3 (unsigned beta build)</span><span class="btn sm">Check now</span></span></div></div>
+          <div class="sec" style="margin-top:20px">Privacy</div>
+          <p class="small muted" style="margin-top:6px;max-width:none">MQTT Panel collects nothing. There is no telemetry, no crash reporting and no account. The app connects only to the brokers you configure and, if enabled above, to the release feed. Passwords, keys and passphrases are stored in the system keychain.</p>
+        </div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">The lab-only skip-verification toggle is shown on here to demonstrate the warning in the title bar pill; it is off by default and resets at launch.</p>
+
+  <!-- 18 Command palette + shortcuts -->
+  <div class="shot-head" id="s18"><h3>18 · Command palette over the Explorer</h3><span class="muted small">Keyboard-first: every action reachable without the mouse</span></div>
+  <div class="shotwrap"><div class="app" style="height:560px">
+    <div class="tb" data-conn="Plant broker · 1 284 topics · 312 msg/s · MQTT 5" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="explore"></nav>
+      <div class="main"><div class="pane"><div class="ph"><div class="search">building/+/+/temp<span style="flex:1"></span><span class="kbd">/</span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n"><span class="k"><span class="tw">▾</span>building <span class="cnt">1 102</span></span><span class="v"><span class="act"></span>188 msg/s</span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f1 <span class="cnt">320</span></span><span class="v"><span class="act"></span>61 msg/s</span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f2 <span class="cnt">296</span></span><span class="v"><span class="act"></span>58 msg/s</span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f3 <span class="cnt">302</span></span><span class="v"><span class="act"></span>55 msg/s</span></div></div></div></div>
+    </div>
+    <div class="palette"><div class="in"><span class="muted">›</span>pub<span style="opacity:.5">|</span><span style="flex:1"></span><span class="kbd">esc</span></div>
+      <div class="row on"><span>Publish to building/f2/r204/setpoint</span><span>⇧P</span></div>
+      <div class="row"><span>Open Publish</span><span>⌘3</span></div>
+      <div class="row"><span>Pause follow</span><span>space</span></div>
+      <div class="row"><span>Pin building/f2/r204/setpoint</span><span>P</span></div>
+      <div class="row"><span>Switch connection: Local broker</span><span>⌘⇧L</span></div>
+      <div class="row"><span>Export subtree…</span><span>⌘E</span></div>
+      <div class="row"><span>Next changed topic</span><span>J</span></div>
+    </div>
+  </div></div>
+  <p class="cap">The palette lists commands, topics and connections together. Shortcuts follow the platform (⌘ on macOS, Ctrl elsewhere) and are listed under Settings › Shortcuts.</p>
+
+  <!-- 19 French -->
+  <div class="shot-head" id="s19"><h3>19 · Connections in French</h3><span class="muted small">« vous », French typography, protocol terms kept in English</span></div>
+  <div class="shotwrap"><div class="app" style="height:600px" lang="fr">
+    <div class="tb" data-conn="Non connecté" data-dot="off"></div>
+    <div class="body"><nav class="rail" data-on="connect" data-lang="fr"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 320px 1fr">
+        <div class="pane side"><div class="ph"><h5>Connexions</h5><span class="btn pri sm">+ Nouvelle</span></div><div class="pc"><div class="search" style="margin-bottom:10px">Rechercher un profil<span style="flex:1"></span><span class="kbd">⌘K</span></div><div class="list"><div class="card on"><div class="t">Broker usine <span class="chip on">TLS · mTLS</span></div><div class="s"><span class="mono">mqtts://broker.plant.example:8883</span></div><div class="s">MQTT 5 · 3 abonnements · utilisé aujourd’hui</div></div><div class="card"><div class="t">Broker local <span class="chip on">TLS</span></div><div class="s"><span class="mono">mqtts://localhost:8883</span></div><div class="s">Intégré · MQTT 5 · utilisé aujourd’hui</div></div></div><div class="sec" style="margin-top:16px">Importer</div><div class="s muted small" style="margin-top:4px">Déposez un fichier ici, ou Importer depuis d’autres outils…</div></div></div>
+        <div class="pane"><div class="ph"><h5>Broker usine</h5><div style="display:flex;gap:8px"><span class="btn">Dupliquer</span><span class="btn">Tester la connexion</span><span class="btn pri">Se connecter</span></div></div>
+          <div class="pc"><div class="form">
+            <div class="sec">Général</div>
+            <div class="f"><label>Nom</label><span class="input">Broker usine</span></div>
+            <div class="f"><label>Cible <span class="chip">ⓘ</span></label><span class="seg"><span class="on">Autre broker</span><span>Broker de l’app</span></span></div>
+            <div class="f"><label>Hôte et port</label><span class="row2"><span class="input mono" style="flex:1">broker.plant.example</span><span class="input mono" style="width:80px">8883</span></span></div>
+            <div class="f"><label>Transport</label><span class="row2"><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span><span class="seg"><span>3.1.1</span><span class="on">5</span><span>auto</span></span></span></div>
+            <div class="f"><label>Mot de passe</label><span class="row2"><span class="input" style="flex:1">••••••••••••</span><span class="chip on">Trousseau</span></span></div>
+            <div class="sec">Sécurité</div>
+            <div class="f"><label>Vérifier le serveur <span class="chip">ⓘ</span></label><span class="row2"><span class="sw on"></span><span class="muted">Racines du système et autorité ci-dessous.</span></span></div>
+            <div class="f"><label>Autorité (CA) <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">plant-root-ca.pem</span><span class="btn sm">Parcourir…</span><span class="chip on">jusqu’en 2031-03</span></span></div>
+            <div class="f"><label>Certificat client <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">commissioning-laptop.pem</span><span class="btn sm">Parcourir…</span></span></div>
+            <div class="f"><label>Clé client <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">commissioning-laptop.key</span><span class="btn sm">Parcourir…</span><span class="chip on">Trousseau</span></span></div>
+            <div class="callout" style="padding:6px 12px;margin-top:0"><p class="small" style="margin:0"><strong>Certificat d’autorité.</strong> Le certificat de l’autorité qui a signé celui du broker. Nécessaire quand le broker utilise un certificat privé ou auto-signé ; laissez vide pour un broker avec un certificat public. Choisissez le fichier avec Parcourir ou déposez-le sur le champ.</p></div>
+            <div class="sec">Abonnements</div>
+            <div class="f"><label>Filtres <span class="chip">ⓘ</span></label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">building/# · QoS 1 ✕</span><span class="btn sm">+ Ajouter</span></span></div>
+          </div>
+          <div class="callout" style="margin-top:16px"><div class="eyebrow">Dernier test · il y a 2 min</div><p class="small">Connecté en 84 ms. Certificat du serveur CN=broker.plant.example, émis par Plant Root CA, valable jusqu’au 30 juin 2027. Version négociée : MQTT 5.</p></div>
+        </div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">French uses « vous », non-breaking spaces before « : » and « ; », and keeps QoS, retain, topic, broker in English. A native reader reviews every string before release.</p>
+
+  <!-- 20 German -->
+  <div class="shot-head" id="s20"><h3>20 · Settings in German</h3><span class="muted small">„du“ everywhere, longest strings used for layout checks</span></div>
+  <div class="shotwrap"><div class="app" style="height:520px" lang="de">
+    <div class="tb" data-conn="Plant broker · 1 284 Topics" data-dot="on"></div>
+    <div class="body"><nav class="rail" data-on="settings" data-lang="de"></nav>
+      <div class="main"><div class="cols" style="grid-template-columns: 220px 1fr">
+        <div class="pane side"><div class="pc"><div class="list"><div class="card on"><div class="t">Darstellung</div></div><div class="card"><div class="t">Sprache</div></div><div class="card"><div class="t">Daten und Speicher</div></div><div class="card"><div class="t">Sicherheit</div></div><div class="card"><div class="t">Updates</div></div><div class="card"><div class="t">Tastenkürzel</div></div><div class="card"><div class="t">Datenschutz</div></div><div class="card"><div class="t">Info und Lizenzen</div></div></div></div></div>
+        <div class="pane"><div class="ph"><h5>Darstellung</h5></div><div class="pc"><div class="form">
+          <div class="f"><label>Design</label><span class="seg"><span class="on">System</span><span>Hell</span><span>Dunkel</span></span></div>
+          <div class="f"><label>Akzentfarbe</label><span class="row2"><span class="seg"><span class="on">Salbei</span><span>Schiefer</span><span>Ton</span></span><span class="muted">Nur die Akzentfarbe ändert sich.</span></span></div>
+          <div class="f"><label>Dichte</label><span class="seg"><span class="on">Bequem</span><span>Kompakt</span></span></div>
+          <div class="f"><label>Werte im Baum</label><span class="row2"><span class="sw on"></span><span class="muted">Zeigt den letzten Wert und eine Verlaufslinie in jeder Zeile.</span></span></div>
+          <div class="f"><label>Bewegung</label><span class="row2"><span class="sw on"></span><span class="muted">Folgt deiner Systemeinstellung „Bewegung reduzieren“.</span></span></div></div>
+          <div class="sec" style="margin-top:20px">Datenschutz</div>
+          <p class="small muted" style="margin-top:6px;max-width:none">MQTT Panel sammelt nichts. Keine Telemetrie, keine Absturzberichte, kein Konto. Die App verbindet sich nur mit den Brokern, die du einrichtest, und auf Wunsch mit dem Update-Feed. Passwörter und Schlüssel liegen im Schlüsselbund deines Systems.</p>
+        </div></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="cap">German addresses the user as „du“. The German catalog is the longest, so it is the one used in visual regression tests for overflow.</p>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var icons = {
+    connect: '<path d="M6 8v4a6 6 0 0 0 12 0V8"/><path d="M9 3v5M15 3v5M12 18v3"/>',
+    explore: '<path d="M4 6h16M8 12h12M12 18h8"/>',
+    publish: '<path d="M4 12l16-8-6 16-2-7z"/>',
+    charts: '<path d="M3 20h18M5 16l4-6 4 3 6-8"/>',
+    broker: '<rect x="4" y="4" width="16" height="7" rx="1.5"/><rect x="4" y="13" width="16" height="7" rx="1.5"/><path d="M8 7.5h.01M8 16.5h.01"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'
+  };
+  var labels = {
+    en: { connect: 'Connect', explore: 'Explore', publish: 'Publish', charts: 'Charts', broker: 'Broker', settings: 'Settings' },
+    fr: { connect: 'Connexion', explore: 'Explorer', publish: 'Publier', charts: 'Courbes', broker: 'Broker', settings: 'Réglages' },
+    de: { connect: 'Verbinden', explore: 'Erkunden', publish: 'Senden', charts: 'Kurven', broker: 'Broker', settings: 'Einstellungen' }
+  };
+  document.querySelectorAll('nav.rail').forEach(function (nav) {
+    var on = nav.getAttribute('data-on'), lang = nav.getAttribute('data-lang') || 'en', html = '';
+    ['connect', 'explore', 'publish', 'charts', 'broker'].forEach(function (k) {
+      html += '<a' + (k === on ? ' class="on"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[k] + '</svg>' + labels[lang][k] + '</a>';
+    });
+    html += '<span class="sp"></span><a' + (on === 'settings' ? ' class="on"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + icons.settings + '</svg>' + labels[lang].settings + '</a>';
+    nav.innerHTML = html;
+  });
+  document.querySelectorAll('.tb').forEach(function (tb) {
+    var conn = tb.getAttribute('data-conn'), dot = tb.getAttribute('data-dot') || 'on';
+    tb.innerHTML = '<span class="name">MQTT Panel</span><span class="conn"><span class="dot' + (dot === 'on' ? '' : ' ' + dot) + '"></span>' + conn + '</span><span class="mark"><svg viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true"><use href="#mark"/></svg></span>';
+  });
+  document.querySelectorAll('[data-theme-choice]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-theme-choice');
+      if (v === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', v);
+      document.querySelectorAll('[data-theme-choice]').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      try { localStorage.setItem('mqttpanel-mock-theme', v); } catch (e) {}
+    });
+  });
+  document.querySelectorAll('[data-accent]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-accent');
+      if (v === 'sage') root.removeAttribute('data-accent'); else root.setAttribute('data-accent', v);
+      document.querySelectorAll('[data-accent]').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+    });
+  });
+  try {
+    var saved = localStorage.getItem('mqttpanel-mock-theme');
+    if (saved && saved !== 'system') { root.setAttribute('data-theme', saved); document.querySelectorAll('[data-theme-choice]').forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-theme-choice') === saved ? 'true' : 'false'); }); }
+  } catch (e) {}
+})();
+</script>
