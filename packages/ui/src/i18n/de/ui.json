@@ -850,7 +850,7 @@
  "nativeMenu.closeWindow": "Fenster schließen",
  "nativeMenu.edit": "Bearbeiten",
  "nativeMenu.undo": "Widerrufen",
- "nativeMenu.redo": "Erneut ausführen",
+ "nativeMenu.redo": "Wiederholen",
  "nativeMenu.cut": "Ausschneiden",
  "nativeMenu.copy": "Kopieren",
  "nativeMenu.paste": "Einsetzen",
