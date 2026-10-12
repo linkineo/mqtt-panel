@@ -174,6 +174,26 @@ test.describe('Charts', () => {
     }
   });
 
+  test('D-19 hover readout lists every series at the same time', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
+    await page.click('[data-testid=tab-chart]');
+    await page.click('[data-testid=add-field]');
+    await page.click('[data-testid="picker-check-supply.temp"]');
+    await page.click('[data-testid="picker-check-alarm.active"]');
+    await page.click('[data-testid=picker-add]');
+    await page.click('[data-testid=rail-charts]');
+    await page.waitForSelector('[data-testid=series-card]');
+    const plot = page.locator('[data-testid=chart-pane] .u-over').first();
+    const box = (await plot.boundingBox())!;
+    await page.mouse.move(box.x + box.width - 6, box.y + box.height / 2);
+    const readout = page.locator('[data-testid=chart-readout]');
+    await expect(readout).toBeVisible();
+    await expect(readout).toContainText('supply.temp');
+    await expect(readout).toContainText(/alarm\.active/);
+    await expect(readout).toContainText(/\((true|false)\)/);
+  });
+
   test('D-20 pause freezes the chart and resume continues', async ({ page }) => {
     await chartWithSeries(page);
     const btn = page.locator('[data-testid=chart-pause]');

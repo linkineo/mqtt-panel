@@ -2,10 +2,11 @@
 
 How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules.
 
-## Status (12 Oct 2026)
-- Specification phase complete for v1.0: `docs/SPEC.md`, `docs/FEATURES.md`, `docs/DECISIONS.md`.
-- Mockups validated by the owner on 12 Oct 2026 and committed as `docs/mockups/mqtt-panel-mockups.html` (22 screens, 1280×700, light and dark, three accents). Implementation may start.
-- No code yet. The repository layout in `docs/SPEC.md` section 3 is the target.
+## Status (13 Oct 2026)
+- Phases 1 to 4 implemented and tested on macOS: engine, TLS kit, client, profiles with keychain, embedded broker, CLI, Tauri shell, and the full React UI for every mockup screen. Details, test counts, the native-feel checklist and the phase 5 task list are in `docs/PROGRESS.md`.
+- Tests: Rust 181 passed (4 opt-in ignored), Vitest 34, Playwright 159 (V-02 overflow check in EN, FR, DE; screenshots light and dark; end-to-end flows with the mock engine). All green.
+- Next: phase 5 (native FR and DE review, accessibility pass, native-feel walk of the real window on all three OSes, visual regression baselines in CI, installers, auto-update, website).
+- Specification and mockups (12 Oct 2026): `docs/SPEC.md`, `docs/FEATURES.md`, `docs/DECISIONS.md`, `docs/mockups/mqtt-panel-mockups.html` (22 screens). Implementation decisions and the small mockup deviations awaiting the owner are in `docs/DECISIONS.md`.
 
 ## Ground rules for the implementer
 - Build exactly what the specs and the validated mockups describe. If something is missing or contradictory, record the question in `docs/DECISIONS.md` under "Open" and ask; do not invent behaviour.

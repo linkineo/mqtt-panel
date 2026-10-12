@@ -82,6 +82,7 @@
 ## Open
 - Awaiting owner confirmation (per-listener login): (1) a listener's own login is accepted in addition to the shared users list, not instead of it; (2) on a mutual-TLS listener the login is optional and the client certificate stays required. Implemented as stated until the owner says otherwise.
 - Library candidates are verified in the spike (`SPEC.md` section 10).
+- Small layout deviations from the mockups made so French and German fit (listed under "13 Oct 2026, phases 2 to 4 UI" below): the "unencrypted" chip sits next to the listener kind instead of next to the Network/Localhost switch; the broker uptime sits on the Status tile's label line; the series unit hint is an ⓘ bubble. Awaiting owner confirmation; easy to revert.
 
 ## Implementation decisions
 
@@ -108,3 +109,16 @@ Log of decisions taken by the implementing model where the specs leave room. Eac
 - **Diagnostics.** `MQTTPANEL_LOG=1` prints page loads and IPC command names (no payloads) to stderr; `MQTTPANEL_HOME` and `MQTTPANEL_SECRETS=memory` exist for tests.
 - **Contract check.** A Rust test compares every `EngineClient` method in `client.ts` with the registered Tauri command (name and parameter names), so a renamed argument fails CI instead of failing at runtime.
 - **Import formats.** The predecessor tool's settings file (connections under `ConnectionManager_connections`) and MQTTX exports are parsed from their observed public structure; the committed fixtures under `tests/fixtures/import/` are synthetic. Passwords from other tools are never imported; the summary says so. Needs a check against real export files from both tools.
+
+### 13 Oct 2026, phases 2 to 4 UI
+- **V-02 overflow check, stricter than the plan.** Besides each label, button, chip, segment, helper text and table header (one line, not clipped), the check fails when any pane, card, form, dialog or scroll box scrolls sideways, except code and payload views. It runs on all 27 screen states in EN, FR and DE. The first run found real defects (series editor wider than its pane, listener and clients tables wider than their columns, compare row and history tables in the Diff tab, publish composer in French), all fixed.
+- **Fitting French and German.** Where a German or French string did not fit, the layout gives way first (wrapping paragraphs for long explanations, wrap of the publish Options row as in mockup 08, wider fixed table columns, rail padding 6 px); only then the string is shortened (DE "Gesendet · {n} in Sitzung", DE "Entfernen", FR "RSA : appareils anciens."). Native review in phase 5 may reword.
+- **Listener table.** The "unencrypted" chip moved from the Reachable column to the Kind cell so the table fits the pane in French and German; the row menu (⋯) is also opened by right-click on the row, like a native list.
+- **Broker status tile.** The uptime moved to the label line ("Status · 2 h 14 min") because it was clipped next to "Running".
+- **Explorer.** Detail pane 520 px by default as in mockup 06 (mockup 04 draws 440 px); it stays resizable. The table's Value cell reads a small JSON object with "value" (and optional "unit") as "22.4 °C" as in mockup 05; the raw payload is in the tooltip. Pinned chips show above the tree only; the table groups pinned rows at the top instead (FEATURES, mockup 05).
+- **Field picker.** Plottable fields are listed first, text fields greyed at the bottom, as in mockup 10b.
+- **Series editor.** The unit helper text became an ⓘ bubble so the row stays on one line in every language; "or pick from the last message" is a wrapping line above the sample, as in mockup 10.
+- **Native menu bar in the app language.** Labels are `nativeMenu.*` keys in the UI catalogs, embedded by the shell; the UI calls `set_menu_language` at start and on each language change and the shell rebuilds the menu. French and German follow each platform's own menu wording. The usual German label for Redo contains a word blocked by the commit guard, so the menu says "Erneut ausführen".
+- **Increased contrast.** `prefers-contrast: more` darkens secondary text and lines; `forced-colors` uses system colours for borders and focus.
+- **Mock engine in e2e.** In the browser build only (never in the desktop shell) the mock engine and platform are reachable as `window.__mqttpanelMock`, so Playwright flows can inject messages and read the clipboard, saved files and the menu language. The mock records every file it "saves".
+- **Catalog guard in tests.** The catalog test reads the blocked-word patterns from `scripts/check-forbidden-words.sh` and applies them to every EN, FR and DE string, so the list lives in one place. Further catalog tests: French no-break spaces before `: ; ? !` and inside « », and no formal "Sie" in German.
