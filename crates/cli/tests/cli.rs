@@ -990,7 +990,7 @@ fn l05_help_texts() {
     let out = run(c, None, T);
     assert_eq!(
         out.err(),
-        "Option inconnue\u{a0}: --bogus. Lancez mqttpanel sub --help pour voir les options."
+        "Option inconnue\u{202f}: --bogus. Lancez mqttpanel sub --help pour voir les options."
     );
     let mut c = mp(hp);
     c.env("LC_ALL", "de_DE.UTF-8").args(["sub", "--bogus"]);

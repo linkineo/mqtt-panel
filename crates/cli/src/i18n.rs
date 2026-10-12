@@ -78,81 +78,14 @@ pub fn cat(lang: Lang, key: &str, params: &[(&str, serde_json::Value)]) -> Strin
     UserMessage::new(key, params).render(lang)
 }
 
-const NB: &str = "\u{a0}";
-
+/// CLI-only strings live in the shared catalog under "cli.<key>" (packages/ui/src/i18n/<lang>/errors.json).
 fn template(lang: Lang, key: &str) -> String {
-    let (en, fr, de): (&str, String, &str) = match key {
-        "args.unknownOption" => ("Unknown option {arg}.", format!("Option inconnue{NB}: {{arg}}."), "Unbekannte Option {arg}."),
-        "args.unexpected" => ("Unexpected argument {arg}.", format!("Argument inattendu{NB}: {{arg}}."), "Unerwartetes Argument {arg}."),
-        "args.invalidValue" => ("Invalid value {value} for {arg}.", "Valeur {value} non valable pour {arg}.".into(), "Ungültiger Wert {value} für {arg}."),
-        "args.missingValue" => ("{arg} needs a value.", "{arg} attend une valeur.".into(), "{arg} braucht einen Wert."),
-        "args.unknownCommand" => ("Unknown command {arg}.", format!("Commande inconnue{NB}: {{arg}}."), "Unbekannter Befehl {arg}."),
-        "args.noCommand" => (
-            "Choose a command: sub, pub, broker or profiles.",
-            format!("Choisissez une commande{NB}: sub, pub, broker ou profiles."),
-            "Wähle einen Befehl: sub, pub, broker oder profiles.",
-        ),
-        "args.conflict" => ("{arg} cannot be combined with {other}.", "{arg} ne peut pas être combiné avec {other}.".into(), "{arg} lässt sich nicht mit {other} kombinieren."),
-        "args.repeated" => ("{arg} is given more than once.", "{arg} est indiqué plus d’une fois.".into(), "{arg} ist mehrfach angegeben."),
-        "args.invalid" => ("These options are not valid.", "Ces options ne sont pas valables.".into(), "Diese Optionen sind ungültig."),
-        "args.noTopic" => ("Give at least one topic filter with -t.", "Indiquez au moins un filtre de topic avec -t.".into(), "Gib mindestens einen Topic-Filter mit -t an."),
-        "args.noPubTopic" => ("Give the topic with -t.", "Indiquez le topic avec -t.".into(), "Gib das Topic mit -t an."),
-        "args.wildcardTopic" => (
-            "The topic {arg} contains + or #; a message can only be published to a topic without wildcards.",
-            "Le topic {arg} contient + ou #{NB}; on ne publie que sur un topic sans caractères génériques.".replace("{NB}", NB),
-            "Das Topic {arg} enthält + oder #; veröffentlichen geht nur auf ein Topic ohne Platzhalter.",
-        ),
-        "args.onePayload" => (
-            "Use only one of -m, --file, --stdin and --delete-retained.",
-            "Utilisez une seule option parmi -m, --file, --stdin et --delete-retained.".into(),
-            "Nutze nur eine der Optionen -m, --file, --stdin und --delete-retained.",
-        ),
-        "args.repeatStdin" => (
-            "--repeat works with -m or --file, not with --stdin.",
-            "--repeat fonctionne avec -m ou --file, pas avec --stdin.".into(),
-            "--repeat funktioniert mit -m oder --file, nicht mit --stdin.",
-        ),
-        "args.positiveSeconds" => (
-            "{arg} needs a number of seconds greater than 0.",
-            "{arg} attend un nombre de secondes supérieur à 0.".into(),
-            "{arg} braucht eine Anzahl Sekunden größer als 0.",
-        ),
-        "args.keyWithoutCert" => ("--key needs --cert.", "--key nécessite --cert.".into(), "--key braucht --cert."),
-        "args.badBind" => (
-            "Invalid address {arg} for --bind. Use an IP address such as 127.0.0.1.",
-            "Adresse {arg} non valable pour --bind. Indiquez une adresse IP comme 127.0.0.1.".into(),
-            "Ungültige Adresse {arg} für --bind. Gib eine IP-Adresse wie 127.0.0.1 an.",
-        ),
-        "args.badHost" => (
-            "Invalid broker address {arg}. Use a host name, an IP address or a URL such as mqtts://host:8883.",
-            "Adresse de broker {arg} non valable. Indiquez un nom d’hôte, une adresse IP ou une URL comme mqtts://host:8883.".into(),
-            "Ungültige Broker-Adresse {arg}. Gib einen Hostnamen, eine IP-Adresse oder eine URL wie mqtts://host:8883 an.",
-        ),
-        "trust.subject" => ("Subject", "Sujet".into(), "Inhaber"),
-        "trust.issuer" => ("Issuer", "Émetteur".into(), "Aussteller"),
-        "trust.names" => ("Names", "Noms".into(), "Namen"),
-        "trust.valid" => ("Valid", "Validité".into(), "Gültig"),
-        "trust.fingerprint" => ("Fingerprint (SHA-256)", "Empreinte (SHA-256)".into(), "Fingerabdruck (SHA-256)"),
-        "trust.hint" => (
-            "Compare the fingerprint with the one shown on the broker, then run again with --trust-fingerprint {fp}, or with --insecure in a lab.",
-            "Comparez l’empreinte avec celle affichée sur le broker, puis relancez avec --trust-fingerprint {fp}, ou avec --insecure en laboratoire.".into(),
-            "Vergleiche den Fingerabdruck mit dem auf dem Broker, dann starte erneut mit --trust-fingerprint {fp}, oder im Labor mit --insecure.",
-        ),
-        "broker.listening" => ("{kind} listener on {addr}", "Listener {kind} sur {addr}".into(), "{kind}-Listener auf {addr}"),
-        "broker.running" => (
-            "Broker running. Press Ctrl-C to stop it.",
-            "Broker démarré. Appuyez sur Ctrl-C pour l’arrêter.".into(),
-            "Broker läuft. Drücke Ctrl-C, um ihn zu beenden.",
-        ),
-        "broker.stopped" => ("Broker stopped.", "Broker arrêté.".into(), "Broker beendet."),
-        "profiles.none" => ("No saved profiles.", "Aucun profil enregistré.".into(), "Keine gespeicherten Profile."),
-        "profiles.imported" => ("Imported {name}", format!("Importé{NB}: {{name}}"), "Importiert: {name}"),
-        _ => (key, key.to_string(), key),
-    };
-    match lang {
-        Lang::En => en.to_string(),
-        Lang::Fr => fr,
-        Lang::De => de.to_string(),
+    let full = format!("cli.{key}");
+    let text = mqttpanel_client::catalog::render_with(lang, &full, &serde_json::Map::new());
+    if text == full {
+        key.to_string()
+    } else {
+        text
     }
 }
 
@@ -201,7 +134,7 @@ mod tests {
         }
         assert_eq!(
             t(Lang::Fr, "args.unknownOption", &[("arg", "--x")]),
-            "Option inconnue\u{a0}: --x."
+            "Option inconnue\u{202f}: --x."
         );
     }
 }
