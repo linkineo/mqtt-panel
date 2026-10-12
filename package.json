@@ -1,0 +1,18 @@
+{
+  "name": "mqtt-panel",
+  "private": true,
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/engine-client",
+    "packages/ui",
+    "apps/desktop"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @mqttpanel/ui",
+    "build": "npm run build -w @mqttpanel/ui",
+    "test": "npm run test -w @mqttpanel/ui",
+    "e2e": "npm run e2e -w @mqttpanel/ui",
+    "typecheck": "npm run typecheck -w @mqttpanel/ui",
+    "tauri": "npm run tauri -w @mqttpanel/desktop --"
+  }
+}

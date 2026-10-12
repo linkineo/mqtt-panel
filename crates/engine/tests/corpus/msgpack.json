@@ -1,0 +1,14 @@
+[
+  {
+    "t": 1760000000000,
+    "topic": "lab/msgpack/sensor",
+    "payloadB64": "hKR0ZW1wy0AzQAAAAAAAo2ZhbqJvbgOldGhyZWWjYmluxALerQ==",
+    "contentType": "application/msgpack"
+  },
+  {
+    "t": 1760000001000,
+    "topic": "lab/msgpack/sensor",
+    "payloadB64": "hKR0ZW1wy0AzwAAAAAAAo2ZhbqNvZmYDpXRocmVlo2JpbsQCvu8=",
+    "contentType": "application/x-msgpack"
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "t": 1760000000000,
+    "topic": "spBv1.0/plant/NBIRTH/edge1",
+    "payloadB64": "CICAs8GcMxIUCgViZFNlcRAAGICAs8GcMyAIWAASIwoUTm9kZSBDb250cm9sL1JlYmlydGgQARiAgLPBnDMgC3AAEiEKC1RlbXBlcmF0dXJlEAIYgICzwZwzIAppAAAAAACANUASGgoIUHJlc3N1cmUQAxiAgLPBnDMgCWUAAKA/EhoKB0NvdW50ZXIQBBiAgLPBnDMgA1D7////DxIXCgRNb2RlEAUYgICzwZwzIAx6BGF1dG8YAA=="
+  },
+  {
+    "t": 1760000001000,
+    "topic": "spBv1.0/plant/NDATA/edge1",
+    "payloadB64": "COiHs8GcMxISEAIYgICzwZwzaQAAAAAAgDZAEg8QBBiAgLPBnDNQ+f///w8YAQ=="
+  },
+  {
+    "t": 1760000002000,
+    "topic": "spBv1.0/plant/DBIRTH/edge1/pump1",
+    "payloadB64": "CNCPs8GcMxIVCgVTcGVlZBAKGICAs8GcMyACUKoLGAI="
+  },
+  {
+    "t": 1760000003000,
+    "topic": "spBv1.0/plant/DDATA/edge1/pump1",
+    "payloadB64": "CLiXs8GcMxIMEAoYgICzwZwzUNwLGAM="
+  },
+  {
+    "t": 1760000004000,
+    "topic": "spBv1.0/plant/NDATA/edge1",
+    "payloadB64": "CKCfs8GcMxISEAIYgICzwZwzaQAAAAAAADdAGAQ="
+  },
+  {
+    "t": 1760000005000,
+    "topic": "spBv1.0/STATE/scada1",
+    "payload": "{\"online\":true,\"timestamp\":1760000005000}"
+  }
+]

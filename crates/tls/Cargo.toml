@@ -1,0 +1,32 @@
+[package]
+name = "mqttpanel-tls"
+description = "Certificate and key parsing, fingerprints, PKCS#12 and certificate generation for MQTT Panel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+time.workspace = true
+rand.workspace = true
+x509-parser.workspace = true
+rustls-pki-types.workspace = true
+rustls-pemfile.workspace = true
+rcgen.workspace = true
+pkcs8 = { version = "0.10", features = ["encryption", "pem", "std"] }
+p12-keystore = "0.4"
+# RSA key generation only (signing goes through rcgen/ring); ring cannot generate RSA keys.
+rsa = { version = "0.9", features = ["std", "pem"] }
+hostname = "0.4"
+
+[dev-dependencies]
+serde_json.workspace = true
+rustls-pki-types.workspace = true
+x509-parser.workspace = true
+time.workspace = true

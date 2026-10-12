@@ -1,0 +1,94 @@
+import type { EngineClient, Platform, Settings } from '@mqttpanel/engine-client';
+import { setServices, engine } from './services';
+import { initI18n, resolveLang, systemLang, type Lang } from './i18n';
+import { applySettings, useApp, SCREENS, type Screen } from './store/app';
+
+export interface BootOverrides {
+  lang?: Lang;
+  theme?: Settings['theme'];
+  accent?: Settings['accent'];
+  screen?: Screen;
+  connect?: string;
+  motion?: boolean;
+}
+
+/** Reads test and screenshot switches from the URL: ?mock=empty|demo&lang=de&theme=dark&screen=broker&connect=plant */
+export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 'empty' } {
+  const p = new URLSearchParams(search);
+  const lang = p.get('lang');
+  const theme = p.get('theme');
+  const accent = p.get('accent');
+  const screen = p.get('screen');
+  return {
+    mock: p.get('mock') === 'empty' ? 'empty' : 'demo',
+    lang: lang === 'en' || lang === 'fr' || lang === 'de' ? lang : undefined,
+    theme: theme === 'light' || theme === 'dark' || theme === 'system' ? theme : undefined,
+    accent: accent === 'sage' || accent === 'slate' || accent === 'clay' ? accent : undefined,
+    screen: screen && (SCREENS as string[]).includes(screen) ? (screen as Screen) : undefined,
+    connect: p.get('connect') ?? undefined,
+    motion: p.get('motion') === 'off' ? false : undefined,
+  };
+}
+
+/** Chooses the engine: the Tauri adapter inside the desktop shell, the in-memory mock everywhere else. */
+export async function createServices(mock: 'demo' | 'empty', lang: Lang): Promise<{ engine: EngineClient; platform: Platform }> {
+  if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    const m = await import('@mqttpanel/engine-client/tauri');
+    return { engine: m.createTauriEngineClient(), platform: m.createTauriPlatform() };
+  }
+  const m = await import('@mqttpanel/engine-client/mock');
+  return { engine: m.createMockEngineClient({ scenario: mock, lang }), platform: m.createMockPlatform() };
+}
+
+let unsubscribe: (() => void) | null = null;
+
+/** Loads app info, settings, profiles, connections and broker state, and subscribes to engine events. */
+export async function startApp(eng: EngineClient, plat: Platform, o: BootOverrides = {}): Promise<void> {
+  setServices(eng, plat);
+  const [appInfo, settings0] = await Promise.all([eng.appInfo(), eng.getSettings()]);
+  let settings = settings0;
+  const patch: Partial<Settings> = {};
+  if (o.lang) patch.language = o.lang;
+  if (o.theme) patch.theme = o.theme;
+  if (o.accent) patch.accent = o.accent;
+  if (o.motion === false) patch.motion = false;
+  if (Object.keys(patch).length) settings = await eng.saveSettings({ ...settings, ...patch });
+  initI18n(resolveLang(settings.language));
+  useApp.setState({ appInfo, settings });
+  applySettings(settings, appInfo);
+  const [profiles, connections] = await Promise.all([eng.listProfiles(), eng.listConnections()]);
+  let broker = null;
+  let brokerConfig = null;
+  try {
+    [broker, brokerConfig] = await Promise.all([eng.brokerStatus(), eng.brokerConfig()]);
+  } catch {
+    /* broker not available */
+  }
+  const open = connections.filter((c) => c.state !== 'disconnected');
+  useApp.setState({
+    profiles,
+    connections,
+    activeConnId: open[0]?.id ?? null,
+    broker,
+    brokerConfig,
+    selectedProfileId: profiles[0]?.id ?? null,
+    screen: o.screen ?? 'connect',
+  });
+  unsubscribe?.();
+  unsubscribe = eng.onEvent((e) => useApp.getState().handleEvent(e));
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    mq.addEventListener?.('change', () => applySettings(useApp.getState().settings, useApp.getState().appInfo));
+  }
+  if (o.connect) {
+    const out = await engine().connectProfile(o.connect);
+    if (out.kind === 'connected') {
+      useApp.setState({ activeConnId: o.connect, connections: await engine().listConnections(), profiles: await engine().listProfiles() });
+    }
+  }
+  useApp.setState({ ready: true });
+}
+
+export function defaultLang(o: BootOverrides): Lang {
+  return o.lang ?? systemLang();
+}

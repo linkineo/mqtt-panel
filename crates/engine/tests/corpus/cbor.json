@@ -1,0 +1,20 @@
+[
+  {
+    "t": 1760000000000,
+    "topic": "lab/cbor/sensor",
+    "payloadB64": "pWR0ZW1w+U1gYm9r9WNyYXdDAQIDB2VzZXZlbmRsaXN0ggEh",
+    "contentType": "application/cbor"
+  },
+  {
+    "t": 1760000001000,
+    "topic": "lab/cbor/sensor",
+    "payloadB64": "pWR0ZW1w+U2AYm9r9GNyYXdBBAdlc2V2ZW5kbGlzdIEB",
+    "contentType": "application/cbor"
+  },
+  {
+    "t": 1760000005000,
+    "topic": "lab/cbor/broken",
+    "payloadB64": "v2E=",
+    "contentType": "application/cbor"
+  }
+]

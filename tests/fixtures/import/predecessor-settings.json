@@ -1,0 +1,29 @@
+{
+  "ConnectionManager_connections": {
+    "conn-1": {
+      "id": "conn-1",
+      "name": "Plant broker",
+      "host": "broker.plant.example",
+      "port": 8883,
+      "protocol": "mqtt",
+      "encryption": true,
+      "certValidation": true,
+      "clientId": "commissioning-laptop",
+      "username": "commissioning",
+      "password": "example-only",
+      "subscriptions": [{ "topic": "building/#", "qos": 1 }, { "topic": "$SYS/#", "qos": 0 }]
+    },
+    "conn-2": {
+      "id": "conn-2",
+      "name": "Dashboard WS",
+      "host": "10.20.4.17",
+      "port": 8083,
+      "protocol": "ws",
+      "basePath": "mqtt",
+      "encryption": false,
+      "subscriptions": ["#"]
+    },
+    "conn-3": { "id": "conn-3", "name": "Broken entry" }
+  },
+  "Settings_theme": "dark"
+}

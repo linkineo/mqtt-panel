@@ -1,0 +1,29 @@
+[package]
+name = "mqttpanel-client"
+description = "MQTT 3.1.1 and 5 client for MQTT Panel: TCP, TLS, WebSocket, plain-word errors"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+rustls.workspace = true
+rustls-pki-types.workspace = true
+time.workspace = true
+mqttpanel-tls.workspace = true
+bytes = "1"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "logging", "tls12"] }
+rustls-native-certs = "0.8"
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake", "connect"] }
+# Only the packet codec (mqttbytes v4 and v5) is used; the transport and session are ours.
+rumqttc = { version = "0.25", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"

@@ -34,3 +34,14 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# UI test artefacts
+packages/ui/e2e/screenshots/
+packages/ui/test-results/
+packages/ui/playwright-report/
+
+# Generated
+**/src-tauri/gen/schemas/
+packages/ui/e2e/screenshots/
+packages/ui/test-results/
+packages/ui/playwright-report/

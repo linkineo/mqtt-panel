@@ -1,0 +1,47 @@
+{
+  "files": [
+    {
+      "name": "plant/common.proto",
+      "content": "syntax = \"proto3\";\npackage plant;\n\nmessage Location {\n  string site = 1;\n  string line = 2;\n}\n\nenum Unit {\n  UNIT_UNSPECIFIED = 0;\n  CELSIUS = 1;\n  BAR = 2;\n}\n"
+    },
+    {
+      "name": "plant/telemetry.proto",
+      "content": "syntax = \"proto3\";\npackage plant;\n\nimport \"plant/common.proto\";\n\nmessage Telemetry {\n  string device = 1;\n  Location location = 2;\n  double temperature = 3;\n  Unit unit = 4;\n  int64 counter = 5;\n  bool running = 6;\n}\n\nmessage Alarm {\n  string device = 1;\n  int32 code = 2;\n  string text = 3;\n}\n"
+    }
+  ],
+  "assignments": [
+    {
+      "fileName": "plant/telemetry.proto",
+      "topicFilter": "plant/+/telemetry",
+      "messageType": "plant.Telemetry"
+    },
+    {
+      "fileName": "plant/telemetry.proto",
+      "topicFilter": "plant/+/alarm",
+      "messageType": "plant.Alarm"
+    }
+  ],
+  "events": [
+    {
+      "t": 1760000000000,
+      "topic": "plant/line1/telemetry",
+      "payloadB64": "CgJtMRIKCgVub3J0aBIBMRkAAAAAAMBOQCABKCowAQ=="
+    },
+    {
+      "t": 1760000001000,
+      "topic": "plant/line1/telemetry",
+      "payloadB64": "CgJtMRIKCgVub3J0aBIBMRkAAAAAAABPQCABKCswAQ=="
+    },
+    {
+      "t": 1760000002000,
+      "topic": "plant/line1/alarm",
+      "payloadB64": "CgJtMRAHGghvdmVyaGVhdA=="
+    },
+    {
+      "t": 1760000003000,
+      "topic": "plant/line2/telemetry",
+      "payloadB64": "CgJtMhoVd3JvbmcgdHlwZSBvbiBwdXJwb3Nl",
+      "expectError": "Cannot decode as Protobuf plant.Telemetry: field 3 wire type mismatch"
+    }
+  ]
+}

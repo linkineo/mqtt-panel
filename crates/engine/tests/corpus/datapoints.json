@@ -1,0 +1,342 @@
+[
+ {
+  "t": 1760000000000,
+  "topic": "d01/ints",
+  "payload": "{\"v\":0}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d01/ints",
+  "payload": "{\"v\":1}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d01/ints",
+  "payload": "{\"v\":-5}"
+ },
+ {
+  "t": 1760000003000,
+  "topic": "d01/ints",
+  "payload": "{\"v\":4294967296}"
+ },
+ {
+  "t": 1760000004000,
+  "topic": "d01/ints",
+  "payload": "{\"v\":9007199254740993}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d02/floats",
+  "payload": "{\"v\":21.5}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d02/floats",
+  "payload": "{\"v\":-0.0}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d02/floats",
+  "payload": "{\"v\":1e-7}"
+ },
+ {
+  "t": 1760000003000,
+  "topic": "d02/floats",
+  "payload": "{\"v\":1.5e300}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d03/strings",
+  "payload": "{\"v\":\"21.5\"}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d03/strings",
+  "payload": "{\"v\":\" 21.5 \"}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d03/strings",
+  "payload": "{\"v\":\"21,5\"}"
+ },
+ {
+  "t": 1760000003000,
+  "topic": "d03/strings",
+  "payload": "{\"v\":\"1e3\"}"
+ },
+ {
+  "t": 1760000004000,
+  "topic": "d03/strings",
+  "payload": "{\"v\":\"0x1A\"}"
+ },
+ {
+  "t": 1760000005000,
+  "topic": "d03/strings",
+  "payload": "{\"v\":\"21.5°C\"}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d04/bools",
+  "payload": "{\"v\":true}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d04/bools",
+  "payload": "{\"v\":false}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d04/bools",
+  "payload": "{\"v\":true}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"true\"}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"False\"}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"T\"}"
+ },
+ {
+  "t": 1760000003000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"f\"}"
+ },
+ {
+  "t": 1760000004000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"ON\"}"
+ },
+ {
+  "t": 1760000005000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"off\"}"
+ },
+ {
+  "t": 1760000006000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"Yes\"}"
+ },
+ {
+  "t": 1760000007000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"no\"}"
+ },
+ {
+  "t": 1760000008000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"1\"}"
+ },
+ {
+  "t": 1760000009000,
+  "topic": "d05/boollike",
+  "payload": "{\"v\":\"0\"}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d06/mixed",
+  "payload": "{\"v\":21.5}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d06/mixed",
+  "payload": "{\"v\":\"22\"}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d06/mixed",
+  "payload": "{\"v\":true}"
+ },
+ {
+  "t": 1760000003000,
+  "topic": "d06/mixed",
+  "payload": "{\"v\":\"n/a\"}"
+ },
+ {
+  "t": 1760000004000,
+  "topic": "d06/mixed",
+  "payload": "{\"v\":null}"
+ },
+ {
+  "t": 1760000005000,
+  "topic": "d06/mixed",
+  "payload": "{\"v\":{}}"
+ },
+ {
+  "t": 1760000006000,
+  "topic": "d06/mixed",
+  "payload": "{\"v\":[1,2]}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d07/nested",
+  "payload": "{\"supply\":{\"temp\":20.5},\"readings\":[{\"v\":1},{\"v\":2},{\"v\":3}]}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d07/nested",
+  "payload": "{\"supply\":{\"temp\":21.0},\"readings\":[{\"v\":4},{\"v\":5}]}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d07/nested",
+  "payload": "{\"supply\":{\"temp\":21.5},\"readings\":[{\"v\":6},{\"v\":7},{\"v\":8}]}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d08/absent",
+  "payload": "{\"v\":1}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d08/absent",
+  "payload": "{\"v\":2}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d08/absent",
+  "payload": "{\"v\":3}"
+ },
+ {
+  "t": 1760000003000,
+  "topic": "d08/absent",
+  "payload": "{\"v\":4}"
+ },
+ {
+  "t": 1760000004000,
+  "topic": "d08/absent",
+  "payload": "{\"other\":0}"
+ },
+ {
+  "t": 1760000005000,
+  "topic": "d08/absent",
+  "payload": "{\"other\":1}"
+ },
+ {
+  "t": 1760000006000,
+  "topic": "d08/absent",
+  "payload": "{\"other\":2}"
+ },
+ {
+  "t": 1760000007000,
+  "topic": "d08/absent",
+  "payload": "{\"other\":3}"
+ },
+ {
+  "t": 1760000008000,
+  "topic": "d08/absent",
+  "payload": "{\"other\":4}"
+ },
+ {
+  "t": 1760000009000,
+  "topic": "d08/absent",
+  "payload": "{\"other\":5}"
+ },
+ {
+  "t": 1760000010000,
+  "topic": "d08/absent",
+  "payload": "{\"v\":5}"
+ },
+ {
+  "t": 1760000011000,
+  "topic": "d08/absent",
+  "payload": "{\"v\":6}"
+ },
+ {
+  "t": 1760000012000,
+  "topic": "d08/absent",
+  "payload": "{\"v\":7}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d09/raw",
+  "payload": "23"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d09/raw",
+  "payload": "24.5"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d09/raw",
+  "payload": " 25 "
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d10/nan",
+  "payload": "{\"v\":1}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d10/nan",
+  "payload": "{\"v\":\"NaN\"}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d10/nan",
+  "payload": "{\"v\":\"Infinity\"}"
+ },
+ {
+  "t": 1760000003000,
+  "topic": "d10/nan",
+  "payload": "NaN"
+ },
+ {
+  "t": 1760000004000,
+  "topic": "d10/nan",
+  "payload": "{\"v\": NaN}"
+ },
+ {
+  "t": 1760000005000,
+  "topic": "d10/nan",
+  "payload": "Infinity"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d11/ts",
+  "payload": "{\"v\":1,\"ts\":\"2020-01-01T00:00:00Z\"}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d11/ts",
+  "payload": "{\"v\":2,\"ts\":\"2020-01-01T00:00:01Z\"}"
+ },
+ {
+  "t": 1760000000000,
+  "topic": "d13/two",
+  "payload": "{\"a\":1,\"b\":\"x\"}"
+ },
+ {
+  "t": 1760000001000,
+  "topic": "d13/two",
+  "payload": "{\"a\":\"2\",\"b\":true}"
+ },
+ {
+  "t": 1760000002000,
+  "topic": "d13/two",
+  "payload": "{\"a\":3,\"b\":\"off\"}"
+ },
+ {
+  "t": 1760000005000,
+  "topic": "d14/order",
+  "payload": "{\"v\":1}"
+ },
+ {
+  "t": 1760000003000,
+  "topic": "d14/order",
+  "payload": "{\"v\":2}"
+ },
+ {
+  "t": 1760000004000,
+  "topic": "d14/order",
+  "payload": "{\"v\":3}"
+ }
+]

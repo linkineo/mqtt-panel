@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/engine",
+  "crates/tls",
+  "crates/client",
+  "crates/broker",
+  "crates/profiles",
+  "crates/cli",
+  "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["mqtt-panel.com"]
+rust-version = "1.85"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+base64 = "0.22"
+hex = "0.4"
+sha2 = "0.10"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-pemfile = "2"
+rustls-pki-types = "1"
+webpki-roots = "1"
+rcgen = { version = "0.14", features = ["pem", "x509-parser", "crypto", "ring"], default-features = false }
+x509-parser = "0.18"
+time = "0.3"
+rand = "0.9"
+uuid = { version = "1", features = ["v4"] }
+mqttpanel-engine = { path = "crates/engine" }
+mqttpanel-tls = { path = "crates/tls" }
+mqttpanel-client = { path = "crates/client" }
+mqttpanel-broker = { path = "crates/broker" }
+mqttpanel-profiles = { path = "crates/profiles" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+
+[profile.dev.package."*"]
+opt-level = 1

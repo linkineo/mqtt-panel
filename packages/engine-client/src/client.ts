@@ -1,0 +1,211 @@
+import type {
+  AddListenerRequest,
+  AppInfo,
+  BrokerCerts,
+  BrokerClient,
+  BrokerConfig,
+  BrokerStatus,
+  ChartSeriesRef,
+  ConnectOutcome,
+  ConnectionStatus,
+  DiffResult,
+  EngineEvent,
+  ExportEstimate,
+  ExportOptions,
+  FileInspection,
+  FileKind,
+  HistoryEntry,
+  ImportSummary,
+  IssueCertRequest,
+  IssuedCert,
+  Listener,
+  LogLine,
+  MemoryEstimate,
+  MessageView,
+  PayloadFormat,
+  Profile,
+  PublishRequest,
+  SaveOutcome,
+  SentEntry,
+  SeriesData,
+  Settings,
+  TableQuery,
+  TableSlice,
+  Template,
+  TestOutcome,
+  TopicDetail,
+  TreeQuery,
+  TreeSlice,
+  UserMessage,
+} from './types';
+
+/**
+ * The only way the UI talks to the engine, the MQTT client, the broker and the OS.
+ * Implementations: TauriEngineClient (desktop, `tauri.ts`) and MockEngineClient (tests and browser dev, `mock.ts`).
+ *
+ * Rule: every method maps 1:1 to a Tauri command named in snake_case (connectProfile -> connect_profile), with the
+ * arguments passed as an object whose keys are the parameter names below.
+ */
+export interface EngineClient {
+  // app and settings
+  appInfo(): Promise<AppInfo>;
+  getSettings(): Promise<Settings>;
+  saveSettings(settings: Settings): Promise<Settings>;
+
+  // profiles (C1, C4)
+  listProfiles(): Promise<Profile[]>;
+  /** Returns a new unsaved profile with defaults (subscriptions ["#", QoS 0], random client id). */
+  newProfile(): Promise<Profile>;
+  /** Creates or updates. Secrets are not part of Profile; use setPassword. */
+  saveProfile(profile: Profile): Promise<Profile>;
+  deleteProfile(profileId: string): Promise<void>;
+  duplicateProfile(profileId: string): Promise<Profile>;
+  reorderProfiles(ids: string[]): Promise<void>;
+  /** Stores the password in the OS keychain; empty string removes it. */
+  setPassword(profileId: string, password: string): Promise<Profile>;
+  /** Opens the native file dialog and imports profiles from the predecessor tool or MQTTX (C-10). */
+  importProfiles(path: string | null): Promise<ImportSummary | null>;
+  /** Opens the native save dialog; secrets are stripped unless a passphrase is given. */
+  exportProfiles(passphrase: string | null): Promise<SaveOutcome>;
+
+  // files: native pickers and drops (never typed paths)
+  /** Opens the native open dialog filtered for the kind; null when cancelled. */
+  pickFile(kind: FileKind): Promise<FileInspection | null>;
+  /** Inspects a dropped file. */
+  inspectFile(kind: FileKind, path: string): Promise<FileInspection>;
+  /** Applies an inspected file to a profile field; keys and PKCS#12 bundles go to the keychain. */
+  setProfileFile(profileId: string, field: 'caCert' | 'clientCert' | 'clientKey', path: string | null, passphrase: string | null): Promise<Profile>;
+  /** Adds a .proto file (with its imports from the same folder) to the profile. */
+  addProtoSchema(profileId: string, path: string, topicFilter: string, messageType: string | null): Promise<Profile>;
+  removeProtoSchema(profileId: string, fileName: string): Promise<Profile>;
+
+  // connections (C2, C3, C6, C7)
+  connectProfile(profileId: string): Promise<ConnectOutcome>;
+  testProfile(profileId: string): Promise<TestOutcome>;
+  /** Stores trust for the presented certificate ('certificate', by fingerprint) or its CA ('ca', fills the CA field). */
+  trustCertificate(profileId: string, mode: 'certificate' | 'ca'): Promise<Profile>;
+  disconnect(connectionId: string): Promise<void>;
+  /** Closes the connection and drops its history. */
+  closeConnection(connectionId: string): Promise<void>;
+  listConnections(): Promise<ConnectionStatus[]>;
+
+  // explorer (E1..E8)
+  treeSlice(connectionId: string, query: TreeQuery, start: number, count: number): Promise<TreeSlice>;
+  tableSlice(connectionId: string, query: TableQuery, start: number, count: number): Promise<TableSlice>;
+  setExpanded(connectionId: string, path: string, expanded: boolean): Promise<void>;
+  expandToDepth(connectionId: string, depth: number): Promise<void>;
+  /** Expands every node changed within the window. */
+  expandChanged(connectionId: string, withinMs: number): Promise<void>;
+  collapseAll(connectionId: string): Promise<void>;
+  getExpanded(connectionId: string): Promise<string[]>;
+  setExpandedSet(connectionId: string, paths: string[]): Promise<void>;
+  setPinned(connectionId: string, paths: string[]): Promise<void>;
+  /** Visible-row index of a topic in the tree (expanding its ancestors), or -1. */
+  revealTopic(connectionId: string, topic: string): Promise<number>;
+  /** Next topic (in tree order) that changed after `afterMs`, for the "next changed topic" shortcut. */
+  nextChanged(connectionId: string, fromTopic: string | null, withinMs: number): Promise<string | null>;
+  knownTopics(connectionId: string, prefix: string, limit: number): Promise<string[]>;
+
+  // inspection (I1..I5)
+  topicDetail(connectionId: string, topic: string): Promise<TopicDetail>;
+  message(connectionId: string, topic: string, seq: number, format: PayloadFormat, formatAnyway: boolean): Promise<MessageView | null>;
+  history(connectionId: string, topic: string): Promise<HistoryEntry[]>;
+  diff(connectionId: string, topic: string, baselineSeq: number, seq: number): Promise<DiffResult>;
+  setTopicBuffer(connectionId: string, topic: string, size: number): Promise<void>;
+  clearHistory(connectionId: string, prefix: string | null): Promise<void>;
+  /** Retained topics at or under a prefix, for the subtree delete preview. */
+  retainedUnder(connectionId: string, prefix: string): Promise<{ topic: string; preview: string }[]>;
+  memory(): Promise<MemoryEstimate>;
+
+  // series and charts (H1..H3)
+  series(connectionId: string, topic: string, path: string, sinceMs: number | null): Promise<SeriesData>;
+
+  // export (X1)
+  exportEstimate(connectionId: string, options: ExportOptions): Promise<ExportEstimate>;
+  exportData(connectionId: string, options: ExportOptions): Promise<SaveOutcome>;
+  exportChartCsv(connectionId: string, series: ChartSeriesRef[], sinceMs: number | null): Promise<SaveOutcome>;
+  /** Saves a PNG produced by the UI (base64 without the data: prefix). */
+  savePng(defaultName: string, base64: string): Promise<SaveOutcome>;
+  /** Saves the sent log (P3). */
+  exportSentLog(connectionId: string): Promise<SaveOutcome>;
+
+  // publish (P1..P8)
+  publish(connectionId: string, request: PublishRequest): Promise<SentEntry>;
+  deleteRetained(connectionId: string, topic: string): Promise<SentEntry>;
+  /** Deletes retained messages on each topic (subtree delete after the preview). */
+  deleteRetainedMany(connectionId: string, topics: string[]): Promise<number>;
+  sentLog(connectionId: string): Promise<SentEntry[]>;
+  clearSentLog(connectionId: string): Promise<void>;
+  startRepeat(connectionId: string, request: PublishRequest, intervalS: number, count: number | null): Promise<void>;
+  stopRepeat(connectionId: string): Promise<void>;
+  listTemplates(profileId: string): Promise<Template[]>;
+  saveTemplate(profileId: string, template: Template): Promise<Template>;
+  deleteTemplate(profileId: string, templateId: string): Promise<void>;
+  /** Encodes a payload as it would go on the wire; error when invalid (P-08). */
+  encodePayload(format: PublishRequest['format'], payload: string): Promise<{ ok: true; size: number } | { ok: false; error: UserMessage }>;
+
+  // broker (B1..B7)
+  brokerStatus(): Promise<BrokerStatus>;
+  brokerConfig(): Promise<BrokerConfig>;
+  brokerStart(): Promise<BrokerStatus>;
+  brokerStop(): Promise<BrokerStatus>;
+  brokerRestart(): Promise<BrokerStatus>;
+  /** Validates a port for a listener: range 1024..65535, not used by another listener, not in use on this machine. */
+  validatePort(port: number, listenerId: string | null): Promise<UserMessage | null>;
+  addListener(request: AddListenerRequest): Promise<BrokerConfig>;
+  updateListener(listener: Listener): Promise<BrokerConfig>;
+  removeListener(listenerId: string): Promise<BrokerConfig>;
+  /** Sets or clears (username "" ) the per-listener login; the password goes to the keychain. */
+  setListenerLogin(listenerId: string, username: string, password: string | null): Promise<BrokerConfig>;
+  setAnonymous(on: boolean): Promise<BrokerConfig>;
+  setVerifyAgainst(source: 'local' | 'imported'): Promise<BrokerConfig>;
+  addUser(username: string, password: string): Promise<BrokerConfig>;
+  setUserPassword(username: string, password: string): Promise<BrokerConfig>;
+  removeUser(username: string): Promise<BrokerConfig>;
+  issuedCerts(): Promise<IssuedCert[]>;
+  /** Issues from the local CA, then opens the native save dialog. */
+  issueClientCert(request: IssueCertRequest): Promise<SaveOutcome>;
+  /** Opens a CSR file dialog, signs it, then opens the save dialog for the certificate. */
+  importCsr(name: string | null, validYears: number): Promise<SaveOutcome>;
+  exportClientCert(name: string, format: 'pem' | 'pkcs12', passphrase: string): Promise<SaveOutcome>;
+  revokeClientCert(name: string): Promise<IssuedCert[]>;
+  brokerCerts(): Promise<BrokerCerts>;
+  exportCa(): Promise<SaveOutcome>;
+  regenerateBrokerCerts(sans: string[], keyType: 'ecdsa' | 'rsa'): Promise<BrokerCerts>;
+  /** Opens dialogs for a server certificate and key (PEM or PKCS#12). */
+  importBrokerCert(): Promise<BrokerCerts | null>;
+  /** Opens a dialog for a CA used to verify client certificates ("Imported CA"). */
+  importClientCa(): Promise<BrokerCerts | null>;
+  rotateCa(): Promise<BrokerCerts>;
+  brokerClients(): Promise<BrokerClient[]>;
+  disconnectClient(clientId: string): Promise<void>;
+  brokerLog(level: LogLine['level'], afterSeq: number): Promise<LogLine[]>;
+  /** Creates or updates the "Local broker" profile for the most secure enabled listener (or the given one) and connects. */
+  connectExplorerHere(listenerId: string | null): Promise<ConnectOutcome>;
+
+  // events
+  /** Subscribes to batched events (<= 30 Hz). Returns an unsubscribe function. */
+  onEvent(handler: (event: EngineEvent) => void): () => void;
+}
+
+export interface ContextMenuItem {
+  id: string;
+  label: string;
+  accelerator?: string; // display hint, e.g. "P", "⇧P", "⌘C"
+  enabled?: boolean;
+  danger?: boolean;
+  separator?: boolean;
+}
+
+/** Platform services the UI needs besides the engine: native context menus and window-level file drops. */
+export interface Platform {
+  /** Shows a native context menu at the pointer; resolves with the chosen id or null. */
+  showContextMenu(items: ContextMenuItem[], x: number, y: number): Promise<string | null>;
+  /** Window-level file drop (Tauri gives paths and a position in CSS pixels). Returns an unsubscribe function. */
+  onFileDrop(handler: (paths: string[], x: number, y: number) => void): () => void;
+  copyText(text: string): Promise<void>;
+  /** OS theme preferences, live. */
+  prefersReducedMotion(): boolean;
+}
+
+// (UserMessage is exported from ./types; re-exporting it here made index.ts ambiguous. Fixed by UI.)

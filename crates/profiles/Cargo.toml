@@ -1,0 +1,25 @@
+[package]
+name = "mqttpanel-profiles"
+description = "Connection profiles, settings, templates and OS keychain access for MQTT Panel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+base64.workspace = true
+rand.workspace = true
+mqttpanel-tls.workspace = true
+mqttpanel-client.workspace = true
+keyring = "4"
+dirs = "6"
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+
+[dev-dependencies]
+tempfile = "3"

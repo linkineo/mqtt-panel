@@ -1,0 +1,36 @@
+[package]
+name = "mqttpanel-broker"
+description = "Embedded MQTT broker of MQTT Panel: listeners, sessions, certificates, presets and configuration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+mqttpanel-tls.workspace = true
+mqttpanel-profiles.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+time.workspace = true
+rand.workspace = true
+hex.workspace = true
+rustls.workspace = true
+rustls-pki-types.workspace = true
+x509-parser.workspace = true
+# MQTT 3.1.1 and 5 packet codec only (no transport, no TLS provider).
+rumqttc = { version = "0.25", default-features = false }
+bytes = "1"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "tls12", "ring"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+argon2 = { version = "0.5", features = ["std"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+socket2 = { version = "0.5", features = ["all"] }
+
+[dev-dependencies]
+tempfile = "3"
+rumqttc = { version = "0.25", default-features = false, features = ["use-rustls-no-provider"] }

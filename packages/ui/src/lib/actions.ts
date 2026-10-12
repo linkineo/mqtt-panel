@@ -1,0 +1,115 @@
+import { create } from 'zustand';
+import type { ConnectOutcome, Profile, SaveOutcome, TrustPrompt } from '@mqttpanel/engine-client';
+import { engine } from '../services';
+import { toMessage } from '../i18n';
+import { useApp } from '../store/app';
+
+/** The certificate trust prompt (mockup 03) and the action to retry once the user trusts. */
+interface TrustState {
+  prompt: TrustPrompt | null;
+  action: 'connect' | 'test' | null;
+  set(prompt: TrustPrompt | null, action: 'connect' | 'test' | null): void;
+}
+export const useTrust = create<TrustState>((set) => ({
+  prompt: null,
+  action: null,
+  set: (prompt, action) => set({ prompt, action }),
+}));
+
+export const useBusy = create<{ connecting: string | null; testing: string | null }>(() => ({ connecting: null, testing: null }));
+
+async function refresh(): Promise<void> {
+  const [profiles, connections] = await Promise.all([engine().listProfiles(), engine().listConnections()]);
+  useApp.setState({ profiles, connections });
+}
+
+export async function handleConnectOutcome(id: string, out: ConnectOutcome, switchScreen = true): Promise<boolean> {
+  if (out.kind === 'connected') {
+    await refresh();
+    useApp.setState({ activeConnId: out.status.id });
+    if (switchScreen) useApp.getState().setScreen('explore');
+    return true;
+  }
+  if (out.kind === 'needsTrust') {
+    useTrust.getState().set(out.trust, 'connect');
+    return false;
+  }
+  await refresh();
+  useApp.getState().toast({ kind: 'err', msg: out.error });
+  void id;
+  return false;
+}
+
+export async function connectProfile(id: string, switchScreen = true): Promise<boolean> {
+  useBusy.setState({ connecting: id });
+  try {
+    const out = await engine().connectProfile(id);
+    return await handleConnectOutcome(id, out, switchScreen);
+  } catch (e) {
+    useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
+    return false;
+  } finally {
+    useBusy.setState({ connecting: null });
+  }
+}
+
+export async function testProfile(id: string): Promise<void> {
+  useBusy.setState({ testing: id });
+  try {
+    const out = await engine().testProfile(id);
+    if (out.kind === 'needsTrust') useTrust.getState().set(out.trust, 'test');
+    await refresh();
+  } catch (e) {
+    useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
+  } finally {
+    useBusy.setState({ testing: null });
+  }
+}
+
+export async function trustAndRetry(mode: 'certificate' | 'ca'): Promise<void> {
+  const { prompt, action } = useTrust.getState();
+  useTrust.getState().set(null, null);
+  if (!prompt) return;
+  try {
+    await engine().trustCertificate(prompt.profileId, mode);
+    await refresh();
+  } catch (e) {
+    useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
+    return;
+  }
+  if (action === 'test') await testProfile(prompt.profileId);
+  else await connectProfile(prompt.profileId);
+}
+
+export async function disconnect(id: string): Promise<void> {
+  await engine().disconnect(id);
+  await refresh();
+}
+
+export async function saveProfile(p: Profile): Promise<Profile> {
+  const saved = await engine().saveProfile(p);
+  const profiles = useApp.getState().profiles;
+  const i = profiles.findIndex((x) => x.id === saved.id);
+  useApp.setState({ profiles: i >= 0 ? profiles.map((x) => (x.id === saved.id ? saved : x)) : [...profiles, saved] });
+  return saved;
+}
+
+export function replaceProfile(p: Profile): void {
+  const profiles = useApp.getState().profiles;
+  useApp.setState({ profiles: profiles.map((x) => (x.id === p.id ? p : x)) });
+}
+
+/** Shows the outcome of a native save dialog as a toast. */
+export function reportSave(out: SaveOutcome, t: (k: string, o?: Record<string, unknown>) => string): void {
+  if (out.kind === 'saved') useApp.getState().toast({ kind: 'info', text: t('common.savedAs', { file: out.fileName }) });
+  else if (out.kind === 'failed') useApp.getState().toast({ kind: 'err', msg: out.error });
+}
+
+export async function run<T>(p: Promise<T>): Promise<T | null> {
+  try {
+    return await p;
+  } catch (e) {
+    useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
+    return null;
+  }
+}

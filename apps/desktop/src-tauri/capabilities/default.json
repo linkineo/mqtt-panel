@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window: events, native context menus and window-level file drops. App commands are the engine adapter.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:menu:default",
+    "core:event:default",
+    "core:webview:default",
+    "core:window:allow-start-dragging"
+  ]
+}

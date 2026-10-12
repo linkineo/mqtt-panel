@@ -1,0 +1,470 @@
+//! Parsing of certificates, keys and PKCS#12 bundles, with plain error kinds that map to catalog keys.
+
+use base64::Engine as _;
+use rustls_pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs1KeyDer, PrivatePkcs8KeyDer, PrivateSec1KeyDer};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use x509_parser::prelude::*;
+
+/// Why a file could not be used. Each variant maps to a catalog key (see [`TlsFileError::catalog_key`]).
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum TlsFileError {
+    #[error("not a certificate")]
+    NotCertificate,
+    #[error("not a private key")]
+    NotKey,
+    #[error("not a PKCS#12 bundle")]
+    NotPkcs12,
+    #[error("a passphrase is needed")]
+    NeedsPassphrase,
+    #[error("wrong passphrase")]
+    WrongPassphrase,
+    #[error("unsupported key encryption: {0}")]
+    UnsupportedEncryption(String),
+}
+
+impl TlsFileError {
+    /// Catalog key in packages/ui/src/i18n/*/errors.json.
+    pub fn catalog_key(&self) -> &'static str {
+        match self {
+            TlsFileError::NotCertificate => "file.notCertificate",
+            TlsFileError::NotKey => "file.notKey",
+            TlsFileError::NotPkcs12 => "file.notPkcs12",
+            TlsFileError::NeedsPassphrase | TlsFileError::WrongPassphrase => "tls.wrongPassphrase",
+            TlsFileError::UnsupportedEncryption(_) => "file.notKey",
+        }
+    }
+}
+
+/// Details of one certificate, as shown in the trust prompt and the Properties tab.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CertDetails {
+    pub subject: String,
+    pub issuer: String,
+    pub san: Vec<String>,
+    /// ISO date (YYYY-MM-DD).
+    pub not_before: String,
+    pub not_after: String,
+    /// SHA-256 over the DER, colon-separated upper-case hex.
+    pub fingerprint: String,
+    pub key_type: String,
+    pub self_signed: bool,
+    pub is_ca: bool,
+    /// Unix seconds, for validity checks.
+    #[serde(skip)]
+    pub not_before_unix: i64,
+    #[serde(skip)]
+    pub not_after_unix: i64,
+    /// Common name of the subject, when present.
+    #[serde(skip)]
+    pub cn: Option<String>,
+    #[serde(skip)]
+    pub issuer_cn: Option<String>,
+    #[serde(skip)]
+    pub serial: String,
+}
+
+/// What a picked or dropped file contains, shown next to the file name in the form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CertSummary {
+    pub kind: String, // certificate | key | pkcs12 | bundle
+    pub subject: Option<String>,
+    pub cn: Option<String>,
+    pub issuer: Option<String>,
+    pub not_before: Option<String>,
+    pub not_after: Option<String>,
+    pub key_type: Option<String>,
+    pub count: usize,
+    pub self_signed: bool,
+    pub is_ca: bool,
+    pub encrypted: bool,
+}
+
+/// What the field expects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileExpect {
+    /// CA certificate field: one or more certificates.
+    Certificate,
+    /// Client certificate field: certificates, or a PKCS#12 bundle (certificate and key together).
+    CertificateOrPkcs12,
+    /// Client key field: a private key, or a PKCS#12 bundle.
+    KeyOrPkcs12,
+}
+
+/// A client identity ready for rustls.
+#[derive(Debug)]
+pub struct Identity {
+    pub certs: Vec<CertificateDer<'static>>,
+    pub key: PrivateKeyDer<'static>,
+}
+
+impl Clone for Identity {
+    fn clone(&self) -> Self {
+        Identity { certs: self.certs.clone(), key: self.key.clone_key() }
+    }
+}
+
+/// SHA-256 fingerprint of DER bytes, as "3F:9A:…".
+pub fn fingerprint_sha256(der: &[u8]) -> String {
+    let digest = Sha256::digest(der);
+    digest.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(":")
+}
+
+/// Normalises a fingerprint typed or pasted by a user ("3f9a…", "3F:9A:…", with spaces) for comparison.
+pub fn normalize_fingerprint(s: &str) -> String {
+    let hex: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect::<String>().to_ascii_uppercase();
+    hex.as_bytes().chunks(2).map(|c| String::from_utf8_lossy(c).into_owned()).collect::<Vec<_>>().join(":")
+}
+
+fn looks_like_pem(bytes: &[u8]) -> bool {
+    bytes.windows(10).any(|w| w == b"-----BEGIN")
+}
+
+/// Certificates from PEM (one or several, CRLF tolerated) or DER.
+pub fn parse_certs(bytes: &[u8]) -> Result<Vec<CertificateDer<'static>>, TlsFileError> {
+    if looks_like_pem(bytes) {
+        let mut reader = std::io::BufReader::new(bytes);
+        let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut reader).filter_map(|c| c.ok()).collect();
+        if certs.is_empty() || certs.iter().any(|c| parse_x509_certificate(c.as_ref()).is_err()) {
+            return Err(TlsFileError::NotCertificate);
+        }
+        return Ok(certs);
+    }
+    match parse_x509_certificate(bytes) {
+        Ok((&[], _)) => Ok(vec![CertificateDer::from(bytes.to_vec())]),
+        _ => Err(TlsFileError::NotCertificate),
+    }
+}
+
+fn pem_blocks(bytes: &[u8]) -> Vec<(String, Vec<u8>, bool)> {
+    // (label, der, has Proc-Type ENCRYPTED header)
+    let text = String::from_utf8_lossy(bytes).replace("\r\n", "\n");
+    let mut out = Vec::new();
+    let mut lines = text.lines();
+    while let Some(line) = lines.next() {
+        let line = line.trim();
+        if let Some(label) = line.strip_prefix("-----BEGIN ").and_then(|l| l.strip_suffix("-----")) {
+            let mut body = String::new();
+            let mut encrypted = false;
+            for l in lines.by_ref() {
+                let l = l.trim();
+                if l.starts_with("-----END ") {
+                    break;
+                }
+                if l.contains(':') {
+                    if l.starts_with("Proc-Type:") && l.contains("ENCRYPTED") {
+                        encrypted = true;
+                    }
+                    continue;
+                }
+                body.push_str(l);
+            }
+            if let Ok(der) = base64::engine::general_purpose::STANDARD.decode(body.as_bytes()) {
+                out.push((label.to_string(), der, encrypted));
+            }
+        }
+    }
+    out
+}
+
+/// A private key from PEM or DER: PKCS#8, SEC1 (EC), PKCS#1 (RSA) or encrypted PKCS#8 (with the passphrase).
+pub fn parse_private_key(bytes: &[u8], passphrase: Option<&str>) -> Result<PrivateKeyDer<'static>, TlsFileError> {
+    if looks_like_pem(bytes) {
+        for (label, der, encrypted) in pem_blocks(bytes) {
+            match label.as_str() {
+                "PRIVATE KEY" => return Ok(PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(der))),
+                "EC PRIVATE KEY" | "RSA PRIVATE KEY" if encrypted => {
+                    return Err(TlsFileError::UnsupportedEncryption(
+                        "traditional OpenSSL key encryption; convert the key to PKCS#8".into(),
+                    ))
+                }
+                "EC PRIVATE KEY" => return Ok(PrivateKeyDer::Sec1(PrivateSec1KeyDer::from(der))),
+                "RSA PRIVATE KEY" => return Ok(PrivateKeyDer::Pkcs1(PrivatePkcs1KeyDer::from(der))),
+                "ENCRYPTED PRIVATE KEY" => return decrypt_pkcs8(&der, passphrase),
+                _ => continue,
+            }
+        }
+        return Err(TlsFileError::NotKey);
+    }
+    // DER: PKCS#8 plain or encrypted.
+    if pkcs8::PrivateKeyInfo::try_from(bytes).is_ok() {
+        return Ok(PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(bytes.to_vec())));
+    }
+    if pkcs8::EncryptedPrivateKeyInfo::try_from(bytes).is_ok() {
+        return decrypt_pkcs8(bytes, passphrase);
+    }
+    Err(TlsFileError::NotKey)
+}
+
+fn decrypt_pkcs8(der: &[u8], passphrase: Option<&str>) -> Result<PrivateKeyDer<'static>, TlsFileError> {
+    let info = pkcs8::EncryptedPrivateKeyInfo::try_from(der).map_err(|_| TlsFileError::NotKey)?;
+    let Some(pass) = passphrase else { return Err(TlsFileError::NeedsPassphrase) };
+    let doc = info.decrypt(pass.as_bytes()).map_err(|_| TlsFileError::WrongPassphrase)?;
+    Ok(PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(doc.as_bytes().to_vec())))
+}
+
+/// True when the bytes look like a PKCS#12 (PFX) structure.
+pub fn looks_like_pkcs12(bytes: &[u8]) -> bool {
+    !looks_like_pem(bytes) && bytes.first() == Some(&0x30) && parse_x509_certificate(bytes).is_err() && {
+        // PFX: SEQUENCE { INTEGER 3, ContentInfo ... }
+        bytes.windows(3).take(8).any(|w| w == [0x02, 0x01, 0x03])
+    }
+}
+
+/// Certificates and key from a PKCS#12 bundle. `None` passphrase tries the empty passphrase.
+pub fn parse_pkcs12(bytes: &[u8], passphrase: Option<&str>) -> Result<Identity, TlsFileError> {
+    if !looks_like_pkcs12(bytes) {
+        return Err(TlsFileError::NotPkcs12);
+    }
+    let pass = passphrase.unwrap_or("");
+    let store = match p12_keystore::KeyStore::from_pkcs12(bytes, pass, p12_keystore::Pkcs12ImportPolicy::Relaxed) {
+        Ok(s) => s,
+        Err(_) if passphrase.is_none() => return Err(TlsFileError::NeedsPassphrase),
+        Err(_) => return Err(TlsFileError::WrongPassphrase),
+    };
+    for (_alias, entry) in store.entries() {
+        if let p12_keystore::KeyStoreEntry::PrivateKeyChain(chain) = entry {
+            let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(chain.key().as_der().to_vec()));
+            let certs = chain.certs().iter().map(|c| CertificateDer::from(c.as_der().to_vec())).collect::<Vec<_>>();
+            if certs.is_empty() {
+                return Err(TlsFileError::NotCertificate);
+            }
+            return Ok(Identity { certs, key });
+        }
+    }
+    Err(TlsFileError::NotKey)
+}
+
+/// A client identity from a certificate file and a key file, or from one PKCS#12 bundle (key bytes = None).
+pub fn load_identity(cert_bytes: &[u8], key_bytes: Option<&[u8]>, passphrase: Option<&str>) -> Result<Identity, TlsFileError> {
+    if looks_like_pkcs12(cert_bytes) {
+        return parse_pkcs12(cert_bytes, passphrase);
+    }
+    let certs = parse_certs(cert_bytes)?;
+    let key_bytes = key_bytes.ok_or(TlsFileError::NotKey)?;
+    if looks_like_pkcs12(key_bytes) {
+        let id = parse_pkcs12(key_bytes, passphrase)?;
+        return Ok(Identity { certs, key: id.key });
+    }
+    let key = parse_private_key(key_bytes, passphrase)?;
+    Ok(Identity { certs, key })
+}
+
+fn iso_date(t: &ASN1Time) -> String {
+    let d = t.to_datetime();
+    format!("{:04}-{:02}-{:02}", d.year(), u8::from(d.month()), d.day())
+}
+
+fn key_type_of(spki: &SubjectPublicKeyInfo) -> String {
+    use x509_parser::public_key::PublicKey;
+    match spki.parsed() {
+        Ok(PublicKey::RSA(rsa)) => format!("RSA {}", rsa.key_size()),
+        Ok(PublicKey::EC(_)) => {
+            let curve = spki
+                .algorithm
+                .parameters
+                .as_ref()
+                .and_then(|p| p.as_oid().ok())
+                .map(|oid| oid.to_id_string())
+                .unwrap_or_default();
+            match curve.as_str() {
+                "1.2.840.10045.3.1.7" => "ECDSA P-256".into(),
+                "1.3.132.0.34" => "ECDSA P-384".into(),
+                "1.3.132.0.35" => "ECDSA P-521".into(),
+                _ => "ECDSA".into(),
+            }
+        }
+        _ => {
+            let oid = spki.algorithm.algorithm.to_id_string();
+            match oid.as_str() {
+                "1.3.101.112" => "Ed25519".into(),
+                "1.3.101.113" => "Ed448".into(),
+                _ => oid,
+            }
+        }
+    }
+}
+
+fn cn_of(name: &X509Name) -> Option<String> {
+    name.iter_common_name().next().and_then(|cn| cn.as_str().ok()).map(|s| s.to_string())
+}
+
+/// Details of a DER certificate.
+pub fn cert_details(der: &[u8]) -> Result<CertDetails, TlsFileError> {
+    let (_, cert) = parse_x509_certificate(der).map_err(|_| TlsFileError::NotCertificate)?;
+    let mut san = Vec::new();
+    if let Ok(Some(ext)) = cert.subject_alternative_name() {
+        for name in &ext.value.general_names {
+            match name {
+                GeneralName::DNSName(d) => san.push(d.to_string()),
+                GeneralName::IPAddress(ip) => {
+                    let s = match ip.len() {
+                        4 => std::net::Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]).to_string(),
+                        16 => {
+                            let mut a = [0u8; 16];
+                            a.copy_from_slice(ip);
+                            std::net::Ipv6Addr::from(a).to_string()
+                        }
+                        _ => hex::encode(ip),
+                    };
+                    san.push(s)
+                }
+                GeneralName::RFC822Name(e) => san.push(e.to_string()),
+                GeneralName::URI(u) => san.push(u.to_string()),
+                _ => {}
+            }
+        }
+    }
+    let is_ca = cert.basic_constraints().ok().flatten().map(|bc| bc.value.ca).unwrap_or(false);
+    let subject_raw = cert.subject().as_raw();
+    let issuer_raw = cert.issuer().as_raw();
+    let ski = cert.extensions().iter().find_map(|e| match e.parsed_extension() {
+        ParsedExtension::SubjectKeyIdentifier(k) => Some(k.0.to_vec()),
+        _ => None,
+    });
+    let aki = cert.extensions().iter().find_map(|e| match e.parsed_extension() {
+        ParsedExtension::AuthorityKeyIdentifier(a) => a.key_identifier.as_ref().map(|k| k.0.to_vec()),
+        _ => None,
+    });
+    let self_signed = subject_raw == issuer_raw && match (&ski, &aki) {
+        (Some(s), Some(a)) => s == a,
+        _ => true,
+    };
+    let subject = cert.subject().to_string();
+    let issuer = cert.issuer().to_string();
+    Ok(CertDetails {
+        subject: if subject.is_empty() { "(empty)".into() } else { subject },
+        issuer: if issuer.is_empty() { "(empty)".into() } else { issuer },
+        san,
+        not_before: iso_date(&cert.validity().not_before),
+        not_after: iso_date(&cert.validity().not_after),
+        fingerprint: fingerprint_sha256(der),
+        key_type: key_type_of(cert.public_key()),
+        self_signed,
+        is_ca,
+        not_before_unix: cert.validity().not_before.timestamp(),
+        not_after_unix: cert.validity().not_after.timestamp(),
+        cn: cn_of(cert.subject()),
+        issuer_cn: cn_of(cert.issuer()),
+        serial: cert.raw_serial_as_string(),
+    })
+}
+
+fn summary_of_cert(certs: &[CertificateDer<'_>], kind: &str) -> Result<CertSummary, TlsFileError> {
+    let first = certs.first().ok_or(TlsFileError::NotCertificate)?;
+    let d = cert_details(first.as_ref())?;
+    Ok(CertSummary {
+        kind: if certs.len() > 1 && kind == "certificate" { "bundle".into() } else { kind.into() },
+        subject: Some(d.subject),
+        cn: d.cn,
+        issuer: Some(d.issuer),
+        not_before: Some(d.not_before),
+        not_after: Some(d.not_after),
+        key_type: Some(d.key_type),
+        count: certs.len(),
+        self_signed: d.self_signed,
+        is_ca: d.is_ca,
+        encrypted: false,
+    })
+}
+
+fn key_type_of_pkcs8(der: &[u8]) -> Option<String> {
+    let info = pkcs8::PrivateKeyInfo::try_from(der).ok()?;
+    let oid = info.algorithm.oid.to_string();
+    Some(match oid.as_str() {
+        "1.2.840.113549.1.1.1" => "RSA".into(),
+        "1.2.840.10045.2.1" => {
+            let curve = info.algorithm.parameters_oid().map(|o| o.to_string()).unwrap_or_default();
+            match curve.as_str() {
+                "1.2.840.10045.3.1.7" => "ECDSA P-256".into(),
+                "1.3.132.0.34" => "ECDSA P-384".into(),
+                _ => "ECDSA".into(),
+            }
+        }
+        "1.3.101.112" => "Ed25519".into(),
+        other => other.to_string(),
+    })
+}
+
+fn key_summary(key: &PrivateKeyDer<'_>, encrypted: bool) -> CertSummary {
+    let key_type = match key {
+        PrivateKeyDer::Pkcs8(k) => key_type_of_pkcs8(k.secret_pkcs8_der()),
+        PrivateKeyDer::Sec1(_) => Some("ECDSA".into()),
+        PrivateKeyDer::Pkcs1(_) => Some("RSA".into()),
+        _ => None,
+    };
+    CertSummary {
+        kind: "key".into(),
+        subject: None,
+        cn: None,
+        issuer: None,
+        not_before: None,
+        not_after: None,
+        key_type,
+        count: 0,
+        self_signed: false,
+        is_ca: false,
+        encrypted,
+    }
+}
+
+/// Inspects a file for a form field. `passphrase` is used for encrypted keys and PKCS#12 bundles.
+/// A bundle or key that needs a passphrase and has none returns [`TlsFileError::NeedsPassphrase`].
+pub fn inspect(bytes: &[u8], expect: FileExpect, passphrase: Option<&str>) -> Result<CertSummary, TlsFileError> {
+    if bytes.is_empty() {
+        return Err(match expect {
+            FileExpect::KeyOrPkcs12 => TlsFileError::NotKey,
+            _ => TlsFileError::NotCertificate,
+        });
+    }
+    match expect {
+        FileExpect::Certificate => summary_of_cert(&parse_certs(bytes)?, "certificate"),
+        FileExpect::CertificateOrPkcs12 => {
+            if looks_like_pkcs12(bytes) {
+                let id = parse_pkcs12(bytes, passphrase)?;
+                let mut s = summary_of_cert(&id.certs, "pkcs12")?;
+                s.encrypted = passphrase.is_some_and(|p| !p.is_empty());
+                return Ok(s);
+            }
+            summary_of_cert(&parse_certs(bytes)?, "certificate")
+        }
+        FileExpect::KeyOrPkcs12 => {
+            if looks_like_pkcs12(bytes) {
+                let id = parse_pkcs12(bytes, passphrase)?;
+                let mut s = summary_of_cert(&id.certs, "pkcs12")?;
+                s.encrypted = passphrase.is_some_and(|p| !p.is_empty());
+                return Ok(s);
+            }
+            let encrypted = String::from_utf8_lossy(bytes).contains("ENCRYPTED PRIVATE KEY")
+                || pkcs8::EncryptedPrivateKeyInfo::try_from(bytes).is_ok();
+            let key = parse_private_key(bytes, passphrase)?;
+            Ok(key_summary(&key, encrypted))
+        }
+    }
+}
+
+/// DER of a PEM or DER certificate signing request.
+pub fn parse_csr_pem(bytes: &[u8]) -> Option<Vec<u8>> {
+    if looks_like_pem(bytes) {
+        pem_blocks(bytes)
+            .into_iter()
+            .find(|(label, _, _)| label == "CERTIFICATE REQUEST" || label == "NEW CERTIFICATE REQUEST")
+            .map(|(_, der, _)| der)
+    } else {
+        x509_parser::certification_request::X509CertificationRequest::from_der(bytes).ok().map(|_| bytes.to_vec())
+    }
+}
+
+/// PEM encoding of DER bytes under a label ("CERTIFICATE", "PRIVATE KEY", …).
+pub fn to_pem(label: &str, der: &[u8]) -> String {
+    let b64 = base64::engine::general_purpose::STANDARD.encode(der);
+    let mut out = format!("-----BEGIN {label}-----\n");
+    for chunk in b64.as_bytes().chunks(64) {
+        out.push_str(std::str::from_utf8(chunk).unwrap_or_default());
+        out.push('\n');
+    }
+    out.push_str(&format!("-----END {label}-----\n"));
+    out
+}

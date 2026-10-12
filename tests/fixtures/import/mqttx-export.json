@@ -1,0 +1,31 @@
+[
+  {
+    "id": "a1b2",
+    "name": "Cloud EMQX (WS)",
+    "clientId": "mqttx_a1b2",
+    "host": "demo.emqx.example",
+    "port": 8084,
+    "protocol": "wss",
+    "path": "/mqtt",
+    "ssl": true,
+    "rejectUnauthorized": true,
+    "username": "dashboard",
+    "password": "example-only",
+    "mqttVersion": "5.0",
+    "keepalive": 30,
+    "clean": true,
+    "subscriptions": [{ "topic": "plant/#", "qos": 1 }, { "topic": "alarms/+", "qos": 0 }],
+    "will": { "lastWillTopic": "clients/mqttx/status", "lastWillPayload": "offline", "lastWillQos": 1, "lastWillRetain": true }
+  },
+  {
+    "id": "c3d4",
+    "name": "Lab Mosquitto",
+    "clientId": "mqttx_c3d4",
+    "host": "10.20.4.17",
+    "port": 1883,
+    "protocol": "mqtt",
+    "ssl": false,
+    "mqttVersion": "3.1.1",
+    "subscriptions": []
+  }
+]
