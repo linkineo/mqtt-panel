@@ -4,13 +4,14 @@ How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules
 
 ## Status (12 Oct 2026)
 - Specification phase complete for v1.0: `docs/SPEC.md`, `docs/FEATURES.md`, `docs/DECISIONS.md`.
-- Next: a detailed mockup artifact is reviewed by the owner; the validated mockups are then committed to `docs/mockups/*.html`. Implementation starts only after that.
+- Mockups validated by the owner on 12 Oct 2026 and committed as `docs/mockups/mqtt-panel-mockups.html` (22 screens, 1280×700, light and dark, three accents). Implementation may start.
 - No code yet. The repository layout in `docs/SPEC.md` section 3 is the target.
 
 ## Ground rules for the implementer
 - Build exactly what the specs and the validated mockups describe. If something is missing or contradictory, record the question in `docs/DECISIONS.md` under "Open" and ask; do not invent behaviour.
 - Rust engine first (`crates/engine`): pure, no I/O, no threads, Rust API plus C ABI, tested with recorded packet fixtures. The UI never touches sockets, parsing or storage.
 - Native feel is a requirement (feature N1, `docs/SPEC.md` 1.2). Walk the checklist on all three OSes in the spike.
+- UI rules from the mockup review: plain words in every user-facing label (for example "Another broker" / "This app's broker", "Server name (SNI)", "Protocol tag (ALPN)"); form rows never wrap, helper text stays short and the full explanation lives in the ⓘ bubble; every file field is a native picker with drag-and-drop; every security option has an info bubble in EN, FR and DE.
 - Keep the forbidden-words guard green and never commit secrets.
 
 ## Architecture map
@@ -40,8 +41,12 @@ scripts/check-forbidden-words.sh  # must pass before every commit
 ```
 
 ## Mockups
-- Validated mockups arrive as `docs/mockups/*.html` (one file per screen, light and dark, three accents). They are the visual contract; the UI must match them.
-- Until they are committed, do not start UI work beyond the spike.
+- `docs/mockups/mqtt-panel-mockups.html` is the validated visual contract (22 screens and states, validated 12 Oct 2026). The UI must match it: layout, wording, states (empty state, trust dialog, context menus, field picker, Add listener steps, Anonymous on, French and German samples). Deviations need a note in `docs/DECISIONS.md` under "Open".
+
+## Toolchain on the build Mac (checked 12 Oct 2026)
+- Present: cargo 1.98, node 26.9, npm 11.19, Xcode 27 at `/Applications/Xcode.app`, macOS 27.0.1.
+- Absent: pnpm, docker, mosquitto. They may be installed as development tools with brew or npm (`npm install -g pnpm`, `brew install mosquitto`); nothing system-level.
+- Build verification for the first phases is macOS only; Windows and Linux builds and the native-feel checks on those OSes go through CI.
 
 ## Open items
 - Verify library candidates at kick-off (`docs/SPEC.md` section 10): rumqttc TLS and WebSocket flags, rmqtt library API and client-cert hooks, prost-reflect and protox, keyring on Linux without Secret Service, uPlot theming.
