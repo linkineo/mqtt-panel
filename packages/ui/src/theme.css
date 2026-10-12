@@ -77,7 +77,7 @@ button.conn:hover { color: var(--ink) }
 .dot.warn { background: var(--clay) }
 .dot.err { background: var(--brick) }
 .body { display: grid; grid-template-columns: 92px 1fr; min-height: 0 }
-.rail { background: var(--paper); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 10px 8px; gap: 4px }
+.rail { background: var(--paper); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 10px 6px; gap: 4px }
 .rail button { display: grid; justify-items: center; gap: 3px; padding: 9px 2px; border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--ink-2); background: none; border: 0; white-space: nowrap; overflow: hidden }
 .rail button svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round }
 .rail button.on { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line) }
@@ -147,7 +147,7 @@ button.chip:hover { filter: brightness(.97) }
 .radio i.on { border-color: var(--sage) } .radio i.on::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--sage) }
 
 /* ---------- forms ---------- */
-.form { display: grid; gap: var(--form-gap) }
+.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--form-gap) }
 .f { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 12px; min-height: 28px }
 .f > label, .f > .lbl { color: var(--ink-2); white-space: nowrap; display: flex; align-items: center; gap: 6px; overflow: hidden }
 .f .row2 { display: flex; gap: 8px; align-items: center; min-width: 0 }
@@ -325,10 +325,13 @@ button.chip:hover { filter: brightness(.97) }
 .gridtbl:focus .tr.cursor > div { box-shadow: inset 0 1px 0 var(--sage), inset 0 -1px 0 var(--sage) }
 .form.narrow .f { grid-template-columns: 104px minmax(0, 1fr) }
 .form.narrow .f .row2 { gap: 6px }
+.form.narrow.pub .f { grid-template-columns: 132px minmax(0, 1fr) }
 .tbl.fixed { table-layout: fixed }
 .tbl.fixed td { max-width: none }
 .tbl.compact th, .tbl.compact td { padding-left: 6px; padding-right: 6px }
-.tbl .seg > button { padding: 2px 8px; font-size: 11px }
+.tbl .seg > button { padding: 2px 6px; font-size: 11px }
+.tbl.compact th, .tbl.compact td { padding-left: 5px; padding-right: 5px }
+.btn.icon { padding-left: 6px; padding-right: 6px; min-width: 0 }
 .stats { gap: 8px }
 .stat { padding: 10px }
 .f > .seg, .f > .chkrow, .f > .btn { justify-self: start }

@@ -330,14 +330,14 @@ function Publish({ connId }: { connId: string }) {
           </div>
         </div>
         <div className="pc">
-          <div className="form narrow">
+          <div className="form narrow pub">
             <div className="f">
               <span className="lbl">{t('publish.topic')}</span>
               <TopicInput connId={connId} value={c.topic} onChange={(topic) => set({ topic })} />
             </div>
             <div className="f">
               <span className="lbl">{t('publish.options')}</span>
-              <span className="row2">
+              <span className="row2 wrap" style={{ rowGap: 6 }}>
                 <span className="muted">QoS</span>
                 <Seg<Qos> label="QoS" value={c.qos} onChange={(qos) => set({ qos })} options={([0, 1, 2] as Qos[]).map((q) => ({ value: q, label: String(q), testId: `pub-qos-${q}` }))} />
                 <span className="muted">{t('detail.retain')}</span>
@@ -372,7 +372,7 @@ function Publish({ connId }: { connId: string }) {
               <div className="sec" style={{ marginTop: 14 }}>
                 {t('publish.request')} <span className="chip on">MQTT 5</span> <Info id="request" title={t('publish.request')} />
               </div>
-              <div className="form narrow" style={{ marginTop: 8 }}>
+              <div className="form narrow pub" style={{ marginTop: 8 }}>
                 <div className="f">
                   <label htmlFor="pub-resp">{t('publish.responseTopic')}</label>
                   <span className="row2">
@@ -394,7 +394,7 @@ function Publish({ connId }: { connId: string }) {
                 {c.propsOpen ? '▾' : '▸'} {t('publish.props')} <span className="lower">· {t('publish.propsSet', { n: propsSet(c) })}</span>
               </button>
               {c.propsOpen && (
-                <div className="form narrow" style={{ marginTop: 8 }}>
+                <div className="form narrow pub" style={{ marginTop: 8 }}>
                   <div className="f">
                     <label htmlFor="pub-ct">{t('props.contentType')}</label>
                     <input id="pub-ct" className="input mono" value={c.contentType} placeholder="application/json" onChange={(e) => set({ contentType: e.target.value })} />
@@ -470,7 +470,7 @@ function Publish({ connId }: { connId: string }) {
             </div>
           )}
 
-          <div className="row" style={{ marginTop: 18, flexWrap: 'nowrap' }}>
+          <div className="row" style={{ marginTop: 18, flexWrap: 'wrap', rowGap: 8 }}>
             <button type="button" className="btn pri" data-testid="send" onClick={() => send()}>
               {t('publish.send')} <Kbd>{shortcut(info, 'mod+enter')}</Kbd>
             </button>
@@ -495,7 +495,7 @@ function Publish({ connId }: { connId: string }) {
             </button>
           </div>
           {repeat && (repeat.running || repeat.stoppedReason) && (
-            <div className={`callout${repeat.running ? '' : ' warn'}`} style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }} data-testid="repeat-callout">
+            <div className={`callout${repeat.running ? '' : ' warn'}`} style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }} data-testid="repeat-callout">
               {repeat.running ? (
                 <>
                   <span className="dot" />

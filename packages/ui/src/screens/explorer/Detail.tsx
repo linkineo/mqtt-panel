@@ -469,7 +469,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   return (
     <div className="pane right" style={{ flex: 1 }} data-testid="detail">
       <div className="ph">
-        <h5 className="mono selectable" style={{ fontWeight: 600 }} title={topic}>
+        <h5 className="mono selectable" style={{ fontWeight: 600 }} title={topic} data-overflow-ok>
           {topic}
         </h5>
         <div className="row" style={{ gap: 6 }}>
@@ -513,7 +513,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
             <span className="muted small nowrap">{t('detail.quickPublish')}</span>
             <input
               className="input mono"
-              style={{ flex: 1, minWidth: 100 }}
+              style={{ flex: 1, minWidth: 60 }}
               value={qp.payload}
               aria-label={t('detail.quickPayload')}
               data-testid="qp-payload"
@@ -596,7 +596,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                         {history.slice(0, 4).map((h) => (
                           <tr key={h.seq} className={`click${h.seq === shownSeq ? ' sel' : ''}`} onClick={() => patch(connId, { viewSeq: h.seq })}>
                             <td className="mono">{fmtTime(h.receivedAt, true)}</td>
-                            <td className="mono">{h.preview}</td>
+                            <td className="mono" title={h.preview}>{h.preview}</td>
                             <td>{h.qos}</td>
                             <td>{fmtBytes(h.size)}</td>
                           </tr>
@@ -609,7 +609,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
             )}
             {tab === 'diff' && (
               <>
-                <div className="row" style={{ flexWrap: 'nowrap' }}>
+                <div className="row" style={{ flexWrap: 'wrap', rowGap: 6 }} data-testid="diff-compare">
                   <span className="muted small">{t('diff.compare')}</span>
                   <span className="seg">
                     <span className="on">{t('diff.current', { time: message ? fmtTime(message.receivedAt) : '' })}</span>
@@ -636,8 +636,9 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                       {t('diff.pick')}
                     </button>
                   </span>
-                  <span className="grow" />
-                  {diff && <span className="chip">{t('diff.changes', { count: diff.changes })}</span>}
+                </div>
+                <div className="row" style={{ justifyContent: 'flex-end', marginTop: 6 }}>
+                  {diff && <span className="chip" data-testid="diff-changes">{t('diff.changes', { count: diff.changes })}</span>}
                   <button type="button" className="btn sm" onClick={() => setHighlight(!highlight)}>
                     {highlight ? t('diff.highlightOff') : t('diff.highlightOn')}
                   </button>
@@ -673,7 +674,13 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                 <div className="sec" style={{ marginTop: 14 }}>
                   {t('detail.historyHead')}
                 </div>
-                <table className="tbl">
+                <table className="tbl fixed">
+                  <colgroup>
+                    <col style={{ width: 112 }} />
+                    <col />
+                    <col style={{ width: 64 }} />
+                    <col style={{ width: 96 }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>{t('col.time')}</th>
@@ -686,7 +693,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                     {history.slice(0, 50).map((h) => (
                       <tr key={h.seq} className={h.seq === diffB ? 'sel' : undefined}>
                         <td className="mono">{fmtTime(h.receivedAt, true)}</td>
-                        <td className="mono">{h.changedKeys.join(', ')}</td>
+                        <td className="mono" title={h.changedKeys.join(', ')}>{h.changedKeys.join(', ')}</td>
                         <td>{fmtBytes(h.size)}</td>
                         <td>
                           <button type="button" className={`btn sm${baseline === h.seq ? ' pri' : ''}`} onClick={() => setBaseline(h.seq)}>
@@ -726,7 +733,14 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                     {t('history.raise')}
                   </button>
                 </div>
-                <table className="tbl" data-testid="history">
+                <table className="tbl fixed" data-testid="history">
+                  <colgroup>
+                    <col style={{ width: 112 }} />
+                    <col style={{ width: 64 }} />
+                    <col style={{ width: 48 }} />
+                    <col style={{ width: 52 }} />
+                    <col />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>{t('col.time')}</th>

@@ -10,7 +10,7 @@ import { addToChart } from '../../lib/topicActions';
 import { NoConnection } from '../../components/NoConnection';
 import { UChart } from '../../components/UChart';
 import { JsonView, pathLabel } from '../../components/JsonView';
-import { Popover, PromptDialog, Seg, Switch } from '../../components/ui';
+import { Info, Popover, PromptDialog, Seg, Switch } from '../../components/ui';
 import { TopicInput } from '../publish/PublishScreen';
 import { castLabel } from '../explorer/FieldPicker';
 import { fmtBytes, fmtNum } from '../../lib/format';
@@ -126,10 +126,9 @@ function SeriesEditor({ chart, s, data, connId, onDone }: { chart: Chart; s: Cha
         </div>
         {sample !== undefined && (
           <>
-            <div className="f" style={lbl}>
-              <span />
-              <span className="hint">{t('series.pickHint')}</span>
-            </div>
+            <p className="muted small" style={{ margin: 0, paddingLeft: 70 }}>
+              {t('series.pickHint')}
+            </p>
             <div style={{ marginLeft: 0 }}>
               <JsonView value={sample} small onPick={(p) => upd({ path: p })} pickedPath={s.path} testId="series-sample" />
             </div>
@@ -183,7 +182,7 @@ function SeriesEditor({ chart, s, data, connId, onDone }: { chart: Chart; s: Cha
           <label htmlFor={`su-${s.id}`}>{t('series.unit')}</label>
           <span className="row2">
             <input id={`su-${s.id}`} className="input mono" style={{ width: 60 }} value={s.unit} onChange={(e) => upd({ unit: e.target.value })} />
-            <span className="hint">{t('series.unitHint')}</span>
+            <Info id="seriesUnit" title={t('series.unit')} />
           </span>
         </div>
       </div>

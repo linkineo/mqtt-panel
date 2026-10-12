@@ -103,11 +103,16 @@ export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c
     if (c) props.onConfig(c);
   };
   return (
-    <tr data-testid="listener-row" data-listener={l.id}>
+    <tr data-testid="listener-row" data-listener={l.id} onContextMenu={(e) => { e.preventDefault(); props.onMenu(l, e); }}>
       <td>
         <Switch on={l.enabled} label={t('broker.listenerOn', { kind: kindLabel(l.kind, t), port: l.port })} onChange={(enabled) => void upd({ enabled })} />
       </td>
-      <td>{kindLabel(l.kind, t)}</td>
+      <td>
+        <span className="row" style={{ gap: 6 }}>
+          {kindLabel(l.kind, t)}
+          {!secure && l.bind === 'network' && <span className="chip clay" data-testid="unencrypted">{t('broker.unencrypted')}</span>}
+        </span>
+      </td>
       <td>
         <span className="row" style={{ gap: 6 }}>
           <Seg
@@ -119,7 +124,6 @@ export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c
               { value: 'localhost', label: t('broker.localhost') },
             ]}
           />
-          {!secure && l.bind === 'network' && <span className="chip clay">{t('broker.unencrypted')}</span>}
         </span>
       </td>
       <td className="mono">
@@ -164,7 +168,7 @@ export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c
         )}
       </td>
       <td>
-        <button type="button" className="btn sm" aria-label={t('broker.listenerMenu')} onClick={(e) => props.onMenu(l, e)}>
+        <button type="button" className="btn sm icon" aria-label={t('broker.listenerMenu')} title={t('broker.listenerMenu')} onClick={(e) => props.onMenu(l, e)}>
           ⋯
         </button>
       </td>
@@ -380,8 +384,8 @@ export function BrokerScreen() {
         <button type="button" className="btn sm" disabled={anonymous} onClick={() => setDialog({ kind: 'csr' })}>
           {t('broker.importCsr')}
         </button>
-        {!anonymous && <span className="hint">{t('broker.certsHelp')}</span>}
       </div>
+      {!anonymous && <p className="muted small" style={{ margin: '8px 0 0' }}>{t('broker.certsHelp')}</p>}
       <table className="tbl" style={{ marginTop: 8 }}>
         <thead>
           <tr>
@@ -447,7 +451,7 @@ export function BrokerScreen() {
         <button type="button" className="btn link row" style={{ gap: 8, minWidth: 0, flex: 1 }} aria-expanded={certsOpen} onClick={() => setCertsOpen(!certsOpen)}>
           <span className="muted">{certsOpen ? '▾' : '▸'}</span>
           <strong style={{ fontSize: 12 }}>{t('certs.brokerCerts')}</strong>
-          <span className="hint" style={{ fontWeight: 400 }}>
+          <span className="muted small" style={{ fontWeight: 400, whiteSpace: 'normal', textAlign: 'left' }} data-testid="broker-certs-summary">
             {sameMonth
               ? t('certs.summarySame', { ca: ca.subject.replace(/^CN=/, '').split(',')[0], server: server.subject.replace(/^CN=/, '').split(',')[0], date: isoDateToMonth(server.notAfter), key: server.keyType })
               : t('certs.summary', { ca: ca.subject.replace(/^CN=/, '').split(',')[0], server: server.subject.replace(/^CN=/, '').split(',')[0], date: isoDateToMonth(server.notAfter), key: server.keyType })}
@@ -576,7 +580,7 @@ export function BrokerScreen() {
   );
 
   return (
-    <div className="cols" style={{ gridTemplateColumns: 'minmax(0,1fr) 380px' }}>
+    <div className="cols" style={{ gridTemplateColumns: 'minmax(0,1fr) 350px' }}>
       <div className="pane" data-testid="broker">
         <div className="ph">
           <h5>{t('broker.title')}</h5>
@@ -620,11 +624,13 @@ export function BrokerScreen() {
           )}
           <div className="stats">
             <div className="stat">
-              <div className="l">{t('broker.status')}</div>
+              <div className="l row" style={{ justifyContent: 'space-between', gap: 6 }}>
+                <span>{t('broker.status')}</span>
+                {running && status.startedAt && <span className="mono" data-testid="uptime">{fmtUptime(now - status.startedAt)}</span>}
+              </div>
               <div className="v">
                 <span className={`dot${running ? '' : status.state === 'starting' ? ' warn' : status.state === 'failed' ? ' err' : ' off'}`} style={{ alignSelf: 'center' }} />
                 {t(`bstate.${status.state}`)}
-                {running && status.startedAt && <small>{fmtUptime(now - status.startedAt)}</small>}
               </div>
             </div>
             <div className="stat">

@@ -169,7 +169,7 @@ function Explorer({ connId }: { connId: string }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [version, setVersion] = useState(0);
   const [counts, setCounts] = useState({ total: 0, inView: 0, visible: [] as string[] });
-  const [detailW, setDetailW] = useState(480);
+  const [detailW, setDetailW] = useState(520);
   const searchRef = useRef<HTMLInputElement>(null);
   const filtersBtn = useRef<HTMLButtonElement>(null);
   const columnsBtn = useRef<HTMLButtonElement>(null);

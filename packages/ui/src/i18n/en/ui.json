@@ -530,6 +530,7 @@
  "series.rightAxis": "Right axis",
  "series.unit": "Unit",
  "series.unitHint": "shown on the axis and in the readout",
+ "info.seriesUnit": "The unit is shown on the axis and in the hover readout. Series with different units can go on the left and right axes.",
  "series.pointsCount": "{n} points · {skipped} skipped",
  "series.remove": "Remove series",
  "colour.sage": "Sage",

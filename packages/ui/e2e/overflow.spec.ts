@@ -55,6 +55,16 @@ async function violations(page: Page): Promise<string[]> {
       }
       if (centres.length > 1 && !el.matches('.ph, .f .row2, .meta')) out.push(`wraps: "${text}" (${centres.length} lines) <${el.className}>`);
     }
+    // containers: no pane, card, dialog or form may scroll sideways (content wider than its column)
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.pc, .pane, .modal, .card, .form, .stat, .callout'))) {
+      if (el.closest('[data-overflow-ok]')) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      if (el.scrollWidth > el.clientWidth + 1) {
+        const label = (el.getAttribute('data-testid') || el.className || el.tagName).toString().slice(0, 60);
+        out.push(`container too narrow: <${label}> (${el.scrollWidth} > ${el.clientWidth})`);
+      }
+    }
     return Array.from(new Set(out));
   }, SELECTORS);
 }
@@ -62,7 +72,6 @@ async function violations(page: Page): Promise<string[]> {
 for (const lang of ['en', 'de', 'fr'] as const) {
   test.describe(`overflow ${lang}`, () => {
     for (const s of STATES) {
-      if (lang === 'fr' && !['02-connections', '16-settings', '12-broker'].includes(s.id)) continue;
       test(`${s.id} ${lang}`, async ({ page }) => {
         await page.goto(`/?${s.query}&lang=${lang}&theme=light`);
         await page.waitForSelector('#app-root');

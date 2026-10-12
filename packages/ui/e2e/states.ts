@@ -209,7 +209,8 @@ export const STATES: UiState[] = [
     steps: async (p) => {
       await selectTopic(p, 'building/f2/r204', 'building/f2/r204/setpoint');
       await p.keyboard.press('ControlOrMeta+K');
-      await p.fill('[data-testid=palette-input]', 'pub');
+      // the mockup types "pub"; German names the Publish screen "Senden"
+      await p.fill('[data-testid=palette-input]', p.url().includes('lang=de') ? 'send' : 'pub');
       await p.waitForSelector('[data-testid=palette-row]');
     },
   },

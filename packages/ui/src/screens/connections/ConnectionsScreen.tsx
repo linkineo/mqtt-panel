@@ -308,7 +308,7 @@ export function ConnectionsScreen() {
               <div className="sec" style={{ marginTop: 16 }}>
                 {t('conn.import')}
               </div>
-              <div className="muted small" style={{ marginTop: 4, whiteSpace: 'nowrap' }}>
+              <div className="muted small" style={{ marginTop: 4 }}>
                 {t('conn.importHint')}{' '}
                 <button type="button" className="btn link small" data-testid="import" onClick={() => void doImport(null, setSummary)}>
                   {t('conn.importLink')}

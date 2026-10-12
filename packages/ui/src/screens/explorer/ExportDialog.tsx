@@ -161,10 +161,10 @@ export function ExportDialog(props: {
             { value: 'ndjson', label: 'NDJSON' },
           ]}
         />
-        <span className="hint" title={t(`export.desc.${format}`)}>
-          {t(`export.desc.${format}`)}
-        </span>
       </div>
+      <p className="muted small" style={{ margin: '2px 0 0' }} data-testid="export-desc">
+        {t(`export.desc.${format}`)}
+      </p>
       <div className="row" style={{ gap: 16, marginTop: 4 }}>
         <Check on={props5} onChange={setProps5} label={t('export.includeProps')} />
         <Check on={b64} onChange={setB64} label={t('export.rawBase64')} />
