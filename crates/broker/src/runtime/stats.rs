@@ -58,7 +58,9 @@ impl Stats {
     /// (in, out) messages per second over the last 10 seconds.
     pub fn rates(&self) -> (f64, f64) {
         let sec = self.second();
-        let Ok(b) = self.buckets.lock() else { return (0.0, 0.0) };
+        let Ok(b) = self.buckets.lock() else {
+            return (0.0, 0.0);
+        };
         let (mut i, mut o) = (0u64, 0u64);
         for (s, bi, bo) in b.iter() {
             if *s != u64::MAX && *s <= sec && sec - *s < WINDOW as u64 {

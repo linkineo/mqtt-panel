@@ -32,13 +32,19 @@ crates/profiles profile storage, OS keychain (keyring), import and export withou
 4. Broker: embedded broker screen, Add listener flow with presets, client certificates, authentication, clients, log. CLI.
 5. Polish and release: FR and DE catalogs with native review, accessibility, native-feel review, installers, auto-update, website.
 
-## Commands (once the code exists)
+## Commands
 ```
-cargo test --workspace            # engine, client, broker, cli
-pnpm install && pnpm test         # UI components and flows
-pnpm tauri dev                    # run the desktop app
-scripts/check-forbidden-words.sh  # must pass before every commit
+cargo test --workspace                      # engine, tls, client, profiles, broker, cli, desktop adapter
+npm install && npm test                     # UI component tests (Vitest)
+npm run e2e                                 # Playwright flows and the V-02 overflow check (mock engine)
+npm run dev                                 # UI in a browser with the mock engine (http://localhost:1420)
+cd apps/desktop/src-tauri && cargo tauri dev     # run the desktop app (or: npm run tauri dev)
+cd apps/desktop/src-tauri && cargo tauri build   # macOS .app and .dmg under target/release/bundle
+cargo deny check                            # licences, advisories, sources
+scripts/check-forbidden-words.sh            # must pass before every commit
+MQTTPANEL_PUBLIC_BROKERS=1 cargo test --workspace -- --ignored   # nightly: public brokers, performance
 ```
+`MQTTPANEL_HOME=<dir>` points the app and the CLI to another data folder (tests); `MQTTPANEL_SECRETS=memory` keeps secrets in memory instead of the OS keychain (tests only).
 
 ## Mockups
 - `docs/mockups/mqtt-panel-mockups.html` is the validated visual contract (22 screens and states, validated 12 Oct 2026). The UI must match it: layout, wording, states (empty state, trust dialog, context menus, field picker, Add listener steps, Anonymous on, French and German samples). Deviations need a note in `docs/DECISIONS.md` under "Open".

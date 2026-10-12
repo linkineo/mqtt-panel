@@ -5,6 +5,13 @@ all-features = false
 [advisories]
 version = 2
 yanked = "warn"
+ignore = [
+  # rsa: Marvin timing side channel in PKCS#1 v1.5 decryption. MQTT Panel only generates RSA 2048 keys
+  # with this crate (ring cannot); signing goes through ring. No decryption with rsa happens.
+  { id = "RUSTSEC-2023-0071", reason = "rsa used for key generation only" },
+  # proc-macro-error: unmaintained build-time macro crate pulled by the GTK bindings of Tauri on Linux.
+  { id = "RUSTSEC-2024-0370", reason = "build-time only, Linux GTK bindings of Tauri; no safe upgrade upstream" },
+]
 
 [licenses]
 version = 2
@@ -19,7 +26,6 @@ allow = [
   "ISC",
   "MPL-2.0",
   "Unicode-3.0",
-  "Unicode-DFS-2016",
   "Zlib",
   "CC0-1.0",
   "0BSD",

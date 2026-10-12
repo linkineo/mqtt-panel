@@ -16,6 +16,7 @@ use tokio_tungstenite::WebSocketStream;
 pub const WS_PATH: &str = "/mqtt";
 
 /// Accepts the WebSocket upgrade; refuses other paths with HTTP 404.
+#[allow(clippy::result_large_err)]
 pub(crate) async fn accept<S>(stream: S, max_message: usize) -> Result<WsBytes<S>, String>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -34,14 +35,17 @@ where
             .flat_map(|v| v.split(','))
             .any(|p| p.trim().eq_ignore_ascii_case("mqtt"));
         if wants_mqtt {
-            resp.headers_mut().insert("Sec-WebSocket-Protocol", HeaderValue::from_static("mqtt"));
+            resp.headers_mut()
+                .insert("Sec-WebSocket-Protocol", HeaderValue::from_static("mqtt"));
         }
         Ok(resp)
     };
     let mut cfg = WebSocketConfig::default();
     cfg.max_message_size = Some(max_message.saturating_add(16));
     cfg.max_frame_size = Some(max_message.saturating_add(16));
-    let ws = tokio_tungstenite::accept_hdr_async_with_config(stream, callback, Some(cfg)).await.map_err(|e| e.to_string())?;
+    let ws = tokio_tungstenite::accept_hdr_async_with_config(stream, callback, Some(cfg))
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(WsBytes::new(ws))
 }
 
@@ -54,7 +58,11 @@ pub struct WsBytes<S> {
 
 impl<S> WsBytes<S> {
     pub fn new(inner: WebSocketStream<S>) -> Self {
-        WsBytes { inner, pending: Bytes::new(), eof: false }
+        WsBytes {
+            inner,
+            pending: Bytes::new(),
+            eof: false,
+        }
     }
 }
 
@@ -63,7 +71,11 @@ fn io_err(e: tokio_tungstenite::tungstenite::Error) -> io::Error {
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for WsBytes<S> {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         loop {
             if !self.pending.is_empty() {
                 let n = self.pending.len().min(buf.remaining());
@@ -93,13 +105,19 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for WsBytes<S> {
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for WsBytes<S> {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         match Pin::new(&mut self.inner).poll_ready(cx) {
             Poll::Pending => return Poll::Pending,
             Poll::Ready(Err(e)) => return Poll::Ready(Err(io_err(e))),
             Poll::Ready(Ok(())) => {}
         }
-        Pin::new(&mut self.inner).start_send(Message::Binary(Bytes::copy_from_slice(buf))).map_err(io_err)?;
+        Pin::new(&mut self.inner)
+            .start_send(Message::Binary(Bytes::copy_from_slice(buf)))
+            .map_err(io_err)?;
         Poll::Ready(Ok(buf.len()))
     }
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {

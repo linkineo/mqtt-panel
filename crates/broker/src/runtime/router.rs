@@ -190,7 +190,9 @@ fn remove_rec(node: &mut Node, levels: &[&str], client_id: &str, group: Option<&
             }
         },
         Some((first, rest)) => {
-            let Some(child) = node.children.get_mut(*first) else { return false };
+            let Some(child) = node.children.get_mut(*first) else {
+                return false;
+            };
             let removed = remove_rec(child, rest, client_id, group);
             if child.is_empty() {
                 node.children.remove(*first);
@@ -202,7 +204,10 @@ fn remove_rec(node: &mut Node, levels: &[&str], client_id: &str, group: Option<&
 
 fn collect(node: &mut Node, out: &mut Matches) {
     for (c, o) in &node.subs {
-        out.direct.push(Match { client_id: c.clone(), opts: *o });
+        out.direct.push(Match {
+            client_id: c.clone(),
+            opts: *o,
+        });
     }
     for grp in node.shared.values_mut() {
         if grp.members.is_empty() {
@@ -211,8 +216,13 @@ fn collect(node: &mut Node, out: &mut Matches) {
         let n = grp.members.len();
         let start = grp.next % n;
         grp.next = (start + 1) % n;
-        let ordered =
-            (0..n).map(|i| &grp.members[(start + i) % n]).map(|(c, o)| Match { client_id: c.clone(), opts: *o }).collect();
+        let ordered = (0..n)
+            .map(|i| &grp.members[(start + i) % n])
+            .map(|(c, o)| Match {
+                client_id: c.clone(),
+                opts: *o,
+            })
+            .collect();
         out.shared.push(ordered);
     }
 }
@@ -251,7 +261,13 @@ mod tests {
     use super::*;
 
     fn opts() -> SubOpts {
-        SubOpts { qos: 0, no_local: false, retain_as_published: false, retain_handling: 0, sub_id: None }
+        SubOpts {
+            qos: 0,
+            no_local: false,
+            retain_as_published: false,
+            retain_handling: 0,
+            sub_id: None,
+        }
     }
 
     fn ids(m: &Matches) -> Vec<String> {
@@ -268,7 +284,10 @@ mod tests {
         r.subscribe("hash", "a/#", opts());
         r.subscribe("exact", "a/b/c", opts());
         r.subscribe("sys", "$SYS/#", opts());
-        assert_eq!(ids(&r.matches("a/b/c")), vec!["all", "exact", "hash", "plus"]);
+        assert_eq!(
+            ids(&r.matches("a/b/c")),
+            vec!["all", "exact", "hash", "plus"]
+        );
         assert_eq!(ids(&r.matches("a")), vec!["all", "hash"]);
         assert_eq!(ids(&r.matches("$SYS/x")), vec!["sys"]);
         assert!(r.unsubscribe("all", "#"));

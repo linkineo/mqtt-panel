@@ -68,6 +68,7 @@ export class MockBroker {
       issuedAt: '2026-10-12',
       expiresAt: '2028-10-12',
       keyType: 'ECDSA P-256',
+      superseded: false,
       lastSeen,
       revoked: false,
       system,
@@ -238,6 +239,7 @@ export class MockBroker {
       lastSeen: 'never',
       revoked: false,
       system: false,
+      superseded: false,
     });
     this.addLog('info', `client certificate ${req.name} issued`);
     return { kind: 'saved', fileName: req.name + (req.format === 'pem' ? '.pem' : '.p12') };
@@ -248,7 +250,7 @@ export class MockBroker {
     const now = new Date(this.now());
     const exp = new Date(now);
     exp.setFullYear(exp.getFullYear() + (years || 2));
-    this.issued.push({ name: n, serial: randHex(16).toUpperCase(), issuedAt: now.toISOString().slice(0, 10), expiresAt: exp.toISOString().slice(0, 10), keyType: 'ECDSA P-256', lastSeen: 'never', revoked: false, system: false });
+    this.issued.push({ name: n, serial: randHex(16).toUpperCase(), issuedAt: now.toISOString().slice(0, 10), expiresAt: exp.toISOString().slice(0, 10), keyType: 'ECDSA P-256', lastSeen: 'never', revoked: false, system: false, superseded: false });
     return { kind: 'saved', fileName: `${n}.crt` };
   }
 
@@ -281,6 +283,7 @@ export class MockBroker {
     const exp = new Date(today);
     exp.setFullYear(exp.getFullYear() + 5);
     this.certs.ca = certDetails('CN=MQTT Panel Local CA', 'CN=MQTT Panel Local CA', [], today.toISOString().slice(0, 10), exp.toISOString().slice(0, 10), true);
+    this.issued = this.issued.map((c) => (c.system || c.revoked ? c : { ...c, superseded: true }));
     this.changed();
   }
 

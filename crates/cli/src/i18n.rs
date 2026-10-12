@@ -41,23 +41,30 @@ pub fn exit_code_for(key: &str) -> u8 {
 impl Failure {
     /// From a catalog message, rendered in `lang`.
     pub fn msg(m: &UserMessage, lang: Lang) -> Failure {
-        Failure { code: exit_code_for(&m.key), text: m.render(lang) }
-    }
-
-    /// From a catalog key and parameters.
-    pub fn key(key: &str, params: &[(&str, serde_json::Value)], lang: Lang) -> Failure {
-        Failure::msg(&UserMessage::new(key, params), lang)
+        Failure {
+            code: exit_code_for(&m.key),
+            text: m.render(lang),
+        }
     }
 
     /// A bad-arguments failure: `detail` (already rendered) plus the hint to the command's help (cli.badArgs).
     pub fn args(detail: &str, command: &str, lang: Lang) -> Failure {
         let mut p = serde_json::Map::new();
-        p.insert("detail".into(), serde_json::Value::String(detail.to_string()));
-        p.insert("command".into(), serde_json::Value::String(command.to_string()));
+        p.insert(
+            "detail".into(),
+            serde_json::Value::String(detail.to_string()),
+        );
+        p.insert(
+            "command".into(),
+            serde_json::Value::String(command.to_string()),
+        );
         let text = render_with(lang, "cli.badArgs", &p);
         // Without a command the template would read "mqttpanel  --help".
         let text = text.replace("mqttpanel  --help", "mqttpanel --help");
-        Failure { code: EXIT_ARGS, text }
+        Failure {
+            code: EXIT_ARGS,
+            text,
+        }
     }
 
     /// A bad-arguments failure from a CLI-only string of [`t`].
@@ -173,17 +180,28 @@ mod tests {
     #[test]
     fn bad_args_without_command() {
         let f = Failure::args_t("args.noCommand", &[], "", Lang::En);
-        assert_eq!(f.text, "Choose a command: sub, pub, broker or profiles. Run mqttpanel --help for the options.");
+        assert_eq!(
+            f.text,
+            "Choose a command: sub, pub, broker or profiles. Run mqttpanel --help for the options."
+        );
         assert_eq!(f.code, 2);
     }
 
     #[test]
     fn every_key_in_three_languages() {
-        for k in ["args.unknownOption", "args.wildcardTopic", "trust.hint", "profiles.imported"] {
+        for k in [
+            "args.unknownOption",
+            "args.wildcardTopic",
+            "trust.hint",
+            "profiles.imported",
+        ] {
             for l in [Lang::En, Lang::Fr, Lang::De] {
                 assert_ne!(t(l, k, &[]), k);
             }
         }
-        assert_eq!(t(Lang::Fr, "args.unknownOption", &[("arg", "--x")]), "Option inconnue\u{a0}: --x.");
+        assert_eq!(
+            t(Lang::Fr, "args.unknownOption", &[("arg", "--x")]),
+            "Option inconnue\u{a0}: --x."
+        );
     }
 }

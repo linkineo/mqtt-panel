@@ -133,7 +133,9 @@ impl Shared {
             if o.no_local && Some(client) == publisher {
                 return;
             }
-            let e = targets.entry(client.to_string()).or_insert((0, false, Vec::new()));
+            let e = targets
+                .entry(client.to_string())
+                .or_insert((0, false, Vec::new()));
             e.0 = e.0.max(o.qos);
             e.1 |= o.retain_as_published;
             if let Some(id) = o.sub_id {
@@ -146,7 +148,11 @@ impl Shared {
         for group in &matches.shared {
             let pick = group
                 .iter()
-                .find(|m| st.sessions.get(&m.client_id).is_some_and(|s| s.conn.is_some()))
+                .find(|m| {
+                    st.sessions
+                        .get(&m.client_id)
+                        .is_some_and(|s| s.conn.is_some())
+                })
                 .or_else(|| group.first());
             if let Some(m) = pick {
                 add(&m.client_id, &m.opts);
@@ -173,7 +179,11 @@ impl Shared {
             if (d.qos == 0 && q >= QOS0_QUEUE_LIMIT) || q >= QUEUE_HARD_LIMIT {
                 self.stats.dropped.fetch_add(1, Ordering::Relaxed);
                 let n = c.info.dropped.fetch_add(1, Ordering::Relaxed) + 1;
-                let mut last = c.info.last_drop_log.lock().unwrap_or_else(|p| p.into_inner());
+                let mut last = c
+                    .info
+                    .last_drop_log
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner());
                 if last.is_none_or(|t| t.elapsed() > Duration::from_secs(10)) {
                     *last = Some(Instant::now());
                     self.log.warn(format!(

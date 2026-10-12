@@ -39,7 +39,9 @@
 
 use crate::config::ListenerKind;
 use crate::error::{s, BrokerError};
-use crate::runtime::{AuthConfig, BindAddr, Credential, ListenerSpec, RevocationList, RuntimeConfig, TlsMaterial};
+use crate::runtime::{
+    AuthConfig, BindAddr, Credential, ListenerSpec, RevocationList, RuntimeConfig, TlsMaterial,
+};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -108,24 +110,52 @@ struct FileListener {
 }
 
 fn unreadable(file: &Path) -> BrokerError {
-    BrokerError::new("file.unreadable", &[("file", s(file.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default()))])
+    BrokerError::new(
+        "file.unreadable",
+        &[(
+            "file",
+            s(file
+                .file_name()
+                .map(|f| f.to_string_lossy().to_string())
+                .unwrap_or_default()),
+        )],
+    )
 }
 
 fn read(base: &Path, p: &Path) -> Result<Vec<u8>, BrokerError> {
-    let full = if p.is_absolute() { p.to_path_buf() } else { base.join(p) };
+    let full = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        base.join(p)
+    };
     std::fs::read(&full).map_err(|_| unreadable(&full))
 }
 
-fn material(base: &Path, cert: &Path, key: Option<&Path>, pass: Option<&str>, ca: Option<&Path>) -> Result<TlsMaterial, BrokerError> {
+fn material(
+    base: &Path,
+    cert: &Path,
+    key: Option<&Path>,
+    pass: Option<&str>,
+    ca: Option<&Path>,
+) -> Result<TlsMaterial, BrokerError> {
     let cert_bytes = read(base, cert)?;
     let key_bytes = key.map(|k| read(base, k)).transpose()?;
-    let name = cert.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
-    let id = mqttpanel_tls::load_identity(&cert_bytes, key_bytes.as_deref(), pass).map_err(|e| BrokerError::tls_file(&e, &name))?;
+    let name = cert
+        .file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let id = mqttpanel_tls::load_identity(&cert_bytes, key_bytes.as_deref(), pass)
+        .map_err(|e| BrokerError::tls_file(&e, &name))?;
     let client_roots = match ca {
-        Some(ca) => mqttpanel_tls::parse_certs(&read(base, ca)?).map_err(|e| BrokerError::tls_file(&e, &ca.to_string_lossy()))?,
+        Some(ca) => mqttpanel_tls::parse_certs(&read(base, ca)?)
+            .map_err(|e| BrokerError::tls_file(&e, &ca.to_string_lossy()))?,
         None => Vec::new(),
     };
-    Ok(TlsMaterial { chain: id.certs, key: id.key, client_roots })
+    Ok(TlsMaterial {
+        chain: id.certs,
+        key: id.key,
+        client_roots,
+    })
 }
 
 impl RuntimeConfig {
@@ -144,8 +174,13 @@ impl RuntimeConfig {
 
     /// Parses a TOML configuration; relative paths resolve against `base`.
     pub fn from_toml_str(text: &str, base: &Path) -> Result<RuntimeConfig, BrokerError> {
-        let fc: FileConfig = toml::from_str(text).map_err(|e| BrokerError::internal("invalid configuration file").with_detail(e.to_string()))?;
-        let mut auth = AuthConfig { anonymous: fc.auth.anonymous, ..Default::default() };
+        let fc: FileConfig = toml::from_str(text).map_err(|e| {
+            BrokerError::internal("invalid configuration file").with_detail(e.to_string())
+        })?;
+        let mut auth = AuthConfig {
+            anonymous: fc.auth.anonymous,
+            ..Default::default()
+        };
         for u in fc.auth.users {
             let cred = match (u.password, u.password_hash) {
                 (_, Some(h)) => Credential::Argon2(h),
@@ -167,11 +202,20 @@ impl RuntimeConfig {
         };
         let mut listeners = Vec::new();
         for (i, l) in fc.listener.into_iter().enumerate() {
-            let id = l.id.unwrap_or_else(|| if i == 0 { l.kind.id_prefix().to_string() } else { format!("{}-{}", l.kind.id_prefix(), i + 1) });
+            let id = l.id.unwrap_or_else(|| {
+                if i == 0 {
+                    l.kind.id_prefix().to_string()
+                } else {
+                    format!("{}-{}", l.kind.id_prefix(), i + 1)
+                }
+            });
             let bind = match l.bind.as_deref() {
                 None | Some("network") => BindAddr::Network,
                 Some("localhost") => BindAddr::Localhost,
-                Some(ip) => BindAddr::Addr(ip.parse().map_err(|_| BrokerError::internal(format!("invalid bind address {ip}")))?),
+                Some(ip) => BindAddr::Addr(
+                    ip.parse()
+                        .map_err(|_| BrokerError::internal(format!("invalid bind address {ip}")))?,
+                ),
             };
             let tls = if l.kind.encrypted() {
                 match &l.cert {
@@ -179,7 +223,9 @@ impl RuntimeConfig {
                         base,
                         c,
                         l.key.as_deref().or(default_tls.key.as_deref()),
-                        l.key_passphrase.as_deref().or(default_tls.key_passphrase.as_deref()),
+                        l.key_passphrase
+                            .as_deref()
+                            .or(default_tls.key_passphrase.as_deref()),
                         l.client_ca.as_deref().or(default_tls.client_ca.as_deref()),
                     )?)),
                     None => match (&shared_material, &l.client_ca) {
@@ -196,15 +242,27 @@ impl RuntimeConfig {
                 None
             };
             if let Some(login) = l.login {
-                auth.listener_logins.insert(id.clone(), (login.username, Credential::Plain(login.password)));
+                auth.listener_logins.insert(
+                    id.clone(),
+                    (login.username, Credential::Plain(login.password)),
+                );
             }
-            listeners.push(ListenerSpec { id, kind: l.kind, bind, port: l.port, require_client_cert: l.require_client_cert, tls });
+            listeners.push(ListenerSpec {
+                id,
+                kind: l.kind,
+                bind,
+                port: l.port,
+                require_client_cert: l.require_client_cert,
+                tls,
+            });
         }
         Ok(RuntimeConfig {
             listeners,
             auth,
             max_clients: fc.max_clients.unwrap_or(1000),
-            max_packet_size: fc.max_packet_size.unwrap_or(crate::runtime::DEFAULT_MAX_PACKET),
+            max_packet_size: fc
+                .max_packet_size
+                .unwrap_or(crate::runtime::DEFAULT_MAX_PACKET),
             revoked: RevocationList::new(default_tls.revoked.iter()),
             log: Default::default(),
         })

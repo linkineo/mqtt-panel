@@ -85,16 +85,30 @@ pub(crate) struct ConnectInfo {
 
 /// A packet from a client after CONNECT.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Incoming {
-    Publish { msg: Message, pkid: u16, topic_alias: Option<u16> },
+    Publish {
+        msg: Message,
+        pkid: u16,
+        topic_alias: Option<u16>,
+    },
     PubAck(u16),
     PubRec(u16),
     PubRel(u16),
     PubComp(u16),
-    Subscribe { pkid: u16, filters: Vec<(String, SubOpts)> },
-    Unsubscribe { pkid: u16, filters: Vec<String> },
+    Subscribe {
+        pkid: u16,
+        filters: Vec<(String, SubOpts)>,
+    },
+    Unsubscribe {
+        pkid: u16,
+        filters: Vec<String>,
+    },
     PingReq,
-    Disconnect { reason: u8, session_expiry: Option<u32> },
+    Disconnect {
+        reason: u8,
+        session_expiry: Option<u32>,
+    },
     /// CONNECT again, AUTH or a server-to-client packet: protocol error.
     Unexpected,
 }
@@ -128,7 +142,9 @@ fn fixed_header(buf: &[u8]) -> Result<Option<(u8, usize, usize)>, DecodeError> {
     let mut len = 0usize;
     let mut shift = 0;
     for i in 1..5 {
-        let Some(&b) = buf.get(i) else { return Ok(None) };
+        let Some(&b) = buf.get(i) else {
+            return Ok(None);
+        };
         len += ((b & 0x7f) as usize) << shift;
         if b & 0x80 == 0 {
             return Ok(Some((buf[0], 1 + i, len)));
@@ -163,8 +179,13 @@ fn to_qos_v5(q: u8) -> rumqttc::v5::mqttbytes::QoS {
 }
 
 /// Decodes the CONNECT packet at the start of `buf`. `Ok(None)`: more bytes needed.
-pub(crate) fn decode_connect(buf: &mut BytesMut, max: usize) -> Result<Option<ConnectInfo>, DecodeError> {
-    let Some((byte1, hlen, rlen)) = fixed_header(buf)? else { return Ok(None) };
+pub(crate) fn decode_connect(
+    buf: &mut BytesMut,
+    max: usize,
+) -> Result<Option<ConnectInfo>, DecodeError> {
+    let Some((byte1, hlen, rlen)) = fixed_header(buf)? else {
+        return Ok(None);
+    };
     if byte1 >> 4 != 1 {
         return Err(DecodeError::NotConnect);
     }
@@ -180,7 +201,9 @@ pub(crate) fn decode_connect(buf: &mut BytesMut, max: usize) -> Result<Option<Co
         return Err(DecodeError::Malformed("connect header".into()));
     }
     let name_len = u16::from_be_bytes([vh[0], vh[1]]) as usize;
-    let level = *vh.get(2 + name_len).ok_or_else(|| DecodeError::Malformed("connect header".into()))?;
+    let level = *vh
+        .get(2 + name_len)
+        .ok_or_else(|| DecodeError::Malformed("connect header".into()))?;
     let name = &vh[2..2 + name_len];
     if name != b"MQTT" {
         // MQTT 3.1 ("MQIsdp", level 3) and unknown protocols.
@@ -206,7 +229,11 @@ pub(crate) fn decode_connect(buf: &mut BytesMut, max: usize) -> Result<Option<Co
                     client_id: c.client_id,
                     clean_start: c.clean_session,
                     keep_alive: c.keep_alive,
-                    username: c.login.as_ref().map(|l| l.username.clone()).filter(|u| !u.is_empty()),
+                    username: c
+                        .login
+                        .as_ref()
+                        .map(|l| l.username.clone())
+                        .filter(|u| !u.is_empty()),
                     password: c.login.map(|l| l.password),
                     will,
                     session_expiry: 0,
@@ -222,7 +249,8 @@ pub(crate) fn decode_connect(buf: &mut BytesMut, max: usize) -> Result<Option<Co
                 let props = c.properties.unwrap_or_default();
                 let will = match will {
                     Some(w) => {
-                        let topic = String::from_utf8(w.topic.to_vec()).map_err(|_| DecodeError::Malformed("will topic".into()))?;
+                        let topic = String::from_utf8(w.topic.to_vec())
+                            .map_err(|_| DecodeError::Malformed("will topic".into()))?;
                         let wp = w.properties.unwrap_or(v5::LastWillProperties {
                             delay_interval: None,
                             payload_format_indicator: None,
@@ -259,7 +287,10 @@ pub(crate) fn decode_connect(buf: &mut BytesMut, max: usize) -> Result<Option<Co
                     client_id: c.client_id,
                     clean_start: c.clean_start,
                     keep_alive: c.keep_alive,
-                    username: login.as_ref().map(|l| l.username.clone()).filter(|u| !u.is_empty()),
+                    username: login
+                        .as_ref()
+                        .map(|l| l.username.clone())
+                        .filter(|u| !u.is_empty()),
                     password: login.map(|l| l.password),
                     will,
                     session_expiry: props.session_expiry_interval.unwrap_or(0),
@@ -275,8 +306,14 @@ pub(crate) fn decode_connect(buf: &mut BytesMut, max: usize) -> Result<Option<Co
 }
 
 /// Decodes the next packet after CONNECT. `Ok(None)`: more bytes needed.
-pub(crate) fn decode(version: Version, buf: &mut BytesMut, max: usize) -> Result<Option<Incoming>, DecodeError> {
-    let Some((byte1, hlen, rlen)) = fixed_header(buf)? else { return Ok(None) };
+pub(crate) fn decode(
+    version: Version,
+    buf: &mut BytesMut,
+    max: usize,
+) -> Result<Option<Incoming>, DecodeError> {
+    let Some((byte1, hlen, rlen)) = fixed_header(buf)? else {
+        return Ok(None);
+    };
     if rlen > max {
         return Err(DecodeError::TooLarge);
     }
@@ -288,8 +325,15 @@ pub(crate) fn decode(version: Version, buf: &mut BytesMut, max: usize) -> Result
         let frame = buf.split_to(hlen + rlen);
         let body = &frame[hlen..];
         let reason = body.first().copied().unwrap_or(0);
-        let session_expiry = if body.len() > 1 { disconnect_session_expiry(&body[1..])? } else { None };
-        return Ok(Some(Incoming::Disconnect { reason, session_expiry }));
+        let session_expiry = if body.len() > 1 {
+            disconnect_session_expiry(&body[1..])?
+        } else {
+            None
+        };
+        return Ok(Some(Incoming::Disconnect {
+            reason,
+            session_expiry,
+        }));
     }
     let malformed = |e: String| DecodeError::Malformed(e);
     match version {
@@ -332,17 +376,25 @@ pub(crate) fn decode(version: Version, buf: &mut BytesMut, max: usize) -> Result
                         })
                         .collect(),
                 },
-                v4::Packet::Unsubscribe(u) => Incoming::Unsubscribe { pkid: u.pkid, filters: u.topics },
+                v4::Packet::Unsubscribe(u) => Incoming::Unsubscribe {
+                    pkid: u.pkid,
+                    filters: u.topics,
+                },
                 v4::Packet::PingReq => Incoming::PingReq,
-                v4::Packet::Disconnect => Incoming::Disconnect { reason: 0, session_expiry: None },
+                v4::Packet::Disconnect => Incoming::Disconnect {
+                    reason: 0,
+                    session_expiry: None,
+                },
                 _ => Incoming::Unexpected,
             }))
         }
         Version::V5 => {
-            let p = v5::Packet::read(buf, Some(max as u32)).map_err(|e| malformed(e.to_string()))?;
+            let p =
+                v5::Packet::read(buf, Some(max as u32)).map_err(|e| malformed(e.to_string()))?;
             Ok(Some(match p {
                 v5::Packet::Publish(p) => {
-                    let topic = String::from_utf8(p.topic.to_vec()).map_err(|_| malformed("topic not UTF-8".into()))?;
+                    let topic = String::from_utf8(p.topic.to_vec())
+                        .map_err(|_| malformed("topic not UTF-8".into()))?;
                     let (props, alias) = match p.properties {
                         Some(pp) => (
                             Some(MsgProps {
@@ -367,7 +419,7 @@ pub(crate) fn decode(version: Version, buf: &mut BytesMut, max: usize) -> Result
                             created: Instant::now(),
                             publisher: None,
                         },
-                            pkid: p.pkid,
+                        pkid: p.pkid,
                         topic_alias: alias,
                     }
                 }
@@ -401,7 +453,10 @@ pub(crate) fn decode(version: Version, buf: &mut BytesMut, max: usize) -> Result
                             .collect(),
                     }
                 }
-                v5::Packet::Unsubscribe(u) => Incoming::Unsubscribe { pkid: u.pkid, filters: u.filters },
+                v5::Packet::Unsubscribe(u) => Incoming::Unsubscribe {
+                    pkid: u.pkid,
+                    filters: u.filters,
+                },
                 v5::Packet::PingReq(_) => Incoming::PingReq,
                 v5::Packet::Disconnect(d) => Incoming::Disconnect {
                     reason: d.reason_code as u8,
@@ -432,7 +487,13 @@ pub(crate) struct ConnAckExtra {
 }
 
 /// Encodes a CONNACK. MQTT 3.1.1 bad login is 0x05 (not authorized, as the spec and test plan require).
-pub(crate) fn encode_connack(version: Version, out: &mut BytesMut, session_present: bool, code: ConnAckCode, extra: ConnAckExtra) {
+pub(crate) fn encode_connack(
+    version: Version,
+    out: &mut BytesMut,
+    session_present: bool,
+    code: ConnAckCode,
+    extra: ConnAckExtra,
+) {
     match version {
         Version::V4 => {
             let c = match code {
@@ -442,7 +503,8 @@ pub(crate) fn encode_connack(version: Version, out: &mut BytesMut, session_prese
                 ConnAckCode::BadClientId => v4::ConnectReturnCode::BadClientId,
                 ConnAckCode::UnsupportedProtocol => v4::ConnectReturnCode::RefusedProtocolVersion,
             };
-            let _ = v4::Packet::ConnAck(v4::ConnAck::new(c, session_present)).write(out, usize::MAX);
+            let _ =
+                v4::Packet::ConnAck(v4::ConnAck::new(c, session_present)).write(out, usize::MAX);
         }
         Version::V5 => {
             let c = match code {
@@ -450,7 +512,9 @@ pub(crate) fn encode_connack(version: Version, out: &mut BytesMut, session_prese
                 ConnAckCode::BadLogin => v5::ConnectReturnCode::BadUserNamePassword,
                 ConnAckCode::QuotaExceeded => v5::ConnectReturnCode::QuotaExceeded,
                 ConnAckCode::BadClientId => v5::ConnectReturnCode::ClientIdentifierNotValid,
-                ConnAckCode::UnsupportedProtocol => v5::ConnectReturnCode::UnsupportedProtocolVersion,
+                ConnAckCode::UnsupportedProtocol => {
+                    v5::ConnectReturnCode::UnsupportedProtocolVersion
+                }
             };
             let props = if code == ConnAckCode::Success {
                 Some(v5::ConnAckProperties {
@@ -475,7 +539,12 @@ pub(crate) fn encode_connack(version: Version, out: &mut BytesMut, session_prese
             } else {
                 None
             };
-            let _ = v5::Packet::ConnAck(v5::ConnAck { session_present, code: c, properties: props }).write(out, None);
+            let _ = v5::Packet::ConnAck(v5::ConnAck {
+                session_present,
+                code: c,
+                properties: props,
+            })
+            .write(out, None);
         }
     }
 }
@@ -503,7 +572,9 @@ pub(crate) fn encode_publish(
                 pkid: if qos == 0 { 0 } else { pkid },
                 payload: msg.payload.clone(),
             };
-            v4::Packet::Publish(p).write(out, max_size.map(|m| m as usize).unwrap_or(usize::MAX)).is_ok()
+            v4::Packet::Publish(p)
+                .write(out, max_size.map(|m| m as usize).unwrap_or(usize::MAX))
+                .is_ok()
         }
         Version::V5 => {
             let props = if msg.props.is_some() || !sub_ids.is_empty() {
@@ -537,6 +608,7 @@ pub(crate) fn encode_publish(
 
 /// Acknowledgement kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 pub(crate) enum Ack {
     PubAck,
     PubRec,
@@ -588,7 +660,12 @@ pub(crate) fn encode_suback(version: Version, out: &mut BytesMut, pkid: u16, cod
                     None => v5::SubscribeReasonCode::TopicFilterInvalid,
                 })
                 .collect();
-            let _ = v5::Packet::SubAck(v5::SubAck { pkid, return_codes: rc, properties: None }).write(out, None);
+            let _ = v5::Packet::SubAck(v5::SubAck {
+                pkid,
+                return_codes: rc,
+                properties: None,
+            })
+            .write(out, None);
         }
     }
 }
@@ -602,9 +679,20 @@ pub(crate) fn encode_unsuback(version: Version, out: &mut BytesMut, pkid: u16, e
         Version::V5 => {
             let reasons = existed
                 .iter()
-                .map(|e| if *e { v5::UnsubAckReason::Success } else { v5::UnsubAckReason::NoSubscriptionExisted })
+                .map(|e| {
+                    if *e {
+                        v5::UnsubAckReason::Success
+                    } else {
+                        v5::UnsubAckReason::NoSubscriptionExisted
+                    }
+                })
                 .collect();
-            let _ = v5::Packet::UnsubAck(v5::UnsubAck { pkid, reasons, properties: None }).write(out, None);
+            let _ = v5::Packet::UnsubAck(v5::UnsubAck {
+                pkid,
+                reasons,
+                properties: None,
+            })
+            .write(out, None);
         }
     }
 }
@@ -648,7 +736,10 @@ fn disconnect_session_expiry(props: &[u8]) -> Result<Option<u32>, DecodeError> {
             return Err(bad());
         }
     }
-    let end = i.checked_add(len).filter(|e| *e <= props.len()).ok_or_else(bad)?;
+    let end = i
+        .checked_add(len)
+        .filter(|e| *e <= props.len())
+        .ok_or_else(bad)?;
     let mut p = &props[i..end];
     while let Some((&id, rest)) = p.split_first() {
         match id {
@@ -658,14 +749,23 @@ fn disconnect_session_expiry(props: &[u8]) -> Result<Option<u32>, DecodeError> {
             }
             // Reason string, server reference: UTF-8 string (2-byte length).
             0x1F | 0x1C => {
-                let l = rest.get(..2).map(|b| u16::from_be_bytes([b[0], b[1]]) as usize).ok_or_else(bad)?;
+                let l = rest
+                    .get(..2)
+                    .map(|b| u16::from_be_bytes([b[0], b[1]]) as usize)
+                    .ok_or_else(bad)?;
                 p = rest.get(2 + l..).ok_or_else(bad)?;
             }
             // User property: two strings.
             0x26 => {
-                let l1 = rest.get(..2).map(|b| u16::from_be_bytes([b[0], b[1]]) as usize).ok_or_else(bad)?;
+                let l1 = rest
+                    .get(..2)
+                    .map(|b| u16::from_be_bytes([b[0], b[1]]) as usize)
+                    .ok_or_else(bad)?;
                 let r2 = rest.get(2 + l1..).ok_or_else(bad)?;
-                let l2 = r2.get(..2).map(|b| u16::from_be_bytes([b[0], b[1]]) as usize).ok_or_else(bad)?;
+                let l2 = r2
+                    .get(..2)
+                    .map(|b| u16::from_be_bytes([b[0], b[1]]) as usize)
+                    .ok_or_else(bad)?;
                 p = r2.get(2 + l2..).ok_or_else(bad)?;
             }
             _ => return Err(bad()),

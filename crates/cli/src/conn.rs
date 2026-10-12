@@ -18,7 +18,9 @@ pub fn secret_store() -> Arc<dyn SecretStore> {
     if std::env::var("MQTTPANEL_SECRETS").as_deref() == Ok("memory") {
         let mem = MemorySecrets::new();
         if let Ok(seed) = std::env::var("MQTTPANEL_SECRETS_SEED") {
-            if let Ok(map) = serde_json::from_str::<std::collections::HashMap<String, String>>(&seed) {
+            if let Ok(map) =
+                serde_json::from_str::<std::collections::HashMap<String, String>>(&seed)
+            {
                 for (k, v) in map {
                     let _ = mem.set(&k, &v);
                 }
@@ -35,7 +37,9 @@ pub fn store() -> Store {
 }
 
 fn file_name(p: &Path) -> String {
-    p.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| p.to_string_lossy().to_string())
+    p.file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_else(|| p.to_string_lossy().to_string())
 }
 
 /// Reads a file named on the command line; unreadable files are a bad argument.
@@ -57,7 +61,12 @@ fn parse_host(s: &str) -> Option<HostSpec> {
         return None;
     }
     let Some((scheme, rest)) = s.split_once("://") else {
-        return Some(HostSpec { host: s.to_string(), scheme: None, port: None, path: None });
+        return Some(HostSpec {
+            host: s.to_string(),
+            scheme: None,
+            port: None,
+            path: None,
+        });
     };
     let scheme = Scheme::parse(&scheme.to_ascii_lowercase())?;
     let (authority, path) = match rest.find('/') {
@@ -81,7 +90,12 @@ fn parse_host(s: &str) -> Option<HostSpec> {
     if host.is_empty() || port == Some(0) {
         return None;
     }
-    Some(HostSpec { host, scheme: Some(scheme), port, path })
+    Some(HostSpec {
+        host,
+        scheme: Some(scheme),
+        port,
+        path,
+    })
 }
 
 fn default_port(s: Scheme) -> u16 {
@@ -102,18 +116,32 @@ fn ask_password(user: &str, lang: Lang) -> Option<String> {
     if !(std::io::stdin().is_terminal() || std::io::stderr().is_terminal()) {
         return None;
     }
-    let prompt = cat(lang, "cli.passwordPrompt", &[("user", serde_json::json!(user))]);
-    rpassword::prompt_password(prompt).ok().filter(|p| !p.is_empty())
+    let prompt = cat(
+        lang,
+        "cli.passwordPrompt",
+        &[("user", serde_json::json!(user))],
+    );
+    rpassword::prompt_password(prompt)
+        .ok()
+        .filter(|p| !p.is_empty())
 }
 
 /// Builds the client options: the profile first (when `--profile` is given), then the explicit flags on top.
-pub fn build(g: &Global, tls: &TlsArgs, command: &str, lang: Lang) -> Result<ConnectOptions, Failure> {
+pub fn build(
+    g: &Global,
+    tls: &TlsArgs,
+    command: &str,
+    lang: Lang,
+) -> Result<ConnectOptions, Failure> {
     let from_profile = g.profile.is_some();
     let mut o = match &g.profile {
         Some(name) => {
             let st = store();
-            let sp = st.find(name).ok_or_else(|| Failure::msg(&msg!("cli.profileNotFound", name = name), lang))?;
-            mqttpanel_profiles::connect_options(&sp, st.secrets().as_ref(), tls.insecure).map_err(|m| Failure::msg(&m, lang))?
+            let sp = st
+                .find(name)
+                .ok_or_else(|| Failure::msg(&msg!("cli.profileNotFound", name = name), lang))?;
+            mqttpanel_profiles::connect_options(&sp, st.secrets().as_ref(), tls.insecure)
+                .map_err(|m| Failure::msg(&m, lang))?
         }
         None => {
             let mut o = ConnectOptions::new("localhost", 1883);
@@ -123,7 +151,8 @@ pub fn build(g: &Global, tls: &TlsArgs, command: &str, lang: Lang) -> Result<Con
     };
     let mut explicit_port = false;
     if let Some(h) = &g.host {
-        let spec = parse_host(h).ok_or_else(|| Failure::args_t("args.badHost", &[("arg", h)], command, lang))?;
+        let spec = parse_host(h)
+            .ok_or_else(|| Failure::args_t("args.badHost", &[("arg", h)], command, lang))?;
         o.host = spec.host;
         if let Some(s) = spec.scheme {
             o.scheme = s;
@@ -139,7 +168,11 @@ pub fn build(g: &Global, tls: &TlsArgs, command: &str, lang: Lang) -> Result<Con
     }
     if g.tls || tls.any() {
         let was_plain = !o.scheme.is_tls();
-        o.scheme = if o.scheme.is_ws() { Scheme::Wss } else { Scheme::Mqtts };
+        o.scheme = if o.scheme.is_ws() {
+            Scheme::Wss
+        } else {
+            Scheme::Mqtts
+        };
         if was_plain && !explicit_port && (o.port == 1883 || o.port == 8083) {
             o.port = default_port(o.scheme);
         }
@@ -149,7 +182,8 @@ pub fn build(g: &Global, tls: &TlsArgs, command: &str, lang: Lang) -> Result<Con
     }
     apply_tls(&mut o, tls, command, lang)?;
     if let Some(u) = &g.user {
-        let same_as_profile = from_profile && o.username.as_deref() == Some(u.as_str()) && o.password.is_some();
+        let same_as_profile =
+            from_profile && o.username.as_deref() == Some(u.as_str()) && o.password.is_some();
         o.username = Some(u.clone());
         if !same_as_profile {
             o.password = ask_password(u, lang);
@@ -161,7 +195,12 @@ pub fn build(g: &Global, tls: &TlsArgs, command: &str, lang: Lang) -> Result<Con
     Ok(o)
 }
 
-fn apply_tls(o: &mut ConnectOptions, a: &TlsArgs, command: &str, lang: Lang) -> Result<(), Failure> {
+fn apply_tls(
+    o: &mut ConnectOptions,
+    a: &TlsArgs,
+    command: &str,
+    lang: Lang,
+) -> Result<(), Failure> {
     if let Some(ca) = &a.cafile {
         let bytes = read_file(ca, lang)?;
         if mqttpanel_tls::parse_certs(&bytes).is_err() {
@@ -177,22 +216,36 @@ fn apply_tls(o: &mut ConnectOptions, a: &TlsArgs, command: &str, lang: Lang) -> 
                 Some(k) => Some(read_file(k, lang)?),
                 None => None,
             };
-            let named = key.as_deref().filter(|_| !mqttpanel_tls::looks_like_pkcs12(&cert_bytes)).unwrap_or(cert);
-            let id = mqttpanel_tls::load_identity(&cert_bytes, key_bytes.as_deref(), a.key_passphrase.as_deref()).map_err(|e| {
+            let named = key
+                .as_deref()
+                .filter(|_| !mqttpanel_tls::looks_like_pkcs12(&cert_bytes))
+                .unwrap_or(cert);
+            let id = mqttpanel_tls::load_identity(
+                &cert_bytes,
+                key_bytes.as_deref(),
+                a.key_passphrase.as_deref(),
+            )
+            .map_err(|e| {
                 let m = match e {
-                    mqttpanel_tls::TlsFileError::WrongPassphrase | mqttpanel_tls::TlsFileError::NeedsPassphrase => {
+                    mqttpanel_tls::TlsFileError::WrongPassphrase
+                    | mqttpanel_tls::TlsFileError::NeedsPassphrase => {
                         msg!("tls.wrongPassphrase", file = file_name(named))
                     }
                     other => msg!(other.catalog_key()),
                 };
-                Failure { code: EXIT_ARGS, text: m.render(lang) }
+                Failure {
+                    code: EXIT_ARGS,
+                    text: m.render(lang),
+                }
             })?;
             o.tls.identity = Some(id);
         }
         (None, None) => {}
     }
     for fp in &a.trust_fingerprint {
-        o.tls.trusted_fingerprints.push(mqttpanel_tls::normalize_fingerprint(fp));
+        o.tls
+            .trusted_fingerprints
+            .push(mqttpanel_tls::normalize_fingerprint(fp));
     }
     if a.insecure {
         o.tls.skip_verify = true;
@@ -210,7 +263,10 @@ fn apply_tls(o: &mut ConnectOptions, a: &TlsArgs, command: &str, lang: Lang) -> 
 pub fn connect_failure(f: &ConnectFailure, lang: Lang) -> Failure {
     match f {
         ConnectFailure::Message(m) => Failure::msg(m, lang),
-        ConnectFailure::Trust(info) => Failure { code: EXIT_CONNECTION, text: trust_text(info, lang) },
+        ConnectFailure::Trust(info) => Failure {
+            code: EXIT_CONNECTION,
+            text: trust_text(info, lang),
+        },
     }
 }
 
@@ -218,13 +274,33 @@ pub fn connect_failure(f: &ConnectFailure, lang: Lang) -> Failure {
 pub fn trust_text(info: &TrustInfo, lang: Lang) -> String {
     let leaf = &info.leaf;
     let fp = leaf.fingerprint.clone();
-    let mut lines = vec![cat(lang, "tls.untrusted", &[]), info.reason_text.render(lang)];
-    lines.push(format!("  {}: {}", t(lang, "trust.subject", &[]), leaf.subject));
-    lines.push(format!("  {}: {}", t(lang, "trust.issuer", &[]), leaf.issuer));
+    let mut lines = vec![
+        cat(lang, "tls.untrusted", &[]),
+        info.reason_text.render(lang),
+    ];
+    lines.push(format!(
+        "  {}: {}",
+        t(lang, "trust.subject", &[]),
+        leaf.subject
+    ));
+    lines.push(format!(
+        "  {}: {}",
+        t(lang, "trust.issuer", &[]),
+        leaf.issuer
+    ));
     if !leaf.san.is_empty() {
-        lines.push(format!("  {}: {}", t(lang, "trust.names", &[]), leaf.san.join(", ")));
+        lines.push(format!(
+            "  {}: {}",
+            t(lang, "trust.names", &[]),
+            leaf.san.join(", ")
+        ));
     }
-    lines.push(format!("  {}: {} – {}", t(lang, "trust.valid", &[]), leaf.not_before, leaf.not_after));
+    lines.push(format!(
+        "  {}: {} – {}",
+        t(lang, "trust.valid", &[]),
+        leaf.not_before,
+        leaf.not_after
+    ));
     lines.push(format!("  {}: {}", t(lang, "trust.fingerprint", &[]), fp));
     lines.push(t(lang, "trust.hint", &[("fp", &fp)]));
     lines.join("\n")
@@ -237,11 +313,20 @@ mod tests {
     #[test]
     fn host_forms() {
         let h = parse_host("10.20.4.17").unwrap();
-        assert_eq!((h.host.as_str(), h.scheme, h.port), ("10.20.4.17", None, None));
+        assert_eq!(
+            (h.host.as_str(), h.scheme, h.port),
+            ("10.20.4.17", None, None)
+        );
         let h = parse_host("mqtts://broker.example.net").unwrap();
-        assert_eq!((h.host.as_str(), h.scheme, h.port), ("broker.example.net", Some(Scheme::Mqtts), None));
+        assert_eq!(
+            (h.host.as_str(), h.scheme, h.port),
+            ("broker.example.net", Some(Scheme::Mqtts), None)
+        );
         let h = parse_host("ws://[::1]:9001/mqtt").unwrap();
-        assert_eq!((h.host.as_str(), h.scheme, h.port, h.path.as_deref()), ("::1", Some(Scheme::Ws), Some(9001), Some("/mqtt")));
+        assert_eq!(
+            (h.host.as_str(), h.scheme, h.port, h.path.as_deref()),
+            ("::1", Some(Scheme::Ws), Some(9001), Some("/mqtt"))
+        );
         assert!(parse_host("gopher://x").is_none());
         assert!(parse_host("mqtt://x:99999").is_none());
         assert!(parse_host("").is_none());
@@ -249,13 +334,24 @@ mod tests {
 
     #[test]
     fn tls_flags_switch_port() {
-        let g = Global { tls: true, ..Default::default() };
+        let g = Global {
+            tls: true,
+            ..Default::default()
+        };
         let o = build(&g, &TlsArgs::default(), "sub", Lang::En).unwrap();
         assert_eq!((o.scheme, o.port), (Scheme::Mqtts, 8883));
-        let g = Global { tls: true, port: Some(1883), ..Default::default() };
+        let g = Global {
+            tls: true,
+            port: Some(1883),
+            ..Default::default()
+        };
         let o = build(&g, &TlsArgs::default(), "sub", Lang::En).unwrap();
         assert_eq!(o.port, 1883);
-        let a = TlsArgs { insecure: true, trust_fingerprint: vec!["3f9a".into()], ..Default::default() };
+        let a = TlsArgs {
+            insecure: true,
+            trust_fingerprint: vec!["3f9a".into()],
+            ..Default::default()
+        };
         let o = build(&Global::default(), &a, "sub", Lang::En).unwrap();
         assert!(o.tls.skip_verify);
         assert_eq!(o.tls.trusted_fingerprints, vec!["3F:9A".to_string()]);

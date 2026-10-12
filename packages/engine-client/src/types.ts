@@ -534,6 +534,7 @@ export interface IssuedCert {
   lastSeen: 'connected' | 'never' | number; // number = last seen time
   revoked: boolean;
   system: boolean; // "mqttpanel-desktop", used by Connect Explorer here
+  superseded: boolean; // issued by a CA that was rotated away: re-issue it
 }
 
 export interface BrokerCerts {

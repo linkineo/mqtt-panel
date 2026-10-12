@@ -307,6 +307,8 @@ fn connack_v5(code: v5::ConnectReturnCode, reason: Option<String>, opts: &Connec
         0x03 | 0x88 | 0x89 => Some(msg!("error.serverUnavailable", code = hex)),
         0x86 if user.is_empty() => Some(msg!("error.badLoginAnonymous", code = hex)),
         0x86 => Some(msg!("error.badLogin", user = user, code = hex)),
+        // Some brokers (Mosquitto) answer a wrong password with 0x87: with credentials sent, it is a login problem.
+        0x87 if !user.is_empty() && opts.password.is_some() => Some(msg!("error.badLogin", user = user, code = hex)),
         0x87 | 0x8A => Some(msg!("error.notAuthorized", code = hex)),
         0x95 => Some(msg!("error.connackOther", reason = "@reason.packetTooLarge", code = hex)),
         0x97 => Some(msg!("error.connackOther", reason = "@reason.quotaExceeded", code = hex)),

@@ -20,7 +20,10 @@ struct LogInner {
 }
 
 pub(crate) fn now_ms() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 impl LogBuffer {
@@ -37,10 +40,17 @@ impl LogBuffer {
             LogLevel::Warn => tracing::warn!(target: "mqttpanel_broker", "{text}"),
             LogLevel::Error => tracing::error!(target: "mqttpanel_broker", "{text}"),
         }
-        let Ok(mut g) = self.inner.lock() else { return 0 };
+        let Ok(mut g) = self.inner.lock() else {
+            return 0;
+        };
         g.seq += 1;
         let seq = g.seq;
-        g.lines.push_back(LogLine { seq, at: now_ms(), level, text });
+        g.lines.push_back(LogLine {
+            seq,
+            at: now_ms(),
+            level,
+            text,
+        });
         while g.lines.len() > LOG_CAPACITY {
             g.lines.pop_front();
         }
@@ -62,8 +72,14 @@ impl LogBuffer {
 
     /// Lines with `seq > after_seq` at `level` or above, oldest first.
     pub fn lines(&self, level: LogLevel, after_seq: u64) -> Vec<LogLine> {
-        let Ok(g) = self.inner.lock() else { return Vec::new() };
-        g.lines.iter().filter(|l| l.seq > after_seq && l.level >= level).cloned().collect()
+        let Ok(g) = self.inner.lock() else {
+            return Vec::new();
+        };
+        g.lines
+            .iter()
+            .filter(|l| l.seq > after_seq && l.level >= level)
+            .cloned()
+            .collect()
     }
 
     /// Sequence number of the newest line (0 when empty).
@@ -73,6 +89,9 @@ impl LogBuffer {
 
     /// True when a line containing `needle` exists (tests and diagnostics).
     pub fn contains(&self, needle: &str) -> bool {
-        self.inner.lock().map(|g| g.lines.iter().any(|l| l.text.contains(needle))).unwrap_or(false)
+        self.inner
+            .lock()
+            .map(|g| g.lines.iter().any(|l| l.text.contains(needle)))
+            .unwrap_or(false)
     }
 }

@@ -17,8 +17,8 @@ pub use auth::{hash_password, verify_password, AuthConfig, Credential};
 pub use listener::BindAddr;
 pub use log::LogBuffer;
 use session::ListenerCtx;
-use state::{Outbound, Shared, State};
 pub use state::CertSeen;
+use state::{Outbound, Shared, State};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -143,7 +143,11 @@ impl Broker {
             let fail = |detail: String| {
                 BrokerError::new(
                     "broker.listenerFailed",
-                    &[("kind", s(spec.kind.label())), ("port", n(spec.port)), ("detail", s(detail.clone()))],
+                    &[
+                        ("kind", s(spec.kind.label())),
+                        ("port", n(spec.port)),
+                        ("detail", s(detail.clone())),
+                    ],
                 )
                 .with_detail(detail)
             };
@@ -155,8 +159,17 @@ impl Broker {
                 match built {
                     Ok(t) => Some(Arc::new(t)),
                     Err(e) => {
-                        shared.log.error(format!("{} listener on port {} could not start: {e}", spec.kind.label(), spec.port));
-                        listeners.push(ListenerRuntime { id: spec.id.clone(), kind: spec.kind, addrs: vec![], error: Some(fail(e)) });
+                        shared.log.error(format!(
+                            "{} listener on port {} could not start: {e}",
+                            spec.kind.label(),
+                            spec.port
+                        ));
+                        listeners.push(ListenerRuntime {
+                            id: spec.id.clone(),
+                            kind: spec.kind,
+                            addrs: vec![],
+                            error: Some(fail(e)),
+                        });
                         continue;
                     }
                 }
@@ -167,8 +180,17 @@ impl Broker {
                 Ok(s) => s,
                 Err(e) => {
                     let d = io_detail(&e);
-                    shared.log.error(format!("{} listener on port {} could not start: {d}", spec.kind.label(), spec.port));
-                    listeners.push(ListenerRuntime { id: spec.id.clone(), kind: spec.kind, addrs: vec![], error: Some(fail(d)) });
+                    shared.log.error(format!(
+                        "{} listener on port {} could not start: {d}",
+                        spec.kind.label(),
+                        spec.port
+                    ));
+                    listeners.push(ListenerRuntime {
+                        id: spec.id.clone(),
+                        kind: spec.kind,
+                        addrs: vec![],
+                        error: Some(fail(d)),
+                    });
                     continue;
                 }
             };
@@ -186,7 +208,9 @@ impl Broker {
                 let l = match tokio::net::TcpListener::from_std(sock) {
                     Ok(l) => l,
                     Err(e) => {
-                        shared.log.error(format!("listener {addr} could not start: {e}"));
+                        shared
+                            .log
+                            .error(format!("listener {addr} could not start: {e}"));
                         continue;
                     }
                 };
@@ -213,16 +237,33 @@ impl Broker {
             if lctx.require_client_cert {
                 extra.push_str(", client certificate required");
             }
-            shared.log.info(format!("{} listener on port {port} ({where_}{extra})", spec.kind.label()));
-            listeners.push(ListenerRuntime { id: spec.id.clone(), kind: spec.kind, addrs, error: None });
+            shared.log.info(format!(
+                "{} listener on port {port} ({where_}{extra})",
+                spec.kind.label()
+            ));
+            listeners.push(ListenerRuntime {
+                id: spec.id.clone(),
+                kind: spec.kind,
+                addrs,
+                error: None,
+            });
         }
         if listeners.iter().all(|l| l.error.is_some()) {
             let _ = shutdown_tx.send(true);
             let detail = listeners
                 .iter()
-                .find_map(|l| l.error.as_ref().and_then(|e| e.message.params.get("detail")).and_then(|d| d.as_str()).map(String::from))
+                .find_map(|l| {
+                    l.error
+                        .as_ref()
+                        .and_then(|e| e.message.params.get("detail"))
+                        .and_then(|d| d.as_str())
+                        .map(String::from)
+                })
                 .unwrap_or_default();
-            return Err(BrokerError::new("broker.startFailed", &[("detail", s(detail.clone()))]).with_detail(detail));
+            return Err(
+                BrokerError::new("broker.startFailed", &[("detail", s(detail.clone()))])
+                    .with_detail(detail),
+            );
         }
         // Session expiry sweeper.
         {
@@ -264,7 +305,9 @@ pub struct BrokerHandle {
 
 impl std::fmt::Debug for BrokerHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BrokerHandle").field("listeners", &self.listeners).finish()
+        f.debug_struct("BrokerHandle")
+            .field("listeners", &self.listeners)
+            .finish()
     }
 }
 
@@ -276,12 +319,18 @@ impl BrokerHandle {
 
     /// The bound port of a listener.
     pub fn port(&self, listener_id: &str) -> Option<u16> {
-        self.listeners.iter().find(|l| l.id == listener_id).and_then(|l| l.addrs.first()).map(|a| a.port())
+        self.listeners
+            .iter()
+            .find(|l| l.id == listener_id)
+            .and_then(|l| l.addrs.first())
+            .map(|a| a.port())
     }
 
     /// True when one of the running listeners is bound to this port.
     pub fn uses_port(&self, port: u16) -> bool {
-        self.listeners.iter().any(|l| l.addrs.iter().any(|a| a.port() == port))
+        self.listeners
+            .iter()
+            .any(|l| l.addrs.iter().any(|a| a.port() == port))
     }
 
     pub fn stats(&self) -> RuntimeStats {
@@ -323,7 +372,11 @@ impl BrokerHandle {
                 }
             })
             .collect();
-        v.sort_by(|a, b| a.connected_at.cmp(&b.connected_at).then(a.client_id.cmp(&b.client_id)));
+        v.sort_by(|a, b| {
+            a.connected_at
+                .cmp(&b.connected_at)
+                .then(a.client_id.cmp(&b.client_id))
+        });
         v
     }
 
@@ -335,7 +388,9 @@ impl BrokerHandle {
                 let ok = c.tx.send(Outbound::Disconnect(0x98)).is_ok();
                 drop(st);
                 if ok {
-                    self.shared.log.info(format!("client {client_id} disconnected from the Broker screen"));
+                    self.shared.log.info(format!(
+                        "client {client_id} disconnected from the Broker screen"
+                    ));
                 }
                 ok
             }
@@ -383,7 +438,10 @@ impl BrokerHandle {
         }
         self.done_tx.take();
         if let Some(mut rx) = self.done_rx.take() {
-            let _ = tokio::time::timeout(Duration::from_secs(5), async { while rx.recv().await.is_some() {} }).await;
+            let _ = tokio::time::timeout(Duration::from_secs(5), async {
+                while rx.recv().await.is_some() {}
+            })
+            .await;
         }
         self.shared.log.info("broker stopped");
     }

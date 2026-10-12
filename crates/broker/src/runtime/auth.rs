@@ -1,6 +1,8 @@
 //! Authentication: anonymous gate, per-listener login, shared users (argon2 hashes at rest).
 
-use argon2::password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use argon2::password_hash::{
+    rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+};
 use argon2::Argon2;
 use std::collections::HashMap;
 
@@ -31,13 +33,18 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 /// Hashes a password with argon2id (PHC string).
 pub fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
-    Argon2::default().hash_password(password.as_bytes(), &salt).map(|h| h.to_string()).map_err(|e| e.to_string())
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .map_err(|e| e.to_string())
 }
 
 /// Verifies a password against an argon2 PHC string.
 pub fn verify_password(hash: &str, password: &str) -> bool {
     match PasswordHash::new(hash) {
-        Ok(h) => Argon2::default().verify_password(password.as_bytes(), &h).is_ok(),
+        Ok(h) => Argon2::default()
+            .verify_password(password.as_bytes(), &h)
+            .is_ok(),
         Err(_) => false,
     }
 }
@@ -75,7 +82,9 @@ pub(crate) fn authenticate(
     if require_client_cert && cert_verified {
         return AuthOutcome::Accepted;
     }
-    let (Some(user), Some(pass)) = (username, password) else { return AuthOutcome::BadLogin };
+    let (Some(user), Some(pass)) = (username, password) else {
+        return AuthOutcome::BadLogin;
+    };
     if let Some((lu, lp)) = auth.listener_logins.get(listener_id) {
         if lu == user && lp.verify(pass) {
             return AuthOutcome::Accepted;
@@ -101,13 +110,32 @@ mod tests {
         assert!(!verify_password(&h, "wrong"));
         let mut a = AuthConfig::default();
         a.users.insert("alice".into(), Credential::Argon2(h));
-        a.listener_logins.insert("tls".into(), ("dev".into(), Credential::Plain("pw".into())));
-        assert_eq!(authenticate(&a, "tcp", false, false, Some("alice"), Some("s3cret")), AuthOutcome::Accepted);
-        assert_eq!(authenticate(&a, "tcp", false, false, Some("dev"), Some("pw")), AuthOutcome::BadLogin);
-        assert_eq!(authenticate(&a, "tls", false, false, Some("dev"), Some("pw")), AuthOutcome::Accepted);
-        assert_eq!(authenticate(&a, "tls", true, true, None, None), AuthOutcome::Accepted);
-        assert_eq!(authenticate(&a, "tls", false, true, None, None), AuthOutcome::BadLogin);
+        a.listener_logins
+            .insert("tls".into(), ("dev".into(), Credential::Plain("pw".into())));
+        assert_eq!(
+            authenticate(&a, "tcp", false, false, Some("alice"), Some("s3cret")),
+            AuthOutcome::Accepted
+        );
+        assert_eq!(
+            authenticate(&a, "tcp", false, false, Some("dev"), Some("pw")),
+            AuthOutcome::BadLogin
+        );
+        assert_eq!(
+            authenticate(&a, "tls", false, false, Some("dev"), Some("pw")),
+            AuthOutcome::Accepted
+        );
+        assert_eq!(
+            authenticate(&a, "tls", true, true, None, None),
+            AuthOutcome::Accepted
+        );
+        assert_eq!(
+            authenticate(&a, "tls", false, true, None, None),
+            AuthOutcome::BadLogin
+        );
         a.anonymous = true;
-        assert_eq!(authenticate(&a, "tcp", false, false, None, None), AuthOutcome::Accepted);
+        assert_eq!(
+            authenticate(&a, "tcp", false, false, None, None),
+            AuthOutcome::Accepted
+        );
     }
 }

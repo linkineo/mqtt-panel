@@ -27,8 +27,7 @@ base64 = "0.22"
 hex = "0.4"
 sha2 = "0.10"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
-rustls-pemfile = "2"
-rustls-pki-types = "1"
+rustls-pki-types = { version = "1.9", features = ["std"] }
 webpki-roots = "1"
 rcgen = { version = "0.14", features = ["pem", "x509-parser", "crypto", "ring"], default-features = false }
 x509-parser = "0.18"

@@ -7,13 +7,20 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer, UnixTime};
 use rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
 use rustls::server::{ClientHello, ResolvesServerCert, WebPkiClientVerifier};
 use rustls::sign::CertifiedKey;
-use rustls::{CertificateError, DigitallySignedStruct, DistinguishedName, RootCertStore, ServerConfig, SignatureScheme};
+use rustls::{
+    CertificateError, DigitallySignedStruct, DistinguishedName, RootCertStore, ServerConfig,
+    SignatureScheme,
+};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, RwLock};
 
 /// Normalises a certificate serial ("4A:0b:..." or "4a0b...") to lower-case hex without separators or leading zeros.
 pub fn normalize_serial(s: &str) -> String {
-    let hex: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect::<String>().to_ascii_lowercase();
+    let hex: String = s
+        .chars()
+        .filter(|c| c.is_ascii_hexdigit())
+        .collect::<String>()
+        .to_ascii_lowercase();
     let trimmed = hex.trim_start_matches('0');
     if trimmed.is_empty() {
         "0".into()
@@ -30,8 +37,13 @@ pub struct RevocationList {
 
 impl RevocationList {
     pub fn new<I: IntoIterator<Item = S>, S: AsRef<str>>(serials: I) -> Self {
-        let set = serials.into_iter().map(|s| normalize_serial(s.as_ref())).collect();
-        RevocationList { inner: Arc::new(RwLock::new(set)) }
+        let set = serials
+            .into_iter()
+            .map(|s| normalize_serial(s.as_ref()))
+            .collect();
+        RevocationList {
+            inner: Arc::new(RwLock::new(set)),
+        }
     }
     pub fn revoke(&self, serial: &str) {
         if let Ok(mut g) = self.inner.write() {
@@ -39,12 +51,18 @@ impl RevocationList {
         }
     }
     pub fn is_revoked(&self, serial: &str) -> bool {
-        self.inner.read().map(|g| g.contains(&normalize_serial(serial))).unwrap_or(false)
+        self.inner
+            .read()
+            .map(|g| g.contains(&normalize_serial(serial)))
+            .unwrap_or(false)
     }
     /// Replaces the whole list.
     pub fn replace<I: IntoIterator<Item = S>, S: AsRef<str>>(&self, serials: I) {
         if let Ok(mut g) = self.inner.write() {
-            *g = serials.into_iter().map(|s| normalize_serial(s.as_ref())).collect();
+            *g = serials
+                .into_iter()
+                .map(|s| normalize_serial(s.as_ref()))
+                .collect();
         }
     }
 }
@@ -60,7 +78,11 @@ pub struct TlsMaterial {
 
 impl Clone for TlsMaterial {
     fn clone(&self) -> Self {
-        TlsMaterial { chain: self.chain.clone(), key: self.key.clone_key(), client_roots: self.client_roots.clone() }
+        TlsMaterial {
+            chain: self.chain.clone(),
+            key: self.key.clone_key(),
+            client_roots: self.client_roots.clone(),
+        }
     }
 }
 
@@ -74,7 +96,10 @@ pub struct PeerCert {
 
 fn peer_cert_of(der: &[u8]) -> Option<PeerCert> {
     let d = mqttpanel_tls::cert_details(der).ok()?;
-    Some(PeerCert { cn: d.cn, serial: normalize_serial(&d.serial) })
+    Some(PeerCert {
+        cn: d.cn,
+        serial: normalize_serial(&d.serial),
+    })
 }
 
 /// Per-connection record filled by the verifier.
@@ -127,14 +152,17 @@ impl TlsListener {
         if material.chain.is_empty() {
             return Err("no server certificate".into());
         }
-        let key = CertifiedKey::from_der(material.chain.clone(), material.key.clone_key(), &provider)
-            .map_err(|e| format!("server key: {e}"))?;
+        let key =
+            CertifiedKey::from_der(material.chain.clone(), material.key.clone_key(), &provider)
+                .map_err(|e| format!("server key: {e}"))?;
         let (required, optional) = if material.client_roots.is_empty() {
             (None, None)
         } else {
             let mut roots = RootCertStore::empty();
             for r in &material.client_roots {
-                roots.add(r.clone()).map_err(|e| format!("client CA: {e}"))?;
+                roots
+                    .add(r.clone())
+                    .map_err(|e| format!("client CA: {e}"))?;
             }
             let roots = Arc::new(roots);
             let req = WebPkiClientVerifier::builder_with_provider(roots.clone(), provider.clone())
@@ -146,11 +174,20 @@ impl TlsListener {
                 .map_err(|e| format!("client verifier: {e}"))?;
             (Some(req), Some(opt))
         };
-        Ok(TlsListener { provider, resolver: Arc::new(FixedCert(Arc::new(key))), required, optional, revoked })
+        Ok(TlsListener {
+            provider,
+            resolver: Arc::new(FixedCert(Arc::new(key))),
+            required,
+            optional,
+            revoked,
+        })
     }
 
     /// A server config for one connection, with its handshake slot.
-    pub fn config_for(&self, mode: ClientAuthMode) -> Result<(Arc<ServerConfig>, Arc<Mutex<HandshakeSlot>>), String> {
+    pub fn config_for(
+        &self,
+        mode: ClientAuthMode,
+    ) -> Result<(Arc<ServerConfig>, Arc<Mutex<HandshakeSlot>>), String> {
         let slot = Arc::new(Mutex::new(HandshakeSlot::default()));
         let inner = match mode {
             ClientAuthMode::Off => None,
@@ -163,7 +200,11 @@ impl TlsListener {
         };
         let verifier: Arc<dyn ClientCertVerifier> = match inner {
             None => WebPkiClientVerifier::no_client_auth(),
-            Some(inner) => Arc::new(SlotVerifier { inner, slot: slot.clone(), revoked: self.revoked.clone() }),
+            Some(inner) => Arc::new(SlotVerifier {
+                inner,
+                slot: slot.clone(),
+                revoked: self.revoked.clone(),
+            }),
         };
         let mut cfg = ServerConfig::builder_with_provider(self.provider.clone())
             .with_safe_default_protocol_versions()
@@ -187,10 +228,15 @@ pub(crate) fn describe_cert_error(e: &rustls::Error) -> String {
     match e {
         rustls::Error::InvalidCertificate(ce) => match ce {
             CertificateError::UnknownIssuer => "unknown CA".into(),
-            CertificateError::Expired | CertificateError::ExpiredContext { .. } => "certificate expired".into(),
-            CertificateError::NotValidYet | CertificateError::NotValidYetContext { .. } => "certificate not valid yet".into(),
+            CertificateError::Expired | CertificateError::ExpiredContext { .. } => {
+                "certificate expired".into()
+            }
+            CertificateError::NotValidYet | CertificateError::NotValidYetContext { .. } => {
+                "certificate not valid yet".into()
+            }
             CertificateError::Revoked => "revoked certificate".into(),
-            CertificateError::BadSignature => "bad certificate signature".into(),
+            // A certificate naming a trusted CA but signed by another key (e.g. issued before a CA rotation).
+            CertificateError::BadSignature => "unknown CA (signature does not match)".into(),
             CertificateError::InvalidPurpose | CertificateError::InvalidPurposeContext { .. } => {
                 "certificate not meant for clients".into()
             }
@@ -221,12 +267,18 @@ impl ClientCertVerifier for SlotVerifier {
         now: UnixTime,
     ) -> Result<ClientCertVerified, rustls::Error> {
         let info = peer_cert_of(end_entity.as_ref());
-        match self.inner.verify_client_cert(end_entity, intermediates, now) {
+        match self
+            .inner
+            .verify_client_cert(end_entity, intermediates, now)
+        {
             Ok(v) => {
                 if let Some(pc) = &info {
                     if self.revoked.is_revoked(&pc.serial) {
                         if let Ok(mut s) = self.slot.lock() {
-                            s.failure = Some(format!("revoked certificate {}", pc.cn.clone().unwrap_or_else(|| pc.serial.clone())));
+                            s.failure = Some(format!(
+                                "revoked certificate {}",
+                                pc.cn.clone().unwrap_or_else(|| pc.serial.clone())
+                            ));
                         }
                         return Err(rustls::Error::InvalidCertificate(CertificateError::Revoked));
                     }

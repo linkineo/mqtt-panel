@@ -26,5 +26,9 @@ mqttpanel-engine.workspace = true
 mqttpanel-client.workspace = true
 mqttpanel-profiles.workspace = true
 mqttpanel-tls.workspace = true
+mqttpanel-broker.workspace = true
 time.workspace = true
 rustls-pki-types.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

@@ -26,7 +26,11 @@ pub enum BindAddr {
 }
 
 fn bind_one(addr: SocketAddr, dual_stack: bool) -> std::io::Result<std::net::TcpListener> {
-    let domain = if addr.is_ipv6() { Domain::IPV6 } else { Domain::IPV4 };
+    let domain = if addr.is_ipv6() {
+        Domain::IPV6
+    } else {
+        Domain::IPV4
+    };
     let sock = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
     if addr.is_ipv6() {
         sock.set_only_v6(!dual_stack)?;
@@ -42,21 +46,36 @@ fn bind_one(addr: SocketAddr, dual_stack: bool) -> std::io::Result<std::net::Tcp
 /// Binds the sockets of one listener. Port 0 picks a free port (tests).
 pub(crate) fn bind(bind: BindAddr, port: u16) -> std::io::Result<Vec<std::net::TcpListener>> {
     match bind {
-        BindAddr::Network => match bind_one(SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), port), true) {
+        BindAddr::Network => match bind_one(
+            SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), port),
+            true,
+        ) {
             Ok(l) => Ok(vec![l]),
             Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => Err(e),
-            Err(_) => Ok(vec![bind_one(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port), false)?]),
+            Err(_) => Ok(vec![bind_one(
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port),
+                false,
+            )?]),
         },
         BindAddr::Localhost => {
-            let v4 = bind_one(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port), false)?;
+            let v4 = bind_one(
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+                false,
+            )?;
             let actual = v4.local_addr()?.port();
             let mut out = vec![v4];
-            if let Ok(v6) = bind_one(SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), actual), false) {
+            if let Ok(v6) = bind_one(
+                SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), actual),
+                false,
+            ) {
                 out.push(v6);
             }
             Ok(out)
         }
-        BindAddr::Addr(ip) => Ok(vec![bind_one(SocketAddr::new(ip, port), ip.is_ipv6() && ip.is_unspecified())?]),
+        BindAddr::Addr(ip) => Ok(vec![bind_one(
+            SocketAddr::new(ip, port),
+            ip.is_ipv6() && ip.is_unspecified(),
+        )?]),
     }
 }
 
@@ -111,11 +130,19 @@ async fn handle(
     let max = shared.max_packet;
     match lctx.kind {
         ListenerKind::Tcp => serve(shared, lctx, sock, peer, None, shutdown).await,
-        ListenerKind::Ws => match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::accept(sock, max)).await {
-            Ok(Ok(ws)) => serve(shared, lctx, ws, peer, None, shutdown).await,
-            Ok(Err(e)) => shared.log.debug(format!("WebSocket upgrade from {} failed: {e}", peer_text(&peer))),
-            Err(_) => shared.log.debug(format!("WebSocket upgrade from {} timed out", peer_text(&peer))),
-        },
+        ListenerKind::Ws => {
+            match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::accept(sock, max)).await {
+                Ok(Ok(ws)) => serve(shared, lctx, ws, peer, None, shutdown).await,
+                Ok(Err(e)) => shared.log.debug(format!(
+                    "WebSocket upgrade from {} failed: {e}",
+                    peer_text(&peer)
+                )),
+                Err(_) => shared.log.debug(format!(
+                    "WebSocket upgrade from {} timed out",
+                    peer_text(&peer)
+                )),
+            }
+        }
         ListenerKind::Tls | ListenerKind::Wss => {
             let Some(tls) = tls else { return };
             let mode = if shared.auth().anonymous {
@@ -128,12 +155,16 @@ async fn handle(
             let (cfg, slot) = match tls.config_for(mode) {
                 Ok(x) => x,
                 Err(e) => {
-                    shared.log.warn(format!("TLS handshake failed from {}: {e}", peer_text(&peer)));
+                    shared.log.warn(format!(
+                        "TLS handshake failed from {}: {e}",
+                        peer_text(&peer)
+                    ));
                     return;
                 }
             };
             let acceptor = tokio_rustls::TlsAcceptor::from(cfg);
-            let stream = match tokio::time::timeout(HANDSHAKE_TIMEOUT, acceptor.accept(sock)).await {
+            let stream = match tokio::time::timeout(HANDSHAKE_TIMEOUT, acceptor.accept(sock)).await
+            {
                 Ok(Ok(s)) => s,
                 Ok(Err(e)) => {
                     let from_slot = slot.lock().ok().and_then(|s| s.failure.clone());
@@ -143,22 +174,38 @@ async fn handle(
                             .map(describe_cert_error)
                             .unwrap_or_else(|| crate::error::short_detail(&e.to_string()))
                     });
-                    shared.log.warn(format!("TLS handshake failed from {}: {reason}", peer_text(&peer)));
+                    shared.log.warn(format!(
+                        "TLS handshake failed from {}: {reason}",
+                        peer_text(&peer)
+                    ));
                     return;
                 }
                 Err(_) => {
-                    shared.log.warn(format!("TLS handshake failed from {}: timeout", peer_text(&peer)));
+                    shared.log.warn(format!(
+                        "TLS handshake failed from {}: timeout",
+                        peer_text(&peer)
+                    ));
                     return;
                 }
             };
-            let cert = if mode == ClientAuthMode::Off { None } else { slot.lock().ok().and_then(|s| s.verified.clone()) };
+            let cert = if mode == ClientAuthMode::Off {
+                None
+            } else {
+                slot.lock().ok().and_then(|s| s.verified.clone())
+            };
             if lctx.kind == ListenerKind::Tls {
                 serve(shared, lctx, stream, peer, cert, shutdown).await;
             } else {
                 match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::accept(stream, max)).await {
                     Ok(Ok(ws)) => serve(shared, lctx, ws, peer, cert, shutdown).await,
-                    Ok(Err(e)) => shared.log.debug(format!("WebSocket upgrade from {} failed: {e}", peer_text(&peer))),
-                    Err(_) => shared.log.debug(format!("WebSocket upgrade from {} timed out", peer_text(&peer))),
+                    Ok(Err(e)) => shared.log.debug(format!(
+                        "WebSocket upgrade from {} failed: {e}",
+                        peer_text(&peer)
+                    )),
+                    Err(_) => shared.log.debug(format!(
+                        "WebSocket upgrade from {} timed out",
+                        peer_text(&peer)
+                    )),
                 }
             }
         }

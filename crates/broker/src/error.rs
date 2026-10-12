@@ -37,7 +37,11 @@ impl UserMessage {
             map.insert((*k).to_string(), v.clone());
         }
         let text = render(key, &map);
-        UserMessage { key: key.to_string(), params: map, text }
+        UserMessage {
+            key: key.to_string(),
+            params: map,
+            text,
+        }
     }
 
     /// A message without parameters.
@@ -112,7 +116,10 @@ pub struct BrokerError {
 
 impl BrokerError {
     pub fn new(key: &str, params: &[(&str, serde_json::Value)]) -> Self {
-        BrokerError { message: UserMessage::new(key, params), detail: None }
+        BrokerError {
+            message: UserMessage::new(key, params),
+            detail: None,
+        }
     }
     pub fn with_detail(mut self, detail: impl Into<String>) -> Self {
         self.detail = Some(detail.into());
@@ -142,7 +149,9 @@ impl BrokerError {
     /// Certificate generation failed (should not happen with valid inputs).
     pub fn kit(e: &mqttpanel_tls::kit::KitError) -> Self {
         match e {
-            mqttpanel_tls::kit::KitError::NotCsr => BrokerError::new("file.notCsr", &[]).with_detail(e.to_string()),
+            mqttpanel_tls::kit::KitError::NotCsr => {
+                BrokerError::new("file.notCsr", &[]).with_detail(e.to_string())
+            }
             _ => BrokerError::internal("certificate generation failed").with_detail(e.to_string()),
         }
     }
@@ -179,7 +188,10 @@ mod tests {
 
     #[test]
     fn renders_catalog_sentence() {
-        let m = UserMessage::new("broker.portInUseBy", &[("port", n(1883)), ("process", s("mosquitto (pid 42)"))]);
+        let m = UserMessage::new(
+            "broker.portInUseBy",
+            &[("port", n(1883)), ("process", s("mosquitto (pid 42)"))],
+        );
         assert_eq!(m.text, "Port 1883 is already in use by mosquitto (pid 42).");
         assert!(catalog_has("broker.portPrivileged"));
     }

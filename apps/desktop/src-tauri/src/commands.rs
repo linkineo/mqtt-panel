@@ -685,6 +685,12 @@ pub fn clear_sent_log(state: State<'_, AppState>, connection_id: String) -> R<()
 #[tauri::command]
 pub fn start_repeat(state: State<'_, AppState>, connection_id: String, request: PublishRequest, interval_s: f64, count: Option<u32>) -> R<()> {
     let c = conn(&state, &connection_id)?;
+    start_repeat_on(c, request, interval_s, count)
+}
+
+/// Starts repeat publishing on a connection (P6): one sent-log row counts the sends.
+pub fn start_repeat_on(c: Arc<Conn>, request: PublishRequest, interval_s: f64, count: Option<u32>) -> R<()> {
+    let connection_id = c.id.clone();
     halt_repeat(&c, None);
     // Validate once before starting.
     crate::payload::encode(&request.format, &request.payload)?;

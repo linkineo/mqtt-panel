@@ -125,8 +125,8 @@ fn looks_like_pem(bytes: &[u8]) -> bool {
 /// Certificates from PEM (one or several, CRLF tolerated) or DER.
 pub fn parse_certs(bytes: &[u8]) -> Result<Vec<CertificateDer<'static>>, TlsFileError> {
     if looks_like_pem(bytes) {
-        let mut reader = std::io::BufReader::new(bytes);
-        let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut reader).filter_map(|c| c.ok()).collect();
+        use rustls_pki_types::pem::PemObject;
+        let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(bytes).filter_map(|c| c.ok()).collect();
         if certs.is_empty() || certs.iter().any(|c| parse_x509_certificate(c.as_ref()).is_err()) {
             return Err(TlsFileError::NotCertificate);
         }

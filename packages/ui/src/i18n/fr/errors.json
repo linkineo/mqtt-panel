@@ -98,5 +98,7 @@
  "cli.profileNotFound": "Aucun profil enregistré nommé {name}. Lancez mqttpanel profiles list pour les voir.",
  "cli.noPayload": "Indiquez un contenu avec -m, --file ou --stdin, ou utilisez --delete-retained.",
  "cli.passwordPrompt": "Mot de passe pour {user} : ",
- "error.publishRefused": "Le broker a refusé le message : {reason}. Code {code}."
+ "error.publishRefused": "Le broker a refusé le message : {reason}. Code {code}.",
+ "broker.importedCaMissing": "Importez d’abord un certificat d’autorité, puis choisissez-le pour vérifier les certificats clients.",
+ "broker.configInvalid": "Le fichier de configuration du broker {file} n’est pas valide : {detail}"
 }

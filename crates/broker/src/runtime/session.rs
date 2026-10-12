@@ -1,10 +1,12 @@
 //! One client connection: CONNECT and authentication, then the MQTT session loop.
 
 use super::auth::{authenticate, AuthOutcome};
-use super::codec::{self, Ack, ConnAckCode, ConnAckExtra, ConnectInfo, DecodeError, Incoming, Version, Will};
+use super::codec::{
+    self, Ack, ConnAckCode, ConnAckExtra, ConnectInfo, DecodeError, Incoming, Version, Will,
+};
 use super::log::now_ms;
 use super::router::{parse_shared, topic_matches, valid_filter, valid_topic};
-use super::state::{ClientInfo, ConnRef, Delivery, Outbound, Session, Shared};
+use super::state::{ClientInfo, ConnRef, Delivery, Outbound, Shared};
 use super::tls::PeerCert;
 use crate::config::ListenerKind;
 use bytes::BytesMut;
@@ -30,6 +32,7 @@ pub(crate) struct ListenerCtx {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 enum Stage {
     AwaitAck,
     AwaitRec,
@@ -45,7 +48,9 @@ struct OutEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Close {
     /// DISCONNECT from the client; `publish_will` for MQTT 5 reason 0x04.
-    Client { publish_will: bool },
+    Client {
+        publish_will: bool,
+    },
     Eof,
     Error(String),
     KeepAlive,
@@ -124,7 +129,9 @@ pub(crate) async fn serve<S>(
                 Err(e) => return Err(e),
             }
             match rd.read_buf(&mut inbuf).await {
-                Ok(0) | Err(_) => return Err(DecodeError::Malformed("closed before CONNECT".into())),
+                Ok(0) | Err(_) => {
+                    return Err(DecodeError::Malformed("closed before CONNECT".into()))
+                }
                 Ok(_) => {}
             }
         }
@@ -133,17 +140,32 @@ pub(crate) async fn serve<S>(
     let mut c: ConnectInfo = match connect {
         Ok(Ok(c)) => c,
         Ok(Err(DecodeError::UnsupportedProtocol(level))) => {
-            shared.log.info(format!("client from {} rejected: unsupported MQTT protocol level {level}", display_addr(&peer)));
-            codec::encode_connack(Version::V4, &mut out, false, ConnAckCode::UnsupportedProtocol, ConnAckExtra::default());
+            shared.log.info(format!(
+                "client from {} rejected: unsupported MQTT protocol level {level}",
+                display_addr(&peer)
+            ));
+            codec::encode_connack(
+                Version::V4,
+                &mut out,
+                false,
+                ConnAckCode::UnsupportedProtocol,
+                ConnAckExtra::default(),
+            );
             let _ = write_out(&mut wr, &mut out).await;
             return;
         }
         Ok(Err(e)) => {
-            shared.log.debug(format!("connection from {} closed: {e}", display_addr(&peer)));
+            shared.log.debug(format!(
+                "connection from {} closed: {e}",
+                display_addr(&peer)
+            ));
             return;
         }
         Err(_) => {
-            shared.log.debug(format!("connection from {} closed: no CONNECT within 10 s", display_addr(&peer)));
+            shared.log.debug(format!(
+                "connection from {} closed: no CONNECT within 10 s",
+                display_addr(&peer)
+            ));
             return;
         }
     };
@@ -153,9 +175,18 @@ pub(crate) async fn serve<S>(
     let mut assigned = None;
     if c.client_id.is_empty() {
         if v == Version::V4 && !c.clean_start {
-            codec::encode_connack(v, &mut out, false, ConnAckCode::BadClientId, ConnAckExtra::default());
+            codec::encode_connack(
+                v,
+                &mut out,
+                false,
+                ConnAckCode::BadClientId,
+                ConnAckExtra::default(),
+            );
             let _ = write_out(&mut wr, &mut out).await;
-            shared.log.info(format!("client from {} rejected: empty client ID with a persistent session", display_addr(&peer)));
+            shared.log.info(format!(
+                "client from {} rejected: empty client ID with a persistent session",
+                display_addr(&peer)
+            ));
             return;
         }
         let id = format!("auto-{:016x}", rand::random::<u64>());
@@ -169,9 +200,18 @@ pub(crate) async fn serve<S>(
     // 3. Capacity
     let connected_now = shared.lock().connected;
     if connected_now >= shared.max_clients {
-        codec::encode_connack(v, &mut out, false, ConnAckCode::QuotaExceeded, ConnAckExtra::default());
+        codec::encode_connack(
+            v,
+            &mut out,
+            false,
+            ConnAckCode::QuotaExceeded,
+            ConnAckExtra::default(),
+        );
         let _ = write_out(&mut wr, &mut out).await;
-        shared.log.warn(format!("client {client_id} rejected: maximum of {} clients reached", shared.max_clients));
+        shared.log.warn(format!(
+            "client {client_id} rejected: maximum of {} clients reached",
+            shared.max_clients
+        ));
         return;
     }
 
@@ -179,13 +219,23 @@ pub(crate) async fn serve<S>(
     let auth = shared.auth();
     let (lid, req, verified) = (lctx.id.clone(), lctx.require_client_cert, cert.is_some());
     let (user, pass) = (c.username.clone(), c.password.clone());
-    let outcome = tokio::task::spawn_blocking(move || authenticate(&auth, &lid, req, verified, user.as_deref(), pass.as_deref()))
-        .await
-        .unwrap_or(AuthOutcome::BadLogin);
+    let outcome = tokio::task::spawn_blocking(move || {
+        authenticate(&auth, &lid, req, verified, user.as_deref(), pass.as_deref())
+    })
+    .await
+    .unwrap_or(AuthOutcome::BadLogin);
     if outcome == AuthOutcome::BadLogin {
-        codec::encode_connack(v, &mut out, false, ConnAckCode::BadLogin, ConnAckExtra::default());
+        codec::encode_connack(
+            v,
+            &mut out,
+            false,
+            ConnAckCode::BadLogin,
+            ConnAckExtra::default(),
+        );
         let _ = write_out(&mut wr, &mut out).await;
-        shared.log.warn(format!("client {client_id} rejected: bad username or password"));
+        shared.log.warn(format!(
+            "client {client_id} rejected: bad username or password"
+        ));
         return;
     }
 
@@ -220,19 +270,27 @@ pub(crate) async fn serve<S>(
         let mut st = shared.lock();
         if let Some(old) = st.sessions.get(&client_id).and_then(|s| s.conn.clone()) {
             let _ = old.tx.send(Outbound::Disconnect(0x8E));
-            shared.log.info(format!("client {client_id} taken over by a new connection"));
+            shared
+                .log
+                .info(format!("client {client_id} taken over by a new connection"));
         }
         if c.clean_start {
             Shared::drop_session(&mut st, &client_id);
         }
         session_present = st.sessions.contains_key(&client_id);
-        let sess = st.sessions.entry(client_id.clone()).or_insert_with(Session::default);
+        let sess = st.sessions.entry(client_id.clone()).or_default();
         sess.persistent = persistent;
         sess.expiry = session_expiry;
         sess.expires_at = None;
-        let cref = ConnRef { conn_id, tx: tx.clone(), queued: queued.clone(), info: info.clone() };
+        let cref = ConnRef {
+            conn_id,
+            tx: tx.clone(),
+            queued: queued.clone(),
+            info: info.clone(),
+        };
         sess.conn = Some(cref);
-        info.subscriptions.store(sess.subs.len() as u32, Ordering::Relaxed);
+        info.subscriptions
+            .store(sess.subs.len() as u32, Ordering::Relaxed);
         let offline: Vec<Delivery> = sess.offline.drain(..).collect();
         for d in offline {
             queued.fetch_add(1, Ordering::Relaxed);
@@ -245,9 +303,18 @@ pub(crate) async fn serve<S>(
     }
     drop(tx);
 
-    let extra = ConnAckExtra { assigned_client_id: assigned, max_packet_size: Some(max as u32), receive_max: Some(65535) };
+    let extra = ConnAckExtra {
+        assigned_client_id: assigned,
+        max_packet_size: Some(max as u32),
+        receive_max: Some(65535),
+    };
     codec::encode_connack(v, &mut out, session_present, ConnAckCode::Success, extra);
-    let mut desc = format!("client {client_id} connected from {} ({}, MQTT {}", info.address, lctx.kind.label(), v.label());
+    let mut desc = format!(
+        "client {client_id} connected from {} ({}, MQTT {}",
+        info.address,
+        lctx.kind.label(),
+        v.label()
+    );
     if let Some(u) = &c.username {
         desc.push_str(&format!(", user {u}"));
     }
@@ -258,11 +325,13 @@ pub(crate) async fn serve<S>(
     shared.log.info(desc);
 
     // 6. Session loop
-    let keep_alive = (c.keep_alive > 0).then(|| Duration::from_millis(u64::from(c.keep_alive) * 1500));
+    let keep_alive =
+        (c.keep_alive > 0).then(|| Duration::from_millis(u64::from(c.keep_alive) * 1500));
     let max_out_size = c.max_packet_size;
     let max_inflight = (c.receive_max as usize).clamp(1, MAX_INFLIGHT);
     let mut session_expiry_now = session_expiry;
-    let mut deadline = tokio::time::Instant::now() + keep_alive.unwrap_or(Duration::from_secs(86_400));
+    let mut deadline =
+        tokio::time::Instant::now() + keep_alive.unwrap_or(Duration::from_secs(86_400));
     let mut inflight: BTreeMap<u16, OutEntry> = BTreeMap::new();
     let mut next_pkid: u16 = 0;
     let mut qos2_in: HashSet<u16> = HashSet::new();
@@ -469,14 +538,21 @@ pub(crate) async fn serve<S>(
             e.connected = e.connected.saturating_sub(1);
             e.last_seen = Some(now_ms());
         }
-        let mine = st.sessions.get(&client_id).and_then(|s| s.conn.as_ref()).is_some_and(|c| c.conn_id == conn_id);
+        let mine = st
+            .sessions
+            .get(&client_id)
+            .and_then(|s| s.conn.as_ref())
+            .is_some_and(|c| c.conn_id == conn_id);
         if mine {
             let keep = persistent && session_expiry_now > 0;
             if keep {
                 let mut pending: Vec<Delivery> = inflight
                     .into_values()
                     .filter(|e| e.stage != Stage::AwaitComp)
-                    .map(|e| Delivery { dup: true, ..e.delivery })
+                    .map(|e| Delivery {
+                        dup: true,
+                        ..e.delivery
+                    })
                     .collect();
                 while let Ok(cmd) = rx.try_recv() {
                     if let Outbound::Publish(d) = cmd {
@@ -507,8 +583,12 @@ pub(crate) async fn serve<S>(
     }
     let reason = close.text();
     match &close {
-        Close::Client { .. } | Close::Shutdown => shared.log.info(format!("client {client_id} disconnected")),
-        _ => shared.log.info(format!("client {client_id} disconnected: {reason}")),
+        Close::Client { .. } | Close::Shutdown => {
+            shared.log.info(format!("client {client_id} disconnected"))
+        }
+        _ => shared
+            .log
+            .info(format!("client {client_id} disconnected: {reason}")),
     }
     if publish_will {
         if let Some(w) = will.take() {
@@ -546,14 +626,31 @@ fn send_publish(
     } else {
         0
     };
-    if !codec::encode_publish(v, out, &d.msg, d.qos, d.retain, pkid, d.dup, &d.sub_ids, max_out_size) {
-        shared.log.debug(format!("message on {} skipped for {}: larger than the client accepts", d.msg.topic, info.client_id));
+    if !codec::encode_publish(
+        v,
+        out,
+        &d.msg,
+        d.qos,
+        d.retain,
+        pkid,
+        d.dup,
+        &d.sub_ids,
+        max_out_size,
+    ) {
+        shared.log.debug(format!(
+            "message on {} skipped for {}: larger than the client accepts",
+            d.msg.topic, info.client_id
+        ));
         return;
     }
     info.msg_out.fetch_add(1, Ordering::Relaxed);
     shared.stats.msg_out(1);
     if d.qos > 0 {
-        let stage = if d.qos == 1 { Stage::AwaitAck } else { Stage::AwaitRec };
+        let stage = if d.qos == 1 {
+            Stage::AwaitAck
+        } else {
+            Stage::AwaitRec
+        };
         inflight.insert(pkid, OutEntry { delivery: d, stage });
     }
 }
@@ -562,15 +659,25 @@ fn publish_will_message(shared: Arc<Shared>, client_id: String, w: Will) {
     let mut msg = w.message;
     msg.created = Instant::now();
     if w.delay == 0 {
-        shared.log.info(format!("last will of {client_id} published on {}", msg.topic));
+        shared.log.info(format!(
+            "last will of {client_id} published on {}",
+            msg.topic
+        ));
         shared.route(msg);
         return;
     }
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_secs(u64::from(w.delay))).await;
-        let reconnected = shared.lock().sessions.get(&client_id).is_some_and(|s| s.conn.is_some());
+        let reconnected = shared
+            .lock()
+            .sessions
+            .get(&client_id)
+            .is_some_and(|s| s.conn.is_some());
         if !reconnected {
-            shared.log.info(format!("last will of {client_id} published on {}", msg.topic));
+            shared.log.info(format!(
+                "last will of {client_id} published on {}",
+                msg.topic
+            ));
             shared.route(msg);
         }
     });

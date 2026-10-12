@@ -17,7 +17,6 @@ time.workspace = true
 rand.workspace = true
 x509-parser.workspace = true
 rustls-pki-types.workspace = true
-rustls-pemfile.workspace = true
 rcgen.workspace = true
 pkcs8 = { version = "0.10", features = ["encryption", "pem", "std"] }
 p12-keystore = "0.4"

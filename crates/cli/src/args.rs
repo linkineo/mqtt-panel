@@ -14,7 +14,12 @@ pub enum Format {
 }
 
 #[derive(Debug, Parser)]
-#[command(name = "mqttpanel", disable_help_flag = true, disable_version_flag = true, disable_help_subcommand = true)]
+#[command(
+    name = "mqttpanel",
+    disable_help_flag = true,
+    disable_version_flag = true,
+    disable_help_subcommand = true
+)]
 pub struct Cli {
     #[command(flatten)]
     pub global: Global,
@@ -77,7 +82,13 @@ pub struct TlsArgs {
 impl TlsArgs {
     /// True when any option asks for TLS.
     pub fn any(&self) -> bool {
-        self.cafile.is_some() || self.cert.is_some() || self.key.is_some() || self.insecure || !self.trust_fingerprint.is_empty() || self.sni.is_some() || self.alpn.is_some()
+        self.cafile.is_some()
+            || self.cert.is_some()
+            || self.key.is_some()
+            || self.insecure
+            || !self.trust_fingerprint.is_empty()
+            || self.sni.is_some()
+            || self.alpn.is_some()
     }
 }
 
@@ -101,8 +112,9 @@ pub struct SubArgs {
 pub struct PubArgs {
     #[arg(short = 't', long = "topic")]
     pub topic: Option<String>,
-    #[arg(short = 'm', long = "message", allow_hyphen_values = true)]
-    pub message: Option<String>,
+    /// Payload bytes as given (any bytes on Unix, not only UTF-8).
+    #[arg(short = 'm', long = "message", allow_hyphen_values = true, value_parser = clap::builder::OsStringValueParser::new())]
+    pub message: Option<std::ffi::OsString>,
     #[arg(long)]
     pub file: Option<PathBuf>,
     #[arg(long)]

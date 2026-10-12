@@ -6,6 +6,8 @@ mod commands;
 mod files;
 mod payload;
 mod state;
+#[cfg(test)]
+mod tests;
 mod types;
 
 use mqttpanel_profiles::{KeychainSecrets, MemorySecrets, SecretStore, Store};
@@ -167,6 +169,21 @@ fn spawn_ticker(app: AppHandle) {
     });
 }
 
+/// MQTTPANEL_LOG=1 prints page loads and the name of every IPC command to stderr (diagnostics, no payloads).
+fn log_enabled() -> bool {
+    std::env::var("MQTTPANEL_LOG").as_deref() == Ok("1")
+}
+
+fn logged<R: Runtime>(handler: impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static) -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    let on = log_enabled();
+    move |invoke| {
+        if on {
+            eprintln!("[mqttpanel] ipc {}", invoke.message.command());
+        }
+        handler(invoke)
+    }
+}
+
 fn secrets() -> Arc<dyn SecretStore> {
     if std::env::var("MQTTPANEL_SECRETS").as_deref() == Ok("memory") {
         return Arc::new(MemorySecrets::new());
@@ -198,7 +215,13 @@ fn main() {
             spawn_ticker(handle);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .on_page_load(|webview, payload| {
+            if log_enabled() {
+                eprintln!("[mqttpanel] page {:?}: {}", payload.event(), payload.url());
+            }
+            let _ = webview;
+        })
+        .invoke_handler(logged(tauri::generate_handler![
             commands::app_info,
             commands::get_settings,
             commands::save_settings,
@@ -289,7 +312,13 @@ fn main() {
             broker::disconnect_client,
             broker::broker_log,
             broker::connect_explorer_here,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running MQTT Panel");
+        ]))
+        .build(tauri::generate_context!())
+        .expect("error while building MQTT Panel")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let st = app.state::<AppState>();
+                tauri::async_runtime::block_on(broker::shutdown(&st.broker));
+            }
+        });
 }

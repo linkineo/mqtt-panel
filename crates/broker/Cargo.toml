@@ -33,4 +33,3 @@ socket2 = { version = "0.5", features = ["all"] }
 
 [dev-dependencies]
 tempfile = "3"
-rumqttc = { version = "0.25", default-features = false, features = ["use-rustls-no-provider"] }
