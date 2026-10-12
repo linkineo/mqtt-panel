@@ -164,14 +164,17 @@ button.chip:hover { filter: brightness(.97) }
 .callout.err { border-color: var(--brick); background: var(--brick-soft) }
 .callout p { margin: 0 }
 .warnstrip { border-left: 3px solid var(--clay); background: var(--clay-soft); padding: 6px 10px; border-radius: 0 6px 6px 0; font-size: 12px }
-.list { display: grid; gap: 6px }
+.list { display: grid; gap: 6px; min-width: 0 }
+.list > * { min-width: 0 }
+.card { min-width: 0 }
 .card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); text-align: left; display: block; width: 100%; font-size: 13px; color: var(--ink) }
 .card.on { border-color: var(--sage); box-shadow: 0 0 0 1px var(--sage) }
 .card.dragging { opacity: .5 }
 .card.dropbefore { box-shadow: 0 -2px 0 0 var(--sage) }
-.card .t { font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0 }
-.card .t > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
-.card .s { color: var(--ink-2); font-size: 12px; margin-top: 2px; display: flex; gap: 8px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+
+.card .t:not(.json *) { font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0 }
+.card .t:not(.json *) > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
+.card .s:not(.json *) { color: var(--ink-2); font-size: 12px; margin-top: 2px; display: flex; gap: 8px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .empty { display: grid; place-items: center; text-align: center; color: var(--ink-2); padding: 40px; gap: 10px; align-content: center }
 .empty h4 { margin: 0; color: var(--ink); font-size: 16px }
 .big { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px }
@@ -324,3 +327,8 @@ button.chip:hover { filter: brightness(.97) }
 .form.narrow .f .row2 { gap: 6px }
 .tbl.fixed { table-layout: fixed }
 .tbl.fixed td { max-width: none }
+.tbl.compact th, .tbl.compact td { padding-left: 6px; padding-right: 6px }
+.tbl .seg > button { padding: 2px 8px; font-size: 11px }
+.stats { gap: 8px }
+.stat { padding: 10px }
+.f > .seg, .f > .chkrow, .f > .btn { justify-self: start }

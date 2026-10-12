@@ -3,7 +3,7 @@ import i18next from 'i18next';
 import { useApp } from '../store/app';
 import { platform } from '../services';
 import { fmtNum, fmtRate } from '../lib/format';
-import { disconnect } from '../lib/actions';
+import { disconnect, useBusy, useTrust } from '../lib/actions';
 
 /** Opens the connection switcher (title bar pill, ⌘⇧L). */
 export async function switchConnectionMenu(x: number, y: number): Promise<void> {
@@ -33,6 +33,10 @@ export function TitlePill() {
   const broker = useApp((s) => s.broker);
   const brokerConfig = useApp((s) => s.brokerConfig);
   const skip = useApp((s) => s.settings.skipVerify);
+  const busyId = useBusy((s) => s.connecting);
+  const trustId = useTrust((s) => s.prompt?.profileId ?? null);
+  const pendingId = busyId ?? trustId;
+  const pendingName = useApp((s) => (pendingId ? (s.profiles.find((p) => p.id === pendingId)?.name ?? null) : null));
 
   let dot = 'off';
   let text: string;
@@ -51,6 +55,9 @@ export function TitlePill() {
       dot = 'err';
     } else parts.push(t('pill.stopped'));
     text = parts.join(' · ');
+  } else if (pendingName && (!conn || conn.id !== pendingId || conn.state !== 'connected')) {
+    text = `${pendingName} · ${t('pill.connecting')}`;
+    dot = 'warn';
   } else if (conn) {
     const parts = [conn.name];
     if (conn.state === 'connecting') {

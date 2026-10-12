@@ -6,7 +6,7 @@ export function fmtNum(n: number, decimals?: number): string {
   if (!Number.isFinite(n)) return '—';
   const fixed = decimals === undefined ? (Number.isInteger(n) ? String(Math.abs(n)) : String(Math.abs(n))) : Math.abs(n).toFixed(decimals);
   const [int, frac] = fixed.split('.');
-  const grouped = int.length > 4 ? int.replace(/\B(?=(\d{3})+(?!\d))/g, NNBSP) : int;
+  const grouped = int.length > 3 ? int.replace(/\B(?=(\d{3})+(?!\d))/g, NNBSP) : int;
   return (n < 0 ? '-' : '') + grouped + (frac !== undefined ? '.' + frac : '');
 }
 

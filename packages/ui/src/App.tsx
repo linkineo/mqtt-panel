@@ -16,6 +16,7 @@ import { BrokerScreen } from './screens/broker/BrokerScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { modHeld } from './lib/keys';
 import { switchConnectionMenu } from './components/TitlePill';
+import { newConnection } from './lib/actions';
 
 function Rail() {
   const { t } = useTranslation();
@@ -111,11 +112,6 @@ function useGlobalShortcuts() {
   }, []);
 }
 
-export function newConnection() {
-  const st = useApp.getState();
-  st.setScreen('connect');
-  window.dispatchEvent(new CustomEvent('mqttpanel:new-connection'));
-}
 
 /** Native menu items (EngineEvent 'menu'). */
 function useMenuEvents() {

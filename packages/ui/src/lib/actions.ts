@@ -113,3 +113,9 @@ export async function run<T>(p: Promise<T>): Promise<T | null> {
     return null;
   }
 }
+
+/** ⌘N and the native menu: opens Connections with a new profile. */
+export function newConnection(): void {
+  useApp.getState().setScreen('connect');
+  setTimeout(() => window.dispatchEvent(new CustomEvent('mqttpanel:new-connection')), 0);
+}

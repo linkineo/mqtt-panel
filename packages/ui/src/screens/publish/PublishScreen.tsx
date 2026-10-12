@@ -570,7 +570,7 @@ function Publish({ connId }: { connId: string }) {
                         {e.retain ? ' R' : ''}
                       </td>
                       <td>
-                        <span className={`chip ${chip.tone}`} title={chip.label} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }} data-testid="sent-status">
+                        <span className={`chip ${chip.tone}`} title={chip.label} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }} data-testid="sent-status" data-overflow-ok>
                           {chip.label}
                         </span>
                       </td>
