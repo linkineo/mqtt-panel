@@ -1,0 +1,36 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+.pnpm-store/
+*.tsbuildinfo
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Secrets and keys (never commit)
+.env.local
+.env.*.local
+*.p8
+*.pfx
+*.p12
+*.key
+*.pem.key
+
+# Tooling caches
+.wrangler/
+.cache/
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
