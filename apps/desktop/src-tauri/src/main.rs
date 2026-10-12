@@ -4,6 +4,7 @@
 mod broker;
 mod commands;
 mod files;
+mod menu;
 mod payload;
 mod state;
 #[cfg(test)]
@@ -14,107 +15,8 @@ use mqttpanel_profiles::{KeychainSecrets, MemorySecrets, SecretStore, Store};
 use state::{lock, AppState};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::menu::{AboutMetadataBuilder, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use types::EngineEvent;
-
-fn item<R: Runtime>(app: &AppHandle<R>, id: &str, text: &str, accel: Option<&str>) -> tauri::Result<MenuItem<R>> {
-    MenuItem::with_id(app, id, text, true, accel)
-}
-
-fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let about = AboutMetadataBuilder::new()
-        .name(Some("MQTT Panel"))
-        .version(Some(env!("CARGO_PKG_VERSION")))
-        .copyright(Some("mqtt-panel.com · Apache License 2.0"))
-        .build();
-    let settings = item(app, "open-settings", "Settings…", Some("CmdOrCtrl+,"))?;
-    let new_conn = item(app, "new-connection", "New Connection…", Some("CmdOrCtrl+N"))?;
-    let import = item(app, "import", "Import Connections…", None)?;
-    let export = item(app, "export", "Export Data…", Some("CmdOrCtrl+E"))?;
-    let sep = || PredefinedMenuItem::separator(app);
-
-    #[cfg(target_os = "macos")]
-    let app_menu = Submenu::with_items(
-        app,
-        "MQTT Panel",
-        true,
-        &[
-            &PredefinedMenuItem::about(app, Some("About MQTT Panel"), Some(about.clone()))?,
-            &sep()?,
-            &settings,
-            &sep()?,
-            &PredefinedMenuItem::services(app, None)?,
-            &sep()?,
-            &PredefinedMenuItem::hide(app, None)?,
-            &PredefinedMenuItem::hide_others(app, None)?,
-            &PredefinedMenuItem::show_all(app, None)?,
-            &sep()?,
-            &PredefinedMenuItem::quit(app, None)?,
-        ],
-    )?;
-
-    let file = Submenu::with_items(app, "File", true, &[&new_conn, &import, &sep()?, &export, &sep()?, &PredefinedMenuItem::close_window(app, None)?])?;
-    #[cfg(not(target_os = "macos"))]
-    let file = {
-        file.append(&sep()?)?;
-        file.append(&PredefinedMenuItem::quit(app, None)?)?;
-        file
-    };
-    let edit = Submenu::with_items(
-        app,
-        "Edit",
-        true,
-        &[
-            &PredefinedMenuItem::undo(app, None)?,
-            &PredefinedMenuItem::redo(app, None)?,
-            &sep()?,
-            &PredefinedMenuItem::cut(app, None)?,
-            &PredefinedMenuItem::copy(app, None)?,
-            &PredefinedMenuItem::paste(app, None)?,
-            &PredefinedMenuItem::select_all(app, None)?,
-            &sep()?,
-            &item(app, "find", "Find Topic", Some("CmdOrCtrl+F"))?,
-        ],
-    )?;
-    #[cfg(not(target_os = "macos"))]
-    {
-        edit.append(&sep()?)?;
-        edit.append(&settings)?;
-    }
-    let view = Submenu::with_items(
-        app,
-        "View",
-        true,
-        &[
-            &item(app, "go-connect", "Connect", Some("CmdOrCtrl+1"))?,
-            &item(app, "go-explore", "Explore", Some("CmdOrCtrl+2"))?,
-            &item(app, "go-publish", "Publish", Some("CmdOrCtrl+3"))?,
-            &item(app, "go-charts", "Charts", Some("CmdOrCtrl+4"))?,
-            &item(app, "go-broker", "Broker", Some("CmdOrCtrl+5"))?,
-            &sep()?,
-            &item(app, "command-palette", "Command Palette…", Some("CmdOrCtrl+K"))?,
-            &sep()?,
-            &PredefinedMenuItem::fullscreen(app, None)?,
-        ],
-    )?;
-    let connection = Submenu::with_items(
-        app,
-        "Connection",
-        true,
-        &[&item(app, "switch-connection", "Switch Connection…", Some("CmdOrCtrl+Shift+L"))?, &sep()?, &item(app, "clear-history", "Clear History…", None)?],
-    )?;
-    let window = Submenu::with_items(app, "Window", true, &[&PredefinedMenuItem::minimize(app, None)?, &PredefinedMenuItem::maximize(app, None)?])?;
-    #[cfg(target_os = "macos")]
-    let help = Submenu::with_items(app, "Help", true, &[&item(app, "shortcuts", "Keyboard Shortcuts", None)?])?;
-    #[cfg(not(target_os = "macos"))]
-    let help = Submenu::with_items(app, "Help", true, &[&item(app, "shortcuts", "Keyboard Shortcuts", None)?, &PredefinedMenuItem::about(app, Some("About MQTT Panel"), Some(about))?])?;
-
-    #[cfg(target_os = "macos")]
-    return Menu::with_items(app, &[&app_menu, &file, &edit, &view, &connection, &window, &help]);
-    #[cfg(not(target_os = "macos"))]
-    Menu::with_items(app, &[&file, &edit, &view, &connection, &window, &help])
-}
 
 /// Emits a tick when something changed, at most 20 times a second, and a heartbeat every second.
 fn spawn_ticker(app: AppHandle) {
@@ -207,7 +109,7 @@ fn main() {
                 broker: broker::BrokerState::default(),
             });
             let handle = app.handle().clone();
-            let menu = build_menu(&handle)?;
+            let menu = menu::build_menu(&handle, "en")?;
             app.set_menu(menu)?;
             app.on_menu_event(|app, event| {
                 let _ = app.emit("engine-event", EngineEvent::Menu { id: event.id().0.clone() });
@@ -222,6 +124,7 @@ fn main() {
             let _ = webview;
         })
         .invoke_handler(logged(tauri::generate_handler![
+            menu::set_menu_language,
             commands::app_info,
             commands::get_settings,
             commands::save_settings,

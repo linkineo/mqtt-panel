@@ -4,11 +4,14 @@ import type { ContextMenuItem, Platform } from '../client';
 export interface MockPlatform extends Platform {
   simulateDrop(paths: string[], x: number, y: number): void;
   lastCopied(): string | null;
+  /** Language of the (simulated) native menu bar. */
+  menuLanguage(): string | null;
 }
 
 export function createMockPlatform(): MockPlatform {
   const dropHandlers = new Set<(paths: string[], x: number, y: number) => void>();
   let copied: string | null = null;
+  let menuLang: string | null = null;
   let closeCurrent: (() => void) | null = null;
   let listening = false;
 
@@ -146,6 +149,12 @@ export function createMockPlatform(): MockPlatform {
       } catch {
         return false;
       }
+    },
+    async setMenuLanguage(lang) {
+      menuLang = lang;
+    },
+    menuLanguage() {
+      return menuLang;
     },
     simulateDrop(paths, x, y) {
       dropHandlers.forEach((h) => h(paths, x, y));

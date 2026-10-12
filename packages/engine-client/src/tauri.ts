@@ -170,5 +170,8 @@ export function createTauriPlatform(): Platform {
     prefersReducedMotion() {
       return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     },
+    async setMenuLanguage(lang: string) {
+      await invoke('set_menu_language', { lang });
+    },
   };
 }

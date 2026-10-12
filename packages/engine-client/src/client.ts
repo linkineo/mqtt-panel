@@ -206,6 +206,8 @@ export interface Platform {
   copyText(text: string): Promise<void>;
   /** OS theme preferences, live. */
   prefersReducedMotion(): boolean;
+  /** Relabels the native menu bar in the app language (en, fr, de). */
+  setMenuLanguage(lang: string): Promise<void>;
 }
 
 // (UserMessage is exported from ./types; re-exporting it here made index.ts ambiguous. Fixed by UI.)

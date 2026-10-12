@@ -30,6 +30,15 @@
 :root[data-theme="dark"][data-accent="slate"] { --sage: #8FA3B5; --sage-soft: rgba(143,163,181,.16); --sel: rgba(143,163,181,.14) }
 :root[data-theme="dark"][data-accent="clay"] { --sage: #D0A67A; --sage-soft: rgba(208,166,122,.16); --sel: rgba(208,166,122,.14) }
 :root[data-density="compact"] { --row-pad: 2px; --form-gap: 6px }
+/* "Increase contrast" (macOS), high contrast (Windows, Linux): darker secondary text and visible lines; forced colours use system colours */
+@media (prefers-contrast: more) {
+  :root { --ink-2: #45423D; --line: rgba(29,29,27,.45); --line-2: rgba(29,29,27,.25) }
+  :root[data-theme="dark"] { --ink-2: #CFCBC3; --line: rgba(237,235,230,.5); --line-2: rgba(237,235,230,.28) }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ink-2: #CFCBC3; --line: rgba(237,235,230,.5); --line-2: rgba(237,235,230,.28) }
+}
+@media (forced-colors: active) { .chip, .btn, .seg, .card, .input { border: 1px solid CanvasText } :focus-visible { outline-color: Highlight } }
 
 /* ---------- native feel (SPEC 1.2) ---------- */
 * { box-sizing: border-box }

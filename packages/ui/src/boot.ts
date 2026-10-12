@@ -1,5 +1,5 @@
 import type { EngineClient, Platform, Settings } from '@mqttpanel/engine-client';
-import { setServices, engine } from './services';
+import { setServices, engine, platform } from './services';
 import { initI18n, resolveLang, systemLang, type Lang } from './i18n';
 import { applySettings, useApp, SCREENS, type Screen } from './store/app';
 
@@ -44,6 +44,7 @@ export async function createServices(mock: 'demo' | 'empty', lang: Lang): Promis
 }
 
 let unsubscribe: (() => void) | null = null;
+let menuHooked = false;
 
 /** Loads app info, settings, profiles, connections and broker state, and subscribes to engine events. */
 export async function startApp(eng: EngineClient, plat: Platform, o: BootOverrides = {}): Promise<void> {
@@ -56,7 +57,14 @@ export async function startApp(eng: EngineClient, plat: Platform, o: BootOverrid
   if (o.accent) patch.accent = o.accent;
   if (o.motion === false) patch.motion = false;
   if (Object.keys(patch).length) settings = await eng.saveSettings({ ...settings, ...patch });
-  initI18n(resolveLang(settings.language));
+  const i18n = initI18n(resolveLang(settings.language));
+  // the native menu bar follows the app language (labels from nativeMenu.* in the catalogs)
+  const relabel = (l: string) => void platform().setMenuLanguage(l.slice(0, 2)).catch(() => undefined);
+  relabel(i18n.language);
+  if (!menuHooked) {
+    menuHooked = true;
+    i18n.on('languageChanged', (l) => relabel(l));
+  }
   useApp.setState({ appInfo, settings });
   applySettings(settings, appInfo);
   const [profiles, connections] = await Promise.all([eng.listProfiles(), eng.listConnections()]);

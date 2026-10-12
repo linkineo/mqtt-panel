@@ -304,3 +304,38 @@ test.describe('Broker', () => {
     await expect(page.locator('[data-testid=profile-card]', { hasText: 'Local broker' })).toHaveCount(1);
   });
 });
+
+test.describe('Native feel (N1, SPEC 1.2)', () => {
+  test('theme follows the OS live, and "Increase contrast" darkens secondary text and lines', async ({ page }) => {
+    await page.goto('/?mock=demo&lang=en');
+    await page.waitForSelector('#app-root');
+    const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    await page.emulateMedia({ colorScheme: 'light' });
+    const light = await bg();
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect.poll(bg).not.toBe(light);
+    await page.emulateMedia({ colorScheme: 'light', contrast: 'no-preference' });
+    const ink2 = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ink-2').trim());
+    const normal = await ink2();
+    await page.emulateMedia({ colorScheme: 'light', contrast: 'more' });
+    await expect.poll(ink2).not.toBe(normal);
+  });
+
+  test('chrome is not selectable and shows no text cursor; data is selectable', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await page.waitForSelector('[data-testid=tree-row]');
+    const style = (sel: string) => page.locator(sel).first().evaluate((el) => ({ sel: getComputedStyle(el).userSelect, cur: getComputedStyle(el).cursor }));
+    expect(await style('[data-testid=rail-explore]')).toEqual({ sel: 'none', cur: 'default' });
+    expect((await style('[data-testid=pill]')).sel).toBe('none');
+    expect((await style('[data-testid=tree-row] .name')).sel).toBe('text');
+  });
+
+  test('the native menu bar follows the app language', async ({ page }) => {
+    await open(page, 'mock=demo&screen=settings');
+    const menuLang = () => page.evaluate(() => (window as any).__mqttpanelMock.platform.menuLanguage());
+    await expect.poll(menuLang).toBe('en');
+    await page.click('[data-testid=settings-nav-language]');
+    await page.locator('[data-testid=language] button', { hasText: 'Deutsch' }).click();
+    await expect.poll(menuLang).toBe('de');
+  });
+});
