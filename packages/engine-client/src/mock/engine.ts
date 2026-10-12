@@ -59,6 +59,8 @@ export interface MockOptions {
 export interface MockControls {
   inject(connectionId: string, topic: string, payload: string, opts?: { qos?: Qos; retain?: boolean; props?: Mqtt5Props | null; at?: number }): void;
   emitMenu(id: string): void;
+  /** Every file the mock "saved" through a native save dialog, oldest first (e2e). */
+  savedFiles(): { fileName: string; bytes: number }[];
   tick(): void;
   dispose(): void;
 }
@@ -582,7 +584,9 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     brokerKey: '/picked/server.key',
   };
 
-  const saved = async (fileName: string): Promise<SaveOutcome> => {
+  const saves: { fileName: string; bytes: number }[] = [];
+  const saved = async (fileName: string, bytes = 0): Promise<SaveOutcome> => {
+    saves.push({ fileName, bytes });
     await delay(200);
     return { kind: 'saved', fileName };
   };
@@ -867,8 +871,8 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     async exportChartCsv(_id, _series, _sinceMs) {
       return saved('chart.csv');
     },
-    async savePng(defaultName, _b64) {
-      return saved(defaultName);
+    async savePng(defaultName, b64) {
+      return saved(defaultName, Math.floor((b64.length * 3) / 4));
     },
     async exportSentLog(id) {
       needConn(id);
@@ -1148,6 +1152,9 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       if (!c) return;
       c.store.ingest(topic, utf8(payload), opts.qos ?? 0, opts.retain ?? false, opts.props !== undefined ? opts.props : propsFor(c), opts.at ?? now());
       tick();
+    },
+    savedFiles() {
+      return saves.slice();
     },
     emitMenu(id) {
       emit({ type: 'menu', id });

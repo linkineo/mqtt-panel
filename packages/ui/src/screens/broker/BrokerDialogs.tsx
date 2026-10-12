@@ -224,7 +224,7 @@ export function AddListenerDialog({ config, certs, onClose, onConfig }: { config
         </div>
         {secure && (
           <div className="f">
-            <span className="lbl">{t('broker.clientCert')}</span>
+            <span className="lbl">{t('addl.clientCertificate')}</span>
             <span className="row2">
               <span className={`chip${preset === 'mtls' ? ' on' : ''}`}>{preset === 'mtls' ? t('broker.required') : t('broker.optional')}</span>
               <span className="hint">{preset === 'mtls' ? t('addl.mtlsHint') : t('addl.optionalHint')}</span>

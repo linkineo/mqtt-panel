@@ -394,7 +394,7 @@ function Explorer({ connId }: { connId: string }) {
             {t('explore.export')}
           </button>
         </div>
-        <PinnedRow connId={connId} pinned={st.pinned} onSelect={reveal} />
+        {st.layout === 'tree' && <PinnedRow connId={connId} pinned={st.pinned} onSelect={reveal} />}
         {st.layout === 'tree' ? (
           <Tree
             connId={connId}

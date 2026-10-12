@@ -110,6 +110,9 @@ export const STATES: UiState[] = [
       await p.locator('[data-testid=template]').nth(3).click();
       await p.click('[data-testid=repeat-start]');
       await p.waitForSelector('[data-testid=repeat-callout]');
+      // the mockup confirms deleting the retained setpoint while the simulation keeps running
+      await p.fill('[data-testid=pub-topic]', 'building/f2/r204/setpoint');
+      await p.keyboard.press('Escape');
       await p.click('[data-testid=delete-retained-btn]');
       await p.waitForSelector('[data-testid=delete-retained]');
     },
@@ -185,6 +188,7 @@ export const STATES: UiState[] = [
     steps: async (p) => {
       await p.click('[data-testid=issue-cert]');
       await p.waitForSelector('[data-testid=issue-cert]');
+      await p.keyboard.type('sensor-r206');
     },
   },
   { id: '16-settings', query: 'mock=demo&connect=plant&screen=settings' },

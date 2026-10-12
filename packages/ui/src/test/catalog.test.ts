@@ -95,3 +95,27 @@ const forbidden: RegExp[] = (() => {
     .filter(Boolean)
     .map((p) => new RegExp(p.replace(/[.*+?^${}()|\\/]/g, (ch) => (ch === '[' || ch === ']' ? ch : `\\${ch}`)), 'i'));
 })();
+
+describe('Typography and register (V-05)', () => {
+  it('French puts a no-break space before : ; ? ! and inside « »', async () => {
+    const bad: string[] = [];
+    for (const file of ['ui', 'errors']) {
+      const c = (await import(`../i18n/fr/${file}.json`)).default as Record<string, string>;
+      for (const [k, v] of Object.entries(c)) {
+        const s = v.replace(/\{\w+\}/g, 'X').replace(/https?:\/\/\S+/g, '');
+        if (/[^  ][:;?!](\s|$)/.test(s)) bad.push(`${file}: ${k}`);
+        if (/«[^  ]|[^  ]»/.test(s)) bad.push(`${file}: ${k} (guillemets)`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('German uses "du": no formal Sie, Ihnen or Ihr in the middle of a sentence', async () => {
+    const bad: string[] = [];
+    for (const file of ['ui', 'errors']) {
+      const c = (await import(`../i18n/de/${file}.json`)).default as Record<string, string>;
+      for (const [k, v] of Object.entries(c)) if (/[a-zäöüß,]\s+(Sie|Ihnen|Ihr|Ihre|Ihren|Ihrem|Ihrer)\b/.test(v)) bad.push(`${file}: ${k}`);
+    }
+    expect(bad).toEqual([]);
+  });
+});

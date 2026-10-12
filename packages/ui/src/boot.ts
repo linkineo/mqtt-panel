@@ -37,7 +37,10 @@ export async function createServices(mock: 'demo' | 'empty', lang: Lang): Promis
     return { engine: m.createTauriEngineClient(), platform: m.createTauriPlatform() };
   }
   const m = await import('@mqttpanel/engine-client/mock');
-  return { engine: m.createMockEngineClient({ scenario: mock, lang }), platform: m.createMockPlatform() };
+  const services = { engine: m.createMockEngineClient({ scenario: mock, lang }), platform: m.createMockPlatform() };
+  // browser and e2e only (never in the desktop shell): lets Playwright flows inject messages and read the clipboard and saves
+  (window as unknown as { __mqttpanelMock?: typeof services }).__mqttpanelMock = services;
+  return services;
 }
 
 let unsubscribe: (() => void) | null = null;

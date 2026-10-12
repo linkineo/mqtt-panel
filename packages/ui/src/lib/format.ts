@@ -51,8 +51,9 @@ export function fmtUptime(ms: number): string {
 }
 
 export function fmtBytes(b: number): string {
-  if (b < 1024) return `${fmtNum(b)} B`;
-  if (b < 1024 * 1024) {
+  // switch unit at 1000 of the smaller one, so "1 020 KB" reads "1.0 MB"
+  if (b < 1000) return `${fmtNum(b)} B`;
+  if (b < 1000 * 1024) {
     const k = b / 1024;
     return `${k < 10 ? k.toFixed(1) : fmtNum(Math.round(k))} KB`;
   }
@@ -75,4 +76,24 @@ export function shortTopic(topic: string, keep = 2): string {
 
 export function isoDateToMonth(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 7) : '';
+}
+
+/**
+ * Table "Value" cell: a small JSON object carrying a "value" (and optionally a "unit") reads as
+ * "22.4 °C", as in the mockups. Anything else is shown as received.
+ */
+export function displayValue(raw: string | null | undefined): string {
+  if (raw == null) return '';
+  const v = raw.trim();
+  if (!v.startsWith('{') || v.length > 512) return raw;
+  try {
+    const o = JSON.parse(v) as Record<string, unknown>;
+    if (!o || typeof o !== 'object' || Array.isArray(o) || !('value' in o)) return raw;
+    const x = o.value;
+    if (typeof x !== 'number' && typeof x !== 'string' && typeof x !== 'boolean') return raw;
+    const unit = typeof o.unit === 'string' && o.unit ? ` ${o.unit}` : '';
+    return `${String(x)}${unit}`;
+  } catch {
+    return raw;
+  }
 }

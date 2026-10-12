@@ -56,8 +56,14 @@ async function violations(page: Page): Promise<string[]> {
       if (centres.length > 1 && !el.matches('.ph, .f .row2, .meta')) out.push(`wraps: "${text}" (${centres.length} lines) <${el.className}>`);
     }
     // containers: no pane, card, dialog or form may scroll sideways (content wider than its column)
-    for (const el of Array.from(document.querySelectorAll<HTMLElement>('.pc, .pane, .modal, .card, .form, .stat, .callout'))) {
-      if (el.closest('[data-overflow-ok]')) continue;
+    const boxes = new Set<HTMLElement>(Array.from(document.querySelectorAll<HTMLElement>('.pc, .pane, .modal, .card, .form, .stat, .callout')));
+    // plus every scroll box (table wrappers and the like): sideways scrolling is a layout bug, except for code and payload views
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+      const ox = getComputedStyle(el).overflowX;
+      if (ox === 'auto' || ox === 'scroll') boxes.add(el);
+    }
+    for (const el of Array.from(boxes)) {
+      if (el.closest('[data-overflow-ok], .json, .cm-editor, .uplot')) continue;
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       if (el.scrollWidth > el.clientWidth + 1) {

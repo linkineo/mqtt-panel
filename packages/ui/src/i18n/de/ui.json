@@ -620,6 +620,7 @@
  "broker.edit": "ändern",
  "broker.set": "setzen…",
  "broker.clientCert": "Client-Zert.",
+ "addl.clientCertificate": "Client-Zertifikat",
  "broker.required": "Pflicht",
  "broker.optional": "optional",
  "broker.notChecked": "ungeprüft",

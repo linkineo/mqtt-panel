@@ -20,7 +20,7 @@ describe('Field picker (D-16)', () => {
     const onAdd = vi.fn();
     render(<FieldPickerView req={{ connId: 'x', topic: 'building/f2/ahu01/state', preselect: null, chartId: null }} fields={fields} charts={[]} onAdd={onAdd} onClose={() => undefined} />);
     const rows = screen.getAllByTestId('picker-row');
-    expect(rows.map((r) => r.children[1].textContent)).toEqual(['mode', 'setpoint', 'supply.temp', 'supply.fan', 'alarm.active', 'ts']);
+    expect(rows.map((r) => r.children[1].textContent)).toEqual(['setpoint', 'supply.temp', 'supply.fan', 'alarm.active', 'mode', 'ts']); // plottable first (mockup 10b)
     for (const r of rows) {
       const plottable = r.getAttribute('data-plottable') === 'true';
       expect(r.querySelector('[role=checkbox]') !== null).toBe(plottable);

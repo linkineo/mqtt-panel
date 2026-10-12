@@ -6,7 +6,7 @@ import { engine } from '../../services';
 import { useApp } from '../../store/app';
 import { useSlice } from '../../lib/useSlice';
 import { Sparkline } from '../../components/ui';
-import { fmtAge, fmtBytes, fmtNum, fmtRate } from '../../lib/format';
+import { displayValue, fmtAge, fmtBytes, fmtNum, fmtRate } from '../../lib/format';
 
 export const COL_WIDTH: Record<TableColumn, string> = {
   pin: '32px',
@@ -37,8 +37,8 @@ function cell(c: TableColumn, r: TableRow, now: number) {
       );
     case 'value':
       return (
-        <div key={c} className="mono selectable">
-          <span className="ell">{r.value ?? ''}</span>
+        <div key={c} className="mono selectable" title={r.value ?? undefined}>
+          <span className="ell">{displayValue(r.value)}</span>
         </div>
       );
     case 'spark':

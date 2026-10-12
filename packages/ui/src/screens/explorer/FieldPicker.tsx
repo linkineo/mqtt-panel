@@ -25,7 +25,12 @@ export function FieldPickerView(props: {
   onClose(): void;
 }) {
   const { t } = useTranslation();
-  const leaves = props.fields.filter((f) => f.cast !== 'object' && f.cast !== 'array');
+  // plottable fields first, text fields greyed at the bottom (mockup 10b); payload order kept within each group
+  const leaves = props.fields
+    .filter((f) => f.cast !== 'object' && f.cast !== 'array')
+    .map((f, i) => ({ f, i }))
+    .sort((a, b) => Number(b.f.plottable) - Number(a.f.plottable) || a.i - b.i)
+    .map((x) => x.f);
   const [checked, setChecked] = useState<Set<string>>(() => {
     const pre = props.req.preselect;
     return new Set(pre && leaves.some((f) => f.path === pre && f.plottable) ? [pre] : pre && !leaves.some((f) => f.path === pre) ? [pre] : []);

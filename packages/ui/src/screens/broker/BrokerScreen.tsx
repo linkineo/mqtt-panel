@@ -683,7 +683,14 @@ export function BrokerScreen() {
           </button>
         </div>
         <div style={{ maxHeight: '45%', overflow: 'auto', flex: 'none' }}>
-          <table className="tbl compact" data-testid="clients">
+          <table className="tbl compact fixed" data-testid="clients">
+            <colgroup>
+              <col />
+              <col style={{ width: 96 }} />
+              <col style={{ width: 78 }} />
+              <col style={{ width: 44 }} />
+              <col style={{ width: 40 }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>{t('clients.id')}</th>
@@ -699,7 +706,7 @@ export function BrokerScreen() {
                   <td className="mono" title={c.certCn ? `CN=${c.certCn}` : (c.username ?? '')}>
                     {c.clientId}
                   </td>
-                  <td className="mono">{c.address === 'localhost' ? t('clients.localhost') : c.address}</td>
+                  <td className="mono" title={c.address}>{c.address === 'localhost' ? t('clients.localhost') : c.address}</td>
                   <td>
                     {c.protocol} · {c.transport}
                   </td>
@@ -707,7 +714,7 @@ export function BrokerScreen() {
                   <td>
                     <button
                       type="button"
-                      className="btn sm"
+                      className="btn sm icon"
                       aria-label={t('clients.disconnect', { id: c.clientId })}
                       title={t('clients.disconnect', { id: c.clientId })}
                       onClick={async () => {
