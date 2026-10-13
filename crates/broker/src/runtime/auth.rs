@@ -1,4 +1,4 @@
-//! Authentication: anonymous gate, per-listener login, shared users (argon2 hashes at rest).
+//! Authentication: anonymous gate and shared users (argon2 hashes at rest). There is no per-listener login.
 
 use argon2::password_hash::{
     rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
@@ -6,7 +6,7 @@ use argon2::password_hash::{
 use argon2::Argon2;
 use std::collections::HashMap;
 
-/// A stored password: an argon2 PHC string, or plain text (listener logins from the keychain, TOML files).
+/// A stored password: an argon2 PHC string, or plain text (TOML files).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Credential {
     Argon2(String),
@@ -52,12 +52,10 @@ pub fn verify_password(hash: &str, password: &str) -> bool {
 /// Live authentication settings (can be replaced while the broker runs).
 #[derive(Debug, Clone, Default)]
 pub struct AuthConfig {
-    /// Anyone can connect: users, listener logins and client certificates are ignored.
+    /// Anyone can connect: users and client certificates are ignored.
     pub anonymous: bool,
     /// Shared users, accepted on every listener.
     pub users: HashMap<String, Credential>,
-    /// Per-listener login: listener id -> (username, password).
-    pub listener_logins: HashMap<String, (String, Credential)>,
 }
 
 /// Outcome of the authentication step.
@@ -70,7 +68,6 @@ pub(crate) enum AuthOutcome {
 /// Decides whether a client may connect (order documented in the crate root).
 pub(crate) fn authenticate(
     auth: &AuthConfig,
-    listener_id: &str,
     require_client_cert: bool,
     cert_verified: bool,
     username: Option<&str>,
@@ -85,11 +82,6 @@ pub(crate) fn authenticate(
     let (Some(user), Some(pass)) = (username, password) else {
         return AuthOutcome::BadLogin;
     };
-    if let Some((lu, lp)) = auth.listener_logins.get(listener_id) {
-        if lu == user && lp.verify(pass) {
-            return AuthOutcome::Accepted;
-        }
-    }
     if let Some(c) = auth.users.get(user) {
         if c.verify(pass) {
             return AuthOutcome::Accepted;
@@ -110,31 +102,30 @@ mod tests {
         assert!(!verify_password(&h, "wrong"));
         let mut a = AuthConfig::default();
         a.users.insert("alice".into(), Credential::Argon2(h));
-        a.listener_logins
-            .insert("tls".into(), ("dev".into(), Credential::Plain("pw".into())));
+        a.users.insert("dev".into(), Credential::Plain("pw".into()));
         assert_eq!(
-            authenticate(&a, "tcp", false, false, Some("alice"), Some("s3cret")),
+            authenticate(&a, false, false, Some("alice"), Some("s3cret")),
             AuthOutcome::Accepted
         );
         assert_eq!(
-            authenticate(&a, "tcp", false, false, Some("dev"), Some("pw")),
+            authenticate(&a, false, false, Some("alice"), Some("wrong")),
             AuthOutcome::BadLogin
         );
         assert_eq!(
-            authenticate(&a, "tls", false, false, Some("dev"), Some("pw")),
+            authenticate(&a, false, false, Some("dev"), Some("pw")),
             AuthOutcome::Accepted
         );
         assert_eq!(
-            authenticate(&a, "tls", true, true, None, None),
+            authenticate(&a, true, true, None, None),
             AuthOutcome::Accepted
         );
         assert_eq!(
-            authenticate(&a, "tls", false, true, None, None),
+            authenticate(&a, false, true, None, None),
             AuthOutcome::BadLogin
         );
         a.anonymous = true;
         assert_eq!(
-            authenticate(&a, "tcp", false, false, None, None),
+            authenticate(&a, false, false, None, None),
             AuthOutcome::Accepted
         );
     }

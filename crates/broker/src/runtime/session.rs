@@ -26,7 +26,6 @@ const MAX_INFLIGHT: usize = 1024;
 /// The listener a connection arrived on.
 #[derive(Debug, Clone)]
 pub(crate) struct ListenerCtx {
-    pub id: String,
     pub kind: ListenerKind,
     pub require_client_cert: bool,
 }
@@ -217,10 +216,10 @@ pub(crate) async fn serve<S>(
 
     // 4. Authentication
     let auth = shared.auth();
-    let (lid, req, verified) = (lctx.id.clone(), lctx.require_client_cert, cert.is_some());
+    let (req, verified) = (lctx.require_client_cert, cert.is_some());
     let (user, pass) = (c.username.clone(), c.password.clone());
     let outcome = tokio::task::spawn_blocking(move || {
-        authenticate(&auth, &lid, req, verified, user.as_deref(), pass.as_deref())
+        authenticate(&auth, req, verified, user.as_deref(), pass.as_deref())
     })
     .await
     .unwrap_or(AuthOutcome::BadLogin);

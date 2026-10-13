@@ -2,7 +2,7 @@
 // Generated from client.ts by the lead; keep in sync with apps/desktop/src-tauri/src/commands.rs.
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { Menu, MenuItem, PredefinedMenuItem } from '@tauri-apps/api/menu';
+import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import type { ContextMenuItem, EngineClient, Platform } from './client';
 import type { EngineEvent } from './types';
@@ -20,6 +20,7 @@ export function createTauriEngineClient(): EngineClient {
     duplicateProfile: (profileId) => invoke('duplicate_profile', { profileId }),
     reorderProfiles: (ids) => invoke('reorder_profiles', { ids }),
     setPassword: (profileId, password) => invoke('set_password', { profileId, password }),
+    profilePassword: (profileId) => invoke('profile_password', { profileId }),
     importProfiles: (path) => invoke('import_profiles', { path }),
     exportProfiles: (passphrase) => invoke('export_profiles', { passphrase }),
     pickFile: (kind) => invoke('pick_file', { kind }),
@@ -79,12 +80,12 @@ export function createTauriEngineClient(): EngineClient {
     addListener: (request) => invoke('add_listener', { request }),
     updateListener: (listener) => invoke('update_listener', { listener }),
     removeListener: (listenerId) => invoke('remove_listener', { listenerId }),
-    setListenerLogin: (listenerId, username, password) => invoke('set_listener_login', { listenerId, username, password }),
     setAnonymous: (on) => invoke('set_anonymous', { on }),
     setVerifyAgainst: (source) => invoke('set_verify_against', { source }),
     addUser: (username, password) => invoke('add_user', { username, password }),
     setUserPassword: (username, password) => invoke('set_user_password', { username, password }),
     removeUser: (username) => invoke('remove_user', { username }),
+    brokerUserPassword: (username) => invoke('broker_user_password', { username }),
     issuedCerts: () => invoke('issued_certs', {}),
     issueClientCert: (request) => invoke('issue_client_cert', { request }),
     importCsr: (name, validYears) => invoke('import_csr', { name, validYears }),
@@ -99,7 +100,7 @@ export function createTauriEngineClient(): EngineClient {
     brokerClients: () => invoke('broker_clients', {}),
     disconnectClient: (clientId) => invoke('disconnect_client', { clientId }),
     brokerLog: (level, afterSeq) => invoke('broker_log', { level, afterSeq }),
-    connectExplorerHere: (listenerId) => invoke('connect_explorer_here', { listenerId }),
+    appBrokerStep: (listenerId, step, profileName) => invoke('app_broker_step', { listenerId, step, profileName }),
   };
   return {
     ...client,
@@ -123,20 +124,25 @@ export function createTauriPlatform(): Platform {
     async showContextMenu(items: ContextMenuItem[], x: number, y: number) {
       return new Promise<string | null>(async (resolve) => {
         let chosen: string | null = null;
-        const entries = await Promise.all(
-          items.map((it) =>
-            it.separator
-              ? PredefinedMenuItem.new({ item: 'Separator' })
-              : MenuItem.new({
-                  id: it.id,
-                  text: it.label,
-                  enabled: it.enabled !== false,
-                  action: () => {
-                    chosen = it.id;
-                  },
-                }),
-          ),
-        );
+        // Native submenus for items with children (for example "New connection" > "This app's broker").
+        const build = (list: ContextMenuItem[]): Promise<(MenuItem | PredefinedMenuItem | Submenu)[]> =>
+          Promise.all(
+            list.map(async (it) =>
+              it.separator
+                ? PredefinedMenuItem.new({ item: 'Separator' })
+                : it.items
+                  ? Submenu.new({ id: it.id, text: it.label, enabled: it.enabled !== false, items: await build(it.items) })
+                  : MenuItem.new({
+                      id: it.id,
+                      text: it.label,
+                      enabled: it.enabled !== false,
+                      action: () => {
+                        chosen = it.id;
+                      },
+                    }),
+            ),
+          );
+        const entries = await build(items);
         const menu = await Menu.new({ items: entries });
         const { LogicalPosition } = await import('@tauri-apps/api/dpi');
         await menu.popup(new LogicalPosition(x, y));

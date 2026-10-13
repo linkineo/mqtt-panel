@@ -1,5 +1,5 @@
 //! Persistent broker management for the desktop app and the CLI: `broker.json` in a caller-chosen directory,
-//! secrets (CA and server keys, listener passwords, issued client keys and passphrases) in a [`SecretStore`].
+//! secrets (CA and server keys, user passwords, issued client keys and passphrases) in a [`SecretStore`].
 
 use crate::config::*;
 use crate::error::{n, s, BrokerError};
@@ -21,14 +21,34 @@ pub const CONFIG_FILE: &str = "broker.json";
 pub const LOCAL_CA_NAME: &str = "MQTT Panel Local CA";
 /// Common name of the generated server certificate.
 pub const SERVER_CERT_NAME: &str = "mqttpanel-local";
-/// Name of the client certificate used by "Connect Explorer here".
+/// Name of the client certificate used by the profile "Local broker".
 pub const DESKTOP_CERT_NAME: &str = "mqttpanel-desktop";
+/// Name of the broker user created for the profile "Local broker".
+pub const APP_USER_NAME: &str = "mqtt-panel";
+/// Length of the generated password of [`APP_USER_NAME`] (letters and digits, about 143 bits).
+const APP_PASSWORD_LEN: usize = 24;
 
 const SECRET_CA_KEY: &str = "broker/ca-key";
 const SECRET_SERVER_KEY: &str = "broker/server-key";
 
-fn secret_listener_password(id: &str) -> String {
-    format!("broker/listener/{id}/password")
+/// The plain password of a shared user, kept so the UI can reveal and copy it (broker.json holds the argon2 hash).
+fn secret_user_password(name: &str) -> String {
+    format!("broker/user/{name}/password")
+}
+
+/// A strong random password of letters and digits (no look-alike characters).
+pub fn generate_password(len: usize) -> String {
+    use argon2::password_hash::rand_core::{OsRng, RngCore};
+    const A: &[u8] = b"abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut out = String::with_capacity(len);
+    while out.len() < len {
+        let x = OsRng.next_u32() as usize;
+        // rejection sampling keeps the distribution uniform
+        if x < (u32::MAX as usize / A.len()) * A.len() {
+            out.push(A[x % A.len()] as char);
+        }
+    }
+    out
 }
 fn secret_client_key(name: &str) -> String {
     format!("broker/client/{name}/key")
@@ -47,16 +67,17 @@ struct StoredListener {
     enabled: bool,
     require_client_cert: bool,
     preset: Preset,
-    /// Username of the listener login; the password is in the secret store.
-    login_username: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredUser {
     username: String,
-    /// argon2id PHC string ("argon2-hashed at rest").
+    /// argon2id PHC string ("argon2-hashed at rest"). The plain password is in the secret store.
     password_hash: String,
+    /// Created by the app for the profile "Local broker".
+    #[serde(default)]
+    system: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,7 +130,6 @@ fn default_listener(id: &str, kind: ListenerKind, port: u16, enabled: bool) -> S
         } else {
             Preset::Plain
         },
-        login_username: None,
     }
 }
 
@@ -387,14 +407,6 @@ impl BrokerManager {
                 Credential::Argon2(u.password_hash.clone()),
             );
         }
-        for l in &st.listeners {
-            if let Some(user) = &l.login_username {
-                if let Ok(Some(pw)) = self.secrets.get(&secret_listener_password(&l.id)) {
-                    a.listener_logins
-                        .insert(l.id.clone(), (user.clone(), Credential::Plain(pw)));
-                }
-            }
-        }
         a
     }
 
@@ -411,10 +423,6 @@ impl BrokerManager {
                     enabled: l.enabled,
                     require_client_cert: l.require_client_cert,
                     preset: l.preset,
-                    login: l.login_username.as_ref().map(|u| ListenerLogin {
-                        username: u.clone(),
-                        has_password: true,
-                    }),
                 })
                 .collect(),
             anonymous: st.anonymous,
@@ -423,6 +431,8 @@ impl BrokerManager {
                 .iter()
                 .map(|u| UserView {
                     username: u.username.clone(),
+                    system: u.system,
+                    has_password: false,
                 })
                 .collect(),
             verify_against: st.verify_against,
@@ -438,14 +448,16 @@ impl BrokerManager {
     /// The configuration as shown to the UI.
     pub fn config(&self) -> BrokerConfig {
         let inner = self.lock();
-        let mut c = Self::view(&inner.stored);
-        for l in &mut c.listeners {
-            if let Some(login) = &mut l.login {
-                login.has_password = matches!(
-                    self.secrets.get(&secret_listener_password(&l.id)),
-                    Ok(Some(_))
-                );
-            }
+        self.view_with_secrets(&inner.stored)
+    }
+
+    fn view_with_secrets(&self, st: &Stored) -> BrokerConfig {
+        let mut c = Self::view(st);
+        for u in &mut c.users {
+            u.has_password = matches!(
+                self.secrets.get(&secret_user_password(&u.username)),
+                Ok(Some(_))
+            );
         }
         c
     }
@@ -703,7 +715,7 @@ impl BrokerManager {
     ///
     /// - plain: TCP (or WS), no encryption, labelled "Plain, lab only". Global anonymous stays as it is.
     /// - encrypted: TLS (or WSS) with the local CA's server certificate; client certificate optional.
-    /// - passwords: encrypted, plus the listener login when one is given.
+    /// - passwords: encrypted; clients log in with a shared user (there is no per-listener login).
     /// - mtls: TLS (or WSS) with "require client certificate" on this listener only, verified by the local CA.
     pub fn add_listener(&self, req: AddListenerRequest) -> Result<BrokerConfig, BrokerError> {
         let port = self.check_port(req.port, None)?;
@@ -715,11 +727,6 @@ impl BrokerManager {
             (_, ListenerKind::Ws) => ListenerKind::Wss,
             (_, k) => k,
         };
-        if let Some(l) = &req.login {
-            if !valid_username(&l.username) {
-                return Err(BrokerError::new("broker.userInvalid", &[]));
-            }
-        }
         let mut inner = self.lock();
         let prefix = kind.id_prefix();
         let mut id = prefix.to_string();
@@ -727,15 +734,6 @@ impl BrokerManager {
         while inner.stored.listeners.iter().any(|l| l.id == id) {
             id = format!("{prefix}-{i}");
             i += 1;
-        }
-        let mut login_username = None;
-        if let Some(l) = &req.login {
-            if req.preset != Preset::Plain || !l.username.is_empty() {
-                self.secrets
-                    .set(&secret_listener_password(&id), &l.password)
-                    .map_err(|e| BrokerError::keychain(&e))?;
-                login_username = Some(l.username.clone());
-            }
         }
         inner.stored.listeners.push(StoredListener {
             id: id.clone(),
@@ -745,7 +743,6 @@ impl BrokerManager {
             enabled: true,
             require_client_cert: req.preset == Preset::Mtls,
             preset: req.preset,
-            login_username,
         });
         if req.preset == Preset::Mtls {
             inner.stored.verify_against = if inner.stored.imported_ca_pem.is_some() {
@@ -757,10 +754,10 @@ impl BrokerManager {
         self.log
             .info(format!("{} listener added on port {port}", kind.label()));
         self.commit(&mut inner, true)?;
-        Ok(Self::view(&inner.stored))
+        Ok(self.view_with_secrets(&inner.stored))
     }
 
-    /// Updates kind, bind, port, enabled, require-client-certificate and preset of a listener (not its login).
+    /// Updates kind, bind, port, enabled, require-client-certificate and preset of a listener.
     pub fn update_listener(&self, l: Listener) -> Result<BrokerConfig, BrokerError> {
         let current_port = self
             .lock()
@@ -785,59 +782,15 @@ impl BrokerManager {
             x.preset = l.preset;
         }
         self.commit(&mut inner, true)?;
-        Ok(Self::view(&inner.stored))
+        Ok(self.view_with_secrets(&inner.stored))
     }
 
-    /// Removes a listener and its login password.
+    /// Removes a listener.
     pub fn remove_listener(&self, listener_id: &str) -> Result<BrokerConfig, BrokerError> {
         let mut inner = self.lock();
         inner.stored.listeners.retain(|l| l.id != listener_id);
-        let _ = self.secrets.delete(&secret_listener_password(listener_id));
         self.commit(&mut inner, true)?;
-        Ok(Self::view(&inner.stored))
-    }
-
-    /// Sets the per-listener login; an empty username clears it. `password: None` keeps the stored password.
-    pub fn set_listener_login(
-        &self,
-        listener_id: &str,
-        username: &str,
-        password: Option<&str>,
-    ) -> Result<BrokerConfig, BrokerError> {
-        let mut inner = self.lock();
-        if !inner.stored.listeners.iter().any(|l| l.id == listener_id) {
-            return Err(BrokerError::internal(format!("no listener {listener_id}")));
-        }
-        if username.is_empty() {
-            let _ = self.secrets.delete(&secret_listener_password(listener_id));
-            if let Some(l) = inner
-                .stored
-                .listeners
-                .iter_mut()
-                .find(|l| l.id == listener_id)
-            {
-                l.login_username = None;
-            }
-        } else {
-            if !valid_username(username) {
-                return Err(BrokerError::new("broker.userInvalid", &[]));
-            }
-            if let Some(p) = password {
-                self.secrets
-                    .set(&secret_listener_password(listener_id), p)
-                    .map_err(|e| BrokerError::keychain(&e))?;
-            }
-            if let Some(l) = inner
-                .stored
-                .listeners
-                .iter_mut()
-                .find(|l| l.id == listener_id)
-            {
-                l.login_username = Some(username.to_string());
-            }
-        }
-        self.commit(&mut inner, false)?;
-        Ok(Self::view(&inner.stored))
+        Ok(self.view_with_secrets(&inner.stored))
     }
 
     /// Turns anonymous access on or off; applies immediately when running.
@@ -845,12 +798,12 @@ impl BrokerManager {
         let mut inner = self.lock();
         inner.stored.anonymous = on;
         self.log.warn(if on {
-            "anonymous access on: users, listener logins and client certificates are not checked"
+            "anonymous access on: users and client certificates are not checked"
         } else {
             "anonymous access off"
         });
         self.commit(&mut inner, false)?;
-        Ok(Self::view(&inner.stored))
+        Ok(self.view_with_secrets(&inner.stored))
     }
 
     /// Chooses the CA that verifies client certificates. "imported" needs an imported CA.
@@ -863,7 +816,7 @@ impl BrokerManager {
         let changed = inner.stored.verify_against != source;
         inner.stored.verify_against = source;
         self.commit(&mut inner, changed)?;
-        Ok(Self::view(&inner.stored))
+        Ok(self.view_with_secrets(&inner.stored))
     }
 
     /// Adds a shared user (password argon2-hashed in broker.json).
@@ -883,6 +836,11 @@ impl BrokerManager {
                 &[("user", s(username))],
             ));
         }
+        self.insert_user(username, password, false)?;
+        Ok(self.config())
+    }
+
+    fn insert_user(&self, username: &str, password: &str, system: bool) -> Result<(), BrokerError> {
         let hash = hash_password(password).map_err(BrokerError::internal)?;
         let mut inner = self.lock();
         if inner.stored.users.iter().any(|u| u.username == username) {
@@ -891,12 +849,15 @@ impl BrokerManager {
                 &[("user", s(username))],
             ));
         }
+        self.secrets
+            .set(&secret_user_password(username), password)
+            .map_err(|e| BrokerError::keychain(&e))?;
         inner.stored.users.push(StoredUser {
             username: username.to_string(),
             password_hash: hash,
+            system,
         });
-        self.commit(&mut inner, false)?;
-        Ok(Self::view(&inner.stored))
+        self.commit(&mut inner, false)
     }
 
     /// Changes a shared user's password.
@@ -915,25 +876,75 @@ impl BrokerManager {
             return Err(BrokerError::new("broker.userInvalid", &[]));
         }
         let hash = hash_password(password).map_err(BrokerError::internal)?;
-        let mut inner = self.lock();
-        if let Some(u) = inner
-            .stored
-            .users
-            .iter_mut()
-            .find(|u| u.username == username)
         {
-            u.password_hash = hash;
+            let mut inner = self.lock();
+            self.secrets
+                .set(&secret_user_password(username), password)
+                .map_err(|e| BrokerError::keychain(&e))?;
+            if let Some(u) = inner
+                .stored
+                .users
+                .iter_mut()
+                .find(|u| u.username == username)
+            {
+                u.password_hash = hash;
+            }
+            self.commit(&mut inner, false)?;
         }
-        self.commit(&mut inner, false)?;
-        Ok(Self::view(&inner.stored))
+        Ok(self.config())
     }
 
-    /// Removes a shared user.
+    /// Removes a shared user and its password.
     pub fn remove_user(&self, username: &str) -> Result<BrokerConfig, BrokerError> {
-        let mut inner = self.lock();
-        inner.stored.users.retain(|u| u.username != username);
-        self.commit(&mut inner, false)?;
-        Ok(Self::view(&inner.stored))
+        {
+            let mut inner = self.lock();
+            inner.stored.users.retain(|u| u.username != username);
+            let _ = self.secrets.delete(&secret_user_password(username));
+            self.commit(&mut inner, false)?;
+        }
+        Ok(self.config())
+    }
+
+    /// The plain password of a shared user, for the eye and copy icons (None when it was never kept).
+    pub fn user_password(&self, username: &str) -> Result<Option<String>, BrokerError> {
+        if !self.lock().stored.users.iter().any(|u| u.username == username) {
+            return Ok(None);
+        }
+        self.secret(&secret_user_password(username))
+    }
+
+    /// Makes sure the user "mqtt-panel" exists with a strong generated password kept in the secret store.
+    /// Returns `(created, password)`: an existing user keeps its password; when its password was never kept, a new
+    /// one is generated (`created` stays false). Applies live, no restart.
+    pub fn ensure_app_user(&self) -> Result<(bool, String), BrokerError> {
+        let exists = self
+            .lock()
+            .stored
+            .users
+            .iter()
+            .any(|u| u.username == APP_USER_NAME);
+        if !exists {
+            let pw = generate_password(APP_PASSWORD_LEN);
+            self.insert_user(APP_USER_NAME, &pw, true)?;
+            self.log
+                .info(format!("user {APP_USER_NAME} created for the profile \"Local broker\""));
+            return Ok((true, pw));
+        }
+        {
+            let mut inner = self.lock();
+            if let Some(u) = inner.stored.users.iter_mut().find(|u| u.username == APP_USER_NAME) {
+                if !u.system {
+                    u.system = true;
+                    self.commit(&mut inner, false)?;
+                }
+            }
+        }
+        if let Some(pw) = self.secret(&secret_user_password(APP_USER_NAME))? {
+            return Ok((false, pw));
+        }
+        let pw = generate_password(APP_PASSWORD_LEN);
+        self.set_user_password(APP_USER_NAME, &pw)?;
+        Ok((false, pw))
     }
 
     /// Issued client certificates with "last seen".
@@ -1375,41 +1386,120 @@ impl BrokerManager {
         Ok(())
     }
 
-    /// Connection settings for "Connect Explorer here": the given listener or the most secure enabled one
-    /// (mutual TLS, then TLS/WSS, then TCP/WS). For mutual TLS a client certificate "mqttpanel-desktop" is issued
-    /// once (system flag) and re-issued after a CA rotation or revocation.
+    /// Security rank of a listener for the "Connect to this app's broker" preselection: mutual TLS, then TLS, then
+    /// secure WebSocket, then TCP, then WebSocket (higher is more secure).
+    pub fn listener_rank(l: &Listener) -> u8 {
+        let mtls = l.kind.encrypted() && l.require_client_cert;
+        match (mtls, l.kind) {
+            (true, ListenerKind::Tls) => 6,
+            (true, _) => 5,
+            (false, ListenerKind::Tls) => 4,
+            (false, ListenerKind::Wss) => 3,
+            (false, ListenerKind::Tcp) => 2,
+            (false, ListenerKind::Ws) => 1,
+        }
+    }
+
+    /// The most secure enabled listener (see [`BrokerManager::listener_rank`]).
+    pub fn preferred_listener(&self) -> Option<Listener> {
+        let cfg = self.config();
+        let mut best: Option<Listener> = None;
+        for l in cfg.listeners.into_iter().filter(|l| l.enabled) {
+            if best
+                .as_ref()
+                .is_none_or(|b| Self::listener_rank(&l) > Self::listener_rank(b))
+            {
+                best = Some(l);
+            }
+        }
+        best
+    }
+
+    /// True when this listener asks the app for its client certificate "mqttpanel-desktop": it requires one and
+    /// Anonymous is off (with Anonymous on no client certificate is requested).
+    pub fn needs_desktop_cert(&self, listener_id: &str) -> bool {
+        let inner = self.lock();
+        !inner.stored.anonymous
+            && inner
+                .stored
+                .listeners
+                .iter()
+                .any(|l| l.id == listener_id && l.kind.encrypted() && l.require_client_cert)
+    }
+
+    /// Makes sure the client certificate "mqttpanel-desktop" exists, issued by the current CA, not revoked, with its
+    /// key in the secret store. Returns `(issued, cert_pem, key_pem)`; `issued` is false when the existing one is
+    /// kept. Re-issued after a CA rotation or a revocation.
+    pub fn ensure_desktop_cert(&self) -> Result<(bool, String, String), BrokerError> {
+        let mut inner = self.lock();
+        let ca_fp = fingerprint_of_pem(&inner.stored.ca_pem);
+        let existing = inner
+            .stored
+            .issued
+            .iter()
+            .find(|c| {
+                c.name == DESKTOP_CERT_NAME
+                    && c.system
+                    && !c.revoked
+                    && c.ca_fingerprint == ca_fp
+                    && c.has_key
+            })
+            .cloned();
+        if let Some(c) = existing {
+            if let Some(k) = self.secret(&secret_client_key(DESKTOP_CERT_NAME))? {
+                return Ok((false, c.cert_pem, k));
+            }
+        }
+        let ca = self.load_ca(&inner.stored)?;
+        let issued = ca
+            .issue(
+                DESKTOP_CERT_NAME,
+                &[],
+                Usage::Client,
+                KeyAlg::Ecdsa,
+                Validity::years(2),
+            )
+            .map_err(|e| BrokerError::kit(&e))?;
+        self.secrets
+            .set(&secret_client_key(DESKTOP_CERT_NAME), &issued.key_pem)
+            .map_err(|e| BrokerError::keychain(&e))?;
+        inner.stored.issued.retain(|c| c.name != DESKTOP_CERT_NAME);
+        inner
+            .stored
+            .issued
+            .push(stored_cert_from(&issued, true, true, &ca_fp));
+        self.log.info(format!(
+            "client certificate {DESKTOP_CERT_NAME} issued for the profile \"Local broker\""
+        ));
+        self.commit(&mut inner, false)?;
+        Ok((true, issued.cert_pem, issued.key_pem))
+    }
+
+    /// Connection settings for the profile "Local broker": the given listener or the most secure enabled one.
+    /// With Anonymous off it carries the user "mqtt-panel" (created when missing) and, when the listener requires
+    /// one, the client certificate "mqttpanel-desktop" (issued when missing, see [`BrokerManager::ensure_desktop_cert`]).
+    /// TLS and WSS listeners carry the broker's own CA.
     pub fn local_connection(
         &self,
         listener_id: Option<&str>,
     ) -> Result<LocalConnection, BrokerError> {
-        let mut inner = self.lock();
-        let l = {
-            let st = &inner.stored;
-            let rank = |l: &StoredListener| match (l.kind.encrypted(), l.require_client_cert) {
-                (true, true) => 3,
-                (true, false) => 2,
-                _ => 1,
-            };
-            let pick = match listener_id {
-                Some(id) => st.listeners.iter().find(|l| l.id == id),
-                None => {
-                    let mut best: Option<&StoredListener> = None;
-                    for l in st.listeners.iter().filter(|l| l.enabled) {
-                        if best.is_none_or(|b| rank(l) > rank(b)) {
-                            best = Some(l);
-                        }
-                    }
-                    best
-                }
-            };
-            pick.cloned()
-                .ok_or_else(|| BrokerError::new("broker.noListener", &[]))?
+        let l = match listener_id {
+            Some(id) => self.config().listeners.into_iter().find(|l| l.id == id),
+            None => self.preferred_listener(),
+        }
+        .ok_or_else(|| BrokerError::new("broker.noListener", &[]))?;
+        let (port, anonymous, ca_pem) = {
+            let inner = self.lock();
+            (
+                inner
+                    .handle
+                    .as_ref()
+                    .and_then(|h| h.port(&l.id))
+                    .unwrap_or(l.port),
+                inner.stored.anonymous,
+                inner.stored.ca_pem.clone(),
+            )
         };
-        let port = inner
-            .handle
-            .as_ref()
-            .and_then(|h| h.port(&l.id))
-            .unwrap_or(l.port);
         let mut lc = LocalConnection {
             listener_id: l.id.clone(),
             host: "localhost".into(),
@@ -1419,66 +1509,33 @@ impl BrokerManager {
                 .kind
                 .websocket()
                 .then(|| crate::runtime::ws::WS_PATH.to_string()),
-            ca_pem: l.kind.encrypted().then(|| inner.stored.ca_pem.clone()),
+            ca_pem: l.kind.encrypted().then_some(ca_pem),
             client_cert_pem: None,
             client_key_pem: None,
             username: None,
             password: None,
         };
-        if let Some(u) = &l.login_username {
-            lc.username = Some(u.clone());
-            lc.password = self.secret(&secret_listener_password(&l.id))?;
+        if !anonymous {
+            let (_, pw) = self.ensure_app_user()?;
+            lc.username = Some(APP_USER_NAME.to_string());
+            lc.password = Some(pw);
         }
-        if l.kind.encrypted() && l.require_client_cert {
-            let ca_fp = fingerprint_of_pem(&inner.stored.ca_pem);
-            let existing = inner
-                .stored
-                .issued
-                .iter()
-                .find(|c| {
-                    c.name == DESKTOP_CERT_NAME
-                        && c.system
-                        && !c.revoked
-                        && c.ca_fingerprint == ca_fp
-                        && c.has_key
-                })
-                .cloned();
-            let key = match &existing {
-                Some(_) => self.secret(&secret_client_key(DESKTOP_CERT_NAME))?,
-                None => None,
-            };
-            let (cert_pem, key_pem) = match (existing, key) {
-                (Some(c), Some(k)) => (c.cert_pem, k),
-                _ => {
-                    let ca = self.load_ca(&inner.stored)?;
-                    let issued = ca
-                        .issue(
-                            DESKTOP_CERT_NAME,
-                            &[],
-                            Usage::Client,
-                            KeyAlg::Ecdsa,
-                            Validity::years(2),
-                        )
-                        .map_err(|e| BrokerError::kit(&e))?;
-                    self.secrets
-                        .set(&secret_client_key(DESKTOP_CERT_NAME), &issued.key_pem)
-                        .map_err(|e| BrokerError::keychain(&e))?;
-                    inner.stored.issued.retain(|c| c.name != DESKTOP_CERT_NAME);
-                    inner
-                        .stored
-                        .issued
-                        .push(stored_cert_from(&issued, true, true, &ca_fp));
-                    self.log.info(format!(
-                        "client certificate {DESKTOP_CERT_NAME} issued for this app"
-                    ));
-                    self.commit(&mut inner, false)?;
-                    (issued.cert_pem, issued.key_pem)
-                }
-            };
-            lc.client_cert_pem = Some(cert_pem);
-            lc.client_key_pem = Some(key_pem);
+        if self.needs_desktop_cert(&l.id) {
+            let (_, cert, key) = self.ensure_desktop_cert()?;
+            lc.client_cert_pem = Some(cert);
+            lc.client_key_pem = Some(key);
         }
         Ok(lc)
+    }
+
+    /// True when Anonymous is on.
+    pub fn anonymous(&self) -> bool {
+        self.lock().stored.anonymous
+    }
+
+    /// True when a saved change waits for a restart of the running broker.
+    pub fn restart_needed(&self) -> bool {
+        self.lock().restart_needed
     }
 }
 

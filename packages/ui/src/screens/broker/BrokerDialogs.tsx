@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { BrokerCerts, BrokerConfig, IssueCertRequest, ListenerKind, Preset, UserMessage } from '@mqttpanel/engine-client';
+import type { BrokerCerts, BrokerConfig, IssueCertRequest, Listener, ListenerKind, Preset, UserMessage } from '@mqttpanel/engine-client';
 import { engine } from '../../services';
 import { toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
 import { reportSave, run } from '../../lib/actions';
 import { Check, Info, Modal, Msg, Seg } from '../../components/ui';
+import { SecretInput } from '../../components/Secret';
 import { isoDateToMonth } from '../../lib/format';
 
 export const DEFAULT_PORTS: Record<ListenerKind, number> = { tcp: 1883, tls: 8883, ws: 8083, wss: 8084 };
@@ -34,8 +35,28 @@ function untilDate(years: number): string {
 
 /* ---------------------------------------------------------------- Add listener (mockups 13 and 14) */
 
-export function AddListenerDialog({ config, certs, onClose, onConfig }: { config: BrokerConfig; certs: BrokerCerts | null; onClose(): void; onConfig(c: BrokerConfig): void }) {
+/**
+ * Add listener, steps 1 and 2. `context`: "broker" (Broker screen: the app then asks to restart) or "flow"
+ * ("Connect to this app's broker": the flow restarts and connects by itself). `onAdded` receives the new listener;
+ * without it the dialog closes itself.
+ */
+export function AddListenerDialog({
+  config,
+  certs,
+  onClose,
+  onConfig,
+  onAdded,
+  context = 'broker',
+}: {
+  config: BrokerConfig;
+  certs: BrokerCerts | null;
+  onClose(): void;
+  onConfig(c: BrokerConfig): void;
+  onAdded?(l: Listener): void;
+  context?: 'broker' | 'flow';
+}) {
   const { t } = useTranslation();
+  const running = useApp((s) => s.broker?.state === 'running');
   const [step, setStep] = useState<1 | 2>(1);
   const [preset, setPreset] = useState<Preset>('mtls');
   const [kind, setKind] = useState<ListenerKind>('tls');
@@ -47,8 +68,6 @@ export function AddListenerDialog({ config, certs, onClose, onConfig }: { config
   };
   const [port, setPort] = useState(String(freePort('tls')));
   const [bind, setBind] = useState<'network' | 'localhost'>('network');
-  const [user, setUser] = useState('');
-  const [pass, setPass] = useState('');
   const [portError, setPortError] = useState<UserMessage | null>(null);
   const [busy, setBusy] = useState(false);
   const secure = kind === 'tls' || kind === 'wss';
@@ -72,15 +91,12 @@ export function AddListenerDialog({ config, certs, onClose, onConfig }: { config
   const add = async () => {
     setBusy(true);
     try {
-      const c = await engine().addListener({
-        preset,
-        kind,
-        port: Number(port),
-        bind,
-        login: user.trim() ? { username: user.trim(), password: pass } : null,
-      });
+      const before = new Set(config.listeners.map((l) => l.id));
+      const c = await engine().addListener({ preset, kind, port: Number(port), bind });
       onConfig(c);
-      onClose();
+      const added = c.listeners.find((l) => !before.has(l.id));
+      if (onAdded && added) onAdded(added);
+      else onClose();
     } catch (e) {
       setPortError(toMessage(e));
     } finally {
@@ -212,16 +228,6 @@ export function AddListenerDialog({ config, certs, onClose, onConfig }: { config
             <span className="hint">{bind === 'network' ? t('addl.networkHint') : t('addl.localhostHint')}</span>
           </span>
         </div>
-        <div className="f">
-          <span className="lbl">
-            {t('broker.login')} <Info id="login" title={t('broker.login')} />
-          </span>
-          <span className="row2">
-            <input className="input mono" style={{ width: 140 }} placeholder={t('addl.username')} aria-label={t('addl.username')} value={user} onChange={(e) => setUser(e.target.value)} />
-            <input className="input" style={{ width: 140 }} type="password" placeholder={t('addl.password')} aria-label={t('addl.password')} value={pass} onChange={(e) => setPass(e.target.value)} />
-            <span className="chip">{t('addl.optionalKeychain')}</span>
-          </span>
-        </div>
         {secure && (
           <div className="f">
             <span className="lbl">{t('addl.clientCertificate')}</span>
@@ -243,7 +249,9 @@ export function AddListenerDialog({ config, certs, onClose, onConfig }: { config
           </div>
         )}
       </div>
-      <div className="warnstrip">{t(`addl.after.${preset}`)}</div>
+      <div className="warnstrip" data-testid="addl-after">
+        {context === 'flow' ? t('addl.afterFlow') : running ? t('addl.afterPrompt') : t('addl.afterStopped')} {t(`addl.after.${preset}`)}
+      </div>
     </Modal>
   );
 }
@@ -363,7 +371,7 @@ export function IssueCertDialog({ onClose, onIssued }: { onClose(): void; onIssu
             {t('issue.passphrase')} <Info id="passphrase" title={t('issue.passphrase')} />
           </span>
           <span className="row2">
-            <input className="input" style={{ flex: 1 }} type="password" value={req.passphrase} aria-label={t('issue.passphrase')} placeholder={req.format === 'pem' ? t('common.optional') : ''} onChange={(e) => upd({ passphrase: e.target.value })} />
+            <SecretInput value={req.passphrase} aria-label={t('issue.passphrase')} placeholder={req.format === 'pem' ? t('common.optional') : ''} testId="issue-passphrase" onValue={(passphrase) => upd({ passphrase })} />
             <button type="button" className="btn sm" onClick={() => upd({ passphrase: randomPassphrase() })}>
               {t('issue.generate')}
             </button>
@@ -429,7 +437,7 @@ export function CredentialsDialog(props: {
         )}
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <label htmlFor="cred-pass">{t('addl.password')}</label>
-          <input id="cred-pass" className="input" type="password" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void ok()} />
+          <SecretInput id="cred-pass" value={pass} testId="cred-pass" onValue={setPass} onKeyDown={(e) => e.key === 'Enter' && void ok()} />
         </div>
       </div>
       {error && (

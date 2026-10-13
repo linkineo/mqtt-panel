@@ -6,8 +6,8 @@
 //! max_packet_size = 16777216     # bytes, default 16 MiB
 //!
 //! [auth]
-//! anonymous = false              # true: anyone may connect; users, logins and client certificates are ignored
-//! [[auth.users]]                 # shared users, accepted on every listener
+//! anonymous = false              # true: anyone may connect; users and client certificates are ignored
+//! [[auth.users]]                 # shared users, accepted on every listener (there is no per-listener login)
 //! username = "alice"
 //! password = "plain text"        # either a plain password ...
 //! [[auth.users]]
@@ -31,7 +31,6 @@
 //! kind = "tls"
 //! port = 8883
 //! require_client_cert = true     # mutual TLS on this listener
-//! login = { username = "dev", password = "pw" }   # optional login accepted on this listener only
 //! # cert, key, key_passphrase and client_ca may also be set per listener.
 //! ```
 //!
@@ -88,13 +87,6 @@ struct FileTls {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct FileLogin {
-    username: String,
-    password: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct FileListener {
     id: Option<String>,
     kind: ListenerKind,
@@ -102,7 +94,6 @@ struct FileListener {
     bind: Option<String>,
     #[serde(default)]
     require_client_cert: bool,
-    login: Option<FileLogin>,
     cert: Option<PathBuf>,
     key: Option<PathBuf>,
     key_passphrase: Option<String>,
@@ -241,12 +232,6 @@ impl RuntimeConfig {
             } else {
                 None
             };
-            if let Some(login) = l.login {
-                auth.listener_logins.insert(
-                    id.clone(),
-                    (login.username, Credential::Plain(login.password)),
-                );
-            }
             listeners.push(ListenerSpec {
                 id,
                 kind: l.kind,

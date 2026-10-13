@@ -277,3 +277,115 @@ async fn q02_pipeline_5k_msgs_per_second() {
     }
     assert!(lock(&c.engine).seq() >= total * 99 / 100);
 }
+
+// ---------------------------------------------------------------- "Connect to this app's broker" (B-12, C-13)
+
+fn free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port()
+}
+
+/// An AppState with in-memory secrets, a temporary data folder and a broker on free localhost ports, plus a
+/// mutual-TLS listener (the most secure one).
+fn local_state(dir: &std::path::Path) -> (AppState, String) {
+    use mqttpanel_broker::*;
+    let secrets: Arc<dyn mqttpanel_profiles::SecretStore> = Arc::new(mqttpanel_profiles::MemorySecrets::new());
+    let store = mqttpanel_profiles::Store::new(dir.join("profiles"), secrets.clone());
+    let m = BrokerManager::open(&dir.join("broker"), secrets).unwrap();
+    for mut l in m.config().listeners {
+        l.port = free_port();
+        l.bind = Bind::Localhost;
+        m.update_listener(l).unwrap();
+    }
+    let cfg = m
+        .add_listener(AddListenerRequest { preset: Preset::Mtls, kind: ListenerKind::Tls, port: u32::from(free_port()), bind: Bind::Localhost })
+        .unwrap();
+    let mtls = cfg.listeners.iter().find(|l| l.require_client_cert).unwrap().id.clone();
+    let state = AppState {
+        store,
+        settings: std::sync::Mutex::new(Settings::default()),
+        conns: std::sync::Mutex::new(Default::default()),
+        pending_trust: std::sync::Mutex::new(Default::default()),
+        broker: crate::broker::BrokerState::with_manager(m),
+    };
+    (state, mtls)
+}
+
+async fn run_flow(state: &AppState, listener: &str) -> Vec<String> {
+    let mut out = vec![];
+    for step in ["user", "cert", "trust", "broker", "connect"] {
+        let r = crate::broker::app_broker_step_on(state, listener, step, "Local broker").await.unwrap_or_else(|e| panic!("step {step}: {}", e.text));
+        if step == "connect" {
+            if let Some(ConnectOutcome::Failed { error }) = &r.outcome {
+                panic!("connect failed: {}", error.text);
+            }
+        }
+        if step == "user" && r.result != "skipped" {
+            assert!(r.password.as_ref().is_some_and(|p| p.len() >= 20));
+        }
+        out.push(r.result);
+    }
+    out
+}
+
+fn manager(state: &AppState) -> &mqttpanel_broker::BrokerManager {
+    // Test-only access to the manager opened by `local_state`.
+    crate::broker::test_manager(&state.broker)
+}
+
+/// B-12: preselects the most secure enabled listener, creates "mqtt-panel" once, issues "mqttpanel-desktop" only
+/// when required, restarts only when needed, connects, and keeps a single profile "Local broker".
+#[tokio::test]
+async fn b12_this_apps_broker_flow_three_runs_no_duplicates() {
+    let dir = tempfile::tempdir().unwrap();
+    let (state, mtls) = local_state(dir.path());
+    let m = manager(&state);
+    assert_eq!(m.preferred_listener().unwrap().id, mtls);
+    assert!(!m.is_running());
+    let t0 = std::time::Instant::now();
+    assert_eq!(run_flow(&state, &mtls).await, ["created", "issued", "trusted", "started", "connected"]);
+    assert!(t0.elapsed() < Duration::from_secs(5), "connected within 5 s from a stopped broker: {:?}", t0.elapsed());
+    for _ in 0..2 {
+        assert_eq!(run_flow(&state, &mtls).await, ["kept", "kept", "trusted", "running", "connected"]);
+    }
+    let locals: Vec<_> = state.store.list().into_iter().filter(|p| p.profile.is_local_broker).collect();
+    assert_eq!(locals.len(), 1, "one profile Local broker");
+    let p = &locals[0].profile;
+    assert_eq!((p.name.as_str(), p.username.as_str(), p.scheme.as_str(), p.mqtt_version.as_str()), ("Local broker", "mqtt-panel", "mqtts", "5"));
+    assert!(p.has_password && p.tls.verify_server && p.tls.ca_cert.is_some() && p.tls.client_cert.is_some());
+    let users = m.config().users;
+    assert_eq!(users.iter().filter(|u| u.username == "mqtt-panel").count(), 1, "{users:?}");
+    assert!(users[0].system);
+    // The profile password is the user's password and can be revealed (app-owned).
+    assert_eq!(crate::commands::local_profile_password(&state, &p.id), m.user_password("mqtt-panel").unwrap());
+    assert_eq!(m.issued_certs().iter().filter(|c| c.system).count(), 1);
+    // A pending listener change: the flow restarts the broker by itself.
+    let mut tcp = m.config().listeners.into_iter().find(|l| l.id == "tcp").unwrap();
+    tcp.port = free_port();
+    m.update_listener(tcp).unwrap();
+    assert!(m.restart_needed());
+    assert_eq!(run_flow(&state, &mtls).await, ["kept", "kept", "trusted", "restarted", "connected"]);
+    assert!(!m.restart_needed());
+    // A plain listener: no certificate, no CA trust.
+    assert_eq!(run_flow(&state, "tcp").await, ["kept", "skipped", "skipped", "running", "connected"]);
+    let p = state.store.list().into_iter().find(|p| p.profile.is_local_broker).unwrap().profile;
+    assert!(p.tls.ca_cert.is_none() && p.tls.client_cert.is_none() && p.scheme == "mqtt");
+    assert_eq!(state.store.list().iter().filter(|p| p.profile.is_local_broker).count(), 1);
+    let id = p.id.clone();
+    crate::commands::close(&state, &id).await;
+    m.stop().await;
+}
+
+/// C-13 (adapter part): with Anonymous on no user is created and no client certificate is needed.
+#[tokio::test]
+async fn c13_this_apps_broker_flow_with_anonymous_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let (state, mtls) = local_state(dir.path());
+    let m = manager(&state);
+    m.set_anonymous(true).unwrap();
+    assert_eq!(run_flow(&state, &mtls).await, ["skipped", "skipped", "trusted", "started", "connected"]);
+    assert!(m.config().users.is_empty(), "no user created");
+    let p = state.store.list().into_iter().find(|p| p.profile.is_local_broker).unwrap().profile;
+    assert!(p.username.is_empty() && !p.has_password && p.tls.client_cert.is_none());
+    crate::commands::close(&state, &p.id).await;
+    m.stop().await;
+}

@@ -6,7 +6,7 @@ import { createServices, defaultLang, readOverrides, startApp } from './boot';
 
 async function main() {
   const o = readOverrides(window.location.search);
-  const { engine, platform } = await createServices(o.mock, defaultLang(o));
+  const { engine, platform } = await createServices(o.mock, defaultLang(o), o.latency);
   await startApp(engine, platform, o);
   createRoot(document.getElementById('root')!).render(<App />);
 }

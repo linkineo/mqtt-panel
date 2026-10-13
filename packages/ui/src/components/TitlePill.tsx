@@ -37,6 +37,7 @@ export function TitlePill() {
   const trustId = useTrust((s) => s.prompt?.profileId ?? null);
   const pendingId = busyId ?? trustId;
   const pendingName = useApp((s) => (pendingId ? (s.profiles.find((p) => p.id === pendingId)?.name ?? null) : null));
+  const isLocal = useApp((s) => s.profiles.some((p) => p.id === s.activeConnId && p.isLocalBroker));
 
   let dot = 'off';
   let text: string;
@@ -45,7 +46,9 @@ export function TitlePill() {
     if (broker.state === 'running') {
       parts.push(t('pill.running'));
       if (brokerConfig?.anonymous) parts.push(t('pill.anonymous'));
-      parts.push(t('pill.clients', { count: broker.clients, n: fmtNum(broker.clients) }));
+      // mockup 12c: "Local broker · running · restart pending" (the pending restart replaces the client count)
+      if (broker.restartNeeded) parts.push(t('pill.restartPending'));
+      else parts.push(t('pill.clients', { count: broker.clients, n: fmtNum(broker.clients) }));
       dot = brokerConfig?.anonymous ? 'warn' : 'on';
     } else if (broker.state === 'starting') {
       parts.push(t('pill.starting'));
@@ -77,6 +80,7 @@ export function TitlePill() {
       parts.push(t('pill.rate', { rate: fmtRate(conn.msgRate) }));
       if (conn.negotiatedVersion) parts.push(`MQTT ${conn.negotiatedVersion}`);
     }
+    if (isLocal && broker?.state === 'running' && broker.restartNeeded) parts.push(t('pill.restartPending'));
     if (skip || conn.skipVerify) {
       parts.push(t('pill.skipVerify'));
       dot = 'warn';

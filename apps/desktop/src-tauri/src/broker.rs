@@ -1,8 +1,9 @@
-//! Embedded broker commands: the Broker screen and "Connect Explorer here".
+//! Embedded broker commands: the Broker screen and the "Connect to this app's broker" flow (Connections).
 
 use crate::files;
 use crate::state::{lock, AppState};
 use crate::types::*;
+use mqttpanel_broker::manager::DESKTOP_CERT_NAME;
 use mqttpanel_broker::*;
 use mqttpanel_client::{msg, UserMessage};
 use mqttpanel_profiles::model::secret_keys;
@@ -18,6 +19,16 @@ pub struct BrokerState {
     manager: OnceLock<Result<BrokerManager, UserMessage>>,
 }
 
+impl BrokerState {
+    /// A broker state with an already opened manager (tests).
+    #[cfg(test)]
+    pub fn with_manager(m: BrokerManager) -> BrokerState {
+        let s = BrokerState::default();
+        let _ = s.manager.set(Ok(m));
+        s
+    }
+}
+
 pub fn broker_dir() -> std::path::PathBuf {
     mqttpanel_profiles::default_dir().join("broker")
 }
@@ -30,6 +41,12 @@ fn be(e: BrokerError) -> UserMessage {
     um(e.into())
 }
 
+/// The manager of a state built with [`BrokerState::with_manager`] (tests).
+#[cfg(test)]
+pub fn test_manager(s: &BrokerState) -> &BrokerManager {
+    s.manager.get().unwrap().as_ref().unwrap()
+}
+
 fn mgr<'a>(state: &'a AppState) -> R<&'a BrokerManager> {
     state
         .broker
@@ -39,7 +56,7 @@ fn mgr<'a>(state: &'a AppState) -> R<&'a BrokerManager> {
         .map_err(|e| e.clone())
 }
 
-/// Status for the tick event (None until the Broker screen or Connect Explorer here opened the manager).
+/// Status for the tick event (None until the Broker screen or the Connections flow opened the manager).
 pub fn status_json(s: &BrokerState) -> Option<serde_json::Value> {
     match s.manager.get() {
         Some(Ok(m)) => serde_json::to_value(m.status()).ok(),
@@ -109,11 +126,6 @@ pub fn remove_listener(state: State<'_, AppState>, listener_id: String) -> R<Bro
 }
 
 #[tauri::command]
-pub fn set_listener_login(state: State<'_, AppState>, listener_id: String, username: String, password: Option<String>) -> R<BrokerConfig> {
-    mgr(&state)?.set_listener_login(&listener_id, &username, password.as_deref()).map_err(be)
-}
-
-#[tauri::command]
 pub fn set_anonymous(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
     mgr(&state)?.set_anonymous(on).map_err(be)
 }
@@ -136,6 +148,12 @@ pub fn set_user_password(state: State<'_, AppState>, username: String, password:
 #[tauri::command]
 pub fn remove_user(state: State<'_, AppState>, username: String) -> R<BrokerConfig> {
     mgr(&state)?.remove_user(&username).map_err(be)
+}
+
+/// The plain password of a broker user, for the eye and copy icons of the users table.
+#[tauri::command]
+pub fn broker_user_password(state: State<'_, AppState>, username: String) -> R<Option<String>> {
+    mgr(&state)?.user_password(&username).map_err(be)
 }
 
 #[tauri::command]
@@ -224,23 +242,101 @@ pub fn broker_log(state: State<'_, AppState>, level: LogLevel, after_seq: u64) -
     Ok(mgr(&state)?.log(level, after_seq))
 }
 
-/// Creates or updates the single "Local broker" profile for a listener and connects (B5, B-12).
+/// One step of the "Connect to this app's broker" flow (mockup 02b, B5, B-12). The UI runs the steps in order and
+/// ticks them off: `user`, `cert`, `trust`, `broker`, `connect`.
 #[tauri::command]
-pub async fn connect_explorer_here(state: State<'_, AppState>, listener_id: Option<String>) -> R<ConnectOutcome> {
-    let m = mgr(&state)?;
-    if !m.is_running() {
-        let st = m.start().await;
-        if st.error.is_some() && !m.is_running() {
-            return Ok(ConnectOutcome::Failed { error: st.error.map(um).unwrap_or_else(|| msg!("broker.notRunning")) });
-        }
+pub async fn app_broker_step(state: State<'_, AppState>, listener_id: String, step: String, profile_name: String) -> R<AppBrokerStepResult> {
+    app_broker_step_on(&state, &listener_id, &step, &profile_name).await
+}
+
+fn step_result(step: &str, result: &str) -> AppBrokerStepResult {
+    AppBrokerStepResult { step: step.into(), result: result.into(), password: None, outcome: None }
+}
+
+/// The steps of the "Connect to this app's broker" flow, callable without Tauri (tests).
+///
+/// - `user`: creates the user "mqtt-panel" with a strong generated password, or keeps it (`skipped` with Anonymous on).
+/// - `cert`: issues "mqttpanel-desktop" when the listener requires a client certificate (`kept` when valid, else
+///   `skipped`).
+/// - `trust`: creates or updates the single profile "Local broker" (CA, certificate, user, password reference);
+///   `trusted` for TLS and WSS listeners, `skipped` otherwise. `profile_name` names a new profile only.
+/// - `broker`: starts a stopped broker, restarts it when a change is pending, else `running`. No restart prompt.
+/// - `connect`: connects the profile (`connected`, or `failed` with the outcome).
+pub async fn app_broker_step_on(state: &AppState, listener_id: &str, step: &str, profile_name: &str) -> R<AppBrokerStepResult> {
+    let m = mgr(state)?;
+    if !m.config().listeners.iter().any(|l| l.id == listener_id) {
+        return Err(msg!("broker.noListener"));
     }
-    let lc = m.local_connection(listener_id.as_deref()).map_err(be)?;
+    match step {
+        "user" => {
+            if m.anonymous() {
+                return Ok(step_result(step, "skipped"));
+            }
+            let (created, pw) = m.ensure_app_user().map_err(be)?;
+            let mut r = step_result(step, if created { "created" } else { "kept" });
+            r.password = Some(pw);
+            Ok(r)
+        }
+        "cert" => {
+            if !m.needs_desktop_cert(listener_id) {
+                return Ok(step_result(step, "skipped"));
+            }
+            let (issued, _, _) = m.ensure_desktop_cert().map_err(be)?;
+            Ok(step_result(step, if issued { "issued" } else { "kept" }))
+        }
+        "trust" => {
+            let lc = m.local_connection(Some(listener_id)).map_err(be)?;
+            let tls = lc.ca_pem.is_some();
+            save_local_profile(state, &lc, profile_name)?;
+            Ok(step_result(step, if tls { "trusted" } else { "skipped" }))
+        }
+        "broker" => {
+            let action = if !m.is_running() {
+                "started"
+            } else if m.restart_needed() {
+                "restarted"
+            } else {
+                "running"
+            };
+            let st = match action {
+                "started" => m.start().await,
+                "restarted" => m.restart().await,
+                _ => m.status(),
+            };
+            if !m.is_running() {
+                return Err(st.error.map(um).unwrap_or_else(|| msg!("broker.notRunning")));
+            }
+            if let Some(e) = st.listeners.iter().find(|l| l.id == listener_id).and_then(|l| l.error.clone()) {
+                return Err(um(e));
+            }
+            Ok(step_result(step, action))
+        }
+        "connect" => {
+            let Some(stored) = state.store.list().into_iter().find(|p| p.profile.is_local_broker) else {
+                return Err(msg!("broker.noListener"));
+            };
+            let id = stored.profile.id.clone();
+            // The listener may have changed: always start a fresh connection.
+            if lock(&state.conns).contains_key(&id) {
+                crate::commands::close(state, &id).await;
+            }
+            let outcome = crate::commands::connect_stored(state, stored).await;
+            let mut r = step_result(step, if matches!(outcome, ConnectOutcome::Connected { .. }) { "connected" } else { "failed" });
+            r.outcome = Some(outcome);
+            Ok(r)
+        }
+        _ => Err(UserMessage { key: "internal".into(), params: Default::default(), text: format!("unknown step {step}") }),
+    }
+}
+
+/// Creates or updates the single profile "Local broker" for a listener (never a second one).
+pub fn save_local_profile(state: &AppState, lc: &LocalConnection, profile_name: &str) -> R<String> {
     let existing = state.store.list().into_iter().find(|p| p.profile.is_local_broker);
     let mut stored = existing.unwrap_or_else(|| {
         let mut p = Profile::new_default();
-        p.name = "Local broker".into();
+        p.name = if profile_name.trim().is_empty() { "Local broker".into() } else { profile_name.trim().into() };
         p.is_local_broker = true;
-        p.client_id = "mqttpanel-desktop".into();
+        p.client_id = DESKTOP_CERT_NAME.into();
         StoredProfile { profile: p, blobs: Default::default() }
     });
     let id = stored.profile.id.clone();
@@ -251,7 +347,7 @@ pub async fn connect_explorer_here(state: State<'_, AppState>, listener_id: Opti
     p.port = lc.port;
     p.scheme = lc.scheme.clone();
     p.ws_path = lc.ws_path.clone().unwrap_or_else(|| "/mqtt".into());
-    p.mqtt_version = "auto".into();
+    p.mqtt_version = "5".into();
     p.tls.verify_server = true;
     p.tls.trusted_fingerprints.clear();
     p.username = lc.username.clone().unwrap_or_default();
@@ -277,11 +373,11 @@ pub async fn connect_explorer_here(state: State<'_, AppState>, listener_id: Opti
             set(secret_keys::client_key(&id), key)?;
             stored.blobs.client_cert_pem = Some(cert.clone());
             stored.profile.tls.client_cert = Some(FileField {
-                file_name: "mqttpanel-desktop.pem".into(),
+                file_name: format!("{DESKTOP_CERT_NAME}.pem"),
                 summary: mqttpanel_tls::inspect(cert.as_bytes(), mqttpanel_tls::FileExpect::Certificate, None).ok(),
                 in_keychain: false,
             });
-            stored.profile.tls.client_key = Some(FileField { file_name: "mqttpanel-desktop.key".into(), summary: None, in_keychain: true });
+            stored.profile.tls.client_key = Some(FileField { file_name: format!("{DESKTOP_CERT_NAME}.key"), summary: None, in_keychain: true });
         }
         _ => {
             let _ = secrets.delete(&secret_keys::client_key(&id));
@@ -290,11 +386,6 @@ pub async fn connect_explorer_here(state: State<'_, AppState>, listener_id: Opti
             stored.profile.tls.client_key = None;
         }
     }
-    state.store.save_stored(stored.clone())?;
-    // A changed listener means a new connection: close the old one first.
-    let open = lock(&state.conns).get(&id).cloned();
-    if open.is_some() {
-        crate::commands::close(&state, &id).await;
-    }
-    Ok(crate::commands::connect_stored(&state, state.store.get(&id).unwrap_or(stored)).await)
+    state.store.save_stored(stored)?;
+    Ok(id)
 }

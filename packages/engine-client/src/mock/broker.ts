@@ -16,6 +16,15 @@ import type {
 import { clone, randHex, um } from './util';
 
 const LEVELS: LogLine['level'][] = ['debug', 'info', 'warn', 'error'];
+export const APP_USER = 'mqtt-panel';
+export const DESKTOP_CERT = 'mqttpanel-desktop';
+
+/** Security rank: mutual TLS (TLS before WSS), TLS, secure WebSocket, TCP, WebSocket. */
+export function listenerRank(l: Listener): number {
+  const secure = l.kind === 'tls' || l.kind === 'wss';
+  if (secure && l.requireClientCert) return l.kind === 'tls' ? 6 : 5;
+  return { tls: 4, wss: 3, tcp: 2, ws: 1 }[l.kind];
+}
 
 function fingerprint(): string {
   return Array.from({ length: 32 }, () => randHex(2).toUpperCase()).join(':');
@@ -39,21 +48,36 @@ export class MockBroker {
   outRate = 392;
   retained = 1212;
   private listenerN = 0;
+  /** Plain user passwords (the real app keeps them in the keychain). */
+  passwords = new Map<string, string>();
 
   constructor(demo: boolean, private now: () => number) {
     const t = now();
     this.config = {
       listeners: [
-        { id: 'l-tcp', kind: 'tcp', bind: 'network', port: 1883, enabled: true, requireClientCert: false, preset: 'plain', login: demo ? { username: 'lab', hasPassword: true } : null },
-        { id: 'l-tls', kind: 'tls', bind: 'network', port: 8883, enabled: true, requireClientCert: demo, preset: demo ? 'mtls' : 'encrypted', login: null },
-        { id: 'l-ws', kind: 'ws', bind: 'localhost', port: 8083, enabled: demo, requireClientCert: false, preset: 'plain', login: demo ? { username: 'dashboard', hasPassword: true } : null },
-        { id: 'l-wss', kind: 'wss', bind: 'network', port: 8084, enabled: false, requireClientCert: false, preset: 'encrypted', login: null },
+        { id: 'l-tcp', kind: 'tcp', bind: 'network', port: 1883, enabled: true, requireClientCert: false, preset: 'plain' },
+        { id: 'l-tls', kind: 'tls', bind: 'network', port: 8883, enabled: true, requireClientCert: demo, preset: demo ? 'mtls' : 'encrypted' },
+        { id: 'l-ws', kind: 'ws', bind: 'localhost', port: 8083, enabled: demo, requireClientCert: false, preset: 'plain' },
+        { id: 'l-wss', kind: 'wss', bind: 'network', port: 8084, enabled: false, requireClientCert: false, preset: 'encrypted' },
       ],
       anonymous: false,
-      users: demo ? [{ username: 'commissioning' }, { username: 'edge01' }, { username: 'dashboard' }] : [],
+      users: demo
+        ? [
+            { username: APP_USER, system: true, hasPassword: true },
+            { username: 'commissioning', system: false, hasPassword: true },
+            { username: 'edge01', system: false, hasPassword: true },
+            { username: 'dashboard', system: false, hasPassword: true },
+          ]
+        : [],
       verifyAgainst: 'local',
       maxClients: 1000,
     };
+    if (demo) {
+      this.passwords.set(APP_USER, 'Vq7mZ3xLwT9bN4cHs8kR2p');
+      this.passwords.set('commissioning', 'site-2026-commissioning');
+      this.passwords.set('edge01', 'edge01-Hx4q9');
+      this.passwords.set('dashboard', 'dash-board-77');
+    }
     this.state = demo ? 'running' : 'stopped';
     this.startedAt = demo ? t - (2 * 60 + 14) * 60_000 : null;
     this.certs = {
@@ -190,7 +214,6 @@ export class MockBroker {
       enabled: true,
       requireClientCert: req.preset === 'mtls',
       preset: req.preset,
-      login: req.login && req.login.username ? { username: req.login.username, hasPassword: req.login.password !== '' } : null,
     };
     this.config.listeners.push(l);
     this.changed();
@@ -207,21 +230,42 @@ export class MockBroker {
     this.changed();
   }
 
-  setListenerLogin(id: string, username: string, password: string | null): void {
-    const l = this.config.listeners.find((x) => x.id === id);
-    if (!l) return;
-    l.login = username === '' ? null : { username, hasPassword: password !== null ? password !== '' : l.login?.hasPassword ?? false };
-  }
-
-  addUser(username: string): UserMessage | null {
+  addUser(username: string, password: string, system = false): UserMessage | null {
     if (!username || /\s/.test(username)) return um('broker.userInvalid');
     if (this.config.users.some((u) => u.username === username)) return um('broker.userExists', { user: username });
-    this.config.users.push({ username });
+    this.config.users.push({ username, system, hasPassword: true });
+    this.passwords.set(username, password);
     return null;
   }
 
   removeUser(username: string): void {
     this.config.users = this.config.users.filter((u) => u.username !== username);
+    this.passwords.delete(username);
+  }
+
+  /** "mqtt-panel" with a strong password: created once, then kept. */
+  ensureAppUser(): { created: boolean; password: string } {
+    const existing = this.passwords.get(APP_USER);
+    if (existing && this.config.users.some((u) => u.username === APP_USER)) return { created: false, password: existing };
+    const a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const pw = Array.from({ length: 24 }, () => a[Math.floor(Math.random() * a.length)]).join('');
+    this.removeUser(APP_USER);
+    this.addUser(APP_USER, pw, true);
+    this.addLog('info', `user ${APP_USER} created for the profile "Local broker"`);
+    return { created: true, password: pw };
+  }
+
+  /** "mqttpanel-desktop": issued when missing, revoked or superseded, else kept. */
+  ensureDesktopCert(): boolean {
+    const c = this.issued.find((x) => x.name === DESKTOP_CERT && x.system && !x.revoked && !x.superseded);
+    if (c) return false;
+    this.issued = this.issued.filter((x) => x.name !== DESKTOP_CERT);
+    const now = new Date(this.now());
+    const exp = new Date(now);
+    exp.setFullYear(exp.getFullYear() + 2);
+    this.issued.push({ name: DESKTOP_CERT, serial: randHex(16).toUpperCase(), issuedAt: now.toISOString().slice(0, 10), expiresAt: exp.toISOString().slice(0, 10), keyType: 'ECDSA P-256', lastSeen: 'never', revoked: false, system: true, superseded: false });
+    this.addLog('info', `client certificate ${DESKTOP_CERT} issued for the profile "Local broker"`);
+    return true;
   }
 
   issue(req: IssueCertRequest): UserMessage | SaveOutcome {
@@ -283,7 +327,7 @@ export class MockBroker {
     const exp = new Date(today);
     exp.setFullYear(exp.getFullYear() + 5);
     this.certs.ca = certDetails('CN=MQTT Panel Local CA', 'CN=MQTT Panel Local CA', [], today.toISOString().slice(0, 10), exp.toISOString().slice(0, 10), true);
-    this.issued = this.issued.map((c) => (c.system || c.revoked ? c : { ...c, superseded: true }));
+    this.issued = this.issued.map((c) => (c.revoked ? c : { ...c, superseded: true }));
     this.changed();
   }
 
@@ -292,11 +336,10 @@ export class MockBroker {
     return this.log.filter((l) => l.seq > afterSeq && LEVELS.indexOf(l.level) >= min).map((l) => ({ ...l }));
   }
 
-  /** Most secure enabled listener: mutual TLS, then TLS/WSS, then TCP/WS. */
+  /** Most secure enabled listener: mutual TLS, then TLS, then secure WebSocket, then TCP, then WebSocket. */
   pickListener(id: string | null): Listener | null {
     const enabled = this.config.listeners.filter((l) => l.enabled);
-    if (id) return enabled.find((l) => l.id === id) ?? null;
-    const score = (l: Listener) => (l.requireClientCert ? 3 : l.kind === 'tls' || l.kind === 'wss' ? 2 : 1);
-    return [...enabled].sort((a, b) => score(b) - score(a))[0] ?? null;
+    if (id) return this.config.listeners.find((l) => l.id === id) ?? null;
+    return [...enabled].sort((a, b) => listenerRank(b) - listenerRank(a))[0] ?? null;
   }
 }

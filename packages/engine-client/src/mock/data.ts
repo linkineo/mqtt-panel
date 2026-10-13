@@ -227,6 +227,8 @@ export function demoProfiles(lang: Lang, now: number): Profile[] {
     scheme: 'mqtts',
     mqttVersion: '5',
     clientId: 'mqttpanel-desktop',
+    username: 'mqtt-panel',
+    hasPassword: true,
     tls: {
       verifyServer: true,
       caCert: file('CA.pem', certSummary('MQTT Panel Local CA', '2031-10-12', { isCa: true })),

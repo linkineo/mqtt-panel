@@ -25,14 +25,76 @@ async function menuItem(page: Page, label: RegExp | string) {
 }
 
 test.describe('Connections', () => {
-  test('C-07 Try connect reports latency, certificate and negotiated version', async ({ page }) => {
+  test('C-07 "Test" reports latency, certificate and negotiated version', async ({ page }) => {
     await open(page, 'mock=demo');
     await page.click('[data-profile=plant]');
+    await expect(page.locator('[data-testid=try-connect]')).toHaveText('Test');
     await page.click('[data-testid=try-connect]');
     const box = page.locator('[data-testid=last-test]');
     await expect(box).toContainText(/ms/, { timeout: 5000 });
     await expect(box).toContainText(/MQTT 5/);
     await expect(box).toContainText(/CN=/);
+  });
+
+  test('C-12 "New connection" is a menu; the first-launch cards route to the same places', async ({ page }) => {
+    await open(page, 'mock=demo');
+    await page.click('[data-testid=new-profile]');
+    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['Another broker…', "This app's broker"]);
+    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: "This app's broker" }).hover();
+    await expect(page.locator('[data-testid=context-submenu] .ctx-label')).toHaveText(['Use an existing listener', 'Add a listener…']);
+    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'Another broker…' }).click();
+    await expect(page.locator('[data-testid=profile-form] h5')).toHaveText('New connection');
+    await expect(page.locator('[data-testid=profile-form]')).not.toContainText('Target');
+    await expect(page.locator('[data-testid=target-app]')).toHaveCount(0);
+    // keyboard: arrow right opens the submenu, Enter picks
+    await page.click('[data-testid=new-profile]');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('[data-testid=context-submenu]')).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-testid=app-broker]')).toBeVisible();
+    await page.click('[data-testid=app-broker] .mf .btn >> nth=0');
+    // first launch
+    await open(page, 'mock=empty');
+    await page.click('[data-testid=welcome-new]');
+    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['Another broker…', "This app's broker"]);
+    await page.keyboard.press('Escape');
+    await page.click('[data-testid=welcome-broker]');
+    await expect(page.locator('[data-testid=app-broker]')).toBeVisible();
+    await expect(page.locator('[data-testid=appb-listener]').first()).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('C-13 "This app\'s broker" > "Add a listener…": no login row, then the steps run and the Explorer opens', async ({ page }) => {
+    await open(page, 'mock=demo');
+    await page.click('[data-testid=new-profile]');
+    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: "This app's broker" }).hover();
+    await page.locator('[data-testid=context-submenu] .ctx-item', { hasText: 'Add a listener…' }).click();
+    await page.click('[data-testid=preset-mtls]');
+    await page.click('[data-testid=addl-next]');
+    const step2 = page.locator('[data-testid=add-listener-2]');
+    await expect(step2).not.toContainText('Login');
+    await expect(step2.locator('input[type=password]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=addl-after]')).toContainText('restarts the broker if needed and connects');
+    await page.fill('[data-testid=addl-port]', '8886');
+    await page.click('[data-testid=addl-add]');
+    await expect(page.locator('[data-testid=app-broker]')).toBeVisible();
+    await expect(page.locator('[data-testid=appb-step-cert]')).toBeVisible();
+    await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('[data-testid=pill]')).toContainText('Local broker');
+    await page.click('[data-testid=rail-connect]');
+    await expect(page.locator('[data-testid=profile-card]', { hasText: 'Local broker' })).toHaveCount(1);
+    await expect(page.locator('[data-profile=local]')).toContainText('localhost:8886');
+    // with Anonymous on no user is created and the dialog says so
+    await open(page, 'mock=empty&screen=broker');
+    await page.click('[data-testid=anonymous]');
+    await page.click('[data-testid=confirm-ok]');
+    await page.click('[data-testid=rail-connect]');
+    await page.click('[data-testid=welcome-broker]');
+    await expect(page.locator('[data-testid=appb-what]')).toContainText('Anonymous is on');
+    await page.click('[data-testid=appb-connect]');
+    await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 8000 });
+    await page.click('[data-testid=rail-broker]');
+    await expect(page.locator('[data-testid=user-row]')).toHaveCount(0);
   });
 
   test('C-05 several connections open at once, the pill switches the active one', async ({ page }) => {
@@ -313,15 +375,119 @@ test.describe('Broker', () => {
     await expect(page.locator('[data-testid=restart-chip]')).toBeVisible();
   });
 
-  test('B-12 "Connect Explorer here" reuses one "Local broker" profile', async ({ page }) => {
-    await open(page, 'mock=demo&screen=broker');
+  test('B-12 "This app\'s broker" > "Use an existing listener" keeps one profile and one user after 3 runs', async ({ page }) => {
+    await open(page, 'mock=empty');
     for (let i = 0; i < 3; i++) {
-      await page.click('[data-testid=rail-broker]');
-      await page.click('[data-testid=connect-here]');
-      await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 5000 });
+      await page.click('[data-testid=rail-connect]');
+      await page.click(i === 0 ? '[data-testid=welcome-broker]' : '[data-testid=new-profile]');
+      if (i > 0) {
+        await page.locator('[data-testid=context-menu] .ctx-item', { hasText: "This app's broker" }).hover();
+        await page.locator('[data-testid=context-submenu] .ctx-item', { hasText: 'Use an existing listener' }).click();
+      }
+      await expect(page.locator('[data-testid=appb-listener][aria-checked=true]')).toHaveAttribute('data-listener', 'l-tls');
+      await page.click('[data-testid=appb-connect]');
+      if (i === 0) await expect(page.locator('[data-testid=appb-step-broker]')).toBeVisible();
+      await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 8000 });
     }
     await page.click('[data-testid=rail-connect]');
     await expect(page.locator('[data-testid=profile-card]', { hasText: 'Local broker' })).toHaveCount(1);
+    await page.click('[data-testid=rail-broker]');
+    await expect(page.locator('[data-testid=user-row]')).toHaveCount(1);
+    await expect(page.locator('[data-testid=user-row]')).toContainText('created for the profile "Local broker"');
+    await expect(page.locator('[data-testid=connect-here]')).toHaveCount(0);
+  });
+
+  test('B-15 restart prompt: Later leaves a pulsing "Restart broker and apply changes"; users never prompt', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    await page.click('[data-testid=port-l-tls]');
+    await page.fill('[data-testid=port-input-l-tls]', '8884');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-testid=restart-prompt] .mh')).toHaveText('Restart the broker to apply the change?');
+    await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: TLS listener port 8883 → 8884.');
+    await page.click('[data-testid=restart-later]');
+    const btn = page.locator('[data-testid=broker-restart]');
+    await expect(btn).toHaveText('Restart broker and apply changes');
+    expect(await btn.evaluate((el) => getComputedStyle(el).animationName)).toBe('restart-pulse');
+    await expect(page.locator('[data-testid=restart-chip]')).toHaveText('restart pending');
+    await expect(page.locator('[data-testid=pill]')).toContainText('restart pending');
+    await expect(page.locator('[data-testid=port-pending]')).toBeVisible();
+    // the pending state survives navigation
+    await page.click('[data-testid=rail-explore]');
+    await page.click('[data-testid=rail-broker]');
+    await expect(btn).toHaveText('Restart broker and apply changes');
+    // reachability and adding a listener prompt too
+    const ws = page.locator('[data-testid=listener-row][data-listener=l-ws]');
+    await ws.locator('.seg button', { hasText: 'Network' }).click();
+    await expect(page.locator('[data-testid=restart-pending-list]')).toContainText('WebSocket listener on port 8083 reachable from Network');
+    await page.click('[data-testid=restart-later]');
+    await page.click('[data-testid=add-listener]');
+    await page.click('[data-testid=addl-next]');
+    await page.fill('[data-testid=addl-port]', '8887');
+    await page.click('[data-testid=addl-add]');
+    await expect(page.locator('[data-testid=restart-prompt]')).toBeVisible();
+    await page.click('[data-testid=restart-later]');
+    // users and Anonymous apply live and never prompt
+    await page.click('[data-testid=add-user]');
+    await page.fill('#cred-user', 'tester');
+    await page.fill('#cred-pass', 'pw-tester');
+    await page.click('[data-testid=cred-ok]');
+    await expect(page.locator('[data-testid=user-row][data-user=tester]')).toBeVisible();
+    await page.click('[data-testid=anonymous]');
+    await page.click('[data-testid=confirm-ok]');
+    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
+    await page.click('[data-testid=anonymous]');
+    await btn.click();
+    await expect(btn).toHaveText('Restart');
+    await expect(page.locator('[data-testid=restart-chip]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=port-pending]')).toHaveCount(0);
+  });
+
+  test('B-15 reduced motion: the pending Restart button is highlighted without pulsing', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await open(page, 'mock=demo&screen=broker');
+    await page.click('[data-testid=port-l-tls]');
+    await page.fill('[data-testid=port-input-l-tls]', '8884');
+    await page.keyboard.press('Enter');
+    await page.click('[data-testid=restart-now]');
+    await expect(page.locator('[data-testid=broker-restart]')).toHaveText('Restart');
+    await expect(page.locator('[data-testid=broker-restart]')).toBeEnabled();
+    await page.click('[data-testid=port-l-tls]');
+    await page.fill('[data-testid=port-input-l-tls]', '8885');
+    await page.keyboard.press('Enter');
+    await page.click('[data-testid=restart-later]');
+    const btn = page.locator('[data-testid=broker-restart]');
+    await expect(btn).toHaveClass(/pulse/);
+    expect(await btn.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    expect(await btn.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
+  });
+
+  test('B-16 eye and copy on every password and passphrase the app owns', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    const v = page.locator('[data-testid=user-pw-commissioning-value]');
+    await expect(v).toHaveText('••••••••••••');
+    await expect(page.locator('[data-testid=user-pw-commissioning-eye]')).toHaveAttribute('title', 'Show password');
+    await page.click('[data-testid=user-pw-commissioning-eye]');
+    await expect(v).toHaveText('site…ning');
+    await expect(page.locator('[data-testid=user-pw-commissioning-eye]')).toHaveAttribute('title', 'Hide password');
+    await page.click('[data-testid=user-pw-commissioning-copy]');
+    await expect.poll(() => copied(page)).toBe('site-2026-commissioning');
+    // generated PKCS#12 passphrase
+    await page.click('[data-testid=issue-cert]');
+    await page.locator('[data-testid=issue-cert] button', { hasText: 'Generate' }).click();
+    const pass = page.locator('[data-testid=issue-passphrase]');
+    await expect(pass).toHaveAttribute('type', 'password');
+    await page.click('[data-testid=issue-passphrase-eye]');
+    await expect(pass).toHaveAttribute('type', 'text');
+    await page.click('[data-testid=issue-passphrase-copy]');
+    await expect.poll(() => copied(page)).toBe(await pass.inputValue());
+    await page.keyboard.press('Escape');
+    // the "Local broker" profile password
+    await page.click('[data-testid=rail-connect]');
+    await page.click('[data-profile=local]');
+    await page.click('[data-testid=profile-pw-copy]');
+    await expect.poll(() => copied(page)).toBe('Vq7mZ3xLwT9bN4cHs8kR2p');
+    await page.click('[data-profile=plant]');
+    await expect(page.locator('[data-testid=profile-pw-eye]')).toHaveCount(0);
   });
 });
 

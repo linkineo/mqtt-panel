@@ -94,6 +94,21 @@ pub fn set_password(state: State<'_, AppState>, profile_id: String, password: St
     state.store.set_password(&profile_id, &password)
 }
 
+/// The password of a profile whose password the app generated (the profile "Local broker"), for the eye and copy
+/// icons. Passwords typed by the user are never sent back to the UI.
+#[tauri::command]
+pub fn profile_password(state: State<'_, AppState>, profile_id: String) -> R<Option<String>> {
+    Ok(local_profile_password(&state, &profile_id))
+}
+
+pub fn local_profile_password(state: &AppState, profile_id: &str) -> Option<String> {
+    let p = state.store.get(profile_id)?;
+    if !p.profile.is_local_broker {
+        return None;
+    }
+    state.store.password(profile_id)
+}
+
 #[tauri::command]
 pub async fn import_profiles(app: AppHandle, state: State<'_, AppState>, path: Option<String>) -> R<Option<ImportSummary>> {
     let path = match path {

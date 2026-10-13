@@ -135,6 +135,7 @@ fn main() {
             commands::duplicate_profile,
             commands::reorder_profiles,
             commands::set_password,
+            commands::profile_password,
             commands::import_profiles,
             commands::export_profiles,
             commands::pick_file,
@@ -194,12 +195,12 @@ fn main() {
             broker::add_listener,
             broker::update_listener,
             broker::remove_listener,
-            broker::set_listener_login,
             broker::set_anonymous,
             broker::set_verify_against,
             broker::add_user,
             broker::set_user_password,
             broker::remove_user,
+            broker::broker_user_password,
             broker::issued_certs,
             broker::issue_client_cert,
             broker::import_csr,
@@ -214,7 +215,7 @@ fn main() {
             broker::broker_clients,
             broker::disconnect_client,
             broker::broker_log,
-            broker::connect_explorer_here,
+            broker::app_broker_step,
         ]))
         .build(tauri::generate_context!())
         .expect("error while building MQTT Panel")

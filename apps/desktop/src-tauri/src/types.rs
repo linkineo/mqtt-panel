@@ -67,6 +67,19 @@ pub enum ConnectOutcome {
     Failed { error: UserMessage },
 }
 
+/// Result of one step of the "Connect to this app's broker" flow (TS `AppBrokerStepResult`).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppBrokerStepResult {
+    pub step: String,
+    /// created, kept, issued, skipped, trusted, started, restarted, running, connected or failed.
+    pub result: String,
+    /// The password of the user "mqtt-panel" (step `user`), shown behind the eye icon.
+    pub password: Option<String>,
+    /// The connection outcome (step `connect`).
+    pub outcome: Option<ConnectOutcome>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TestOutcome {

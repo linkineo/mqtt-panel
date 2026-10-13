@@ -117,9 +117,9 @@ MQTTPANEL_HOME=/tmp/mqttpanel-sandbox MQTTPANEL_SECRETS=memory open "target/rele
 ## 7. First steps in the app
 
 1. On first launch the Connect screen shows three cards: new connection, start a local broker, import from another tool.
-2. Quickest way to see live data: click "Start a local broker", then on the Broker screen choose "Connect Explorer here". The app connects to its own broker with the profile "Local broker".
+2. Quickest way to see live data: click "Start a local broker" (or Connect, "New connection", "This app's broker", "Use an existing listener"). The dialog preselects the most secure listener; "Connect" creates the user "mqtt-panel", the client certificate when the listener needs one, trusts the broker's CA, starts or restarts the broker and connects with the profile "Local broker".
 3. Publish something from the Publish screen (topic `demo/temperature`, payload `{"value": 21.5}`) and watch it appear in the Explorer tree. Right-click the `value` key in the payload and choose "Add value to chart".
-4. For a real broker: Connect, "New connection", Target "Another broker", host and port, then "Try connect". Self-signed brokers offer "Trust this certificate" with the fingerprint.
+4. For a real broker: Connect, "New connection", "Another broker…", host and port, then "Test". Self-signed brokers offer "Trust this certificate" with the fingerprint.
 
 ## 8. Tests
 

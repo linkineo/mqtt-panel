@@ -129,7 +129,7 @@ export interface SavedView {
 export interface Profile {
   id: string;
   name: string;
-  target: 'other' | 'app'; // "Another broker" | "This app's broker"
+  target: 'other' | 'app'; // 'app': made by "New connection" > "This app's broker" (the profile "Local broker")
   brokerListenerId: string | null; // when target = 'app'
   host: string;
   port: number;
@@ -150,7 +150,7 @@ export interface Profile {
   views: SavedView[];
   lastUsed: number | null;
   lastTest: TestResult | null;
-  isLocalBroker: boolean; // the single profile "Local broker" managed by "Connect Explorer here"
+  isLocalBroker: boolean; // the single profile "Local broker" made by "Connect to this app's broker"
 }
 
 export interface ImportSummary {
@@ -501,15 +501,21 @@ export interface Listener {
   enabled: boolean;
   requireClientCert: boolean;
   preset: Preset;
-  login: { username: string; hasPassword: boolean } | null;
 }
 
 export interface BrokerConfig {
   listeners: Listener[];
   anonymous: boolean;
-  users: { username: string }[];
+  users: BrokerUser[];
   verifyAgainst: 'local' | 'imported';
   maxClients: number;
+}
+
+/** A shared user, accepted on every listener (one broker, several ports: no per-listener login). */
+export interface BrokerUser {
+  username: string;
+  system: boolean; // "mqtt-panel", created for the profile "Local broker"
+  hasPassword: boolean; // the plain password is in the keychain and can be revealed and copied
 }
 
 export interface BrokerStatus {
@@ -533,7 +539,7 @@ export interface IssuedCert {
   keyType: string;
   lastSeen: 'connected' | 'never' | number; // number = last seen time
   revoked: boolean;
-  system: boolean; // "mqttpanel-desktop", used by Connect Explorer here
+  system: boolean; // "mqttpanel-desktop", used by the profile "Local broker"
   superseded: boolean; // issued by a CA that was rotated away: re-issue it
 }
 
@@ -569,7 +575,6 @@ export interface AddListenerRequest {
   kind: ListenerKind;
   port: number;
   bind: 'network' | 'localhost';
-  login: { username: string; password: string } | null;
 }
 
 export interface IssueCertRequest {
@@ -579,6 +584,18 @@ export interface IssueCertRequest {
   format: 'pem' | 'pkcs12';
   passphrase: string; // may be empty for PEM
   saveCa: boolean;
+}
+
+/** Steps of the "Connect to this app's broker" flow (mockup 02b), run in this order. */
+export type AppBrokerStep = 'user' | 'cert' | 'trust' | 'broker' | 'connect';
+
+export interface AppBrokerStepResult {
+  step: AppBrokerStep;
+  result: 'created' | 'kept' | 'issued' | 'skipped' | 'trusted' | 'started' | 'restarted' | 'running' | 'connected' | 'failed';
+  /** Step "user": the password of "mqtt-panel", behind the eye icon. */
+  password: string | null;
+  /** Step "connect". */
+  outcome: ConnectOutcome | null;
 }
 
 // ---------------------------------------------------------------- events

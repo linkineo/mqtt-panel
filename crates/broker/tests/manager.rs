@@ -1,5 +1,5 @@
 //! Manager tests: defaults (B-01), presets (B-02), ports (B-03), users (B-05), anonymous (B-07), issued
-//! certificates (B-08), CSR (B-09), CA rotation (B-10), "Connect Explorer here" (B-12), and the CLI path (B-13).
+//! certificates (B-08), CSR (B-09), CA rotation (B-10), the "This app's broker" connection settings (B-12), and the CLI path (B-13).
 
 mod common;
 
@@ -126,7 +126,7 @@ async fn b01_defaults_listeners_accept_and_cert_sans() {
 async fn b02_presets_create_the_right_combination() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    let add = |preset, kind, login: Option<(&str, &str)>| {
+    let add = |preset, kind| {
         let port = free_port();
         let cfg = m
             .add_listener(AddListenerRequest {
@@ -134,37 +134,23 @@ async fn b02_presets_create_the_right_combination() {
                 kind,
                 port: u32::from(port),
                 bind: Bind::Localhost,
-                login: login.map(|(u, p)| LoginRequest {
-                    username: u.into(),
-                    password: p.into(),
-                }),
             })
             .unwrap();
         cfg.listeners.into_iter().find(|l| l.port == port).unwrap()
     };
-    let plain = add(Preset::Plain, ListenerKind::Tcp, None);
-    let enc = add(Preset::Encrypted, ListenerKind::Tls, None);
-    let pw = add(
-        Preset::Passwords,
-        ListenerKind::Tls,
-        Some(("dev", "pw-dev")),
-    );
-    let mtls = add(Preset::Mtls, ListenerKind::Tls, None);
+    let plain = add(Preset::Plain, ListenerKind::Tcp);
+    let enc = add(Preset::Encrypted, ListenerKind::Tls);
+    let pw = add(Preset::Passwords, ListenerKind::Tls);
+    let mtls = add(Preset::Mtls, ListenerKind::Tls);
     assert_eq!(
-        (plain.kind, plain.require_client_cert, plain.login.is_some()),
-        (ListenerKind::Tcp, false, false)
+        (plain.kind, plain.require_client_cert),
+        (ListenerKind::Tcp, false)
     );
     assert_eq!(
         (enc.kind, enc.require_client_cert),
         (ListenerKind::Tls, false)
     );
-    assert_eq!(
-        pw.login,
-        Some(ListenerLogin {
-            username: "dev".into(),
-            has_password: true
-        })
-    );
+    assert_eq!((pw.kind, pw.preset), (ListenerKind::Tls, Preset::Passwords));
     assert!(mtls.require_client_cert);
     let cfg = m.config();
     assert_eq!(
@@ -177,7 +163,7 @@ async fn b02_presets_create_the_right_combination() {
     );
     assert!(!cfg.anonymous, "plain does not turn anonymous on");
     // Encrypting a TCP request upgrades it to TLS.
-    let up = add(Preset::Encrypted, ListenerKind::Tcp, None);
+    let up = add(Preset::Encrypted, ListenerKind::Tcp);
     assert_eq!(up.kind, ListenerKind::Tls);
 
     for l in m.config().listeners {
@@ -189,6 +175,7 @@ async fn b02_presets_create_the_right_combination() {
         m.update_listener(l).unwrap();
     }
     m.add_user("shared", "pw-s").unwrap();
+    m.add_user("dev", "pw-dev").unwrap();
     assert_eq!(m.start().await.state, BrokerState::Running);
     let roots = ca_roots(&m);
     assert!(c4(opts4("p1", plain.port, None, Some(("shared", "pw-s"))))
@@ -210,11 +197,20 @@ async fn b02_presets_create_the_right_combination() {
     ))
     .await
     .is_ok());
+    // One broker, several ports: every user is accepted on every listener.
     assert!(c4(opts4(
         "p4",
         enc.port,
         Some(tls_cfg(&roots, None)),
         Some(("dev", "pw-dev"))
+    ))
+    .await
+    .is_ok());
+    assert!(c4(opts4(
+        "p4b",
+        pw.port,
+        Some(tls_cfg(&roots, None)),
+        Some(("dev", "wrong"))
     ))
     .await
     .is_err());
@@ -274,9 +270,14 @@ async fn b05_users_argon2_at_rest_and_logins_on_tcp_and_tls() {
     assert_eq!(
         m.config().users,
         vec![UserView {
-            username: "alice".into()
+            username: "alice".into(),
+            system: false,
+            has_password: true,
         }]
     );
+    // The plain password stays in the secret store so the UI can reveal and copy it.
+    assert_eq!(m.user_password("alice").unwrap().as_deref(), Some("second-pw"));
+    assert_eq!(m.user_password("nobody").unwrap(), None);
     assert_eq!(m.start().await.state, BrokerState::Running);
     let (tp, sp) = (port_of(&m, "tcp"), port_of(&m, "tls"));
     let roots = ca_roots(&m);
@@ -331,7 +332,6 @@ async fn b07_anonymous_gates_everything_and_off_restores() {
         kind: ListenerKind::Tls,
         port: u32::from(mp),
         bind: Bind::Localhost,
-        login: None,
     })
     .unwrap();
     m.add_user("alice", "pw").unwrap();
@@ -541,7 +541,6 @@ async fn b10_rotate_ca_refuses_old_certs_and_reissues_desktop_cert() {
         kind: ListenerKind::Tls,
         port: u32::from(mp),
         bind: Bind::Localhost,
-        login: None,
     })
     .unwrap();
     let files = m
@@ -630,24 +629,38 @@ async fn b12_local_connection_picks_most_secure_listener() {
         kind: ListenerKind::Tls,
         port: u32::from(mp),
         bind: Bind::Localhost,
-        login: Some(LoginRequest {
-            username: "me".into(),
-            password: "pw".into(),
-        }),
     })
     .unwrap();
+    let mut first_pw = None;
     for _ in 0..3 {
         let lc = m.local_connection(None).unwrap();
         assert_eq!(lc.port, mp);
         assert!(lc.client_cert_pem.is_some() && lc.client_key_pem.is_some());
-        assert_eq!(
-            (lc.username.as_deref(), lc.password.as_deref()),
-            (Some("me"), Some("pw"))
-        );
+        assert_eq!(lc.username.as_deref(), Some("mqtt-panel"));
+        let pw = lc.password.clone().unwrap();
+        assert!(pw.len() >= 20 && pw.chars().all(|c| c.is_ascii_alphanumeric()), "strong generated password");
+        if let Some(p) = &first_pw {
+            assert_eq!(p, &pw, "the user keeps its password on later runs");
+        }
+        first_pw = Some(pw);
     }
+    let users = m.config().users;
+    assert_eq!(users.len(), 1, "user created once: {users:?}");
+    assert!(users[0].system && users[0].has_password);
+    assert_eq!(m.user_password("mqtt-panel").unwrap(), first_pw);
+    assert!(m.log_buffer().contains("user mqtt-panel created for the profile \"Local broker\""));
     let desktop: Vec<IssuedCert> = m.issued_certs().into_iter().filter(|c| c.system).collect();
     assert_eq!(desktop.len(), 1, "issued once");
     assert_eq!(desktop[0].name, "mqttpanel-desktop");
+    // Ranking: mutual TLS, TLS, secure WebSocket, TCP, WebSocket.
+    let rank_order = |m: &BrokerManager| m.preferred_listener().map(|l| l.id);
+    assert_eq!(rank_order(&m).as_deref(), Some("tls-2"));
+    let mut cfg = m.config();
+    for l in cfg.listeners.iter_mut() {
+        l.enabled = l.kind == ListenerKind::Wss || l.kind == ListenerKind::Tcp || l.kind == ListenerKind::Ws;
+        m.update_listener(l.clone()).unwrap();
+    }
+    assert_eq!(rank_order(&m).as_deref(), Some("wss"));
     for mut l in m.config().listeners {
         if l.kind.encrypted() {
             l.enabled = false;
@@ -660,6 +673,11 @@ async fn b12_local_connection_picks_most_secure_listener() {
         (ws.scheme.as_str(), ws.ws_path.as_deref()),
         ("ws", Some("/mqtt"))
     );
+    // With Anonymous on no user and no client certificate are needed.
+    m.set_anonymous(true).unwrap();
+    let lc = m.local_connection(Some("tls-2")).unwrap();
+    assert!(lc.username.is_none() && lc.password.is_none() && lc.client_cert_pem.is_none());
+    assert!(!m.needs_desktop_cert("tls-2"));
 }
 
 #[tokio::test]

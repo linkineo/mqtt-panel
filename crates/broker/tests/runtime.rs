@@ -1,5 +1,5 @@
 //! Runtime tests on the F-02 harness: protocols, transports, QoS, client certificates (T-11..T-14 broker side),
-//! bind addresses (B-04), listener logins (B-06), retained/disconnect/will (B-11), TOML config (B-13), robustness.
+//! bind addresses (B-04), shared users on every listener (B-06), retained/disconnect/will (B-11), TOML config (B-13), robustness.
 
 mod common;
 
@@ -358,56 +358,54 @@ async fn b04_localhost_bind_refuses_lan_address() {
 }
 
 #[tokio::test]
-async fn b06_listener_login_only_on_its_listener_shared_user_everywhere() {
+async fn b06_shared_users_on_every_listener_no_listener_login() {
     let mut auth = AuthConfig::default();
     auth.users.insert(
         "shared".into(),
         Credential::Argon2(mqttpanel_broker::runtime::hash_password("pw-shared").unwrap()),
     );
-    auth.listener_logins.insert(
-        "a".into(),
-        ("dev".into(), Credential::Plain("pw-dev".into())),
-    );
     let b = start(
         vec![
-            spec("a", ListenerKind::Tcp, false),
-            spec("b", ListenerKind::Tcp, false),
+            spec("tcp", ListenerKind::Tcp, false),
+            spec("tls", ListenerKind::Tls, false),
+            spec("ws", ListenerKind::Ws, false),
+            spec("wss", ListenerKind::Wss, false),
         ],
         auth,
     )
     .await;
-    let (pa, pb) = (b.port("a").unwrap(), b.port("b").unwrap());
-    assert!(c4(opts4("x1", pa, None, Some(("dev", "pw-dev"))))
+    let (tcp_p, tls_p) = (b.port("tcp").unwrap(), b.port("tls").unwrap());
+    let (ws_p, wss_p) = (b.port("ws").unwrap(), b.port("wss").unwrap());
+    // TCP and TLS
+    assert!(c4(opts4("x1", tcp_p, None, Some(("shared", "pw-shared"))))
         .await
         .is_ok());
-    let mut raw = Raw::tcp(pb, false).await;
-    assert_eq!(
-        raw.connect("x2", Some(("dev", "pw-dev")), None, 30).await,
-        0x05
-    );
-    assert!(c4(opts4("x3", pa, None, Some(("shared", "pw-shared"))))
+    assert!(c4(opts4("x2", tls_p, Some(kit_tls(None)), Some(("shared", "pw-shared"))))
         .await
         .is_ok());
-    assert!(c4(opts4("x4", pb, None, Some(("shared", "pw-shared"))))
-        .await
-        .is_ok());
-    // A mutual-TLS listener with a login: the login is optional, the certificate stays required.
+    let mut raw = Raw::tcp(tcp_p, false).await;
+    assert_eq!(raw.connect("x3", Some(("shared", "wrong")), None, 30).await, 0x05);
+    // WS and WSS
+    let s = ws_upgrade(tcp(ws_p).await, "ws", ws_p, "/mqtt").await.unwrap();
+    let mut r = Raw::new(Box::new(s), false);
+    assert_eq!(r.connect("x4", Some(("shared", "pw-shared")), None, 30).await, 0);
+    let t = tls_stream(wss_p, kit_tls(None)).await.unwrap();
+    let s = ws_upgrade(t, "wss", wss_p, "/mqtt").await.unwrap();
+    let mut r = Raw::new(Box::new(s), true);
+    assert_eq!(r.connect("x5", Some(("shared", "pw-shared")), None, 30).await, 0);
+    let s = ws_upgrade(tcp(ws_p).await, "ws", ws_p, "/mqtt").await.unwrap();
+    let mut r = Raw::new(Box::new(s), false);
+    assert_eq!(r.connect("x6", None, None, 30).await, 0x05, "no login, no access");
+    b.stop().await;
+    // A mutual-TLS listener: a user login never replaces the certificate.
     let mut auth2 = AuthConfig::default();
-    auth2.listener_logins.insert(
-        "m".into(),
-        ("dev".into(), Credential::Plain("pw-dev".into())),
-    );
+    auth2.users.insert("dev".into(), Credential::Plain("pw-dev".into()));
     let b2 = start(vec![spec("m", ListenerKind::Tls, true)], auth2).await;
     let pm = b2.port("m").unwrap();
     assert!(
-        c4(opts4(
-            "m1",
-            pm,
-            Some(kit_tls(None)),
-            Some(("dev", "pw-dev"))
-        ))
-        .await
-        .is_err(),
+        c4(opts4("m1", pm, Some(kit_tls(None)), Some(("dev", "pw-dev"))))
+            .await
+            .is_err(),
         "login never replaces the certificate"
     );
     assert!(
@@ -415,7 +413,6 @@ async fn b06_listener_login_only_on_its_listener_shared_user_everywhere() {
             .await
             .is_ok()
     );
-    b.stop().await;
     b2.stop().await;
 }
 
@@ -666,4 +663,11 @@ require_client_cert = true
     std::fs::write(&path, "[[listener]]\nkind = \"tcp\"\nport = 1\nbogus = 1\n").unwrap();
     let e = RuntimeConfig::from_toml_file(&path).unwrap_err();
     assert_eq!(e.key(), "file.unreadable");
+    // B-06: there is no per-listener login any more; the old key is refused like any unknown key.
+    std::fs::write(
+        &path,
+        "[[listener]]\nkind = \"tcp\"\nport = 1883\nlogin = { username = \"dev\", password = \"pw\" }\n",
+    )
+    .unwrap();
+    assert_eq!(RuntimeConfig::from_toml_file(&path).unwrap_err().key(), "file.unreadable");
 }

@@ -1,27 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Profile, Qos, Scheme, Subscription, Listener } from '@mqttpanel/engine-client';
+import type { Profile, Qos, Scheme, Subscription } from '@mqttpanel/engine-client';
 import { engine } from '../../services';
-import { toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
 import { connectProfile, testProfile, disconnect, saveProfile, replaceProfile, useBusy, run } from '../../lib/actions';
 import { Info, Msg, Modal, Popover, Seg, Switch, ConfirmDialog } from '../../components/ui';
 import { FileField } from './FileField';
+import { SecretText } from '../../components/Secret';
 import { fmtAge, fmtBytes } from '../../lib/format';
 
 const DEFAULT_PORT: Record<Scheme, number> = { mqtt: 1883, mqtts: 8883, ws: 8083, wss: 8084 };
-
-function kindToScheme(k: Listener['kind']): Scheme {
-  return k === 'tcp' ? 'mqtt' : k === 'tls' ? 'mqtts' : k;
-}
-
-/** Most secure enabled listener: mutual TLS, then TLS, then plain. */
-export function pickListener(ls: Listener[]): Listener | null {
-  const on = ls.filter((l) => l.enabled);
-  return (
-    on.find((l) => l.requireClientCert) ?? on.find((l) => l.kind === 'tls' || l.kind === 'wss') ?? on.find((l) => l.kind === 'tcp') ?? on[0] ?? null
-  );
-}
 
 function SubscriptionAdd({ onAdd }: { onAdd(s: Subscription): void }) {
   const { t } = useTranslation();
@@ -179,40 +167,6 @@ export function ProfileForm({ profileId }: { profileId: string }) {
   const connected = conn && (conn.state === 'connected' || conn.state === 'connecting' || conn.state === 'reconnecting');
   const lastTest = p.lastTest;
 
-  const chooseTarget = async (target: 'other' | 'app') => {
-    if (target === 'other') {
-      update({ target, brokerListenerId: null });
-      return;
-    }
-    try {
-      const cfg = await engine().brokerConfig();
-      const l = pickListener(cfg.listeners);
-      if (!l) {
-        useApp.getState().toast({ kind: 'warn', msg: { key: 'broker.noListener', params: {}, text: 'No listener is enabled. Turn one on first.' } });
-        return;
-      }
-      const scheme = kindToScheme(l.kind);
-      const secure = scheme === 'mqtts' || scheme === 'wss';
-      const ca = secure ? { fileName: 'CA.pem', summary: null, inKeychain: false } : null;
-      const mtls = l.requireClientCert;
-      update({
-        target,
-        brokerListenerId: l.id,
-        host: 'localhost',
-        port: l.port,
-        scheme,
-        tls: {
-          ...draft.current!.tls,
-          caCert: ca,
-          clientCert: mtls ? { fileName: 'mqttpanel-desktop.pem', summary: null, inKeychain: false } : draft.current!.tls.clientCert,
-          clientKey: mtls ? { fileName: 'mqttpanel-desktop.key', summary: null, inKeychain: true } : draft.current!.tls.clientKey,
-        },
-      });
-    } catch (e) {
-      useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
-    }
-  };
-
   const browseProto = async () => {
     const saved = await flush();
     const ins = await run(engine().pickFile('proto'));
@@ -292,23 +246,6 @@ export function ProfileForm({ profileId }: { profileId: string }) {
             <input id="pf-name" className="input" value={p.name} placeholder={t('conn.untitled')} onChange={(e) => update({ name: e.target.value })} />
           </div>
           <div className="f">
-            <span className="lbl">
-              {t('conn.target')} <Info id="target" title={t('conn.target')} />
-            </span>
-            <span className="row2">
-              <Seg
-                label={t('conn.target')}
-                value={p.target}
-                onChange={(v) => void chooseTarget(v)}
-                options={[
-                  { value: 'other', label: t('conn.targetOther') },
-                  { value: 'app', label: t('conn.targetApp'), testId: 'target-app' },
-                ]}
-              />
-              <span className="hint">{t('conn.targetHint')}</span>
-            </span>
-          </div>
-          <div className="f">
             <label htmlFor="pf-host">{t('conn.hostPort')}</label>
             <span className="row2">
               <input id="pf-host" className="input mono" style={{ flex: 1 }} value={p.host} onChange={(e) => update({ host: e.target.value.trim() })} />
@@ -365,34 +302,41 @@ export function ProfileForm({ profileId }: { profileId: string }) {
           </div>
           <div className="f">
             <label htmlFor="pf-pw">{t('conn.password')}</label>
-            <span className="row2">
-              <input
-                id="pf-pw"
-                className="input"
-                style={{ flex: 1 }}
-                type="password"
-                autoComplete="off"
-                value={pw}
-                placeholder={p.hasPassword ? '••••••••••••' : t('conn.passwordNone')}
-                onChange={(e) => setPw(e.target.value)}
-                onBlur={async () => {
-                  if (!pw) return;
-                  const saved = await flush();
-                  const np = await run(engine().setPassword(saved.id, pw));
-                  setPw('');
-                  if (np) fromEngine(np);
-                }}
-              />
-              {p.hasPassword && <span className="chip on">{t('file.keychain')}</span>}
-              {p.hasPassword && (
-                <button type="button" className="iconbtn" aria-label={t('conn.removePassword')} onClick={async () => {
-                  const np = await run(engine().setPassword(p.id, ''));
-                  if (np) fromEngine(np);
-                }}>
-                  ✕
-                </button>
-              )}
-            </span>
+            {p.isLocalBroker && p.hasPassword ? (
+              <span className="row2" data-testid="local-password">
+                <SecretText load={() => engine().profilePassword(p.id)} testId="profile-pw" />
+                <span className="chip on">{t('file.keychain')}</span>
+              </span>
+            ) : (
+              <span className="row2">
+                <input
+                  id="pf-pw"
+                  className="input"
+                  style={{ flex: 1 }}
+                  type="password"
+                  autoComplete="off"
+                  value={pw}
+                  placeholder={p.hasPassword ? '••••••••••••' : t('conn.passwordNone')}
+                  onChange={(e) => setPw(e.target.value)}
+                  onBlur={async () => {
+                    if (!pw) return;
+                    const saved = await flush();
+                    const np = await run(engine().setPassword(saved.id, pw));
+                    setPw('');
+                    if (np) fromEngine(np);
+                  }}
+                />
+                {p.hasPassword && <span className="chip on">{t('file.keychain')}</span>}
+                {p.hasPassword && (
+                  <button type="button" className="iconbtn" aria-label={t('conn.removePassword')} onClick={async () => {
+                    const np = await run(engine().setPassword(p.id, ''));
+                    if (np) fromEngine(np);
+                  }}>
+                    ✕
+                  </button>
+                )}
+              </span>
+            )}
           </div>
 
           <div className="sec">

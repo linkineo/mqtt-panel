@@ -2,12 +2,40 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ImportSummary, Profile } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
-import { toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
-import { handleConnectOutcome, run, saveProfile } from '../../lib/actions';
+import { run, saveProfile } from '../../lib/actions';
 import { shortcut } from '../../lib/keys';
 import { Kbd, Modal, Msg } from '../../components/ui';
 import { ProfileForm } from './ProfileForm';
+import { AppBrokerDialog } from './AppBrokerDialog';
+
+type AppDialog = 'pick' | 'add' | null;
+
+/**
+ * "New connection" is a menu (owner, 13 Oct 2026): "Another broker…" opens the empty form; "This app's broker" opens
+ * a submenu "Use an existing listener" / "Add a listener…". Shown under the button that opened it.
+ */
+export async function newConnectionMenu(anchor: HTMLElement, t: (k: string) => string, openApp: (d: AppDialog) => void): Promise<void> {
+  const r = anchor.getBoundingClientRect();
+  const id = await platform().showContextMenu(
+    [
+      { id: 'other', label: t('conn.newOther') },
+      {
+        id: 'app',
+        label: t('conn.newApp'),
+        items: [
+          { id: 'app-existing', label: t('conn.newAppExisting') },
+          { id: 'app-add', label: t('conn.newAppAdd') },
+        ],
+      },
+    ],
+    r.left,
+    r.bottom + 4,
+  );
+  if (id === 'other') await newProfile(t('conn.newName'));
+  else if (id === 'app-existing') openApp('pick');
+  else if (id === 'app-add') openApp('add');
+}
 
 export function profileUrl(p: Profile): string {
   const path = p.scheme === 'ws' || p.scheme === 'wss' ? p.wsPath : '';
@@ -105,10 +133,9 @@ async function newProfile(name: string) {
   useApp.getState().selectProfile(saved.id);
 }
 
-function EmptyState({ onImport }: { onImport(s: ImportSummary): void }) {
+function EmptyState({ onImport, openApp }: { onImport(s: ImportSummary): void; openApp(d: AppDialog): void }) {
   const { t } = useTranslation();
   const info = useApp((s) => s.appInfo);
-  const [starting, setStarting] = useState(false);
   return (
     <div className="pane" data-testid="welcome">
       <div className="pc" style={{ display: 'grid', alignContent: 'center', gap: 18, padding: 40 }}>
@@ -122,7 +149,7 @@ function EmptyState({ onImport }: { onImport(s: ImportSummary): void }) {
           <div className="card">
             <div className="t">{t('welcome.newTitle')}</div>
             <span className="s">{t('welcome.newText')}</span>
-            <button type="button" className="btn pri" style={{ justifySelf: 'start', marginTop: 6 }} data-testid="welcome-new" onClick={() => void newProfile(t('conn.newName'))}>
+            <button type="button" className="btn pri" style={{ justifySelf: 'start', marginTop: 6 }} data-testid="welcome-new" aria-haspopup="menu" onClick={(e) => void newConnectionMenu(e.currentTarget, t, openApp)}>
               {t('welcome.newButton')}
             </button>
           </div>
@@ -133,22 +160,8 @@ function EmptyState({ onImport }: { onImport(s: ImportSummary): void }) {
               type="button"
               className="btn"
               style={{ justifySelf: 'start', marginTop: 6 }}
-              disabled={starting}
               data-testid="welcome-broker"
-              onClick={async () => {
-                setStarting(true);
-                try {
-                  const st = await engine().brokerStart();
-                  useApp.setState({ broker: st });
-                  await useApp.getState().refreshBrokerConfig();
-                  const out = await engine().connectExplorerHere(null);
-                  await handleConnectOutcome('', out);
-                } catch (e) {
-                  useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
-                } finally {
-                  setStarting(false);
-                }
-              }}
+              onClick={() => openApp('pick')}
             >
               {t('welcome.brokerButton')}
             </button>
@@ -176,6 +189,7 @@ export function ConnectionsScreen() {
   const info = useApp((s) => s.appInfo);
   const [q, setQ] = useState('');
   const [summary, setSummary] = useState<ImportSummary | null>(null);
+  const [appDialog, setAppDialog] = useState<AppDialog>(null);
   const [drag, setDrag] = useState<{ id: string; over: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const sideRef = useRef<HTMLDivElement>(null);
@@ -282,8 +296,8 @@ export function ConnectionsScreen() {
       <div className="pane side" ref={sideRef}>
         <div className="ph">
           <h5>{t('conn.title')}</h5>
-          <button type="button" className="btn pri sm" data-testid="new-profile" onClick={() => void newProfile(t('conn.newName'))}>
-            {t('conn.new')}
+          <button type="button" className="btn pri sm" data-testid="new-profile" aria-haspopup="menu" onClick={(e) => void newConnectionMenu(e.currentTarget, t, setAppDialog)}>
+            {t('conn.new')} <span aria-hidden="true">▾</span>
           </button>
         </div>
         <div className="pc">
@@ -318,8 +332,9 @@ export function ConnectionsScreen() {
           )}
         </div>
       </div>
-      {sel ? <ProfileForm key={sel.id} profileId={sel.id} /> : <EmptyState onImport={setSummary} />}
+      {sel ? <ProfileForm key={sel.id} profileId={sel.id} /> : <EmptyState onImport={setSummary} openApp={setAppDialog} />}
       {summary && <ImportSummaryDialog summary={summary} onClose={() => setSummary(null)} />}
+      {appDialog && <AppBrokerDialog start={appDialog} onClose={() => setAppDialog(null)} />}
     </div>
   );
 }

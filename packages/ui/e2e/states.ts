@@ -13,15 +13,55 @@ async function selectTopic(page: Page, search: string, topic: string) {
   await page.waitForSelector('[data-testid=detail]');
 }
 
+async function openAppBrokerDialog(page: Page) {
+  await page.click('[data-testid=new-profile]');
+  await page.waitForSelector('[data-testid=context-menu]');
+  await page.locator('[data-testid=context-menu] .ctx-item').nth(1).hover();
+  await page.waitForSelector('[data-testid=context-submenu]');
+  await page.locator('[data-testid=context-submenu] .ctx-item').first().click();
+  await page.waitForSelector('[data-testid=app-broker]');
+}
+
+async function changeTlsPort(page: Page) {
+  await page.click('[data-testid=port-l-tls]');
+  await page.fill('[data-testid=port-input-l-tls]', '8884');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('[data-testid=restart-prompt]');
+}
+
 export const STATES: UiState[] = [
   { id: '01-first-launch', query: 'mock=empty' },
   { id: '02-connections', query: 'mock=demo' },
+  {
+    id: '02-new-connection-menu',
+    query: 'mock=demo',
+    steps: async (p) => {
+      await p.click('[data-testid=new-profile]');
+      await p.waitForSelector('[data-testid=context-menu]');
+      await p.locator('[data-testid=context-menu] .ctx-item').nth(1).hover();
+      await p.waitForSelector('[data-testid=context-submenu]');
+    },
+  },
   {
     id: '02-info-bubble',
     query: 'mock=demo',
     steps: async (p) => {
       await p.click('[data-testid=info-caCert]');
       await p.waitForSelector('[data-testid=bubble-caCert]');
+    },
+  },
+  { id: '02b-app-broker', query: 'mock=demo', steps: openAppBrokerDialog },
+  {
+    id: '02b-app-broker-steps',
+    query: 'mock=demo&screen=broker&latency=8000',
+    steps: async (p) => {
+      // a pending listener change, so the flow restarts the broker as in the mockup
+      await changeTlsPort(p);
+      await p.click('[data-testid=restart-later]');
+      await p.click('[data-testid=rail-connect]');
+      await openAppBrokerDialog(p);
+      await p.click('[data-testid=appb-connect]');
+      await p.waitForSelector('[data-testid=appb-step-broker][data-state=run]');
     },
   },
   {
@@ -154,7 +194,14 @@ export const STATES: UiState[] = [
       await p.waitForTimeout(300);
     },
   },
-  { id: '12-broker', query: 'mock=demo&screen=broker' },
+  {
+    id: '12-broker',
+    query: 'mock=demo&screen=broker',
+    steps: async (p) => {
+      await p.click('[data-testid=user-pw-mqtt-panel-eye]');
+      await p.waitForFunction(() => document.querySelector('[data-testid=user-pw-mqtt-panel-value]')?.textContent !== '••••••••••••');
+    },
+  },
   {
     id: '12b-anonymous',
     query: 'mock=demo&screen=broker',
@@ -162,6 +209,16 @@ export const STATES: UiState[] = [
       await p.click('[data-testid=anonymous]');
       await p.click('[data-testid=confirm-ok]');
       await p.waitForSelector('[data-testid=anon-warning]');
+    },
+  },
+  { id: '12c-restart-prompt', query: 'mock=demo&screen=broker', steps: changeTlsPort },
+  {
+    id: '12d-restart-pending',
+    query: 'mock=demo&screen=broker',
+    steps: async (p) => {
+      await changeTlsPort(p);
+      await p.click('[data-testid=restart-later]');
+      await p.waitForSelector('[data-testid=port-pending]');
     },
   },
   {

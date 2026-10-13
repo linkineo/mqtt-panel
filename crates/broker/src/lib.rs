@@ -9,10 +9,10 @@
 //! - [`toml_config`]: the TOML file format of `mqttpanel broker --config`.
 //!
 //! Authentication order for each CONNECT: anonymous on accepts everyone (client certificate not requested, users
-//! and logins ignored); otherwise a listener that requires a client certificate accepts a verified one (a login
-//! is then optional and never replaces the certificate); otherwise the username and password must match the
-//! listener's own login or a shared user; else CONNACK 0x05 (3.1.1) or 0x86 (5) and the log line
-//! "client <id> rejected: bad username or password".
+//! ignored); otherwise a listener that requires a client certificate accepts a verified one (a login is then
+//! optional and never replaces the certificate); otherwise the username and password must match a shared user
+//! (one set of users for every listener, no per-listener login); else CONNACK 0x05 (3.1.1) or 0x86 (5) and the
+//! log line "client <id> rejected: bad username or password".
 
 pub mod config;
 pub mod error;

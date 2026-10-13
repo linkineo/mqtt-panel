@@ -83,7 +83,6 @@ async fn b03_port_validation_messages() {
             kind: ListenerKind::Tcp,
             port: u32::from(bp),
             bind: Bind::Network,
-            login: None,
         })
         .unwrap_err();
     assert!(e.key().starts_with("broker.portInUse"));

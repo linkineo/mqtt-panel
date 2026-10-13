@@ -195,7 +195,6 @@ impl Broker {
                 }
             };
             let lctx = Arc::new(ListenerCtx {
-                id: spec.id.clone(),
                 kind: spec.kind,
                 require_client_cert: spec.require_client_cert && spec.kind.encrypted(),
             });

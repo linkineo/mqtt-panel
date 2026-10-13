@@ -73,15 +73,7 @@ pub enum Preset {
     Mtls,
 }
 
-/// The per-listener login as shown to the UI (the password stays in the keychain).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ListenerLogin {
-    pub username: String,
-    pub has_password: bool,
-}
-
-/// A listener (TS `Listener`).
+/// A listener (TS `Listener`). There is no per-listener login: users are shared by every listener.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Listener {
@@ -92,7 +84,6 @@ pub struct Listener {
     pub enabled: bool,
     pub require_client_cert: bool,
     pub preset: Preset,
-    pub login: Option<ListenerLogin>,
 }
 
 /// Which CA verifies client certificates.
@@ -109,6 +100,10 @@ pub enum VerifyAgainst {
 #[serde(rename_all = "camelCase")]
 pub struct UserView {
     pub username: String,
+    /// Created by the app for the profile "Local broker" (user "mqtt-panel").
+    pub system: bool,
+    /// The plain password is in the keychain and can be revealed and copied.
+    pub has_password: bool,
 }
 
 /// The broker configuration (TS `BrokerConfig`).
@@ -250,14 +245,6 @@ pub struct LogLine {
     pub text: String,
 }
 
-/// Username and password typed in the Add listener flow.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LoginRequest {
-    pub username: String,
-    pub password: String,
-}
-
 /// TS `AddListenerRequest`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -266,7 +253,6 @@ pub struct AddListenerRequest {
     pub kind: ListenerKind,
     pub port: u32,
     pub bind: Bind,
-    pub login: Option<LoginRequest>,
 }
 
 /// Export format of a client certificate.
@@ -292,7 +278,7 @@ pub struct IssueCertRequest {
 /// A file produced for the user to save: (file name, bytes).
 pub type SaveFile = (String, Vec<u8>);
 
-/// What "Connect Explorer here" needs to build the "Local broker" profile.
+/// What the "Connect to this app's broker" flow needs to build the "Local broker" profile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalConnection {
@@ -309,7 +295,7 @@ pub struct LocalConnection {
     pub client_cert_pem: Option<String>,
     /// Client key (PKCS#8 PEM, unencrypted) for mutual TLS. Secret: goes to the keychain, never to a file.
     pub client_key_pem: Option<String>,
-    /// Listener login, when one is set.
+    /// The app's own user "mqtt-panel" (None with Anonymous on).
     pub username: Option<String>,
     pub password: Option<String>,
 }

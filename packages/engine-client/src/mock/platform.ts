@@ -33,72 +33,134 @@ export function createMockPlatform(): MockPlatform {
         }
         if (closeCurrent) closeCurrent();
         const prevFocus = document.activeElement as HTMLElement | null;
-        const menu = document.createElement('div');
-        menu.className = 'ctx';
-        menu.setAttribute('role', 'menu');
-        menu.setAttribute('data-testid', 'context-menu');
-        menu.style.position = 'fixed';
-        menu.style.zIndex = '1000';
-        const entries: HTMLElement[] = [];
-        for (const it of items) {
-          if (it.separator) {
-            menu.appendChild(document.createElement('hr'));
-            continue;
+        const menus: HTMLElement[] = [];
+        /** Builds one menu level; items with children open a submenu (hover, click or arrow right). */
+        const build = (list: ContextMenuItem[], level: number): { el: HTMLElement; entries: HTMLElement[] } => {
+          const menu = document.createElement('div');
+          menu.className = 'ctx';
+          menu.setAttribute('role', 'menu');
+          menu.setAttribute('data-testid', level === 0 ? 'context-menu' : 'context-submenu');
+          menu.style.position = 'fixed';
+          menu.style.zIndex = String(1000 + level);
+          const entries: HTMLElement[] = [];
+          for (const it of list) {
+            if (it.separator) {
+              menu.appendChild(document.createElement('hr'));
+              continue;
+            }
+            const el = document.createElement('div');
+            el.className = 'ctx-item' + (it.danger ? ' danger' : '') + (it.enabled === false ? ' disabled' : '');
+            el.setAttribute('role', 'menuitem');
+            el.tabIndex = -1;
+            el.dataset.id = it.id;
+            if (it.enabled === false) el.setAttribute('aria-disabled', 'true');
+            const label = document.createElement('span');
+            label.className = 'ctx-label';
+            label.textContent = it.label;
+            el.appendChild(label);
+            if (it.items) {
+              el.setAttribute('aria-haspopup', 'menu');
+              const k = document.createElement('span');
+              k.className = 'kbd';
+              k.textContent = '▸';
+              el.appendChild(k);
+            } else if (it.accelerator) {
+              const k = document.createElement('span');
+              k.className = 'kbd';
+              k.textContent = it.accelerator;
+              el.appendChild(k);
+            }
+            const openSub = (focus: boolean) => {
+              if (!it.items || it.enabled === false) return;
+              closeFrom(level + 1);
+              el.classList.add('on');
+              const sub = build(it.items, level + 1);
+              document.body.appendChild(sub.el);
+              menus.push(sub.el);
+              const r = el.getBoundingClientRect();
+              const sr = sub.el.getBoundingClientRect();
+              const vw = window.innerWidth || 1280;
+              const vh = window.innerHeight || 800;
+              const left = r.right + sr.width + 4 <= vw ? r.right - 2 : r.left - sr.width + 2;
+              sub.el.style.left = `${Math.max(4, left)}px`;
+              sub.el.style.top = `${Math.max(4, Math.min(r.top - 4, vh - sr.height - 4))}px`;
+              if (focus) sub.entries[0]?.focus();
+            };
+            el.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              if (it.enabled === false) return;
+              if (it.items) openSub(true);
+              else finish(it.id);
+            });
+            el.addEventListener('mouseenter', () => {
+              if (it.enabled === false) return;
+              el.focus();
+              if (it.items) openSub(false);
+              else closeFrom(level + 1);
+            });
+            (el as HTMLElement & { openSub?: (f: boolean) => void }).openSub = openSub;
+            menu.appendChild(el);
+            if (it.enabled !== false) entries.push(el);
           }
-          const el = document.createElement('div');
-          el.className = 'ctx-item' + (it.danger ? ' danger' : '') + (it.enabled === false ? ' disabled' : '');
-          el.setAttribute('role', 'menuitem');
-          el.tabIndex = -1;
-          el.dataset.id = it.id;
-          if (it.enabled === false) el.setAttribute('aria-disabled', 'true');
-          const label = document.createElement('span');
-          label.className = 'ctx-label';
-          label.textContent = it.label;
-          el.appendChild(label);
-          if (it.accelerator) {
-            const k = document.createElement('span');
-            k.className = 'kbd';
-            k.textContent = it.accelerator;
-            el.appendChild(k);
+          return { el: menu, entries };
+        };
+        const closeFrom = (level: number) => {
+          while (menus.length > level) {
+            const m = menus.pop()!;
+            m.remove();
           }
-          el.addEventListener('click', (ev) => {
-            ev.stopPropagation();
-            if (it.enabled === false) return;
-            finish(it.id);
-          });
-          el.addEventListener('mouseenter', () => {
-            if (it.enabled !== false) el.focus();
-          });
-          menu.appendChild(el);
-          if (it.enabled !== false) entries.push(el);
-        }
+          menus[level - 1]?.querySelectorAll('.ctx-item.on').forEach((x) => x.classList.remove('on'));
+        };
+        const root = build(items, 0);
+        const menu = root.el;
+        menus.push(menu);
         document.body.appendChild(menu);
         const vw = window.innerWidth || 1280;
         const vh = window.innerHeight || 800;
         const r = menu.getBoundingClientRect();
         menu.style.left = `${Math.max(4, Math.min(x, vw - r.width - 4))}px`;
         menu.style.top = `${Math.max(4, Math.min(y, vh - r.height - 4))}px`;
-        let idx = 0;
-        entries[0]?.focus();
+        root.entries[0]?.focus();
+        const levelEntries = (): HTMLElement[] => {
+          const cur = document.activeElement as HTMLElement | null;
+          const m = (cur && menus.find((x) => x.contains(cur))) ?? menus[menus.length - 1];
+          return Array.from(m.querySelectorAll<HTMLElement>('.ctx-item:not(.disabled)'));
+        };
         const onKey = (e: KeyboardEvent) => {
+          const cur = document.activeElement as HTMLElement | null;
+          const level = cur ? menus.findIndex((m) => m.contains(cur)) : -1;
           if (e.key === 'Escape') {
             e.preventDefault();
             finish(null);
           } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
+            const entries = levelEntries();
             if (!entries.length) return;
-            const cur = entries.indexOf(document.activeElement as HTMLElement);
-            idx = cur < 0 ? 0 : (cur + (e.key === 'ArrowDown' ? 1 : entries.length - 1)) % entries.length;
+            const i = entries.indexOf(cur as HTMLElement);
+            const idx = i < 0 ? 0 : (i + (e.key === 'ArrowDown' ? 1 : entries.length - 1)) % entries.length;
             entries[idx].focus();
+          } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            (cur as HTMLElement & { openSub?: (f: boolean) => void })?.openSub?.(true);
+          } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (level > 0) {
+              const parent = menus[level - 1].querySelector<HTMLElement>('.ctx-item.on');
+              closeFrom(level);
+              parent?.focus();
+            }
           } else if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            const cur = document.activeElement as HTMLElement;
-            if (cur && entries.includes(cur)) finish(cur.dataset.id ?? null);
+            if (cur && cur.classList.contains('ctx-item') && !cur.classList.contains('disabled')) {
+              const withSub = cur as HTMLElement & { openSub?: (f: boolean) => void };
+              if (cur.getAttribute('aria-haspopup')) withSub.openSub?.(true);
+              else finish(cur.dataset.id ?? null);
+            }
           }
           e.stopPropagation();
         };
         const onDown = (e: MouseEvent) => {
-          if (!menu.contains(e.target as globalThis.Node)) finish(null);
+          if (!menus.some((m) => m.contains(e.target as globalThis.Node))) finish(null);
         };
         const onBlur = () => finish(null);
         document.addEventListener('keydown', onKey, true);
@@ -111,7 +173,8 @@ export function createMockPlatform(): MockPlatform {
           document.removeEventListener('keydown', onKey, true);
           document.removeEventListener('mousedown', onDown, true);
           window.removeEventListener('blur', onBlur);
-          menu.remove();
+          menus.forEach((m) => m.remove());
+          menus.length = 0;
           closeCurrent = null;
           if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus();
           resolve(id);

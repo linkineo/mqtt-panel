@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { BrokerCerts, BrokerClient, BrokerConfig, CertDetails, IssuedCert, Listener, LogLine, UserMessage } from '@mqttpanel/engine-client';
+import type { BrokerCerts, BrokerClient, BrokerConfig, BrokerUser, CertDetails, IssuedCert, Listener, LogLine, UserMessage } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
 import { toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
-import { handleConnectOutcome, reportSave, run } from '../../lib/actions';
+import { reportSave, run } from '../../lib/actions';
 import { ConfirmDialog, Info, Modal, Msg, Popover, Seg, Switch } from '../../components/ui';
 import { fmtAge, fmtNum, fmtRate, fmtTime, fmtUptime, isoDateToMonth } from '../../lib/format';
 import { AddListenerDialog, CredentialsDialog, IssueCertDialog, RegenerateDialog, checkPort, kindLabel } from './BrokerDialogs';
+import { SecretInput, SecretText } from '../../components/Secret';
+import { noteRestartChange, restartBroker } from './restart';
 
 function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; onConfig(c: BrokerConfig): void }) {
   const { t } = useTranslation();
+  const pending = useApp((s) => s.broker?.restartNeeded === true && s.pendingChanges.some((c) => c.field === 'port' && c.listenerId === l.id));
   const [edit, setEdit] = useState(false);
   const [v, setV] = useState(String(l.port));
   const [err, setErr] = useState<UserMessage | null>(null);
@@ -27,15 +30,33 @@ function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; o
     if (err) return;
     if (Number(v) !== l.port) {
       const c = await run(engine().updateListener({ ...l, port: Number(v) }));
-      if (c) onConfig(c);
+      if (c) {
+        onConfig(c);
+        void noteRestartChange({ key: 'rs.ch.port', params: { kind: kindLabel(l.kind, t), from: l.port, to: Number(v) }, listenerId: l.id, field: 'port' });
+      }
     }
     setEdit(false);
   };
   if (!edit) {
     return (
-      <button type="button" className="btn link mono" style={{ fontWeight: 400 }} disabled={disabled} title={t('broker.editPort')} data-testid={`port-${l.id}`} onClick={() => setEdit(true)}>
-        {l.port}
-      </button>
+      <span className="row" style={{ gap: 6 }}>
+        <button
+          type="button"
+          className="btn link mono"
+          style={{ fontWeight: 400, color: pending ? 'var(--clay)' : undefined }}
+          disabled={disabled}
+          title={t('broker.editPort')}
+          data-testid={`port-${l.id}`}
+          onClick={() => setEdit(true)}
+        >
+          {l.port}
+        </button>
+        {pending && (
+          <span className="chip clay" data-testid="port-pending">
+            {t('broker.pendingChip')}
+          </span>
+        )}
+      </span>
     );
   }
   return (
@@ -51,7 +72,11 @@ function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; o
         data-testid={`port-input-${l.id}`}
         onChange={(e) => setV(e.target.value.replace(/\D/g, ''))}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') void save();
+          if (e.key === 'Enter') {
+            // no implicit click: the restart prompt may open and take the focus before the key is released
+            e.preventDefault();
+            void save();
+          }
           if (e.key === 'Escape') {
             setV(String(l.port));
             setEdit(false);
@@ -94,13 +119,17 @@ function CertKv({ c }: { c: CertDetails }) {
   );
 }
 
-export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c: BrokerConfig): void; onLogin(l: Listener): void; onMenu(l: Listener, e: React.MouseEvent): void }) {
+export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c: BrokerConfig): void; onMenu(l: Listener, e: React.MouseEvent): void }) {
   const { t } = useTranslation();
   const { l, anonymous } = props;
   const secure = l.kind === 'tls' || l.kind === 'wss';
   const upd = async (p: Partial<Listener>) => {
     const c = await run(engine().updateListener({ ...l, ...p }));
-    if (c) props.onConfig(c);
+    if (!c) return;
+    props.onConfig(c);
+    const params = { kind: kindLabel(l.kind, t), port: l.port };
+    if (p.enabled !== undefined) void noteRestartChange({ key: p.enabled ? 'rs.ch.on' : 'rs.ch.off', params, listenerId: l.id });
+    else if (p.bind) void noteRestartChange({ key: 'rs.ch.bind', params: { ...params, where: t(p.bind === 'network' ? 'broker.network' : 'broker.localhost') }, listenerId: l.id });
   };
   return (
     <tr data-testid="listener-row" data-listener={l.id} onContextMenu={(e) => { e.preventDefault(); props.onMenu(l, e); }}>
@@ -130,30 +159,6 @@ export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c
         <PortCell l={l} disabled={false} onConfig={props.onConfig} />
       </td>
       <td>{t(`preset.${l.preset}`)}</td>
-      <td className={anonymous ? 'gated' : undefined} data-testid="listener-login">
-        {anonymous ? (
-          l.login ? (
-            <span>
-              <span className="mono">{l.login.username}</span> · ••••
-            </span>
-          ) : (
-            '—'
-          )
-        ) : l.login ? (
-          <span className="row" style={{ gap: 6 }}>
-            <span>
-              <span className="mono">{l.login.username}</span> · ••••
-            </span>
-            <button type="button" className="btn sm" onClick={() => props.onLogin(l)}>
-              {t('broker.edit')}
-            </button>
-          </span>
-        ) : (
-          <button type="button" className="btn sm" onClick={() => props.onLogin(l)}>
-            {t('broker.set')}
-          </button>
-        )}
-      </td>
       <td data-testid="listener-cert">
         {!secure ? (
           <span className="muted">—</span>
@@ -233,6 +238,7 @@ export function BrokerScreen() {
   const status = useApp((s) => s.broker);
   const config = useApp((s) => s.brokerConfig);
   const setConfig = useApp((s) => s.setBrokerConfig);
+  const restartPrompt = useApp((s) => s.restartPrompt);
   const [certs, setCerts] = useState<BrokerCerts | null>(null);
   const [issued, setIssued] = useState<IssuedCert[]>([]);
   const [clients, setClients] = useState<BrokerClient[]>([]);
@@ -241,7 +247,6 @@ export function BrokerScreen() {
     | null
     | { kind: 'add' }
     | { kind: 'issue' }
-    | { kind: 'login'; l: Listener }
     | { kind: 'addUser' }
     | { kind: 'userPass'; user: string }
     | { kind: 'anonOn' }
@@ -289,19 +294,8 @@ export function BrokerScreen() {
 
   const listenerMenu = async (l: Listener, e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const id = await platform().showContextMenu(
-      [
-        { id: 'connect', label: t('broker.connectThis'), enabled: running && l.enabled },
-        { id: 's', label: '', separator: true },
-        { id: 'remove', label: t('broker.removeListener'), danger: true },
-      ],
-      r.right - 220,
-      r.bottom + 4,
-    );
-    if (id === 'connect') {
-      const out = await run(engine().connectExplorerHere(l.id));
-      if (out) await handleConnectOutcome('', out);
-    } else if (id === 'remove') setDialog({ kind: 'removeListener', l });
+    const id = await platform().showContextMenu([{ id: 'remove', label: t('broker.removeListener'), danger: true }], r.right - 220, r.bottom + 4);
+    if (id === 'remove') setDialog({ kind: 'removeListener', l });
   };
 
   const userMenu = async (u: string, e: React.MouseEvent) => {
@@ -330,7 +324,7 @@ export function BrokerScreen() {
     <>
       <div className="sec" style={{ marginTop: 18 }}>
         {t('broker.listeners')}
-        {status.restartNeeded && <span className="chip clay" data-testid="restart-chip">{t('broker.restartToApply')}</span>}
+        {status.restartNeeded && <span className="chip clay" data-testid="restart-chip">{t('broker.restartPending')}</span>}
         <span className="grow" />
         <button type="button" className="btn pri sm" data-testid="add-listener" onClick={() => setDialog({ kind: 'add' })}>
           {t('broker.addListener')}
@@ -344,14 +338,13 @@ export function BrokerScreen() {
             <th>{t('broker.reachable')}</th>
             <th>{t('broker.port')}</th>
             <th>{t('broker.setup')}</th>
-            <th>{t('broker.login')}</th>
             <th>{t('broker.clientCert')}</th>
             <th />
           </tr>
         </thead>
         <tbody>
           {config.listeners.map((l) => (
-            <ListenerRow key={l.id} l={l} anonymous={anonymous} onConfig={setConfig} onLogin={(x) => setDialog({ kind: 'login', l: x })} onMenu={(x, e) => void listenerMenu(x, e)} />
+            <ListenerRow key={l.id} l={l} anonymous={anonymous} onConfig={setConfig} onMenu={(x, e) => void listenerMenu(x, e)} />
           ))}
         </tbody>
       </table>
@@ -473,7 +466,10 @@ export function BrokerScreen() {
           <div className="row">
             <button type="button" className="btn sm" onClick={async () => {
               const c = await run(engine().importBrokerCert());
-              if (c) setCerts(c);
+              if (c) {
+                setCerts(c);
+                void noteRestartChange({ key: 'rs.ch.certs', params: {} });
+              }
             }}>
               {t('certs.import')}
             </button>
@@ -489,7 +485,10 @@ export function BrokerScreen() {
           <div>
             <button type="button" className="btn sm" onClick={async () => {
               const c = await run(engine().importClientCa());
-              if (c) setCerts(c);
+              if (c) {
+                setCerts(c);
+                if (config.verifyAgainst === 'imported') void noteRestartChange({ key: 'rs.ch.certs', params: {} });
+              }
             }}>
               {t('certs.importCa')}
             </button>
@@ -502,7 +501,7 @@ export function BrokerScreen() {
   const authSection = (
     <>
       <div className="sec" style={{ marginTop: 18 }}>
-        {t('broker.auth')}
+        {t('broker.auth')} <span className="lower">· {t('broker.authSub')}</span>
       </div>
       <div className="form" style={{ marginTop: 6 }} data-testid="auth">
         <div className="f">
@@ -526,34 +525,6 @@ export function BrokerScreen() {
             {anonymous ? <span className="small hint warn">{t('broker.anonOn')}</span> : <span className="hint">{t('broker.anonOff')}</span>}
           </span>
         </div>
-        <div className={`f${anonymous ? ' gated' : ''}`} data-testid="users">
-          <span className="lbl">{t('broker.users')}</span>
-          <span className="row2 wrap">
-            {config.users.map((u) => (
-              <span key={u.username} className="chip mono" onContextMenu={anonymous ? undefined : (e) => void userMenu(u.username, e)}>
-                <button type="button" className="x" style={{ opacity: 1 }} disabled={anonymous} title={t('users.changePassword')} onClick={() => setDialog({ kind: 'userPass', user: u.username })}>
-                  {u.username}
-                </button>
-                {!anonymous && (
-                  <button
-                    type="button"
-                    className="x"
-                    aria-label={t('users.removeNamed', { user: u.username })}
-                    onClick={async () => {
-                      const c = await run(engine().removeUser(u.username));
-                      if (c) setConfig(c);
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </span>
-            ))}
-            <button type="button" className="btn sm" disabled={anonymous} onClick={() => setDialog({ kind: 'addUser' })}>
-              {t('users.add')}
-            </button>
-          </span>
-        </div>
         <div className={`f${anonymous ? ' gated' : ''}`} data-testid="verify-against">
           <span className="lbl">
             {t('broker.clientCerts')} <Info id="requireClientCert" title={t('broker.clientCerts')} />
@@ -566,7 +537,10 @@ export function BrokerScreen() {
               disabled={anonymous}
               onChange={async (v) => {
                 const c = await run(engine().setVerifyAgainst(v));
-                if (c) setConfig(c);
+                if (c) {
+                  setConfig(c);
+                  void noteRestartChange({ key: 'rs.ch.verify', params: {} });
+                }
               }}
               options={[
                 { value: 'local', label: t('broker.localCa') },
@@ -575,6 +549,21 @@ export function BrokerScreen() {
             />
           </span>
         </div>
+      </div>
+      <UsersTable
+        users={config.users}
+        anonymous={anonymous}
+        onChange={(u) => setDialog({ kind: 'userPass', user: u })}
+        onRemove={async (u) => {
+          const c = await run(engine().removeUser(u));
+          if (c) setConfig(c);
+        }}
+        onMenu={(u, e) => void userMenu(u, e)}
+      />
+      <div style={{ marginTop: 6 }} className={anonymous ? 'gated' : undefined}>
+        <button type="button" className="btn sm" disabled={anonymous} data-testid="add-user" onClick={() => setDialog({ kind: 'addUser' })}>
+          {t('users.add')}
+        </button>
       </div>
     </>
   );
@@ -585,9 +574,15 @@ export function BrokerScreen() {
         <div className="ph">
           <h5>{t('broker.title')}</h5>
           <div className="row" style={{ gap: 6 }}>
-            <button type="button" className="btn" disabled={!running} onClick={() => void lifecycle(() => engine().brokerRestart())}>
-              {t('broker.restart')}
-            </button>
+            {status.restartNeeded && running ? (
+              <button type="button" className="btn pulse" data-testid="broker-restart" onClick={() => void run(restartBroker())}>
+                {t('broker.restartApply')}
+              </button>
+            ) : (
+              <button type="button" className="btn" disabled={!running} data-testid="broker-restart" onClick={() => void lifecycle(() => engine().brokerRestart())}>
+                {t('broker.restart')}
+              </button>
+            )}
             {running || status.state === 'starting' ? (
               <button type="button" className="btn danger" data-testid="broker-stop" onClick={() => void lifecycle(() => engine().brokerStop())}>
                 {t('broker.stop')}
@@ -597,18 +592,6 @@ export function BrokerScreen() {
                 {t('broker.start')}
               </button>
             )}
-            <button
-              type="button"
-              className="btn pri"
-              disabled={!running}
-              data-testid="connect-here"
-              onClick={async () => {
-                const out = await run(engine().connectExplorerHere(null));
-                if (out) await handleConnectOutcome('', out);
-              }}
-            >
-              {t('broker.connectHere')}
-            </button>
           </div>
         </div>
         <div className="pc">
@@ -660,19 +643,9 @@ export function BrokerScreen() {
             </div>
           </div>
           {listenersSection}
-          {anonymous ? (
-            <>
-              {authSection}
-              {clientCertsSection}
-              {brokerCertsSection}
-            </>
-          ) : (
-            <>
-              {clientCertsSection}
-              {brokerCertsSection}
-              {authSection}
-            </>
-          )}
+          {authSection}
+          {clientCertsSection}
+          {brokerCertsSection}
         </div>
       </div>
       <div className="pane right" data-testid="broker-side">
@@ -734,21 +707,19 @@ export function BrokerScreen() {
         <LogView />
       </div>
 
-      {dialog?.kind === 'add' && <AddListenerDialog config={config} certs={certs} onClose={() => setDialog(null)} onConfig={setConfig} />}
-      {dialog?.kind === 'issue' && <IssueCertDialog onClose={() => setDialog(null)} onIssued={async () => setIssued((await run(engine().issuedCerts())) ?? issued)} />}
-      {dialog?.kind === 'login' && (
-        <CredentialsDialog
-          title={t('broker.loginTitle', { kind: kindLabel(dialog.l.kind, t), port: dialog.l.port })}
-          withUser
-          initialUser={dialog.l.login?.username ?? ''}
-          confirmLabel={t('common.save')}
+      {dialog?.kind === 'add' && (
+        <AddListenerDialog
+          config={config}
+          certs={certs}
           onClose={() => setDialog(null)}
-          onConfirm={async (u, p) => {
-            const c = await engine().setListenerLogin(dialog.l.id, u, p || null);
-            setConfig(c);
+          onConfig={setConfig}
+          onAdded={(l) => {
+            setDialog(null);
+            void noteRestartChange({ key: 'rs.ch.added', params: { kind: kindLabel(l.kind, t), port: l.port }, listenerId: l.id });
           }}
         />
       )}
+      {dialog?.kind === 'issue' && <IssueCertDialog onClose={() => setDialog(null)} onIssued={async () => setIssued((await run(engine().issuedCerts())) ?? issued)} />}
       {dialog?.kind === 'addUser' && (
         <CredentialsDialog
           title={t('users.addTitle')}
@@ -812,7 +783,11 @@ export function BrokerScreen() {
           onClose={() => setDialog(null)}
           onConfirm={async () => {
             const c = await run(engine().rotateCa());
-            if (c) setCerts(c);
+            if (c) {
+              setCerts(c);
+              setIssued((await run(engine().issuedCerts())) ?? issued);
+              void noteRestartChange({ key: 'rs.ch.certs', params: {} });
+            }
           }}
         >
           <div className="small">{t('certs.rotateBody')}</div>
@@ -826,11 +801,24 @@ export function BrokerScreen() {
           onClose={() => setDialog(null)}
           onConfirm={async () => {
             const c = await run(engine().removeListener(dialog.l.id));
-            if (c) setConfig(c);
+            if (c) {
+              setConfig(c);
+              void noteRestartChange({ key: 'rs.ch.removed', params: { kind: kindLabel(dialog.l.kind, t), port: dialog.l.port } });
+            }
           }}
         />
       )}
-      {dialog?.kind === 'regen' && certs && <RegenerateDialog certs={certs} onClose={() => setDialog(null)} onCerts={setCerts} />}
+      {dialog?.kind === 'regen' && certs && (
+        <RegenerateDialog
+          certs={certs}
+          onClose={() => setDialog(null)}
+          onCerts={(c) => {
+            setCerts(c);
+            void noteRestartChange({ key: 'rs.ch.certs', params: {} });
+          }}
+        />
+      )}
+      {restartPrompt && <RestartPrompt />}
       {dialog?.kind === 'p12' && <P12Dialog name={dialog.name} onClose={() => setDialog(null)} onExport={(p) => void exportCert(dialog.name, 'pkcs12', p)} />}
       {dialog?.kind === 'csr' && (
         <CsrDialog
@@ -874,7 +862,7 @@ function P12Dialog({ name, onClose, onExport }: { name: string; onClose(): void;
           <span className="lbl">
             {t('issue.passphrase')} <Info id="passphrase" title={t('issue.passphrase')} />
           </span>
-          <input className="input" type="password" value={p} aria-label={t('issue.passphrase')} data-autofocus onChange={(e) => setP(e.target.value)} />
+          <SecretInput value={p} aria-label={t('issue.passphrase')} data-autofocus testId="p12-passphrase" onValue={setP} />
         </div>
       </div>
     </Modal>
@@ -928,6 +916,88 @@ function CsrDialog({ onClose, onDone }: { onClose(): void; onDone(): void }) {
           />
         </div>
       </div>
+    </Modal>
+  );
+}
+
+/** Users table (mockup 12): username, password with eye and copy, note, Change… and Remove. Shared by every listener. */
+function UsersTable(props: { users: BrokerUser[]; anonymous: boolean; onChange(u: string): void; onRemove(u: string): void; onMenu(u: string, e: React.MouseEvent): void }) {
+  const { t } = useTranslation();
+  const { anonymous } = props;
+  return (
+    <div className={anonymous ? 'gated' : undefined} aria-disabled={anonymous} data-testid="users">
+      <table className="tbl compact" style={{ marginTop: 8 }} data-testid="users-table">
+        <thead>
+          <tr>
+            <th>{t('users.username')}</th>
+            <th>{t('users.password')}</th>
+            <th />
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {props.users.map((u) => (
+            <tr key={u.username} data-testid="user-row" data-user={u.username} onContextMenu={anonymous ? undefined : (e) => props.onMenu(u.username, e)}>
+              <td className="mono">{u.username}</td>
+              <td>
+                {u.hasPassword ? (
+                  <SecretText load={() => engine().brokerUserPassword(u.username)} disabled={anonymous} testId={`user-pw-${u.username}`} />
+                ) : (
+                  <span className="muted small" title={t('users.notKeptHint')}>
+                    {t('users.notKept')}
+                  </span>
+                )}
+              </td>
+              <td className="muted small">{u.system ? t('users.createdFor') : ''}</td>
+              <td>
+                <span className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn sm" disabled={anonymous} onClick={() => props.onChange(u.username)}>
+                    {t('users.change')}
+                  </button>
+                  <button type="button" className={`btn sm${anonymous ? '' : ' danger'}`} disabled={anonymous} aria-label={t('users.removeNamed', { user: u.username })} onClick={() => props.onRemove(u.username)}>
+                    {t('users.removeBtn')}
+                  </button>
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {props.users.length === 0 && <div className="empty small">{t('users.none')}</div>}
+    </div>
+  );
+}
+
+/** "Restart the broker to apply the change?" (mockup 12c). */
+function RestartPrompt() {
+  const { t } = useTranslation();
+  const pending = useApp((s) => s.pendingChanges);
+  const close = () => useApp.setState({ restartPrompt: false });
+  const list = pending.map((c) => t(c.key, c.params)).join('; ');
+  return (
+    <Modal
+      title={t('rs.title')}
+      width={520}
+      onClose={close}
+      testId="restart-prompt"
+      footer={
+        <>
+          <button type="button" className="btn" data-testid="restart-later" onClick={close}>
+            {t('rs.later')}
+          </button>
+          <span className="grow" />
+          <button type="button" className="btn pri" data-testid="restart-now" onClick={() => void run(restartBroker())}>
+            {t('rs.now')}
+          </button>
+        </>
+      }
+    >
+      <p style={{ margin: 0 }}>{t('rs.body')}</p>
+      {list && (
+        <div className="muted small" data-testid="restart-pending-list">
+          {t('rs.pending', { list })}
+        </div>
+      )}
     </Modal>
   );
 }

@@ -13,7 +13,7 @@ export interface BootOverrides {
 }
 
 /** Reads test and screenshot switches from the URL: ?mock=empty|demo&lang=de&theme=dark&screen=broker&connect=plant */
-export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 'empty' } {
+export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 'empty'; latency?: number } {
   const p = new URLSearchParams(search);
   const lang = p.get('lang');
   const theme = p.get('theme');
@@ -27,17 +27,19 @@ export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 
     screen: screen && (SCREENS as string[]).includes(screen) ? (screen as Screen) : undefined,
     connect: p.get('connect') ?? undefined,
     motion: p.get('motion') === 'off' ? false : undefined,
+    // mock only: slower engine steps, so screenshots can catch a flow half-way (02b steps)
+    latency: p.get('latency') ? Math.min(20_000, Number(p.get('latency')) || 0) : undefined,
   };
 }
 
 /** Chooses the engine: the Tauri adapter inside the desktop shell, the in-memory mock everywhere else. */
-export async function createServices(mock: 'demo' | 'empty', lang: Lang): Promise<{ engine: EngineClient; platform: Platform }> {
+export async function createServices(mock: 'demo' | 'empty', lang: Lang, latencyMs?: number): Promise<{ engine: EngineClient; platform: Platform }> {
   if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
     const m = await import('@mqttpanel/engine-client/tauri');
     return { engine: m.createTauriEngineClient(), platform: m.createTauriPlatform() };
   }
   const m = await import('@mqttpanel/engine-client/mock');
-  const services = { engine: m.createMockEngineClient({ scenario: mock, lang }), platform: m.createMockPlatform() };
+  const services = { engine: m.createMockEngineClient({ scenario: mock, lang, latencyMs }), platform: m.createMockPlatform() };
   // browser and e2e only (never in the desktop shell): lets Playwright flows inject messages and read the clipboard and saves
   (window as unknown as { __mqttpanelMock?: typeof services }).__mqttpanelMock = services;
   return services;

@@ -9,7 +9,7 @@ import { renderMessage } from '../i18n';
 import i18next from 'i18next';
 
 describe('Broker anonymous gating (12b)', () => {
-  it('greys users, logins and client certificates and shows "not checked"', async () => {
+  it('greys users and client certificates and shows "not checked"', async () => {
     await boot('demo');
     const cfg = await engine().setAnonymous(true);
     useApp.setState({ brokerConfig: cfg, screen: 'broker' });
@@ -20,7 +20,7 @@ describe('Broker anonymous gating (12b)', () => {
     expect(screen.getByTestId('verify-against').className).toContain('gated');
     expect(screen.getByTestId('client-certs').className).toContain('gated');
     expect(screen.getByTestId('issue-cert')).toBeDisabled();
-    for (const cell of screen.getAllByTestId('listener-login')) expect(cell.className).toContain('gated');
+    expect(screen.queryAllByTestId('listener-login')).toHaveLength(0);
     const tls = screen.getAllByTestId('listener-row').find((r) => r.getAttribute('data-listener') === 'l-tls')!;
     expect(within(tls).getByTestId('listener-cert').textContent).toBe('not checked');
   });
