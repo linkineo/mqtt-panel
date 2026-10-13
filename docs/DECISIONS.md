@@ -90,10 +90,10 @@
   - The 02b dialog lists enabled listeners only; a switched-off listener is not offered (it would need switching on first). With none enabled, the dialog says so and preselects "Add a listener…".
   - (Closed 13 Oct 2026, owner: yes) The profile "Local broker" follows every broker change at once; see change set 2.
 - Change set 2 (13 Oct 2026), readings of the spec awaiting owner confirmation, details under "13 Oct 2026, change set 2" below:
-  - `docs/FEATURES.md` "Connections" still ends with "The title bar pill switches the active one … The pill always shows the negotiated protocol version". The change set 2 bullet supersedes it: the connection bar switches, the tabs show the version, the pill keeps the broker state and lab flags. That older bullet needs a spec edit.
+  - (Closed 13 Oct 2026) The stale "title bar pill switches the active one" bullet in `docs/FEATURES.md` was rewritten for the connection bar.
   - Mockups 04 to 11 and 18 draw an empty pill while "Local broker" is connected (so the broker runs). The app follows the spec text: the pill shows "Local broker · running · n clients" whenever the broker runs; it is hidden only when connections are open and there is nothing to show.
   - The mockup draws ✕ on the active tab only; the spec gives every tab a ✕. The app shows it on the active tab and on the others when hovered or focused, like native tab bars.
-  - Mockup 19 (French Connections) still draws the security chip top right; the app puts it on the address line as specified for every language.
+  - (Closed 13 Oct 2026) Mockup 19 now draws the security chip on the address line like mockup 02.
   - The first secret use of a session may be the first broker start (it needs the server key), so the one allowed keychain prompt can come there; later starts and restarts never touch the keychain. V-09 reads "none on broker start"; strictly, that holds from the second start on.
   - Migration of the per-secret keychain entries runs once, at the first start of this build, and reads each old entry: an unsigned build may ask once per old entry that one time.
   - Removing the user "mqtt-panel" does not touch the profile "Local broker" at once; the next broker change that the profile follows creates the user again, because the profile needs it.

@@ -7,7 +7,7 @@ Source legend: **Requested** by the owner, **Parity** with the predecessor tool,
 | # | Feature | Source | Release |
 |---|---|---|---|
 | C1 | Connection profiles: create, duplicate, edit, delete, reorder, search | Parity | 1.0 |
-| C2 | Transports: mqtt, mqtts, ws, wss; MQTT 3.1.1 and 5 with auto-negotiation; the negotiated version is shown in the title bar pill and in the Properties tab | Parity + Proposed | 1.0 |
+| C2 | Transports: mqtt, mqtts, ws, wss; MQTT 3.1.1 and 5 with auto-negotiation; the negotiated version is shown in the connection bar tab and in the Properties tab | Parity + Proposed | 1.0 |
 | C3 | TLS: CA, client cert and key (PEM, PKCS#12), self-signed and private-CA brokers accepted by trusting the certificate fingerprint per profile, lab-only skip-verification toggle, SNI, ALPN; file pickers and plain-word info bubbles for every security field | Requested | 1.0 |
 | C4 | Credentials in the OS keychain; profile export without secrets or with passphrase | Proposed | 1.0 |
 | C5 | Per-profile subscriptions with QoS; the default is everything ("#"), written as such; each filter chip has an X to remove it. Last will, keep-alive, clean start, session expiry, reconnect policy | Parity | 1.0 |
@@ -77,7 +77,7 @@ Source legend: **Requested** by the owner, **Parity** with the predecessor tool,
   - Protocol tag (ALPN): "Tells the broker which protocol is wanted over TLS. Some cloud brokers require a specific value (for example mqtt); leave empty otherwise."
 - "Test" performs CONNECT and DISCONNECT and reports the result in plain words. On a self-signed or unknown-CA certificate it says "This broker presents a certificate MQTT Panel cannot verify." and shows the certificate (subject, issuer, SAN list, fingerprint, expiry) with one action for a self-signed certificate: "Trust this certificate", with the scope stated in one line underneath ("This certificate only, for this profile. If the broker presents a different one, you are asked again."). Only when the presented chain ends in a private CA certificate does a second button appear, "Trust anything this CA signs", with its own scope line ("future certificates from this CA too"); it fills the profile's CA field. Owner feedback 12 Oct 2026: two similar options were confusing. Connect, not only Test, offers the same prompt the first time.
 - Errors from the broker (CONNACK reason codes in MQTT 5) are shown with the code and its meaning.
-- Several profiles can be connected at the same time. The title bar pill switches the active one; the Explorer, Publish and Charts screens are scoped to the active connection. The pill always shows the negotiated protocol version (MQTT 3.1.1 or MQTT 5), which may differ from what the profile asked for when "auto" is set.
+- Several profiles can be connected at the same time. The connection bar switches the active one (change set 2; the ⌘⇧L switch menu remains); the Explorer, Publish and Charts screens are scoped to the active connection. Each tab in the bar always shows the negotiated protocol version (MQTT 3.1.1 or MQTT 5), which may differ from what the profile asked for when "auto" is set.
 
 ### Explorer: tree and table
 - Tree rows show the last segment, a child count, the last value inline (truncated, monospace), a retained marker, an activity dot (changed in the last 10 s) and an optional sparkline of the last 10 cast values of the topic (the same series as the chart: value, never message rate; the rate is shown as text, "5 msg/s"). Hovering the sparkline shows the 10 values with their times.
