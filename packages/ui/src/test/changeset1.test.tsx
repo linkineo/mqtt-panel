@@ -14,7 +14,6 @@ import type { Listener } from '@mqttpanel/engine-client';
 const L = (id: string, kind: Listener['kind'], enabled = true): Listener => ({
   id,
   kind,
-  bind: 'network',
   port: 1000,
   enabled,
   preset: 'plain',
@@ -82,19 +81,21 @@ describe('Change set 1: "This app\'s broker" (02b)', () => {
 });
 
 describe('Change set 1: Broker screen (12, 12c)', () => {
-  it('has no "Connect Explorer here", puts Authentication above Client certificates and lists users in a table', async () => {
+  it('has no "Connect Explorer here", puts Users above Client certificates and lists users in a table', async () => {
     await boot('demo');
     useApp.setState({ brokerConfig: await engine().brokerConfig(), screen: 'broker' });
     render(<BrokerScreen />);
     await waitFor(() => expect(screen.getAllByTestId('issued-row').length).toBeGreaterThan(0));
     expect(screen.queryByTestId('connect-here')).toBeNull();
     expect(screen.queryByText('Connect Explorer here')).toBeNull();
-    const auth = screen.getByTestId('auth');
+    const users = screen.getByTestId('users');
     const certs = screen.getByTestId('client-certs');
-    expect(auth.compareDocumentPosition(certs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(users.compareDocumentPosition(certs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const rows = screen.getAllByTestId('user-row');
     expect(rows.map((r) => r.getAttribute('data-user'))).toEqual(['mqtt-panel', 'commissioning', 'edge01', 'dashboard']);
-    expect(rows[0].textContent).toContain('created for the profile "Local broker"');
+    // change set 4: a muted "Local broker" tag instead of the sentence
+    expect(within(rows[0]).getByTestId('user-local-tag').textContent).toBe('Local broker');
+    expect(rows[0].textContent).not.toContain('created for the profile');
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).not.toContain('Login');
   });
 
@@ -122,11 +123,11 @@ describe('Change set 1: Broker screen (12, 12c)', () => {
     useApp.setState({ brokerConfig: await engine().brokerConfig(), screen: 'broker' });
     render(<BrokerScreen />);
     await waitFor(() => expect(screen.getAllByTestId('listener-row').length).toBe(4));
-    const ws = screen.getAllByTestId('listener-row').find((r) => r.getAttribute('data-listener') === 'l-ws')!;
-    await act(async () => fireEvent.click(within(ws).getByText('Network')));
+    // change set 4: reachability is broker-wide, on the Listeners line
+    await act(async () => fireEvent.click(screen.getByTestId('reach-localhost')));
     const prompt = await screen.findByTestId('restart-prompt');
     expect(prompt.textContent).toContain('Restart the broker to apply the change?');
-    expect(screen.getByTestId('restart-pending-list').textContent).toBe('Pending: WebSocket listener on port 8083 reachable from Network.');
+    expect(screen.getByTestId('restart-pending-list').textContent).toBe('Pending: listeners reachable from this computer only.');
     await act(async () => fireEvent.click(screen.getByTestId('restart-later')));
     expect(screen.queryByTestId('restart-prompt')).toBeNull();
     const btn = screen.getByTestId('broker-restart');
@@ -138,7 +139,7 @@ describe('Change set 1: Broker screen (12, 12c)', () => {
       useApp.setState({ broker: await engine().brokerStatus() });
     });
     const dash = screen.getAllByTestId('user-row').find((r) => r.getAttribute('data-user') === 'dashboard')!;
-    await act(async () => fireEvent.click(within(dash).getByText('Remove')));
+    await act(async () => fireEvent.click(within(dash).getByTestId('user-remove-dashboard')));
     await waitFor(() => expect(screen.getAllByTestId('user-row')).toHaveLength(3));
     expect(screen.queryByTestId('restart-prompt')).toBeNull();
     await act(async () => fireEvent.click(btn));

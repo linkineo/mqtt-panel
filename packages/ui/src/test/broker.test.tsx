@@ -9,22 +9,25 @@ import { renderMessage } from '../i18n';
 import i18next from 'i18next';
 
 describe('Broker anonymous gating (12b)', () => {
-  it('greys users and client certificates and shows "not checked"', async () => {
+  it('greys the users table, the client-certificate panel and Advanced security', async () => {
     await boot('demo');
     const cfg = await engine().setAnonymous(true);
-    useApp.setState({ brokerConfig: cfg, screen: 'broker' });
+    useApp.setState({ brokerConfig: cfg, screen: 'broker', folds: { security: false, advanced: false, brokerAdvanced: true } });
     render(<BrokerScreen />);
     await waitFor(() => expect(screen.getAllByTestId('issued-row').length).toBeGreaterThan(0));
-    expect(screen.getByTestId('anon-warning').textContent).toContain('Anonymous access is on.');
-    expect(screen.getByTestId('users').className).toContain('gated');
-    // change set 2: "On encrypted listeners" and "Verify against" live under Client certificates, gated with it
-    expect(screen.getByTestId('client-certs').contains(screen.getByTestId('verify-against'))).toBe(true);
-    expect(within(screen.getByTestId('require-cert-seg')).getAllByRole('radio').every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+    // change set 4: one sentence
+    expect(screen.getByTestId('anon-warning').textContent).toBe('Anonymous access is on: anyone who can reach a listener can connect.');
+    expect(screen.getByTestId('users-table').parentElement!.className).toContain('gated');
+    expect(screen.getByTestId('add-user')).toBeDisabled();
+    expect(screen.getByTestId('anonymous')).not.toBeDisabled();
     expect(screen.getByTestId('client-certs').className).toContain('gated');
     expect(screen.getByTestId('issue-cert')).toBeDisabled();
-    expect(screen.queryAllByTestId('listener-login')).toHaveLength(0);
-    const tls = screen.getAllByTestId('listener-row').find((r) => r.getAttribute('data-listener') === 'l-tls')!;
-    expect(within(tls).getByTestId('listener-cert').textContent).toBe('not checked');
+    expect(screen.getByTestId('import-csr')).toBeDisabled();
+    // the requirement and Verify against live in the "Advanced security" fold, gated with it
+    expect(screen.getByTestId('advanced-security').contains(screen.getByTestId('verify-against'))).toBe(true);
+    expect(within(screen.getByTestId('require-cert-seg')).getAllByRole('radio').every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getByTestId('fold-brokerAdvanced-summary').textContent).toBe('not checked while Anonymous is on');
+    expect(screen.queryAllByTestId('listener-cert')).toHaveLength(0);
   });
 
   it('restores the previous setup when Anonymous is off', async () => {
@@ -34,10 +37,11 @@ describe('Broker anonymous gating (12b)', () => {
     render(<BrokerScreen />);
     await waitFor(() => expect(screen.getAllByTestId('issued-row').length).toBeGreaterThan(0));
     expect(screen.queryByTestId('anon-warning')).toBeNull();
-    expect(screen.getByTestId('users').className).not.toContain('gated');
-    const tls = screen.getAllByTestId('listener-row').find((r) => r.getAttribute('data-listener') === 'l-tls')!;
-    expect(within(tls).getByTestId('listener-cert').textContent).toBe('required');
-    expect(screen.getByTestId('network-warning').textContent).toContain('Reachable from the network.');
+    expect(screen.getByTestId('users-table').parentElement!.className).not.toContain('gated');
+    expect(screen.getByTestId('client-certs').className).not.toContain('gated');
+    // no permanent network explanation (change set 4): it lives in the ⓘ next to the reachability choice
+    expect(screen.queryByTestId('network-warning')).toBeNull();
+    expect(screen.getByTestId('fold-brokerAdvanced-summary').textContent).toContain('client certificates required · local CA');
     await act(async () => undefined);
   });
 });

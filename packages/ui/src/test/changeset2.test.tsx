@@ -34,7 +34,8 @@ describe('Change set 2: Connections (C-14)', () => {
     // the security chip sits on the address line, next to the URL
     const chip = within(local).getByTestId('card-chip');
     expect(chip.parentElement!.querySelector('.mono')!.textContent).toBe('mqtts://localhost:8883');
-    expect(chip.textContent).toBe('TLS · mTLS');
+    // change set 4: TLS, WSS or no TLS; never "mTLS"
+    expect(chip.textContent).toBe('TLS');
   });
 
   it('card menu: Connect or Disconnect by state, Test, Duplicate, Delete… with a confirmation naming the profile', async () => {
@@ -79,14 +80,14 @@ describe('Change set 2: Connections (C-14)', () => {
   });
 });
 
-describe('Change set 2: connection bar and title bar pill (C-15)', () => {
+describe('Change set 2: connection bar (C-15)', () => {
   it('appears with the first open connection, one tab each, click opens the Explorer, ✕ disconnects, hidden when none', async () => {
     await boot('demo');
-    await engine().brokerStop();
     useApp.setState({ broker: await engine().brokerStatus(), screen: 'connect' });
     render(<App />);
     expect(screen.queryByTestId('cbar')).toBeNull();
-    expect(screen.getByTestId('pill').textContent).toBe('Not connected');
+    expect(screen.queryByTestId('pill')).toBeNull();
+    expect(screen.queryByTestId('rail-connect-count')).toBeNull();
     await act(async () => {
       await connect('plant');
       await connect('local');
@@ -95,8 +96,7 @@ describe('Change set 2: connection bar and title bar pill (C-15)', () => {
     expect(tabs.map((t) => t.getAttribute('data-conn'))).toEqual(['plant', 'local']);
     expect(tabs[0].textContent).toMatch(/^Plant broker· \d[\d  ]* topics · [\d.,]+ msg\/s · MQTT 5✕$/);
     expect(tabs[1].getAttribute('aria-selected')).toBe('true');
-    // nothing to show in the pill while connections are open and the broker is stopped
-    expect(screen.queryByTestId('pill')).toBeNull();
+    expect(screen.getByTestId('rail-connect-count').textContent).toBe('2');
     useApp.setState({ screen: 'connect' });
     await act(async () => fireEvent.click(tabs[0]));
     expect(useApp.getState().screen).toBe('explore');
@@ -109,20 +109,9 @@ describe('Change set 2: connection bar and title bar pill (C-15)', () => {
     await act(async () => fireEvent.click(screen.getByTestId('cbar-close')));
     await act(async () => sync());
     expect(screen.queryByTestId('cbar')).toBeNull();
+    expect(screen.queryByTestId('rail-connect-count')).toBeNull();
   });
 
-  it('the pill shows only the broker state and lab flags', async () => {
-    await boot('demo');
-    await connect('plant');
-    useApp.setState({ broker: await engine().brokerStatus(), brokerConfig: await engine().brokerConfig() });
-    render(<App />);
-    expect(screen.getByTestId('pill').textContent).toBe('Local broker · running · 7 clients');
-    expect(screen.getByTestId('pill').textContent).not.toContain('Plant broker');
-    await act(async () => useApp.getState().saveSettings({ skipVerify: true }));
-    expect(screen.getByTestId('pill').textContent).toBe('Local broker · running · 7 clients · skip-verify ON');
-    await act(async () => fireEvent.click(screen.getByTestId('pill')));
-    expect(useApp.getState().screen).toBe('broker');
-  });
 });
 
 describe('Change set 2: Publish (P-11)', () => {
@@ -142,36 +131,31 @@ describe('Change set 2: Publish (P-11)', () => {
 });
 
 describe('Change set 2: Broker (B-18, B-19)', () => {
-  it('B-18: one broker-wide control under Client certificates; Required explains; listener rows read-only', async () => {
+  it('B-18: one broker-wide control, in "Advanced security" (change set 4); listener rows never show it', async () => {
     await boot('demo');
     useApp.setState({ brokerConfig: await engine().brokerConfig(), broker: await engine().brokerStatus(), screen: 'broker' });
     render(<BrokerScreen />);
     await waitFor(() => expect(screen.getAllByTestId('issued-row').length).toBeGreaterThan(0));
-    const certs = screen.getByTestId('client-certs');
-    const policy = within(certs).getByTestId('require-cert');
-    expect(policy.textContent).toContain('On encrypted listeners');
-    expect(within(certs).getByTestId('verify-against').textContent).toContain('Verify against');
-    expect(within(screen.getByTestId('auth')).queryByText('Verify against')).toBeNull();
+    expect(screen.queryByTestId('advanced-security')).toBeNull();
+    await act(async () => fireEvent.click(screen.getByTestId('fold-brokerAdvanced')));
+    const adv = screen.getByTestId('advanced-security');
+    const policy = within(adv).getByTestId('require-cert');
+    expect(policy.textContent).toContain('Client certificates');
+    expect(policy.textContent).toContain('on encrypted listeners');
+    expect(within(adv).getByTestId('verify-against').textContent).toContain('Verify against');
     const seg = within(policy).getByTestId('require-cert-seg');
     expect(within(seg).getAllByRole('radio').map((b) => b.textContent)).toEqual(['Optional', 'Required']);
-    expect(screen.getByTestId('require-cert-hint').textContent).toBe('Every device needs its own certificate, issued here, before it can connect.');
-    const cell = (id: string) => within(screen.getAllByTestId('listener-row').find((r) => r.getAttribute('data-listener') === id)!).getByTestId('listener-cert');
-    expect(cell('l-tls').textContent).toBe('required');
-    expect(cell('l-wss').textContent).toBe('required');
-    expect(cell('l-tcp').textContent).toBe('—');
-    expect(cell('l-tls').querySelector('button, input')).toBeNull();
-    // Optional: rows follow, the explanation goes, a restart is asked for
-    await act(async () => fireEvent.click(within(seg).getByText('Optional')));
-    await waitFor(() => expect(cell('l-tls').textContent).toBe('optional'));
-    expect(cell('l-wss').textContent).toBe('optional');
-    expect(cell('l-tcp').textContent).toBe('—');
     expect(screen.queryByTestId('require-cert-hint')).toBeNull();
+    expect(screen.queryAllByTestId('listener-cert')).toHaveLength(0);
+    expect(screen.getByTestId('fold-brokerAdvanced-summary').textContent).toContain('client certificates required');
+    await act(async () => fireEvent.click(within(seg).getByText('Optional')));
+    await waitFor(() => expect(screen.getByTestId('fold-brokerAdvanced-summary').textContent).toContain('client certificates optional'));
     expect(useApp.getState().restartPrompt).toBe(true);
     expect(useApp.getState().pendingChanges.map((c) => c.key)).toContain('rs.ch.certOptional');
     expect((await engine().brokerConfig()).requireClientCert).toBe(false);
   });
 
-  it('B-18: the Mutual TLS preset sets Required; step 2 shows it as information', async () => {
+  it('B-18: the "Encrypted + client certificates" preset sets Required; step 2 asks kind and port only', async () => {
     await boot('demo');
     await engine().setRequireClientCert(false);
     useApp.setState({ brokerConfig: await engine().brokerConfig(), broker: await engine().brokerStatus(), screen: 'broker' });
@@ -179,12 +163,12 @@ describe('Change set 2: Broker (B-18, B-19)', () => {
     await waitFor(() => expect(screen.getAllByTestId('issued-row').length).toBeGreaterThan(0));
     await act(async () => fireEvent.click(screen.getByTestId('add-listener')));
     const step1 = await screen.findByTestId('add-listener-1');
-    await act(async () => fireEvent.click(within(step1).getByText('Mutual TLS')));
-    expect(screen.getByTestId('preset-explain').textContent).toContain('It sets "Client certificate on encrypted listeners" to Required for the whole broker (one setting, under Client certificates) and uses the local CA.');
+    await act(async () => fireEvent.click(within(step1).getByText('Encrypted + client certificates')));
+    expect(screen.getByTestId('preset-explain').textContent).toContain('It sets client certificates to Required for every encrypted listener (one setting, under Advanced security) and uses the local CA.');
     await act(async () => fireEvent.click(within(step1).getByText('Next')));
-    const row = within(await screen.findByTestId('add-listener-2')).getByTestId('addl-client-cert');
-    expect(row.textContent).toBe('Client certificaterequiredBroker-wide setting, under Client certificates.');
-    expect(row.querySelector('button, input')).toBeNull();
+    const step2 = await screen.findByTestId('add-listener-2');
+    expect(within(step2).queryByTestId('addl-client-cert')).toBeNull();
+    expect(Array.from(step2.querySelectorAll('.f > .lbl, .f > label')).map((l) => l.textContent)).toEqual(['Kind', 'Port']);
     fireEvent.change(screen.getByTestId('addl-port'), { target: { value: '9884' } });
     await act(async () => fireEvent.click(screen.getByTestId('addl-add')));
     await waitFor(async () => expect((await engine().brokerConfig()).requireClientCert).toBe(true));
@@ -199,8 +183,8 @@ describe('Change set 2: Broker (B-18, B-19)', () => {
     expect(within(side).queryByText('Refresh')).toBeNull();
     expect(screen.queryByTestId('broker-log')).toBeNull();
     const strip = screen.getByTestId('broker-log-strip');
-    await waitFor(() => expect(strip.textContent).toContain('▸Log· live· 2 warnings'));
-    expect(strip.textContent).toContain('click to expand');
+    // change set 4: no "live", no "click to expand"
+    await waitFor(() => expect(strip.textContent).toBe('▸Log· 2 warnings'));
     // live: a client disconnected elsewhere leaves the table without a refresh
     const rows = () => within(screen.getByTestId('clients')).getAllByRole('row').length;
     const n = rows();

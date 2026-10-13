@@ -60,9 +60,19 @@ export const STATES: UiState[] = [
     },
   },
   {
+    id: '02d-folds-open',
+    query: 'mock=demo&connect=local&screen=connect',
+    steps: async (p) => {
+      await p.click('[data-testid=fold-security]');
+      await p.click('[data-testid=fold-advanced]');
+      await p.waitForSelector('[data-testid=info-caCert]');
+    },
+  },
+  {
     id: '02-info-bubble',
     query: 'mock=demo',
     steps: async (p) => {
+      await p.click('[data-testid=fold-security]');
       await p.click('[data-testid=info-caCert]');
       await p.waitForSelector('[data-testid=bubble-caCert]');
     },
@@ -235,6 +245,7 @@ export const STATES: UiState[] = [
       // mockup 12c: the log expanded with its level filter, then a port change asks for a restart
       await p.click('[data-testid=log-toggle]');
       await p.waitForSelector('[data-testid=broker-log]');
+      await p.click('[data-testid=fold-brokerAdvanced]');
       await changeTlsPort(p);
     },
   },
@@ -242,6 +253,7 @@ export const STATES: UiState[] = [
     id: '12e-client-cert-optional',
     query: 'mock=demo&screen=broker',
     steps: async (p) => {
+      await p.click('[data-testid=fold-brokerAdvanced]');
       await p.locator('[data-testid=require-cert-seg] button').first().click();
       await p.waitForSelector('[data-testid=restart-prompt]');
       await p.click('[data-testid=restart-later]');

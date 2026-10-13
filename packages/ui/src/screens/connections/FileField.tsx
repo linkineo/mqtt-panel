@@ -1,24 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { FileField as FileFieldT, FileInspection, Profile, UserMessage } from '@mqttpanel/engine-client';
+import type { FileInspection, Profile, UserMessage } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
 import { toMessage } from '../../i18n';
 import { Modal, Msg } from '../../components/ui';
-import { isoDateToMonth } from '../../lib/format';
 
 type Field = 'caCert' | 'clientCert' | 'clientKey';
 
-/** What the app parsed from a file, as the short chip next to the file name. */
-export function fileChip(field: Field, f: FileFieldT, t: (k: string, o?: Record<string, unknown>) => string): string {
-  const s = f.summary;
-  if (f.inKeychain) return t('file.keychain');
-  if (!s) return '';
-  if (field === 'caCert') return s.notAfter ? t('file.until', { date: isoDateToMonth(s.notAfter) }) : s.cn ? `CN=${s.cn}` : '';
-  if (field === 'clientCert') return s.cn ? `CN=${s.cn}` : (s.subject ?? '');
-  return s.keyType ?? '';
-}
-
-/** A certificate or key field: read-only file name, Browse…, drop target, parsed chip or plain error (C3). */
+/**
+ * A certificate or key field: read-only file name, Browse…, drop target, and a plain error when the file is not
+ * what the field expects (C3). Nothing parsed is shown next to the name (owner, 13 Oct 2026, change set 4).
+ */
 export function FileField(props: {
   field: Field;
   profile: Profile;
@@ -94,7 +86,6 @@ export function FileField(props: {
     [field],
   );
 
-  const chip = value ? fileChip(field, value, t) : '';
   return (
     <>
       <div className="row2" ref={ref} data-testid={`file-${field}`}>
@@ -104,12 +95,10 @@ export function FileField(props: {
         <button type="button" className="btn sm" onClick={() => void browse()} disabled={busy} data-testid={`browse-${field}`}>
           {t('common.browse')}
         </button>
-        {error ? (
+        {error && (
           <span className="hint err" data-testid={`file-error-${field}`}>
             <Msg msg={error} />
           </span>
-        ) : (
-          chip && <span className="chip on">{chip}</span>
         )}
         {value && (
           <button type="button" className="iconbtn" aria-label={t('file.clear', { name: props.label })} onClick={() => void apply(null, null)}>

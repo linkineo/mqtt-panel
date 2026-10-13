@@ -4,12 +4,13 @@ import { resources } from '../i18n';
 import { boot } from './util';
 import { Info } from '../components/ui';
 
-// Texts from docs/FEATURES.md (T-26); they must match exactly in English.
+// Texts from docs/FEATURES.md (T-26); they must match exactly in English. Change set 4: the client certificate text
+// drops "(mutual TLS)" (no "mTLS" or "Mutual TLS" anywhere, docs/DECISIONS.md, Open).
 const FEATURES: Record<string, string> = {
   caCert:
     "The certificate of the authority that signed the broker's certificate. Needed when the broker uses a private or self-signed certificate; leave empty for brokers with a public certificate.",
   clientCert:
-    'Identifies this computer to the broker, instead of or in addition to a password. Only needed if the broker requires client certificates (mutual TLS).',
+    'Identifies this computer to the broker, instead of or in addition to a password. Only needed if the broker requires client certificates.',
   clientKey: 'The private key belonging to the client certificate. Stored in the OS keychain, never in the profile file.',
   sni: 'The host name sent to the broker during the TLS handshake. Leave empty to use the host above; only change it if the broker serves several names on one address.',
   alpn: 'Tells the broker which protocol is wanted over TLS. Some cloud brokers require a specific value (for example mqtt); leave empty otherwise.',
@@ -20,7 +21,7 @@ const FEATURES: Record<string, string> = {
     'Request and response is an MQTT 5 feature. Your message carries a response topic and a correlation ID. The device answers on that response topic and copies the correlation ID into its reply. MQTT Panel subscribes to the response topic for you, matches the reply by correlation ID and shows it next to the sent entry. Broker and device must both speak MQTT 5; on 3.1.1 this section is not available.',
 };
 
-const SECURITY = ['caCert', 'clientCert', 'clientKey', 'sni', 'alpn', 'verifyServer', 'filters', 'anonymous', 'onEncrypted', 'verifyAgainst', 'reachable', 'appbAdd', 'passphrase', 'certName', 'preset.plain', 'preset.encrypted', 'preset.passwords', 'preset.mtls', 'skipVerify', 'request'];
+const SECURITY = ['caCert', 'clientCert', 'clientKey', 'sni', 'alpn', 'verifyServer', 'filters', 'anonymous', 'onEncrypted', 'verifyAgainst', 'reachable', 'clientCerts', 'appbAdd', 'passphrase', 'certName', 'preset.plain', 'preset.encrypted', 'preset.passwords', 'preset.mtls', 'skipVerify', 'request'];
 
 describe('Info bubbles (T-26)', () => {
   it('match the FEATURES text exactly in English', () => {

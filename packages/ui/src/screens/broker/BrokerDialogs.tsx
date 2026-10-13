@@ -7,7 +7,6 @@ import { useApp } from '../../store/app';
 import { reportSave, run } from '../../lib/actions';
 import { Check, Info, Modal, Msg, Seg } from '../../components/ui';
 import { SecretInput } from '../../components/Secret';
-import { isoDateToMonth } from '../../lib/format';
 
 export const DEFAULT_PORTS: Record<ListenerKind, number> = { tcp: 1883, tls: 8883, ws: 8083, wss: 8084 };
 export const PRESETS: Preset[] = ['plain', 'encrypted', 'passwords', 'mtls'];
@@ -42,14 +41,12 @@ function untilDate(years: number): string {
  */
 export function AddListenerDialog({
   config,
-  certs,
   onClose,
   onConfig,
   onAdded,
   context = 'broker',
 }: {
   config: BrokerConfig;
-  certs: BrokerCerts | null;
   onClose(): void;
   onConfig(c: BrokerConfig): void;
   onAdded?(l: Listener): void;
@@ -67,10 +64,8 @@ export function AddListenerDialog({
     return p;
   };
   const [port, setPort] = useState(String(freePort('tls')));
-  const [bind, setBind] = useState<'network' | 'localhost'>('network');
   const [portError, setPortError] = useState<UserMessage | null>(null);
   const [busy, setBusy] = useState(false);
-  const secure = kind === 'tls' || kind === 'wss';
 
   useEffect(() => {
     let live = true;
@@ -92,7 +87,7 @@ export function AddListenerDialog({
     setBusy(true);
     try {
       const before = new Set(config.listeners.map((l) => l.id));
-      const c = await engine().addListener({ preset, kind, port: Number(port), bind });
+      const c = await engine().addListener({ preset, kind, port: Number(port) });
       onConfig(c);
       const added = c.listeners.find((l) => !before.has(l.id));
       if (onAdded && added) onAdded(added);
@@ -158,7 +153,6 @@ export function AddListenerDialog({
     );
   }
 
-  const certOk = certs?.server;
   return (
     <Modal
       title={
@@ -211,44 +205,6 @@ export function AddListenerDialog({
             )}
           </span>
         </div>
-        <div className="f">
-          <span className="lbl">
-            {t('broker.reachable')} <Info id="reachable" title={t('broker.reachable')} />
-          </span>
-          <span className="row2">
-            <Seg
-              label={t('broker.reachable')}
-              value={bind}
-              onChange={setBind}
-              options={[
-                { value: 'network', label: t('broker.network') },
-                { value: 'localhost', label: t('broker.localhost') },
-              ]}
-            />
-            <span className="hint">{bind === 'network' ? t('addl.networkHint') : t('addl.localhostHint')}</span>
-          </span>
-        </div>
-        {secure && (
-          // information only: the requirement is broker-wide (change set 2); Mutual TLS sets it to Required
-          <div className="f" data-testid="addl-client-cert">
-            <span className="lbl">{t('addl.clientCertificate')}</span>
-            <span className="row2">
-              <span className={`chip${preset === 'mtls' || config.requireClientCert ? ' on' : ''}`}>{preset === 'mtls' || config.requireClientCert ? t('broker.required') : t('broker.optional')}</span>
-              <span className="hint">{t('addl.wideHint')}</span>
-            </span>
-          </div>
-        )}
-        {secure && (
-          <div className="f">
-            <span className="lbl">{t('addl.serverCert')}</span>
-            <span className="row2">
-              {certOk && <span className="chip on">{t('addl.serverChip', { name: certs!.server.subject.replace(/^CN=/, '').split(',')[0], date: isoDateToMonth(certs!.server.notAfter) })}</span>}
-              <button type="button" className="btn sm" onClick={() => void run(engine().importBrokerCert())}>
-                {t('addl.useAnother')}
-              </button>
-            </span>
-          </div>
-        )}
       </div>
       <div className="warnstrip" data-testid="addl-after">
         {context === 'flow' ? t('addl.afterFlow') : running ? t('addl.afterPrompt') : t('addl.afterStopped')} {t(`addl.after.${preset}`)}

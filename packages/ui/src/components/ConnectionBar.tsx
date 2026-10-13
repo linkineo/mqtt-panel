@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
-import type { ConnectionStatus } from '@mqttpanel/engine-client';
+import type { ConnectionStatus, Profile } from '@mqttpanel/engine-client';
 import { useApp } from '../store/app';
 import { platform } from '../services';
 import { fmtNum, fmtRate } from '../lib/format';
@@ -9,6 +9,16 @@ import { disconnect, useBusy } from '../lib/actions';
 /** Open connections: connected, connecting or reconnecting (the connection bar lists these). */
 export function isOpen(c: ConnectionStatus): boolean {
   return c.state === 'connected' || c.state === 'connecting' || c.state === 'reconnecting';
+}
+
+/**
+ * Server verification skipped on an encrypted connection: the lab-only "skip certificate verification" setting, or
+ * "Verify server" off in the profile. Shown as the clay "unverified" chip on the tab and the card (change set 4).
+ */
+export function isUnverified(c: ConnectionStatus | null | undefined, p: Profile | null | undefined): boolean {
+  if (!c || !p || !isOpen(c)) return false;
+  if (p.scheme !== 'mqtts' && p.scheme !== 'wss') return false;
+  return c.skipVerify || !p.tls.verifyServer;
 }
 
 /** Makes a connection the active one and opens the Explorer on it (connection bar, ⌘⇧L, command palette). */
@@ -29,8 +39,8 @@ export async function switchConnectionMenu(x: number, y: number): Promise<void> 
   }));
   if (items.length) items.push({ id: 'sep', label: '', separator: true });
   const active = open.find((c) => c.id === st.activeConnId);
-  if (active) items.push({ id: `disc:${active.id}`, label: t('pill.disconnect', { name: active.name }) });
-  items.push({ id: 'go-connect', label: open.length ? t('pill.otherConnection') : t('pill.chooseConnection') });
+  if (active) items.push({ id: `disc:${active.id}`, label: t('cbar.close', { name: active.name }) });
+  items.push({ id: 'go-connect', label: open.length ? t('cbar.other') : t('cbar.choose') });
   const id = await platform().showContextMenu(items, x, y);
   if (!id) return;
   if (id === 'go-connect') st.setScreen('connect');
@@ -39,10 +49,11 @@ export async function switchConnectionMenu(x: number, y: number): Promise<void> 
 }
 
 /** Short live figures of a tab: "1 284 topics · 312 msg/s · MQTT 5", or the state while not connected. */
-function figures(c: ConnectionStatus, t: (k: string, o?: Record<string, unknown>) => string): string {
+function figures(c: ConnectionStatus, t: (k: string, o?: Record<string, unknown>) => string, startingBroker: boolean): string {
+  if (startingBroker) return t('conn.stateStartingBroker');
   if (c.state === 'connecting') return t('conn.stateConnecting');
   if (c.state === 'reconnecting') return t('conn.stateReconnecting');
-  const parts = [t('pill.topics', { count: c.topics, n: fmtNum(c.topics) }), t('pill.rate', { rate: fmtRate(c.msgRate) })];
+  const parts = [t('cbar.topics', { count: c.topics, n: fmtNum(c.topics) }), t('cbar.rate', { rate: fmtRate(c.msgRate) })];
   if (c.negotiatedVersion) parts.push(`MQTT ${c.negotiatedVersion}`);
   return parts.join(' · ');
 }
@@ -68,6 +79,8 @@ export function useOpenTabs(): ConnectionStatus[] {
 export function ConnectionBar({ tabs: open }: { tabs: ConnectionStatus[] }) {
   const { t } = useTranslation();
   const activeId = useApp((s) => s.activeConnId);
+  const startingId = useBusy((s) => s.startingBroker);
+  const profiles = useApp((s) => s.profiles);
   if (!open.length) return null;
   return (
     <div className="cbar" role="tablist" aria-label={t('cbar.label')} data-testid="cbar">
@@ -100,7 +113,12 @@ export function ConnectionBar({ tabs: open }: { tabs: ConnectionStatus[] }) {
           >
             <span className={`dot${dot}`} />
             <span className="nm">{c.name}</span>
-            <small>· {figures(c, t)}</small>
+            <small>· {figures(c, t, startingId === c.id)}</small>
+            {isUnverified(c, profiles.find((p) => p.id === c.id)) && (
+              <span className="chip clay" data-testid="cbar-unverified">
+                {t('conn.unverified')}
+              </span>
+            )}
             <button
               type="button"
               className="x"
@@ -118,64 +136,5 @@ export function ConnectionBar({ tabs: open }: { tabs: ConnectionStatus[] }) {
         );
       })}
     </div>
-  );
-}
-
-/**
- * The title bar pill (change set 2): the embedded broker's state ("Local broker · running · 7 clients", "anonymous",
- * "restart pending") and the lab flags (skip verification). With nothing to show it reads "Not connected"; while
- * connections are open and there is nothing to show, it is hidden (the connection bar shows them, mockup 04).
- */
-export function TitlePill() {
-  const { t } = useTranslation();
-  const screen = useApp((s) => s.screen);
-  const broker = useApp((s) => s.broker);
-  const brokerConfig = useApp((s) => s.brokerConfig);
-  const skip = useApp((s) => s.settings.skipVerify);
-  const connections = useApp((s) => s.connections);
-  const anyOpen = connections.some(isOpen);
-  const connSkip = connections.some((c) => isOpen(c) && c.skipVerify);
-
-  const parts: string[] = [];
-  let dot = 'off';
-  let brokerShown = false;
-  if (broker && (broker.state !== 'stopped' || screen === 'broker')) {
-    brokerShown = true;
-    parts.push(t('pill.localBroker'));
-    if (broker.state === 'running') {
-      parts.push(t('pill.running'));
-      if (brokerConfig?.anonymous) parts.push(t('pill.anonymous'));
-      // mockup 12c: "Local broker · running · restart pending" (the pending restart replaces the client count)
-      if (broker.restartNeeded) parts.push(t('pill.restartPending'));
-      else parts.push(t('pill.clients', { count: broker.clients, n: fmtNum(broker.clients) }));
-      dot = brokerConfig?.anonymous ? 'warn' : 'on';
-    } else if (broker.state === 'starting') {
-      parts.push(t('pill.starting'));
-      dot = 'warn';
-    } else if (broker.state === 'failed') {
-      parts.push(t('pill.failed'));
-      dot = 'err';
-    } else parts.push(t('pill.stopped'));
-  }
-  if (skip || connSkip) {
-    parts.push(t('pill.skipVerify'));
-    dot = 'warn';
-  }
-  if (!parts.length) {
-    if (anyOpen) return <span data-testid="pill-none" />;
-    parts.push(t('pill.notConnected'));
-  }
-  const text = parts.join(' · ');
-  return (
-    <button
-      type="button"
-      className="conn"
-      data-testid="pill"
-      aria-label={t('pill.aria', { status: text })}
-      onClick={() => useApp.getState().setScreen(brokerShown ? 'broker' : 'connect')}
-    >
-      <span className={`dot${dot === 'on' ? '' : ' ' + dot}`} />
-      <span className="ell">{text}</span>
-    </button>
   );
 }

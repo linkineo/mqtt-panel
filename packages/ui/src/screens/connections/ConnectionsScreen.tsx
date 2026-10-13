@@ -3,12 +3,13 @@ import { useTranslation } from 'react-i18next';
 import type { ImportSummary, Profile } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
 import { useApp } from '../../store/app';
-import { connectProfile, disconnect, duplicateProfile, run, saveProfile, testProfile } from '../../lib/actions';
+import { connectProfile, disconnect, duplicateProfile, run, saveProfile, testProfile, useBusy } from '../../lib/actions';
 import { shortcut } from '../../lib/keys';
 import { Kbd, Modal, Msg } from '../../components/ui';
 import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { ProfileForm } from './ProfileForm';
 import { AppBrokerDialog } from './AppBrokerDialog';
+import { isUnverified } from '../../components/ConnectionBar';
 
 type AppDialog = 'pick' | 'add' | null;
 
@@ -43,9 +44,10 @@ export function profileUrl(p: Profile): string {
   return `${p.scheme}://${p.host}:${p.port}${path}`;
 }
 
+/** The security chip of a card: TLS, WSS or "no TLS" (owner, 13 Oct 2026: no abbreviation for client certificates). */
 export function tlsChip(p: Profile): { label: string; tone: 'on' | 'clay' } {
   if (p.scheme === 'wss') return { label: 'WSS', tone: 'on' };
-  if (p.scheme === 'mqtts') return { label: p.tls.clientCert ? 'TLS · mTLS' : 'TLS', tone: 'on' };
+  if (p.scheme === 'mqtts') return { label: 'TLS', tone: 'on' };
   return { label: 'noTls', tone: 'clay' };
 }
 
@@ -64,19 +66,32 @@ function lastUsedKey(ms: number | null): [string, Record<string, unknown>] {
 function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; onSelect(): void; dragProps: React.HTMLAttributes<HTMLDivElement> }) {
   const { t } = useTranslation();
   const conn = useApp((s) => s.connections.find((c) => c.id === p.id) ?? null);
+  const starting = useBusy((s) => s.startingBroker === p.id);
+  const pending = useBusy((s) => s.connecting === p.id);
   const chip = tlsChip(p);
   const [lk, lp] = lastUsedKey(p.lastUsed);
   const version = p.mqttVersion === 'auto' ? t('conn.versionAuto') : `MQTT ${p.mqttVersion}`;
   const meta = [
-    p.isLocalBroker ? t('conn.embedded') : null,
+    p.isLocalBroker ? t('conn.newApp') : null,
     version,
     p.isLocalBroker ? null : t('conn.subCount', { count: p.subscriptions.length }),
     t(lk, lp),
   ].filter(Boolean);
   // change set 2: a connected card is filled with the accent colour and reads "connected"; a reconnecting (or
   // connecting) one is outlined in clay
-  const state = conn?.state === 'connected' ? 'connected' : conn?.state === 'reconnecting' ? 'reconnecting' : conn?.state === 'connecting' ? 'connecting' : null;
+  // change set 4: "Local broker" starts the embedded broker first ("starting broker…", then "connecting")
+  const state = starting
+    ? 'starting'
+    : conn?.state === 'connected'
+      ? 'connected'
+      : conn?.state === 'reconnecting'
+        ? 'reconnecting'
+        : conn?.state === 'connecting' || pending
+          ? 'connecting'
+          : null;
   const tone = state === 'connected' ? ' live' : state ? ' retry' : '';
+  const stoppable = !!conn && (conn.state === 'connected' || conn.state === 'connecting' || conn.state === 'reconnecting');
+  const stateKey = { starting: 'conn.stateStartingBroker', connected: 'conn.stateConnected', reconnecting: 'conn.stateReconnecting', connecting: 'conn.stateConnecting' };
   return (
     <div
       role="option"
@@ -92,8 +107,27 @@ function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; 
       <div className="t">
         <span>{p.name || t('conn.untitled')}</span>
         {state && (
-          <span className="state" data-testid="card-state">
-            {t(state === 'connected' ? 'conn.stateConnected' : state === 'reconnecting' ? 'conn.stateReconnecting' : 'conn.stateConnecting')}
+          <span className="stw">
+            <span className="state" data-testid="card-state">
+              {t(stateKey[state])}
+            </span>
+            {stoppable && (
+              // change set 4: disconnects this connection only, never the broker; on a reconnecting card it cancels the retries
+              <button
+                type="button"
+                className="stop"
+                aria-label={t('conn.disconnect')}
+                title={t('conn.disconnect')}
+                data-testid="card-stop"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void disconnect(p.id);
+                }}
+              >
+                <span aria-hidden="true">■</span>
+              </button>
+            )}
           </span>
         )}
       </div>
@@ -102,6 +136,11 @@ function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; 
         <span className={`chip ${chip.tone}`} data-testid="card-chip">
           {chip.label === 'noTls' ? t('conn.noTls') : chip.label}
         </span>
+        {isUnverified(conn, p) && (
+          <span className="chip clay" data-testid="card-unverified">
+            {t('conn.unverified')}
+          </span>
+        )}
       </div>
       <div className="s">{meta.join(' · ')}</div>
     </div>

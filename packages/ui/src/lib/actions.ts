@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ConnectOutcome, Profile, SaveOutcome, TrustPrompt } from '@mqttpanel/engine-client';
+import type { ConnectOutcome, Profile, SaveOutcome, TrustPrompt, UserMessage } from '@mqttpanel/engine-client';
 import { engine } from '../services';
 import { toMessage } from '../i18n';
 import { useApp } from '../store/app';
@@ -16,7 +16,32 @@ export const useTrust = create<TrustState>((set) => ({
   set: (prompt, action) => set({ prompt, action }),
 }));
 
-export const useBusy = create<{ connecting: string | null; testing: string | null }>(() => ({ connecting: null, testing: null }));
+/** Work in progress per profile: connecting, testing, or starting the embedded broker first ("Local broker"). */
+export const useBusy = create<{ connecting: string | null; testing: string | null; startingBroker: string | null }>(() => ({
+  connecting: null,
+  testing: null,
+  startingBroker: null,
+}));
+
+/**
+ * Connect and Test on the profile "Local broker" start the embedded broker first when it is not running (owner,
+ * 13 Oct 2026, change set 4). Returns the broker's reason when it cannot start, so the connection fails with it.
+ */
+async function ensureLocalBroker(id: string): Promise<UserMessage | null> {
+  const p = useApp.getState().profiles.find((x) => x.id === id);
+  if (!p?.isLocalBroker) return null;
+  const st = await engine().brokerStatus();
+  if (st.state === 'running') return null;
+  useBusy.setState({ startingBroker: id });
+  try {
+    const s = await engine().brokerStart();
+    useApp.setState({ broker: s });
+    if (s.state === 'running') return null;
+    return s.error ?? s.listeners.find((l) => l.error)?.error ?? { key: 'broker.noListener', params: {}, text: 'No listener is enabled. Turn one on first.' };
+  } finally {
+    useBusy.setState({ startingBroker: null });
+  }
+}
 
 async function refresh(): Promise<void> {
   const [profiles, connections] = await Promise.all([engine().listProfiles(), engine().listConnections()]);
@@ -43,6 +68,12 @@ export async function handleConnectOutcome(id: string, out: ConnectOutcome, swit
 export async function connectProfile(id: string, switchScreen = true): Promise<boolean> {
   useBusy.setState({ connecting: id });
   try {
+    const down = await ensureLocalBroker(id);
+    if (down) {
+      await refresh();
+      useApp.getState().toast({ kind: 'err', msg: down });
+      return false;
+    }
     const out = await engine().connectProfile(id);
     return await handleConnectOutcome(id, out, switchScreen);
   } catch (e) {
@@ -56,6 +87,12 @@ export async function connectProfile(id: string, switchScreen = true): Promise<b
 export async function testProfile(id: string): Promise<void> {
   useBusy.setState({ testing: id });
   try {
+    const down = await ensureLocalBroker(id);
+    if (down) {
+      await refresh();
+      useApp.getState().toast({ kind: 'err', msg: down });
+      return;
+    }
     const out = await engine().testProfile(id);
     if (out.kind === 'needsTrust') useTrust.getState().set(out.trust, 'test');
     await refresh();

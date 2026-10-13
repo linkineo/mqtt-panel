@@ -82,8 +82,6 @@ input, textarea { cursor: text }
 .tb .name { font-weight: 800; letter-spacing: -.02em; font-size: 14px; white-space: nowrap }
 .tb .mark { width: 20px; height: 20px; color: var(--sage); justify-self: end }
 .tb .mark svg { width: 100%; height: 100% }
-.conn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 14px; padding: 3px 10px 3px 8px; font-size: 12px; color: var(--ink-2); background: var(--surface); white-space: nowrap; max-width: 640px; overflow: hidden }
-button.conn:hover { color: var(--ink) }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); display: inline-block; flex: none }
 .dot.off { background: var(--ink-2); opacity: .5 }
 .dot.warn { background: var(--clay) }
@@ -274,7 +272,7 @@ button.chip:hover { filter: brightness(.97) }
 .cdot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none }
 
 /* ---------- stat tiles ---------- */
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px }
 .stat { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); min-width: 0 }
 .stat .l { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .stat .v { font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; white-space: nowrap; overflow: hidden; display: flex; align-items: baseline; gap: 4px }
@@ -399,3 +397,36 @@ button.chip:hover { filter: brightness(.97) }
 .cbar .tab:not(.on):hover .x, .cbar .tab:not(.on):focus-within .x { visibility: visible }
 .app.with-bar { grid-template-rows: 44px auto 1fr }
 .form.wide-label .f { grid-template-columns: 212px minmax(0, 1fr) }
+
+/* change set 4 (13 Oct 2026): rail badges instead of the title bar pill, stop button on cards, form folds, broker panels */
+.rail button { position: relative }
+.rail button .badge { position: absolute; left: calc(50% + 3px); top: 17px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); display: grid; place-items: center; pointer-events: none }
+.rail button.on .badge { background: var(--surface) }
+.rail button .badge::after { content: ""; border-left: 7px solid var(--sage); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; margin-left: 2px }
+.rail button .badge.starting::after { border-left-color: var(--clay) }
+.rail button .cnt { position: absolute; left: calc(50% + 4px); top: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--sage); color: var(--on-accent); font-size: 10px; font-weight: 700; display: grid; place-items: center; line-height: 1; box-sizing: border-box; font-variant-numeric: tabular-nums; pointer-events: none }
+.card .stw { display: inline-flex; align-items: center; gap: 6px; flex: none }
+.card .stop { width: 18px; height: 18px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,.22); color: inherit; display: inline-grid; place-items: center; font-size: 8px; line-height: 1; margin-left: 4px; flex: none; cursor: default }
+.card:not(.live) .stop { background: var(--clay-soft); color: var(--clay) }
+.card .stop:hover { box-shadow: 0 0 0 1px currentColor }
+.fold { display: flex; align-items: center; gap: 8px; padding: 9px 0; border: 0; border-top: 1px solid var(--line-2); background: none; width: 100%; text-align: left; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink); margin-top: 4px; min-width: 0 }
+.fold .chev { color: var(--ink-2); width: 12px; flex: none }
+.fold .ttl { flex: none; white-space: nowrap }
+.fold .sum { font-weight: 500; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0 }
+.fold .sum .ok { color: var(--sage) }
+.fold .sum .warn { color: var(--clay) }
+.form .sub { font-size: 11px; font-weight: 700; color: var(--ink-2); margin-top: 6px }
+.pnl { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-top: 12px; overflow: hidden }
+.pnl .hd { display: flex; align-items: center; gap: 8px; padding: 6px 12px; min-height: 40px; border-bottom: 1px solid var(--line-2); font-size: 12px; font-weight: 700; background: var(--paper); white-space: nowrap; min-width: 0 }
+.pnl .hd .muted { font-weight: 500 }
+.pnl .tbl th { background: var(--surface) }
+.pnl .tbl tr:last-child td { border-bottom: 0 }
+.pnl .empty { padding: 14px }
+.tbl .x { border: 0; background: none; color: var(--ink-2); font-weight: 600; padding: 2px 6px; font-size: 12px; border-radius: 4px; line-height: 1.2 }
+.tbl .x:hover:not(:disabled) { color: var(--ink); background: var(--line-2) }
+.tbl .x.danger:hover:not(:disabled) { color: var(--brick) }
+.tbl .x:disabled { opacity: .45 }
+.lsec { display: flex; align-items: center; gap: 8px; white-space: nowrap; min-width: 0 }
+.lsec .seg { text-transform: none; letter-spacing: 0 }
+.lsec .btn { text-transform: none; letter-spacing: 0 }
+.pane[data-testid=broker] .tbl th { position: static }

@@ -12,6 +12,8 @@ export async function boot(scenario: 'demo' | 'empty' = 'demo', lang: 'en' | 'fr
   const engine = createMockEngineClient({ scenario, lang, live: false, latencyMs: 0 });
   const platform = createMockPlatform();
   await startApp(engine, platform, { lang });
+  // folds are closed when the app starts (change set 4)
+  useApp.setState({ folds: { security: false, advanced: false, brokerAdvanced: false } });
   return { engine, platform };
 }
 

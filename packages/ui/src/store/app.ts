@@ -32,6 +32,8 @@ export interface PendingChange {
   field?: 'port';
 }
 
+export type Fold = 'security' | 'advanced' | 'brokerAdvanced';
+
 type SentListener = (updates: { connectionId: string; entry: SentEntry }[]) => void;
 type MenuListener = (id: string) => void;
 
@@ -59,8 +61,12 @@ interface AppState {
   pendingChanges: PendingChange[];
   /** The restart prompt is open. */
   restartPrompt: boolean;
+  /** Folds (change set 4): profile form "Security" and "Advanced", Broker "Advanced security". Closed when the app
+   * starts, kept while it runs (not per profile, not saved). */
+  folds: Record<Fold, boolean>;
 
   setScreen(s: Screen): void;
+  toggleFold(f: Fold): void;
   setSettingsPage(p: string): void;
   setPalette(open: boolean): void;
   refreshProfiles(): Promise<void>;
@@ -120,8 +126,10 @@ export const useApp = create<AppState>((set, get) => ({
   settingsPage: 'appearance',
   pendingChanges: [],
   restartPrompt: false,
+  folds: { security: false, advanced: false, brokerAdvanced: false },
 
   setScreen: (screen) => set({ screen, paletteOpen: false }),
+  toggleFold: (f) => set({ folds: { ...get().folds, [f]: !get().folds[f] } }),
   setSettingsPage: (settingsPage) => set({ settingsPage }),
   setPalette: (paletteOpen) => set({ paletteOpen }),
   refreshProfiles: async () => {

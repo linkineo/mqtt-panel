@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AppBrokerStep, AppBrokerStepResult, BrokerCerts, BrokerConfig, BrokerStatus, Listener, UserMessage } from '@mqttpanel/engine-client';
+import type { AppBrokerStep, AppBrokerStepResult, BrokerConfig, BrokerStatus, Listener, UserMessage } from '@mqttpanel/engine-client';
 import { engine } from '../../services';
 import { toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
@@ -49,7 +49,6 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
   const { t } = useTranslation();
   const [cfg, setCfg] = useState<BrokerConfig | null>(null);
   const [status, setStatus] = useState<BrokerStatus | null>(null);
-  const [certs, setCerts] = useState<BrokerCerts | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [adding, setAdding] = useState(start === 'add');
   const [lines, setLines] = useState<Line[] | null>(null);
@@ -65,11 +64,10 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
 
   const load = async (): Promise<BrokerConfig | null> => {
     try {
-      const [c, st, ce] = await Promise.all([engine().brokerConfig(), engine().brokerStatus(), engine().brokerCerts()]);
+      const [c, st] = await Promise.all([engine().brokerConfig(), engine().brokerStatus()]);
       if (!alive.current) return null;
       setCfg(c);
       setStatus(st);
-      setCerts(ce);
       useApp.setState({ brokerConfig: c, broker: st });
       return c;
     } catch (e) {
@@ -101,7 +99,7 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
       for (let i = 0; i < ls.length; i++) {
         if (!alive.current) return;
         set(i, { state: 'run' });
-        const r = await engine().appBrokerStep(listenerId, ls[i].step, t('pill.localBroker'));
+        const r = await engine().appBrokerStep(listenerId, ls[i].step, t('conn.localBrokerName'));
         if (!alive.current) return;
         if (r.step === 'connect') {
           if (r.outcome?.kind === 'failed') {
@@ -142,7 +140,6 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
     return (
       <AddListenerDialog
         config={cfg}
-        certs={certs}
         context="flow"
         onConfig={(c) => setCfg(c)}
         onClose={() => {
@@ -227,7 +224,7 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
                   <div className="t">
                     <span>{t('appb.listener', { kind: kindLabel(l.kind, t), port: l.port })}</span>
                     {mtls ? (
-                      <span className="chip on">{t('preset.mtls')}</span>
+                      <span className="chip on" data-testid="appb-client-cert">{t('appb.clientCert')}</span>
                     ) : secure(l) ? (
                       <span className="chip on">{t('preset.encrypted')}</span>
                     ) : (

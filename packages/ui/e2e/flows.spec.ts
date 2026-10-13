@@ -80,7 +80,7 @@ test.describe('Connections', () => {
     await expect(page.locator('[data-testid=app-broker]')).toBeVisible();
     await expect(page.locator('[data-testid=appb-step-cert]')).toBeVisible();
     await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('[data-testid=pill]')).toContainText('Local broker');
+    await expect(page.locator('[data-testid=rail-connect-count]')).toHaveText('1');
     await page.click('[data-testid=rail-connect]');
     await expect(page.locator('[data-testid=profile-card]', { hasText: 'Local broker' })).toHaveCount(1);
     await expect(page.locator('[data-profile=local]')).toContainText('localhost:8886');
@@ -103,13 +103,15 @@ test.describe('Connections', () => {
     await expect(tabs).toHaveCount(1);
     await expect(tabs.first()).toContainText('Plant broker');
     await expect(tabs.first()).toContainText(/topics · [\d.,]+ msg\/s · MQTT 5/);
-    // the pill no longer lists connections: broker state only
-    await expect(page.locator('[data-testid=pill]')).toHaveText('Local broker · running · 7 clients');
+    // no title bar pill (change set 4): the rail's count bubble shows how many are open
+    await expect(page.locator('[data-testid=pill]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=rail-connect-count]')).toHaveText('1');
     await page.click('[data-testid=rail-connect]');
     await page.click('[data-profile=emqx]');
     await page.click('[data-testid=connect]');
     await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 5000 });
     await expect(tabs).toHaveCount(2);
+    await expect(page.locator('[data-testid=rail-connect-count]')).toHaveText('2');
     await expect(page.locator('[data-testid=cbar-tab][aria-selected=true]')).toContainText('Cloud EMQX');
     // click a tab: Explorer on that connection, tab active
     await page.click('[data-testid=rail-publish]');
@@ -128,6 +130,7 @@ test.describe('Connections', () => {
     await expect(page.locator('[data-testid=cbar-tab][aria-selected=true]')).toContainText('Plant broker');
     await page.locator('[data-testid=cbar-close]').click();
     await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=rail-connect-count]')).toHaveCount(0);
   });
 
   test('C-14 connected card in the accent colour, card menu, Delete with confirmation', async ({ page }) => {
@@ -413,7 +416,7 @@ test.describe('Export, settings, palette', () => {
 });
 
 test.describe('Broker', () => {
-  test('B-02 Add listener with Mutual TLS requires client certificates on that listener only', async ({ page }) => {
+  test('B-02 Add listener with "Encrypted + client certificates" sets client certificates to Required', async ({ page }) => {
     await open(page, 'mock=demo&screen=broker');
     const before = await page.locator('[data-testid=listener-row]').count();
     await page.click('[data-testid=add-listener]');
@@ -426,8 +429,11 @@ test.describe('Broker', () => {
     await expect(page.locator('[data-testid=listener-row]')).toHaveCount(before + 1);
     const added = page.locator('[data-testid=listener-row]').last();
     await expect(added).toContainText('8885');
-    await expect(added.locator('[data-testid=listener-cert]')).toContainText(/required/);
+    await expect(added).toContainText('Encrypted + client certificates');
     await expect(page.locator('[data-testid=restart-chip]')).toBeVisible();
+    await page.click('[data-testid=restart-later]');
+    await page.click('[data-testid=fold-brokerAdvanced]');
+    await expect(page.locator('[data-testid=require-cert-seg] button.on')).toHaveText('Required');
   });
 
   test('B-12 "This app\'s broker" > "Use an existing listener" keeps one profile and one user after 3 runs', async ({ page }) => {
@@ -448,7 +454,7 @@ test.describe('Broker', () => {
     await expect(page.locator('[data-testid=profile-card]', { hasText: 'Local broker' })).toHaveCount(1);
     await page.click('[data-testid=rail-broker]');
     await expect(page.locator('[data-testid=user-row]')).toHaveCount(1);
-    await expect(page.locator('[data-testid=user-row]')).toContainText('created for the profile "Local broker"');
+    await expect(page.locator('[data-testid=user-row] [data-testid=user-local-tag]')).toHaveText('Local broker');
     await expect(page.locator('[data-testid=connect-here]')).toHaveCount(0);
   });
 
@@ -464,16 +470,14 @@ test.describe('Broker', () => {
     await expect(btn).toHaveText('Restart broker and apply changes');
     expect(await btn.evaluate((el) => getComputedStyle(el).animationName)).toBe('restart-pulse');
     await expect(page.locator('[data-testid=restart-chip]')).toHaveText('restart pending');
-    await expect(page.locator('[data-testid=pill]')).toContainText('restart pending');
     await expect(page.locator('[data-testid=port-pending]')).toBeVisible();
     // the pending state survives navigation
     await page.click('[data-testid=rail-explore]');
     await page.click('[data-testid=rail-broker]');
     await expect(btn).toHaveText('Restart broker and apply changes');
-    // reachability and adding a listener prompt too
-    const ws = page.locator('[data-testid=listener-row][data-listener=l-ws]');
-    await ws.locator('.seg button', { hasText: 'Network' }).click();
-    await expect(page.locator('[data-testid=restart-pending-list]')).toContainText('WebSocket listener on port 8083 reachable from Network');
+    // reachability (broker-wide) and adding a listener prompt too
+    await page.click('[data-testid=reach-localhost]');
+    await expect(page.locator('[data-testid=restart-pending-list]')).toContainText('listeners reachable from this computer only');
     await page.click('[data-testid=restart-later]');
     await page.click('[data-testid=add-listener]');
     await page.click('[data-testid=addl-next]');
@@ -567,7 +571,7 @@ test.describe('Native feel (N1, SPEC 1.2)', () => {
     await page.waitForSelector('[data-testid=tree-row]');
     const style = (sel: string) => page.locator(sel).first().evaluate((el) => ({ sel: getComputedStyle(el).userSelect, cur: getComputedStyle(el).cursor }));
     expect(await style('[data-testid=rail-explore]')).toEqual({ sel: 'none', cur: 'default' });
-    expect((await style('[data-testid=pill]')).sel).toBe('none');
+    expect((await style('.tb .name')).sel).toBe('none');
     expect((await style('[data-testid=tree-row] .name')).sel).toBe('text');
   });
 
@@ -598,26 +602,25 @@ test.describe('Change set 2', () => {
 
   test('B-18 broker-wide client certificate control; B-19 log collapsed, expands, remembered', async ({ page }) => {
     await open(page, 'mock=demo&screen=broker');
-    const certs = page.locator('[data-testid=client-certs]');
-    await expect(certs.locator('[data-testid=require-cert]')).toContainText('On encrypted listeners');
-    await expect(certs.locator('[data-testid=verify-against]')).toContainText('Verify against');
-    await expect(page.locator('[data-testid=require-cert-hint]')).toHaveText('Every device needs its own certificate, issued here, before it can connect.');
-    const cell = (id: string) => page.locator(`[data-testid=listener-row][data-listener=${id}] [data-testid=listener-cert]`);
-    await expect(cell('l-tls')).toHaveText('required');
-    await expect(cell('l-wss')).toHaveText('required');
-    await expect(cell('l-tcp')).toHaveText('—');
+    // change set 4: the requirement and Verify against live in the "Advanced security" fold; listener rows never show it
+    await page.click('[data-testid=fold-brokerAdvanced]');
+    const adv = page.locator('[data-testid=advanced-security]');
+    await expect(adv.locator('[data-testid=require-cert]')).toContainText('Client certificates');
+    await expect(adv.locator('[data-testid=require-cert]')).toContainText('on encrypted listeners');
+    await expect(adv.locator('[data-testid=verify-against]')).toContainText('Verify against');
+    await expect(page.locator('[data-testid=require-cert-hint]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=listener-cert]')).toHaveCount(0);
     await page.locator('[data-testid=require-cert-seg] button', { hasText: 'Optional' }).click();
     await expect(page.locator('[data-testid=restart-prompt]')).toBeVisible();
     await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: client certificate optional on encrypted listeners.');
     await page.click('[data-testid=restart-later]');
-    await expect(cell('l-tls')).toHaveText('optional');
-    await expect(page.locator('[data-testid=require-cert-hint]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=fold-brokerAdvanced-summary]')).toContainText('client certificates optional');
     // B-19: no Refresh, the log is a title strip at the bottom of the right pane until clicked
     const side = page.locator('[data-testid=broker-side]');
     await expect(side.getByText('Refresh')).toHaveCount(0);
     const strip = page.locator('[data-testid=broker-log-strip]');
     await expect(strip).toContainText('Log');
-    await expect(strip).toContainText('live');
+    await expect(strip).not.toContainText('live');
     await expect(strip).toContainText(/\d+ warnings?/);
     const sideBox = await side.boundingBox();
     const stripBox = await strip.boundingBox();
@@ -629,5 +632,235 @@ test.describe('Change set 2', () => {
     await expect(page.locator('[data-testid=broker-log]')).toBeVisible();
     await page.click('[data-testid=log-toggle]');
     await expect(page.locator('[data-testid=broker-log]')).toHaveCount(0);
+  });
+});
+
+test.describe('Change set 4', () => {
+  const mock = (page: Page, fn: string, ...args: unknown[]) =>
+    page.evaluate(([f, a]) => (window as any).__mqttpanelMock.engine[f as string](...(a as unknown[])), [fn, args] as const);
+
+  test('C-17 Connect and Test on "Local broker" start a stopped broker first; a broker that cannot start fails the connection', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect&latency=1200');
+    await mock(page, 'brokerStop');
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveCount(0);
+    const local = page.locator('[data-profile=local]');
+    await local.click();
+    await page.click('[data-testid=connect]');
+    await expect(local.locator('[data-testid=card-state]')).toHaveText('starting broker…');
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveAttribute('data-state', 'starting');
+    await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveAttribute('data-state', 'running');
+    await expect(page.locator('[data-testid=cbar-tab]')).toContainText('Local broker');
+    // Test does the same
+    await page.locator('[data-testid=cbar-close]').click();
+    await mock(page, 'brokerStop');
+    await page.click('[data-testid=rail-connect]');
+    await local.click();
+    await page.click('[data-testid=try-connect]');
+    await expect(page.locator('[data-testid=last-test]')).toContainText(/Connected in \d+ ms/, { timeout: 8000 });
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveAttribute('data-state', 'running');
+    // a broker that cannot start: the connection fails with the broker's reason
+    await mock(page, 'brokerStop');
+    await mock(page, 'failBrokerStart', true);
+    await page.click('[data-testid=connect]');
+    await expect(page.locator('.toast.err')).toContainText('already in use by node', { timeout: 8000 });
+    await expect(page.locator('[data-testid=explorer]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveCount(0);
+  });
+
+  test('C-18 the stop button on a card disconnects that connection only, never the broker', async ({ page }) => {
+    await open(page, 'mock=demo&connect=local,plant&screen=connect');
+    const local = page.locator('[data-profile=local]');
+    const plant = page.locator('[data-profile=plant]');
+    await expect(local.locator('[data-testid=card-stop]')).toHaveAttribute('title', 'Disconnect');
+    await expect(local.locator('[data-testid=card-stop]')).toHaveAttribute('aria-label', 'Disconnect');
+    await expect(page.locator('[data-profile=lab] [data-testid=card-stop]')).toHaveCount(0);
+    await local.locator('[data-testid=card-stop]').click();
+    await expect(local.locator('[data-testid=card-state]')).toHaveCount(0);
+    await expect(plant.locator('[data-testid=card-state]')).toHaveText('connected');
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveAttribute('data-state', 'running');
+    await expect(page.locator('[data-testid=rail-connect-count]')).toHaveText('1');
+    // the click does not select the card or open the Explorer
+    await expect(page.locator('[data-testid=profile-form]')).toBeVisible();
+    // a reconnecting card: the stop button cancels the retries
+    await mock(page, 'setConnectionState', 'plant', 'reconnecting');
+    await expect(plant.locator('[data-testid=card-state]')).toHaveText('reconnecting');
+    await plant.locator('[data-testid=card-stop]').click();
+    await expect(plant.locator('[data-testid=card-state]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+  });
+
+  test('C-19 Security and Advanced are folds, closed at start, with a summary; the state is kept while the app runs', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    await page.click('[data-profile=plant]');
+    const sec = page.locator('[data-testid=fold-security]');
+    const adv = page.locator('[data-testid=fold-advanced]');
+    await expect(sec).toHaveAttribute('aria-expanded', 'false');
+    await expect(adv).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('[data-testid=profile-form] .sec')).toHaveText(['Basics']);
+    await expect(page.locator('[data-testid=fold-security-summary]')).toHaveText('verify on · CA · client certificate · verified');
+    await expect(page.locator('[data-testid=fold-advanced-summary]')).toHaveText('keep-alive 60 s · 3 subscriptions · 1 schema');
+    await expect(page.locator('[data-testid=info-caCert]')).toHaveCount(0);
+    await sec.click();
+    await expect(page.locator('[data-testid=info-caCert]')).toBeVisible();
+    for (const id of ['verifyServer', 'caCert', 'clientCert', 'clientKey', 'sni', 'alpn']) await expect(page.locator(`[data-testid=info-${id}]`)).toBeVisible();
+    // no helper sentences next to the controls
+    const form = page.locator('[data-testid=profile-form]');
+    for (const s of ['System roots plus the CA below.', 'Only if the broker serves several names.', 'Some cloud brokers require it.']) await expect(form).not.toContainText(s);
+    await adv.click();
+    await expect(page.locator('[data-testid=profile-form] .sub')).toHaveText(['Session', 'Subscriptions', 'Decoders']);
+    // kept while navigating and across profiles
+    await page.click('[data-testid=rail-explore]');
+    await page.click('[data-testid=rail-connect]');
+    await page.click('[data-profile=lab]');
+    await expect(page.locator('[data-testid=fold-security]')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('[data-testid=fold-advanced]')).toHaveAttribute('aria-expanded', 'true');
+    // a profile at its defaults has empty summaries
+    await page.click('[data-testid=new-profile]');
+    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'Another broker…' }).click();
+    await expect(page.locator('[data-testid=fold-advanced-summary]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=fold-security-summary]')).toHaveCount(0);
+    // closed again after a restart of the app
+    await open(page, 'mock=demo&screen=connect');
+    await expect(page.locator('[data-testid=fold-security]')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('C-20 no parsed chips next to file fields or the password; no "mTLS"; cards show TLS, WSS or no TLS', async ({ page }) => {
+    await open(page, 'mock=demo&connect=local&screen=connect');
+    await page.click('[data-profile=plant]');
+    await page.click('[data-testid=fold-security]');
+    for (const f of ['caCert', 'clientCert', 'clientKey']) {
+      const field = page.locator(`[data-testid=file-${f}]`);
+      await expect(field).toBeVisible();
+      await expect(field.locator('.chip')).toHaveCount(0);
+      for (const w of ['until', 'CN=', 'Keychain']) await expect(field).not.toContainText(w);
+    }
+    await expect(page.locator('[data-testid=profile-form]')).not.toContainText('Keychain');
+    await page.click('[data-profile=local]');
+    await expect(page.locator('[data-testid=local-password] .chip')).toHaveCount(0);
+    const chips = await page.locator('[data-testid=card-chip]').allTextContents();
+    expect(new Set(chips)).toEqual(new Set(['TLS', 'no TLS', 'WSS']));
+    // a wrong file still shows the plain error
+    await page.click('[data-profile=plant]');
+    const box = (await page.locator('[data-testid=file-caCert]').boundingBox())!;
+    await page.evaluate(([x, y]) => (window as any).__mqttpanelMock.platform.simulateDrop(['/dropped/notes.txt'], x, y), [box.x + 20, box.y + box.height / 2]);
+    await expect(page.locator('[data-testid=file-error-caCert]')).toHaveText('This file is not a certificate.');
+    await expect(page.locator('[data-testid=file-caCert] .chip')).toHaveCount(0);
+    for (const lang of ['en', 'fr', 'de']) {
+      await page.goto(`/?mock=demo&connect=local&screen=broker&lang=${lang}&theme=light`);
+      await page.waitForSelector('#app-root');
+      await page.click('[data-testid=add-listener]');
+      const text = await page.locator('body').innerText();
+      expect(text).not.toMatch(/mTLS|mutual TLS|TLS mutuel/i);
+    }
+  });
+
+  test('B-21 reachability is one broker-wide choice with an ⓘ; switching asks to restart', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    const line = page.locator('[data-testid=listeners-line]');
+    await expect(line.locator('[data-testid=reach-seg] button')).toHaveText(['This computer only', 'Whole network']);
+    await expect(page.locator('[data-testid=reach-network]')).toHaveClass(/on/);
+    await expect(page.locator('[data-testid=listener-row] .seg')).toHaveCount(0);
+    await expect(page.locator('[data-testid=network-warning]')).toHaveCount(0);
+    await line.locator('[data-testid=info-reachable]').click();
+    await expect(page.locator('[data-testid=bubble-text-reachable]')).toContainText('Whole network: any device that can reach this computer can connect');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-testid=unencrypted]')).toHaveCount(2);
+    await page.click('[data-testid=reach-localhost]');
+    await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: listeners reachable from this computer only.');
+    await page.click('[data-testid=restart-later]');
+    await expect(page.locator('[data-testid=reach-localhost]')).toHaveClass(/on/);
+    await expect(page.locator('[data-testid=unencrypted]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=restart-chip]')).toHaveText('restart pending');
+  });
+
+  test('B-22 listener table: On, Kind, Port, Setup and ✕, which removes at once and asks to restart', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    await expect(page.locator('[data-testid=listeners] th')).toHaveText(['On', 'Kind', 'Port', 'Setup', '']);
+    await expect(page.locator('[data-testid=listener-row] button', { hasText: '⋯' })).toHaveCount(0);
+    const before = await page.locator('[data-testid=listener-row]').count();
+    await expect(page.locator('[data-testid=remove-listener-l-ws]')).toHaveAttribute('aria-label', 'Remove the WebSocket listener on port 8083');
+    await page.click('[data-testid=remove-listener-l-ws]');
+    await expect(page.locator('[data-testid=confirm-ok]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=listener-row]')).toHaveCount(before - 1);
+    await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: WebSocket listener on port 8083 removed.');
+  });
+
+  test('B-23 Users and Client certificates are panels; "Advanced security" is folded; Add listener step 2 has kind and port only', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    const users = page.locator('[data-testid=users]');
+    await expect(users.locator('.hd')).toContainText('Users');
+    await expect(users.locator('.hd [data-testid=anonymous]')).toBeVisible();
+    await expect(users.locator('.hd [data-testid=info-anonymous]')).toBeVisible();
+    await expect(users.locator('.hd [data-testid=add-user]')).toHaveText('+ Add user');
+    await expect(users.locator('th')).toHaveText(['Username', 'Password', '']);
+    await expect(users.locator('[data-user=mqtt-panel] [data-testid=user-local-tag]')).toHaveText('Local broker');
+    await expect(users.locator('[data-testid=user-change-commissioning]')).toHaveText('✎');
+    await page.click('[data-testid=user-remove-dashboard]');
+    await expect(users.locator('[data-user=dashboard]')).toHaveCount(0);
+    const certs = page.locator('[data-testid=client-certs]');
+    await expect(certs.locator('.hd [data-testid=info-clientCerts]')).toBeVisible();
+    await expect(certs.locator('.hd button')).toHaveText(['ⓘ', 'Import CSR…', 'Issue…']);
+    await expect(certs.locator('th')).toHaveText(['Name', 'Expires', 'Last seen', '']);
+    await expect(certs.locator('[data-cert=mqttpanel-desktop] [data-testid=cert-local-tag]')).toHaveText('Local broker');
+    await expect(certs.locator('[data-cert=mqttpanel-desktop] [data-testid=revoke-mqttpanel-desktop]')).toHaveCount(0);
+    await page.click('[data-testid=revoke-edge01]');
+    await expect(page.locator('[data-testid=confirm-ok]')).toBeVisible();
+    await page.keyboard.press('Escape');
+    const fold = page.locator('[data-testid=fold-brokerAdvanced]');
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('[data-testid=advanced-security]')).toHaveCount(0);
+    await fold.click();
+    const adv = page.locator('[data-testid=advanced-security]');
+    for (const id of ['require-cert', 'verify-against', 'local-ca', 'server-cert']) await expect(adv.locator(`[data-testid=${id}]`)).toBeVisible();
+    await expect(adv.locator('[data-testid=local-ca] button')).toHaveText(['Export CA.pem', 'Rotate…']);
+    await expect(adv.locator('[data-testid=server-cert] button')).toHaveText(['Import…', 'Regenerate…']);
+    await page.click('[data-testid=add-listener]');
+    await page.click('[data-testid=addl-next]');
+    await expect(page.locator('[data-testid=add-listener-2] .f > .lbl, [data-testid=add-listener-2] .f > label')).toHaveText(['Kind', 'Port']);
+  });
+
+  test('B-24 verbosity: no "live", no client count, "▸ Log" with warnings only when there are some, one-sentence anonymous strip', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    const screen = page.locator('.cols');
+    await expect(screen).not.toContainText(/\blive\b/);
+    await expect(page.locator('[data-testid=clients-title]')).toHaveText('Clients');
+    await expect(page.locator('[data-testid=broker-tiles] .stat .l')).toHaveText(['Status', '↓ Messages in', '↑ Messages out', 'Retained']);
+    await expect(page.locator('[data-testid=log-toggle]')).toHaveText(/^▸\s*Log\s*· \d+ warnings?$/);
+    for (const s of ['Export each certificate', 'one set of users for every listener', 'one per device, issued by the local CA', 'created for the profile', 'Every device needs its own certificate']) {
+      await expect(page.locator('[data-testid=broker]')).not.toContainText(s);
+    }
+    await page.click('[data-testid=anonymous]');
+    await page.click('[data-testid=confirm-ok]');
+    await expect(page.locator('[data-testid=anon-warning]')).toHaveText('Anonymous access is on: anyone who can reach a listener can connect.');
+    await expect(page.locator('[data-testid=fold-brokerAdvanced-summary]')).toHaveText('not checked while Anonymous is on');
+    // no warnings: the strip reads "▸ Log" only
+    await open(page, 'mock=empty&screen=broker');
+    await expect(page.locator('[data-testid=log-toggle]')).toHaveText(/^▸\s*Log$/);
+    await expect(page.locator('[data-testid=log-warnings]')).toHaveCount(0);
+  });
+
+  test('V-10 title bar holds the name and the mark; rail badges; "unverified" chip on tab and card', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant,local&screen=connect');
+    await expect(page.locator('.tb')).toHaveText('MQTT Panel');
+    await expect(page.locator('.tb .mark svg')).toBeVisible();
+    await expect(page.locator('[data-testid=pill]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveAttribute('data-state', 'running');
+    await expect(page.locator('[data-testid=rail-connect-count]')).toHaveText('2');
+    await expect(page.locator('[data-testid=rail-connect]')).toHaveAttribute('aria-label', 'Connect, 2 connections open');
+    await expect(page.locator('[data-testid=cbar-unverified]')).toHaveCount(0);
+    // the lab-only skip-verify setting: "unverified" on the tab and the card of the encrypted connection
+    await page.click('[data-testid=rail-settings]');
+    await page.click('[data-testid=skip-verify]');
+    await page.click('[data-testid=rail-connect]');
+    await expect(page.locator('[data-testid=cbar-tab][data-conn=plant] [data-testid=cbar-unverified]')).toHaveText('unverified');
+    await expect(page.locator('[data-profile=plant] [data-testid=card-unverified]')).toHaveText('unverified');
+    await expect(page.locator('[data-profile=lab] [data-testid=card-unverified]')).toHaveCount(0);
+    // "anonymous" and "restart pending" live on the Broker screen only
+    await mock(page, 'brokerStop');
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveCount(0);
+    for (const id of ['plant', 'local']) await mock(page, 'disconnect', id);
+    await expect(page.locator('[data-testid=rail-connect-count]')).toHaveCount(0);
   });
 });

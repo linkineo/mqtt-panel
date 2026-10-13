@@ -14,7 +14,8 @@ const SELECTORS = [
   '.sec',
   '.gridtbl .hr > div',
   '.rail button',
-  '.conn',
+  '.fold .ttl',
+  '.pnl .hd',
   '.dtabs button',
   '.stat .l',
   '.ctx-item',
@@ -45,6 +46,8 @@ async function violations(page: Page): Promise<string[]> {
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       for (let n = walker.nextNode(); n; n = walker.nextNode()) {
         if (!n.textContent || !n.textContent.trim()) continue;
+        // badges placed over an icon (the rail's count bubble) are not a second line of text
+        if (n.parentElement && getComputedStyle(n.parentElement).position === 'absolute' && n.parentElement !== el) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
         rects.push(...Array.from(range.getClientRects()).filter((x) => x.width > 1 && x.height > 1));

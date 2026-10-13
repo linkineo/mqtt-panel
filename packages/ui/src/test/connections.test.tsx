@@ -11,7 +11,7 @@ describe('Connections form (C-08)', () => {
     await boot('empty');
     const p = await engine().newProfile();
     const saved = await saveProfile({ ...p, name: 'Test' });
-    useApp.setState({ selectedProfileId: saved.id });
+    useApp.setState({ selectedProfileId: saved.id, folds: { security: false, advanced: true, brokerAdvanced: false } });
     render(<ProfileForm profileId={saved.id} />);
     const subs = screen.getByTestId('subscriptions');
     const chips = within(subs).getAllByTestId('sub-chip');
@@ -22,12 +22,18 @@ describe('Connections form (C-08)', () => {
     await act(async () => fireEvent.click(within(subs).getByTestId('sub-remove')));
     expect(within(subs).queryAllByTestId('sub-chip')).toHaveLength(0);
     expect(screen.getByTestId('no-subs').textContent).toBe('No subscriptions: you will see nothing until you add one.');
+    // the notice stays visible with the Advanced fold closed, and the summary says it
+    await act(async () => fireEvent.click(screen.getByTestId('fold-advanced')));
+    expect(screen.queryByTestId('subscriptions')).toBeNull();
+    expect(screen.getByTestId('no-subs')).toBeInTheDocument();
+    expect(screen.getByTestId('fold-advanced-summary').textContent).toBe('keep-alive 60 s · no subscriptions');
   });
 
   it('adds a subscription with the + Add popover', async () => {
     await boot('empty');
     const p = await engine().newProfile();
     const saved = await saveProfile({ ...p, name: 'Test', subscriptions: [] });
+    useApp.setState({ folds: { security: false, advanced: true, brokerAdvanced: false } });
     render(<ProfileForm profileId={saved.id} />);
     await act(async () => fireEvent.click(screen.getByTestId('sub-add')));
     fireEvent.change(screen.getByTestId('sub-filter'), { target: { value: 'building/#' } });

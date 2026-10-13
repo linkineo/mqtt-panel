@@ -1,4 +1,4 @@
-import { isOpen, openConnection } from './TitlePill';
+import { isOpen, openConnection } from './ConnectionBar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { engine } from '../services';

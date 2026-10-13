@@ -4,7 +4,7 @@ import { useApp, isMac, SCREENS, type Screen } from './store/app';
 import { useExplorer } from './store/explorer';
 import { RailIcon, AppMark } from './components/icons';
 import { Toasts } from './components/ui';
-import { ConnectionBar, TitlePill, useOpenTabs } from './components/TitlePill';
+import { ConnectionBar, useOpenTabs } from './components/ConnectionBar';
 import { TrustDialog } from './components/TrustDialog';
 import { CommandPalette } from './components/CommandPalette';
 import { FieldPicker } from './screens/explorer/FieldPicker';
@@ -15,24 +15,52 @@ import { ChartsScreen } from './screens/charts/ChartsScreen';
 import { BrokerScreen } from './screens/broker/BrokerScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { modHeld } from './lib/keys';
-import { switchConnectionMenu } from './components/TitlePill';
+import { switchConnectionMenu } from './components/ConnectionBar';
 import { newConnection } from './lib/actions';
 
+/**
+ * The rail (change set 4: state lives here instead of a title bar pill): the Broker icon carries a small play badge
+ * while the embedded broker runs (clay while it starts), the Connect icon a count bubble with the number of open
+ * connections (connected, connecting, reconnecting), nothing at zero.
+ */
 function Rail() {
   const { t } = useTranslation();
   const screen = useApp((s) => s.screen);
   const setScreen = useApp((s) => s.setScreen);
+  const brokerState = useApp((s) => s.broker?.state ?? 'stopped');
+  const open = useOpenTabs().length;
+  const badge = (k: Screen) => {
+    if (k === 'broker' && (brokerState === 'running' || brokerState === 'starting')) {
+      return <span className={`badge${brokerState === 'starting' ? ' starting' : ''}`} data-testid="rail-broker-badge" data-state={brokerState} aria-hidden="true" />;
+    }
+    if (k === 'connect' && open > 0) {
+      return (
+        <span className="cnt" data-testid="rail-connect-count" aria-hidden="true">
+          {open}
+        </span>
+      );
+    }
+    return null;
+  };
+  const label = (k: Screen) => {
+    if (k === 'broker' && brokerState === 'running') return `${t('rail.broker')}, ${t('rail.brokerRunning')}`;
+    if (k === 'broker' && brokerState === 'starting') return `${t('rail.broker')}, ${t('rail.brokerStarting')}`;
+    if (k === 'connect' && open > 0) return `${t('rail.connect')}, ${t('rail.openCount', { count: open })}`;
+    return undefined;
+  };
   const item = (k: Screen) => (
     <button
       key={k}
       type="button"
       className={screen === k ? 'on' : undefined}
       aria-current={screen === k ? 'page' : undefined}
+      aria-label={label(k)}
       data-testid={`rail-${k}`}
       onClick={() => setScreen(k)}
     >
       <RailIcon name={k} />
       {t(`rail.${k}`)}
+      {badge(k)}
     </button>
   );
   return (
@@ -52,7 +80,7 @@ function TitleBar() {
       <span className="name" data-tauri-drag-region>
         MQTT Panel
       </span>
-      <TitlePill />
+      <span data-tauri-drag-region />
       <span className="mark" data-tauri-drag-region>
         <AppMark />
       </span>
