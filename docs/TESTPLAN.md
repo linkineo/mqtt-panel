@@ -40,6 +40,9 @@ Pass rule: a release needs every `auto` and `nightly` test green on macOS, Windo
 | C-10 | E | auto | Import from other tools: a predecessor-tool settings file and an MQTTX export fixture (synthetic, committed under `tests/fixtures/import/`). | Profiles created with host, port, scheme, subscriptions; secrets not imported; a summary lists what was skipped. |
 | C-12 | E | auto | "New connection" menu: "Another broker…" opens the empty form without a Target row; "This app's broker" shows "Use an existing listener" and "Add a listener…"; the first-launch cards route to the same places | As specified. |
 | C-13 | E | auto | "This app's broker" > "Add a listener…": Add listener steps 1 and 2 (no login row), then the dialog's steps run (user, certificate if mutual TLS, restart, connect) and the Explorer opens on "Local broker"; with Anonymous on no user is created and the dialog says so | As specified. |
+| C-14 | E | auto | Connected card filled with the accent colour and "connected" top right; reconnecting card outlined in clay; card menu Connect/Disconnect, Test, Duplicate, Delete with confirmation; header has Delete, Test, Connect and no Duplicate | As specified. |
+| C-15 | E | auto | Connection bar: appears with the first open connection, one tab per open connection with name, dot and figures; click opens the Explorer on it; ✕ disconnects; hidden when none is open; title bar pill shows only broker state and lab flags | As specified. |
+| C-16 | I | auto | "Local broker" profile follows the broker: change its listener's port, the client-certificate requirement, the mqtt-panel password and Anonymous; the profile is updated at once and reconnects after the restart when it was connected | As specified. |
 | C-11 | I | nightly | Public brokers plain: connect to each F-05 broker on 1883, subscribe `mqttpanel-test/<id>/#`, publish 3 messages, receive them. | Received within 2 s; SKIP if unreachable. |
 
 ## 2. Certificates and TLS (the combination matrix)
@@ -138,6 +141,7 @@ Replayed from `datapoints.json` into the engine (U) and verified on screen (E) f
 | P-08 | I | auto | Payload formats: JSON validation errors shown with line/column; hex with spaces and `0x`; base64 with and without padding | Bytes on the wire match. |
 | P-09 | I | auto | Payload larger than the broker's max packet size (MQTT 5 CONNACK property) | Refused before sending: "This broker accepts at most 1 MB per message." |
 | P-10 | I | nightly, P | Publish and receive on each public broker under the test prefix; clean up retained | No retained message left (verified by a fresh subscriber). |
+| P-11 | E | auto | "Send ⌘↵" is in the composer header top right; "Send and clear", repeat and Delete retained stay at the bottom | As specified. |
 
 ## 6. Embedded broker
 
@@ -159,6 +163,8 @@ Replayed from `datapoints.json` into the engine (U) and verified on screen (E) f
 | B-14 | I | nightly | 1 000 clients (harness) connected, 5 000 msg/s fan-in, 20 000 msg/s fan-out for 60 s | No drops at QoS 1; memory stable. |
 | B-15 | E | auto | Restart prompt: adding a listener, changing a port or reachability asks "Restart now" / "Later"; "Later" leaves the Restart button pulsing with "Restart broker and apply changes" and the pill "restart pending"; pressing it applies; user and anonymous changes never prompt; reduced motion shows a static highlight | As specified. |
 | B-16 | E | auto | Users table: eye reveals the password, copy puts it on the clipboard, in every password and passphrase field the app owns | As specified. |
+| B-18 | E | auto | Client certificate requirement is one broker-wide control under Client certificates (Optional / Required, with "Verify against"); Required shows the device explanation; every encrypted listener row shows the state read-only; Mutual TLS preset sets Required; plain listeners unaffected | As specified. |
+| B-19 | E | auto | Clients and log update live without a Refresh button; the log opens collapsed as a title strip at the bottom of the right pane and expands on click; state remembered | As specified. |
 | B-17 | M | manual | Test lab: `tools/testlab/mosquitto_broker.py` in all five modes, app connects with the printed values and files; `tools/testlab/load_client.py --check` against each listener kind of the app's broker with exported CA, PEM and PKCS#12; 500 msg/s for 60 s with charts and export | Round trips OK; app shows about 500 msg/s with no backlog. |
 
 ## 7. Error messages against external brokers
@@ -206,6 +212,8 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | V-04 | E | auto | Command palette: lists commands, topics, connections; keyboard only | Every command reachable. |
 | V-05 | E | auto | Language switch at runtime EN → FR → DE; French typography (narrow no-break space before `:` `;` `?` `!`), German "du" | Catalog checks plus screenshots. |
 | V-06 | M | manual | Native review of FR and DE by a native reader, logged in `docs/COPY_REVIEW.md` | No literal translations left. |
+| V-08 | M | manual | macOS: the app name and pill sit on the centre line of the traffic lights; nothing under the lights; Windows and Linux unchanged | By eye on each OS. |
+| V-09 | M | manual | macOS unsigned build: at most one keychain prompt per session (first secret use), none at start-up, none on broker start or restart; secrets.enc present, no per-secret keychain items left after migration | As specified. |
 | V-07 | E | auto | Accessibility: tab order through every screen, screen-reader labels on icon buttons, contrast AA in both themes, reduced motion | axe-core clean; manual VoiceOver/NVDA spot check before release. |
 
 ## 10. CLI

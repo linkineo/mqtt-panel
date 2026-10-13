@@ -28,6 +28,24 @@ Specified in `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` section 7,
 | Tests updated: Vitest, Playwright states and overflow check (EN, FR, DE), Rust broker tests (B-06, B-12), new flows (C-12, C-13, B-15, B-16) | Done 13 Oct 2026. Rust 183, Vitest 44, Playwright 189, all green |
 | Test lab scripts `tools/testlab/` (mosquitto in five modes, Paho load client) | Done, verified on macOS 13 Oct 2026 (B-17 manual run by the owner pending) |
 
+## Change set 2 (13 Oct 2026, owner feedback on the second build): to implement
+
+Specified in `docs/FEATURES.md` (Connections, Publish, Broker), `docs/SPEC.md` 1.2 and 6, mockups 02, 02c, 04 to 11, 12, 12c, 13, 14, 18, 19, `docs/TESTPLAN.md` C-14 to C-16, P-11, B-18, B-19, V-08, V-09.
+
+| Item | Status |
+|---|---|
+| Connected card in the accent colour with "connected"; chip on the address line; reconnecting outline | Pending |
+| Card context menu (Connect/Disconnect, Test, Duplicate, Delete…); visible Delete in the header; Duplicate header button removed | Pending |
+| Connection bar under the title bar; title bar pill limited to broker state and lab flags | Pending |
+| "Local broker" profile follows every broker change at once | Pending |
+| Broker-wide client certificate control under Client certificates, with "Verify against"; read-only per listener; preset and step 2 texts | Pending |
+| Live clients and log, no Refresh; log collapsed to a title strip, expands on click | Pending |
+| Send top right in the Publish composer header | Pending |
+| Action buttons slightly bigger | Pending |
+| macOS title bar: app name aligned with the traffic lights | Pending |
+| Secrets: one keychain master key, encrypted secrets file, lazy read, no keychain access on restart or start-up, migration | Pending |
+| Tests: C-14 to C-16, P-11, B-18, B-19, Vitest, Playwright states and overflow check, Rust | Pending |
+
 ## What works
 
 ### Rust crates (`cargo test --workspace`)

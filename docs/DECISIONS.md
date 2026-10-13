@@ -13,7 +13,7 @@
 | Broker | Embedded broker managed in the same UI. Setup presets offered when adding a listener (plain lab, encrypted, encrypted with passwords, mutual TLS with issued client certificates), each explained in an info bubble. Client certificate management is the prominent section; broker certificates are collapsed. Listeners default to all interfaces with a warning and a one-click switch to localhost. Active configuration selectable as a target in the Connections form. Desktop and CLI only. |
 | CLI | Simple: sub, pub, broker, profiles. No capture or export command in v1. |
 | Languages | EN (source), FR, DE from v1.0. |
-| Look | Developer-tool density, identical on all platforms, light and dark, mqtt-panel palette with Sage (default), Slate and Clay accents. Native menus, shortcuts, dialogs and window chrome on each OS. Rail labels are verbs: Connect, Explore, Publish, Charts, Broker, Settings. Sent log in the right column of Publish. Tree rows show values and sparklines by default. Plain words in user-facing labels, never jargon; form rows never wrap (helper text short, explanation in the ⓘ bubble). |
+| Look | Action buttons slightly bigger than the first build (13 Oct 2026). Developer-tool density, identical on all platforms, light and dark, mqtt-panel palette with Sage (default), Slate and Clay accents. Native menus, shortcuts, dialogs and window chrome on each OS. Rail labels are verbs: Connect, Explore, Publish, Charts, Broker, Settings. Sent log in the right column of Publish. Tree rows show values and sparklines by default. Plain words in user-facing labels, never jargon; form rows never wrap (helper text short, explanation in the ⓘ bubble). |
 | Mockups | `docs/mockups/mqtt-panel-mockups.html` is the validated UI reference (22 screens validated by the owner on 12 Oct 2026, 1280×700; change set 1 of 13 Oct 2026 added 02b and 12c and edited 02, 12, 12b, 14, 19). The UI must match it. |
 | Licence | Apache 2.0, confirmed by the owner (12 Oct 2026). Dependencies: MIT, BSD, Apache 2.0, ISC, MPL 2.0; no GPL or AGPL. |
 | Repository | github.com/linkineo/mqtt-panel, private until release. Website: mqtt-panel.com. |
@@ -88,7 +88,7 @@
   - Mockup 12b still draws the users as greyed chips; the app keeps the users table (greyed, buttons disabled) under Anonymous, so the layout does not jump.
   - A revealed password longer than 12 characters is shown as its first and last four characters ("Vq7m…kR2p", as drawn in mockup 12); the full value is in the tooltip and on the clipboard. Inputs (passphrases, dialogs) reveal the full text.
   - The 02b dialog lists enabled listeners only; a switched-off listener is not offered (it would need switching on first). With none enabled, the dialog says so and preselects "Add a listener…".
-  - Changing the password of "mqtt-panel" on the Broker screen does not update the profile "Local broker" by itself; the next "This app's broker" run brings the profile up to date. Should the Broker screen do it at once?
+  - (Closed 13 Oct 2026, owner: yes) The profile "Local broker" follows every broker change at once; see change set 2.
 
 ### 13 Oct 2026, owner feedback after the first run (change set 1)
 Owner feedback on the running app, 13 Oct 2026. Specified in `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` section 7, mockups 02, 02b, 12, 12b, 12c, 14, 19, and `docs/TESTPLAN.md` C-12, C-13, B-06, B-10, B-12, B-15.
@@ -100,6 +100,18 @@ Owner feedback on the running app, 13 Oct 2026. Specified in `docs/FEATURES.md` 
 - Passwords and passphrases the app owns can be revealed with an eye icon and copied.
 - The test button reads "Test" (FR « Tester », DE „Testen“).
 - Test lab scripts (`tools/testlab/`, Python, mosquitto and Paho): mosquitto in five security modes for the app to connect to; Paho clients against the app's broker with a 500 msg/s generator over 50 topics.
+
+### 13 Oct 2026, owner feedback on the second build (change set 2)
+Specified in `docs/FEATURES.md` (Connections, Publish, Broker), `docs/SPEC.md` sections 1.2 and 6, mockups 02, 02c, 04 to 11, 12, 12c, 13, 14, 18, 19, and `docs/TESTPLAN.md` C-14 to C-16, P-11, B-18, B-19, V-08, V-09.
+- Connected cards are filled with the accent colour with "connected" top right; the security chip moves to the address line; reconnecting cards outlined in clay.
+- Delete is a visible, normal-size outlined button in the form header; the card menu offers Connect or Disconnect, Test, Duplicate, Delete; the Duplicate header button is gone.
+- A connection bar under the title bar lists open connections as tabs (click: Explorer on that connection; ✕: disconnect). The title bar pill is left to the broker state and lab flags.
+- Broker clients and log update live, no Refresh; the log is collapsed to a title strip at the bottom of the right pane and expands on click.
+- Client certificate requirement is broker-wide ("On encrypted listeners: Optional / Required"), controlled under Client certificates with "Verify against"; shown read-only per listener; choosing Required explains that every device needs a certificate.
+- The "Local broker" profile follows every broker change at once (closes the open question).
+- Send sits top right in the Publish composer header. Action buttons slightly bigger.
+- macOS: app name aligned with the traffic lights in the overlay title bar.
+- Keychain: one master-key item, all other secrets in an encrypted file; lazy read, cached; no keychain access on broker restart or at start-up.
 
 ## Implementation decisions
 

@@ -4,6 +4,7 @@ How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules
 
 ## Status (13 Oct 2026)
 - Phases 1 to 4 implemented and tested on macOS: engine, TLS kit, client, profiles with keychain, embedded broker, CLI, Tauri shell, and the full React UI for every mockup screen. Details, test counts, the native-feel checklist and the phase 5 task list are in `docs/PROGRESS.md`.
+- Change set 2 (owner feedback on the second build, 13 Oct 2026) is specified and awaits implementation: see `docs/PROGRESS.md` "Change set 2".
 - Change set 1 (owner feedback, 13 Oct 2026) is implemented: "New connection" menu, "Connect to this app's broker" (02b), restart prompt (12c), shared users only (no per-listener login anywhere), eye and copy on app-owned secrets, "Test". See `docs/PROGRESS.md` "Change set 1"; readings awaiting the owner are under "Open" in `docs/DECISIONS.md`. Test lab scripts for manual testing live in `tools/testlab/` (README there); B-17 is the owner's manual run.
 - Tests: Rust 183 passed (4 opt-in ignored), Vitest 44, Playwright 189 (V-02 overflow check in EN, FR, DE on 32 states; screenshots light and dark; 29 end-to-end flows with the mock engine). All green.
 - Next: phase 5 (native FR and DE review, accessibility pass, native-feel walk of the real window on all three OSes, visual regression baselines in CI, installers, auto-update, website).
