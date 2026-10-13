@@ -62,7 +62,10 @@ fn secret_client_passphrase(name: &str) -> String {
 struct StoredListener {
     id: String,
     kind: ListenerKind,
-    bind: Bind,
+    /// Per-listener reachability of files written before change set 4: read once to derive the broker-wide
+    /// [`Stored::bind`] (network wins), never written again.
+    #[serde(default, rename = "bind", skip_serializing)]
+    legacy_bind: Option<Bind>,
     port: u16,
     enabled: bool,
     preset: Preset,
@@ -101,6 +104,10 @@ struct StoredCert {
 #[serde(rename_all = "camelCase")]
 struct Stored {
     version: u32,
+    /// Reachability of every listener (change set 4). Missing in older files: derived from their per-listener values
+    /// when the file is opened (network when any listener had it, else localhost; network without listeners).
+    #[serde(default)]
+    bind: Option<Bind>,
     listeners: Vec<StoredListener>,
     anonymous: bool,
     users: Vec<StoredUser>,
@@ -124,7 +131,7 @@ fn default_listener(id: &str, kind: ListenerKind, port: u16, enabled: bool) -> S
     StoredListener {
         id: id.into(),
         kind,
-        bind: Bind::Network,
+        legacy_bind: None,
         port,
         enabled,
         preset: if kind.encrypted() {
@@ -300,13 +307,22 @@ impl BrokerManager {
             )
         })?;
         let path = dir.join(CONFIG_FILE);
+        let mut migrated = false;
         let stored = if path.exists() {
             let text = std::fs::read_to_string(&path)
                 .map_err(|_| BrokerError::new("file.unreadable", &[("file", s(CONFIG_FILE))]))?;
-            serde_json::from_str::<Stored>(&text).map_err(|e| {
+            let mut st = serde_json::from_str::<Stored>(&text).map_err(|e| {
                 BrokerError::new("file.unreadable", &[("file", s(CONFIG_FILE))])
                     .with_detail(e.to_string())
-            })?
+            })?;
+            if st.bind.is_none() {
+                st.bind = Some(Self::legacy_bind(&st.listeners));
+                migrated = true;
+            }
+            for l in &mut st.listeners {
+                migrated |= l.legacy_bind.take().is_some();
+            }
+            st
         } else {
             let ca = Ca::new_root(LOCAL_CA_NAME, KeyAlg::Ecdsa, Validity::years(5))
                 .map_err(|e| BrokerError::kit(&e))?;
@@ -327,6 +343,7 @@ impl BrokerManager {
                 .map_err(|e| BrokerError::keychain(&e))?;
             Stored {
                 version: 1,
+                bind: Some(Bind::Network),
                 listeners: vec![
                     default_listener("tcp", ListenerKind::Tcp, 1883, true),
                     default_listener("tls", ListenerKind::Tls, 8883, true),
@@ -362,10 +379,22 @@ impl BrokerManager {
             revoked,
             server_key: Mutex::new(None),
         };
-        if !path.exists() {
+        if !path.exists() || migrated {
             m.save(&m.lock().stored)?;
         }
         Ok(m)
+    }
+
+    /// The broker-wide reachability of a file written before change set 4: network when any listener had it (the
+    /// safe reading for devices that already connect over the network), localhost when every listener had it,
+    /// network (the default) without listeners or values.
+    fn legacy_bind(listeners: &[StoredListener]) -> Bind {
+        let binds: Vec<Bind> = listeners.iter().filter_map(|l| l.legacy_bind).collect();
+        if !binds.is_empty() && binds.iter().all(|b| *b == Bind::Localhost) {
+            Bind::Localhost
+        } else {
+            Bind::Network
+        }
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -518,13 +547,13 @@ impl BrokerManager {
 
     fn view(st: &Stored) -> BrokerConfig {
         BrokerConfig {
+            bind: st.bind.unwrap_or_default(),
             listeners: st
                 .listeners
                 .iter()
                 .map(|l| Listener {
                     id: l.id.clone(),
                     kind: l.kind,
-                    bind: l.bind,
                     port: l.port,
                     enabled: l.enabled,
                     preset: l.preset,
@@ -647,6 +676,11 @@ impl BrokerManager {
         let inner = self.lock();
         let st = &inner.stored;
         let tls = self.tls_material(st)?;
+        // one reachability for the whole broker (change set 4)
+        let bind = match st.bind.unwrap_or_default() {
+            Bind::Network => BindAddr::Network,
+            Bind::Localhost => BindAddr::Localhost,
+        };
         let listeners = st
             .listeners
             .iter()
@@ -654,10 +688,7 @@ impl BrokerManager {
             .map(|l| ListenerSpec {
                 id: l.id.clone(),
                 kind: l.kind,
-                bind: match l.bind {
-                    Bind::Network => BindAddr::Network,
-                    Bind::Localhost => BindAddr::Localhost,
-                },
+                bind,
                 port: l.port,
                 tls: if l.kind.encrypted() {
                     tls.clone()
@@ -858,7 +889,7 @@ impl BrokerManager {
         inner.stored.listeners.push(StoredListener {
             id: id.clone(),
             kind,
-            bind: req.bind,
+            legacy_bind: None,
             port,
             enabled: true,
             preset: req.preset,
@@ -877,7 +908,7 @@ impl BrokerManager {
         Ok(self.view_with_secrets(&inner.stored))
     }
 
-    /// Updates kind, bind, port, enabled and preset of a listener.
+    /// Updates kind, port, enabled and preset of a listener.
     pub fn update_listener(&self, l: Listener) -> Result<BrokerConfig, BrokerError> {
         let current_port = self
             .lock()
@@ -895,7 +926,6 @@ impl BrokerManager {
         let mut inner = self.lock();
         if let Some(x) = inner.stored.listeners.iter_mut().find(|x| x.id == l.id) {
             x.kind = l.kind;
-            x.bind = l.bind;
             x.port = l.port;
             x.enabled = l.enabled;
             x.preset = l.preset;
@@ -909,6 +939,22 @@ impl BrokerManager {
         let mut inner = self.lock();
         inner.stored.listeners.retain(|l| l.id != listener_id);
         self.commit(&mut inner, true)?;
+        Ok(self.view_with_secrets(&inner.stored))
+    }
+
+    /// Reachability of every listener: the whole network or this computer only (change set 4). Takes effect at the
+    /// next start (`restartNeeded` while running).
+    pub fn set_bind(&self, bind: Bind) -> Result<BrokerConfig, BrokerError> {
+        let mut inner = self.lock();
+        let changed = inner.stored.bind != Some(bind);
+        inner.stored.bind = Some(bind);
+        if changed {
+            self.log.info(match bind {
+                Bind::Network => "listeners reachable from the whole network",
+                Bind::Localhost => "listeners reachable from this computer only",
+            });
+        }
+        self.commit(&mut inner, changed)?;
         Ok(self.view_with_secrets(&inner.stored))
     }
 

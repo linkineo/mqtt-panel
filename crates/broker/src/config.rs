@@ -52,7 +52,7 @@ impl ListenerKind {
     }
 }
 
-/// Reachability of a listener.
+/// Reachability of the broker: one choice for every listener (change set 4, 13 Oct 2026).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Bind {
@@ -73,13 +73,13 @@ pub enum Preset {
     Mtls,
 }
 
-/// A listener (TS `Listener`). There is no per-listener login: users are shared by every listener.
+/// A listener (TS `Listener`). There is no per-listener login (users are shared by every listener) and no
+/// per-listener reachability (`BrokerConfig::bind`, change set 4).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Listener {
     pub id: String,
     pub kind: ListenerKind,
-    pub bind: Bind,
     pub port: u16,
     pub enabled: bool,
     pub preset: Preset,
@@ -109,6 +109,8 @@ pub struct UserView {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BrokerConfig {
+    /// Reachability of every listener: the whole network (default) or this computer only (change set 4).
+    pub bind: Bind,
     pub listeners: Vec<Listener>,
     pub anonymous: bool,
     pub users: Vec<UserView>,
@@ -254,7 +256,6 @@ pub struct AddListenerRequest {
     pub preset: Preset,
     pub kind: ListenerKind,
     pub port: u32,
-    pub bind: Bind,
 }
 
 /// Export format of a client certificate.

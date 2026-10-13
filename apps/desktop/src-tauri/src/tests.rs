@@ -291,15 +291,15 @@ fn local_state(dir: &std::path::Path) -> (AppState, String) {
     let secrets: Arc<dyn mqttpanel_profiles::SecretStore> = Arc::new(mqttpanel_profiles::MemorySecrets::new());
     let store = mqttpanel_profiles::Store::new(dir.join("profiles"), secrets.clone());
     let m = BrokerManager::open(&dir.join("broker"), secrets).unwrap();
+    m.set_bind(Bind::Localhost).unwrap();
     for mut l in m.config().listeners {
         l.port = free_port();
-        l.bind = Bind::Localhost;
         // the client certificate requirement is broker-wide: keep one TLS listener, the mutual-TLS one added below
         l.enabled = l.enabled && l.kind != ListenerKind::Tls;
         m.update_listener(l).unwrap();
     }
     let cfg = m
-        .add_listener(AddListenerRequest { preset: Preset::Mtls, kind: ListenerKind::Tls, port: u32::from(free_port()), bind: Bind::Localhost })
+        .add_listener(AddListenerRequest { preset: Preset::Mtls, kind: ListenerKind::Tls, port: u32::from(free_port()) })
         .unwrap();
     assert!(cfg.require_client_cert);
     let mtls = cfg.listeners.iter().find(|l| l.preset == Preset::Mtls).unwrap().id.clone();
@@ -422,6 +422,18 @@ async fn c16_local_broker_profile_follows_the_broker() {
     crate::broker::reconnect_local(&state).await;
     assert_eq!(open(&state), Some((true, "connected".to_string())), "reconnected after the restart");
     assert_eq!(m.clients().iter().filter(|c| c.client_id == "mqttpanel-desktop").count(), 1);
+
+    // Reachability is broker-wide (change set 4): the profile keeps localhost and reconnects after the restart.
+    m.set_bind(mqttpanel_broker::Bind::Network).unwrap();
+    crate::broker::follow_local_profile(&state);
+    assert_eq!(local_profile(&state).profile.host, "localhost");
+    assert!(m.restart_needed());
+    m.restart().await;
+    crate::broker::reconnect_local(&state).await;
+    assert_eq!(open(&state), Some((true, "connected".to_string())), "reconnected after a reachability change");
+    m.set_bind(mqttpanel_broker::Bind::Localhost).unwrap();
+    m.restart().await;
+    crate::broker::reconnect_local(&state).await;
 
     // Client certificate requirement off and on again.
     m.set_require_client_cert(false).unwrap();

@@ -438,7 +438,7 @@ pub fn embedded_broker() -> Embedded {
     let dir = tempfile::tempdir().expect("tempdir");
     let port = free_port();
     let cfg = dir.path().join("broker.toml");
-    std::fs::write(&cfg, format!("[auth]\nanonymous = true\n\n[[listener]]\nkind = \"tcp\"\nport = {port}\nbind = \"localhost\"\n")).expect("write broker.toml");
+    std::fs::write(&cfg, format!("bind = \"localhost\"\n\n[auth]\nanonymous = true\n\n[[listener]]\nkind = \"tcp\"\nport = {port}\n")).expect("write broker.toml");
     let mut c = mp(dir.path());
     c.arg("broker").arg("--config").arg(&cfg);
     let bg = Bg::spawn(c, true);
@@ -457,7 +457,7 @@ pub fn embedded_broker_with_login() -> Embedded {
     let cfg = dir.path().join("broker.toml");
     std::fs::write(
         &cfg,
-        format!("[auth]\nanonymous = false\n[[auth.users]]\nusername = \"{USER}\"\npassword = \"{PASSWORD}\"\n\n[[listener]]\nkind = \"tcp\"\nport = {port}\nbind = \"localhost\"\n"),
+        format!("bind = \"localhost\"\n\n[auth]\nanonymous = false\n[[auth.users]]\nusername = \"{USER}\"\npassword = \"{PASSWORD}\"\n\n[[listener]]\nkind = \"tcp\"\nport = {port}\n"),
     )
     .expect("write broker.toml");
     let mut c = mp(dir.path());

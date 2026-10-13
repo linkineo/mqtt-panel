@@ -49,20 +49,21 @@ async fn b01_defaults_listeners_accept_and_cert_sans() {
     let dir = tempfile::tempdir().unwrap();
     let (m, secrets) = open(dir.path());
     let c = m.config();
-    let summary: Vec<(String, ListenerKind, u16, bool, Bind)> = c
+    let summary: Vec<(String, ListenerKind, u16, bool)> = c
         .listeners
         .iter()
-        .map(|l| (l.id.clone(), l.kind, l.port, l.enabled, l.bind))
+        .map(|l| (l.id.clone(), l.kind, l.port, l.enabled))
         .collect();
     assert_eq!(
         summary,
         vec![
-            ("tcp".into(), ListenerKind::Tcp, 1883, true, Bind::Network),
-            ("tls".into(), ListenerKind::Tls, 8883, true, Bind::Network),
-            ("ws".into(), ListenerKind::Ws, 8083, true, Bind::Network),
-            ("wss".into(), ListenerKind::Wss, 8084, false, Bind::Network),
+            ("tcp".into(), ListenerKind::Tcp, 1883, true),
+            ("tls".into(), ListenerKind::Tls, 8883, true),
+            ("ws".into(), ListenerKind::Ws, 8083, true),
+            ("wss".into(), ListenerKind::Wss, 8084, false),
         ]
     );
+    assert_eq!(c.bind, Bind::Network, "reachability is broker-wide, whole network by default");
     assert!(!c.anonymous);
     assert_eq!(c.max_clients, 1000);
     let certs = m.broker_certs().unwrap();
@@ -133,7 +134,6 @@ async fn b02_presets_create_the_right_combination() {
                 preset,
                 kind,
                 port: u32::from(port),
-                bind: Bind::Localhost,
             })
             .unwrap();
         cfg.listeners.into_iter().find(|l| l.port == port).unwrap()
@@ -352,7 +352,6 @@ async fn b07_anonymous_gates_everything_and_off_restores() {
         preset: Preset::Mtls,
         kind: ListenerKind::Tls,
         port: u32::from(mp),
-        bind: Bind::Localhost,
     })
     .unwrap();
     m.add_user("alice", "pw").unwrap();
@@ -554,7 +553,6 @@ async fn b10_rotate_ca_refuses_old_certs_and_reissues_desktop_cert() {
         preset: Preset::Mtls,
         kind: ListenerKind::Tls,
         port: u32::from(mp),
-        bind: Bind::Localhost,
     })
     .unwrap();
     let files = m
@@ -642,7 +640,6 @@ async fn b12_local_connection_picks_most_secure_listener() {
         preset: Preset::Mtls,
         kind: ListenerKind::Tls,
         port: u32::from(mp),
-        bind: Bind::Localhost,
     })
     .unwrap();
     let mut first_pw = None;
@@ -1091,4 +1088,72 @@ async fn b20_no_tls_listener_reads_no_server_key() {
     let st = m.start().await;
     assert_eq!(st.state, BrokerState::Running, "{:?}", st.error);
     m.stop().await;
+}
+
+/// B-21: reachability is one choice for the whole broker; a change needs a restart and the runtime binds every
+/// listener accordingly.
+#[tokio::test]
+async fn b21_bind_is_broker_wide_restart_and_runtime() {
+    let dir = tempfile::tempdir().unwrap();
+    let (m, _) = open(dir.path());
+    randomize_ports(&m);
+    m.set_anonymous(true).unwrap();
+    let c = m.set_bind(Bind::Localhost).unwrap();
+    assert_eq!(c.bind, Bind::Localhost);
+    assert!(!m.status().restart_needed, "a stopped broker applies it at the next start");
+    let json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.path().join("broker.json")).unwrap()).unwrap();
+    assert_eq!(json["bind"], "localhost");
+    assert!(
+        json["listeners"].as_array().unwrap().iter().all(|l| l.get("bind").is_none()),
+        "no per-listener reachability in broker.json"
+    );
+    assert_eq!(m.start().await.state, BrokerState::Running);
+    let tp = port_of(&m, "tcp");
+    assert!(c4(opts4("b21-local", tp, None, None)).await.is_ok());
+    if let Some(ip) = lan_ipv4() {
+        let r = tokio::time::timeout(Duration::from_secs(2), tokio::net::TcpStream::connect((ip, tp))).await;
+        assert!(!matches!(r, Ok(Ok(_))), "this computer only: not reachable on {ip}");
+    } else {
+        eprintln!("SKIP part of B-21: no non-loopback IPv4 address on this machine");
+    }
+    // the same value again changes nothing; the other value flags a restart
+    m.set_bind(Bind::Localhost).unwrap();
+    assert!(!m.status().restart_needed);
+    m.set_bind(Bind::Network).unwrap();
+    assert!(m.status().restart_needed);
+    assert_eq!(m.restart().await.state, BrokerState::Running);
+    if let Some(ip) = lan_ipv4() {
+        let mut o = opts4("b21-net", port_of(&m, "tcp"), None, None);
+        o.host = ip.to_string();
+        assert!(c4(o).await.is_ok(), "whole network: reachable on {ip}");
+    }
+    m.stop().await;
+}
+
+/// B-21: a broker.json written before change set 4 (reachability per listener) loads; network wins when any listener
+/// had it, localhost when all had it; the file is rewritten with the broker-wide value only.
+#[test]
+fn b21_old_broker_json_migrates() {
+    for (binds, expected) in [
+        (["localhost", "network", "localhost", "localhost"], Bind::Network),
+        (["localhost", "localhost", "localhost", "localhost"], Bind::Localhost),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let secrets: Arc<dyn SecretStore> = Arc::new(MemorySecrets::new());
+        drop(BrokerManager::open(dir.path(), secrets.clone()).unwrap());
+        let path = dir.path().join("broker.json");
+        let mut json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        json.as_object_mut().unwrap().remove("bind");
+        for (l, b) in json["listeners"].as_array_mut().unwrap().iter_mut().zip(binds) {
+            l["bind"] = serde_json::Value::from(b);
+        }
+        std::fs::write(&path, serde_json::to_string_pretty(&json).unwrap()).unwrap();
+        let m = BrokerManager::open(dir.path(), secrets).unwrap();
+        assert_eq!(m.config().bind, expected, "{binds:?}");
+        assert_eq!(m.config().listeners.len(), 4);
+        let again: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(again["bind"], serde_json::to_value(expected).unwrap());
+        assert!(again["listeners"].as_array().unwrap().iter().all(|l| l.get("bind").is_none()));
+    }
 }

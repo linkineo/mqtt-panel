@@ -135,6 +135,12 @@ pub fn remove_listener(state: State<'_, AppState>, listener_id: String) -> R<Bro
     followed(&state, mgr(&state)?.remove_listener(&listener_id))
 }
 
+/// Reachability of every listener, broker-wide (change set 4): the whole network or this computer only.
+#[tauri::command]
+pub fn set_broker_bind(state: State<'_, AppState>, bind: Bind) -> R<BrokerConfig> {
+    followed(&state, mgr(&state)?.set_bind(bind))
+}
+
 #[tauri::command]
 pub fn set_anonymous(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
     followed(&state, mgr(&state)?.set_anonymous(on))

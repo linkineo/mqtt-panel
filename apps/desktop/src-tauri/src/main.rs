@@ -198,6 +198,7 @@ fn main() {
             broker::add_listener,
             broker::update_listener,
             broker::remove_listener,
+            broker::set_broker_bind,
             broker::set_anonymous,
             broker::set_require_client_cert,
             broker::set_verify_against,

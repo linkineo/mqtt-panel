@@ -4,6 +4,7 @@
 //! # All keys are optional except listener kind and port.
 //! max_clients = 1000             # default 1000
 //! max_packet_size = 16777216     # bytes, default 16 MiB
+//! bind = "network"               # every listener: network (all interfaces, default) | localhost | an IP address
 //!
 //! [auth]
 //! anonymous = false              # true: anyone may connect; users and client certificates are ignored
@@ -25,8 +26,7 @@
 //! [[listener]]
 //! id = "tcp"                     # optional, defaults to the kind (tcp, tls-2, ...)
 //! kind = "tcp"                   # tcp | tls | ws | wss  (ws and wss serve the path /mqtt)
-//! port = 1883
-//! bind = "network"               # network (all interfaces, default) | localhost | an IP address
+//! port = 1883                    # reachability is broker-wide (top-level `bind`); a per-listener bind is refused
 //!
 //! [[listener]]
 //! kind = "tls"
@@ -50,6 +50,8 @@ use std::sync::Arc;
 struct FileConfig {
     max_clients: Option<usize>,
     max_packet_size: Option<usize>,
+    /// Reachability of every listener (change set 4: one choice for the whole broker).
+    bind: Option<String>,
     #[serde(default)]
     auth: FileAuth,
     tls: Option<FileTls>,
@@ -93,7 +95,6 @@ struct FileListener {
     id: Option<String>,
     kind: ListenerKind,
     port: u16,
-    bind: Option<String>,
     cert: Option<PathBuf>,
     key: Option<PathBuf>,
     key_passphrase: Option<String>,
@@ -191,6 +192,14 @@ impl RuntimeConfig {
             )?)),
             None => None,
         };
+        let bind = match fc.bind.as_deref() {
+            None | Some("network") => BindAddr::Network,
+            Some("localhost") => BindAddr::Localhost,
+            Some(ip) => BindAddr::Addr(
+                ip.parse()
+                    .map_err(|_| BrokerError::internal(format!("invalid bind address {ip}")))?,
+            ),
+        };
         let mut listeners = Vec::new();
         for (i, l) in fc.listener.into_iter().enumerate() {
             let id = l.id.unwrap_or_else(|| {
@@ -200,14 +209,6 @@ impl RuntimeConfig {
                     format!("{}-{}", l.kind.id_prefix(), i + 1)
                 }
             });
-            let bind = match l.bind.as_deref() {
-                None | Some("network") => BindAddr::Network,
-                Some("localhost") => BindAddr::Localhost,
-                Some(ip) => BindAddr::Addr(
-                    ip.parse()
-                        .map_err(|_| BrokerError::internal(format!("invalid bind address {ip}")))?,
-                ),
-            };
             let tls = if l.kind.encrypted() {
                 match &l.cert {
                     Some(c) => Some(Arc::new(material(

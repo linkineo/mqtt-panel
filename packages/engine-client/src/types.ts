@@ -495,16 +495,22 @@ export interface Template {
 export type ListenerKind = 'tcp' | 'tls' | 'ws' | 'wss';
 export type Preset = 'plain' | 'encrypted' | 'passwords' | 'mtls';
 
+/** Reachability of the broker, one choice for every listener (change set 4). */
+export type BrokerBind = 'network' | 'localhost';
+
+/** A listener. Reachability is broker-wide (`BrokerConfig.bind`), not per listener (change set 4). */
 export interface Listener {
   id: string;
   kind: ListenerKind;
-  bind: 'network' | 'localhost';
   port: number;
   enabled: boolean;
   preset: Preset;
 }
 
 export interface BrokerConfig {
+  /** Reachability of every listener: the whole network (default) or this computer only (change set 4). Needs a
+   * restart while running. */
+  bind: BrokerBind;
   listeners: Listener[];
   anonymous: boolean;
   users: BrokerUser[];
@@ -578,7 +584,6 @@ export interface AddListenerRequest {
   preset: Preset;
   kind: ListenerKind;
   port: number;
-  bind: 'network' | 'localhost';
 }
 
 export interface IssueCertRequest {

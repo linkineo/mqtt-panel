@@ -5,6 +5,7 @@ import type {
   AppInfo,
   BrokerCerts,
   BrokerClient,
+  BrokerBind,
   BrokerConfig,
   BrokerStatus,
   ChartSeriesRef,
@@ -160,6 +161,8 @@ export interface EngineClient {
   addListener(request: AddListenerRequest): Promise<BrokerConfig>;
   updateListener(listener: Listener): Promise<BrokerConfig>;
   removeListener(listenerId: string): Promise<BrokerConfig>;
+  /** Reachability of every listener, broker-wide (change set 4): the whole network or this computer only. */
+  setBrokerBind(bind: BrokerBind): Promise<BrokerConfig>;
   setAnonymous(on: boolean): Promise<BrokerConfig>;
   /** Client certificate on encrypted listeners, for the whole broker: Required (true) or Optional (false). */
   setRequireClientCert(on: boolean): Promise<BrokerConfig>;

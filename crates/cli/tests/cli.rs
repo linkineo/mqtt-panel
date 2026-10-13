@@ -1230,3 +1230,27 @@ fn l06_public_brokers() {
         .collect();
     assert_eq!(payloads, vec!["m1", "m2", "m3"]);
 }
+
+/// B-21 (CLI): reachability is one top-level `bind` in the TOML file; the per-listener key of earlier files is refused
+/// like any unknown key, and `--bind` still overrides every listener.
+#[test]
+fn b21_cli_broker_bind_is_broker_wide() {
+    let h = home();
+    let hp = h.path();
+    let cfg = hp.join("old.toml");
+    std::fs::write(&cfg, "[auth]\nanonymous = true\n\n[[listener]]\nkind = \"tcp\"\nport = 18831\nbind = \"localhost\"\n").unwrap();
+    let out = run_args(hp, &["broker", "--config", cfg.to_str().unwrap()]);
+    assert_ne!(out.code, Some(0), "a per-listener bind is refused");
+    assert!(out.stderr.contains("old.toml"), "{}", out.stderr);
+    // the top-level key with the --bind override
+    let port = free_port();
+    let cfg = hp.join("broker.toml");
+    std::fs::write(&cfg, format!("bind = \"network\"\n\n[auth]\nanonymous = true\n\n[[listener]]\nkind = \"tcp\"\nport = {port}\n")).unwrap();
+    let mut c = mp(hp);
+    c.arg("broker").arg("--config").arg(&cfg).arg("--bind").arg("127.0.0.1");
+    let bg = Bg::spawn(c, true);
+    bg.wait_stdout_line("Broker running", Duration::from_secs(10));
+    assert!(wait_port(port, Duration::from_secs(5)), "port {port}");
+    bg.interrupt();
+    ok(&bg.finish(T));
+}

@@ -55,11 +55,12 @@ export class MockBroker {
     const t = now();
     this.config = {
       listeners: [
-        { id: 'l-tcp', kind: 'tcp', bind: 'network', port: 1883, enabled: true, preset: 'plain' },
-        { id: 'l-tls', kind: 'tls', bind: 'network', port: 8883, enabled: true, preset: demo ? 'mtls' : 'encrypted' },
-        { id: 'l-ws', kind: 'ws', bind: 'localhost', port: 8083, enabled: demo, preset: 'plain' },
-        { id: 'l-wss', kind: 'wss', bind: 'network', port: 8084, enabled: false, preset: 'encrypted' },
+        { id: 'l-tcp', kind: 'tcp', port: 1883, enabled: true, preset: 'plain' },
+        { id: 'l-tls', kind: 'tls', port: 8883, enabled: true, preset: demo ? 'mtls' : 'encrypted' },
+        { id: 'l-ws', kind: 'ws', port: 8083, enabled: demo, preset: 'plain' },
+        { id: 'l-wss', kind: 'wss', port: 8084, enabled: false, preset: 'encrypted' },
       ],
+      bind: 'network',
       anonymous: false,
       users: demo
         ? [
@@ -127,7 +128,7 @@ export class MockBroker {
     if (demo) {
       const base = t - 2 * 60 * 60_000;
       this.addLog('info', 'broker started · 3 listeners', base);
-      this.addLog('debug', 'listener tls 0.0.0.0:8883 up (mutual TLS, local CA)', base + 1000);
+      this.addLog('debug', 'listener tls 0.0.0.0:8883 up (client certificate required, local CA)', base + 1000);
       this.addLog('warn', 'TLS handshake failed from 10.20.4.90: unknown CA', t - 14 * 60_000);
       this.addLog('info', 'client cli-sub-21 connected (TCP)', t - 4 * 60_000);
       this.addLog('info', 'retained store 1 212 entries', t - 170_000);
@@ -172,7 +173,7 @@ export class MockBroker {
       msgOutRate: running ? this.outRate : 0,
       retained: this.retained,
       restartNeeded: this.restartNeeded,
-      error: null,
+      error: this.state === 'failed' ? this.error : null,
       listeners: this.config.listeners.map((l) => ({ id: l.id, up: running && l.enabled, error: null })),
     };
   }
@@ -181,7 +182,30 @@ export class MockBroker {
     return clone(this.config);
   }
 
+  /** e2e (C-17): every start fails as if another program held the TCP listener's port. */
+  failStart = false;
+
+  /** Why a start fails, or null. */
+  startError(): UserMessage | null {
+    if (!this.failStart) return null;
+    const l = this.config.listeners.find((x) => x.enabled) ?? this.config.listeners[0];
+    return um('broker.portInUseBy', { port: l?.port ?? 1883, process: 'node' });
+  }
+
+  error: UserMessage | null = null;
+
+  isRunning(): boolean {
+    return this.state === 'running';
+  }
+
   start(): void {
+    this.error = this.startError();
+    if (this.error) {
+      this.state = 'failed';
+      this.startedAt = null;
+      this.addLog('error', 'broker could not start: no listener is up');
+      return;
+    }
     this.state = 'running';
     this.startedAt = this.now();
     this.restartNeeded = false;
@@ -210,14 +234,21 @@ export class MockBroker {
     const l: Listener = {
       id: `l-${++this.listenerN}`,
       kind: req.kind,
-      bind: req.bind,
       port: req.port,
       enabled: true,
       preset: req.preset,
     };
     this.config.listeners.push(l);
-    // Mutual TLS sets the broker-wide client certificate requirement to Required.
+    // "Encrypted + client certificates" sets the broker-wide client certificate requirement to Required.
     if (req.preset === 'mtls') this.config.requireClientCert = true;
+    this.changed();
+  }
+
+  /** Reachability of every listener (change set 4). */
+  setBind(bind: BrokerConfig['bind']): void {
+    if (this.config.bind === bind) return;
+    this.config.bind = bind;
+    this.addLog('info', bind === 'network' ? 'listeners reachable from the whole network' : 'listeners reachable from this computer only');
     this.changed();
   }
 

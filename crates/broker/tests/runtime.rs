@@ -602,6 +602,7 @@ async fn b13_toml_config_file_and_bind_override() {
     let text = format!(
         r#"
 max_clients = 50
+bind = "network"
 [auth]
 anonymous = false
 [[auth.users]]
@@ -616,7 +617,6 @@ revoked = ["{revoked}"]
 [[listener]]
 kind = "tcp"
 port = {p1}
-bind = "network"
 [[listener]]
 kind = "tls"
 port = {p2}
@@ -674,4 +674,26 @@ port = {p2}
     )
     .unwrap();
     assert_eq!(RuntimeConfig::from_toml_file(&path).unwrap_err().key(), "file.unreadable");
+}
+
+/// B-21: in the TOML file reachability is one top-level `bind` for every listener; a per-listener `bind` is refused
+/// like any unknown key.
+#[test]
+fn b21_toml_bind_is_broker_wide_and_listener_bind_refused() {
+    let base = std::path::Path::new(".");
+    let cfg = RuntimeConfig::from_toml_str(
+        "bind = \"localhost\"\n[auth]\nanonymous = true\n[[listener]]\nkind = \"tcp\"\nport = 1883\n[[listener]]\nkind = \"ws\"\nport = 8083\n",
+        base,
+    )
+    .unwrap();
+    assert_eq!(cfg.listeners.len(), 2);
+    assert!(cfg.listeners.iter().all(|l| l.bind == BindAddr::Localhost));
+    let cfg = RuntimeConfig::from_toml_str("[[listener]]\nkind = \"tcp\"\nport = 1883\n", base).unwrap();
+    assert!(cfg.listeners.iter().all(|l| l.bind == BindAddr::Network), "whole network by default");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("broker.toml");
+    std::fs::write(&path, "[[listener]]\nkind = \"tcp\"\nport = 1883\nbind = \"localhost\"\n").unwrap();
+    let e = RuntimeConfig::from_toml_file(&path).unwrap_err();
+    assert_eq!(e.key(), "file.unreadable");
+    assert!(e.detail.as_deref().unwrap_or_default().contains("bind"), "{:?}", e.detail);
 }

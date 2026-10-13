@@ -64,6 +64,8 @@ export interface MockControls {
   savedFiles(): { fileName: string; bytes: number }[];
   /** Forces a connection state (e2e: a reconnecting card and tab). */
   setConnectionState(connectionId: string, state: ConnState): void;
+  /** Makes every broker start fail as if another program held a listener's port (e2e: C-17). */
+  failBrokerStart(on: boolean): void;
   tick(): void;
   dispose(): void;
 }
@@ -345,6 +347,10 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     isCa: false,
   });
 
+  /** The profile "Local broker" while the embedded broker is not running: nothing listens on its port. */
+  const localDown = (p: Profile): UserMessage | null =>
+    p.isLocalBroker && broker.state !== 'running' ? um('error.refused', { host: p.host, port: p.port }) : null;
+
   const trustCheck = (p: Profile): TrustPrompt | UserMessage | null => {
     if (p.host.includes('nowhere')) return um('error.dns', { host: p.host });
     if (settings.skipVerify || !isTls(p)) return null;
@@ -432,7 +438,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     changedTick();
     await delay(latency);
     if (disposed) return { kind: 'failed', error: um('error.notConnected') };
-    const check = trustCheck(p);
+    const check = localDown(p) ?? trustCheck(p);
     if (check !== null) {
       if (isNew) conns.delete(profileId);
       else c.state = 'disconnected';
@@ -777,7 +783,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     async testProfile(id) {
       const p = needProfile(id);
       await delay(latency);
-      const check = trustCheck(p);
+      const check = localDown(p) ?? trustCheck(p);
       if (check !== null && 'leaf' in check) {
         pendingTrust.set(id, check);
         return { kind: 'needsTrust', trust: clone(check) } as TestOutcome;
@@ -1053,7 +1059,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       await delay(latency);
       broker.start();
       changedTick();
-      await reconnectLocal();
+      if (broker.isRunning()) await reconnectLocal();
       return broker.status();
     },
     async brokerStop() {
@@ -1070,7 +1076,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       await delay(latency);
       broker.start();
       changedTick();
-      await reconnectLocal();
+      if (broker.isRunning()) await reconnectLocal();
       return broker.status();
     },
     async validatePort(port, listenerId) {
@@ -1090,6 +1096,10 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
     async removeListener(id) {
       broker.removeListener(id);
+      return brokerChanged();
+    },
+    async setBrokerBind(bind) {
+      broker.setBind(bind);
       return brokerChanged();
     },
     async setAnonymous(on) {
@@ -1223,6 +1233,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
             await delay(latency);
             broker.start();
             changedTick();
+            if (!broker.isRunning() && broker.error) throw clone(broker.error);
           }
           if (!l.enabled) throw um('broker.noListener');
           return res(action);
@@ -1263,6 +1274,9 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       const c = conns.get(connectionId);
       if (c) c.state = state;
       tick();
+    },
+    failBrokerStart(on) {
+      broker.failStart = on;
     },
     tick,
     dispose() {
