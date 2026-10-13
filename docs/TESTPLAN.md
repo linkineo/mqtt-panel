@@ -34,10 +34,12 @@ Pass rule: a release needs every `auto` and `nightly` test green on macOS, Windo
 | C-04 | I | auto | Connect over WebSocket (ws) and secure WebSocket (wss) with path `/mqtt`. | Works; wrong path gives "The broker closed the WebSocket: path /x not accepted (HTTP 404)". |
 | C-05 | I | auto | Several profiles connected at once; switch in the pill. | Explorer, Publish and Charts scope to the active one; the others keep receiving. |
 | C-06 | I | auto | Reconnect policy: broker restarted while connected. | Pill shows "reconnecting", subscriptions restored, counters continue, no duplicate subscriptions. |
-| C-07 | E | auto | "Try connect" success message content. | Latency, server cert subject/issuer/validity, negotiated version, max packet size. |
+| C-07 | E | auto | "Test" success message content. | Latency, server cert subject/issuer/validity, negotiated version, max packet size. |
 | C-08 | E | auto | Subscriptions default: new profile has one chip `# · QoS 0`; remove it; warning "No subscriptions…" appears; add `building/#`. | As specified. |
 | C-09 | E | manual | File pickers: Browse opens the native dialog; drop a PEM on the field; drop a .txt. | Parsed details shown; the .txt gives "This file is not a certificate". No typed path anywhere. |
 | C-10 | E | auto | Import from other tools: a predecessor-tool settings file and an MQTTX export fixture (synthetic, committed under `tests/fixtures/import/`). | Profiles created with host, port, scheme, subscriptions; secrets not imported; a summary lists what was skipped. |
+| C-12 | E | auto | "New connection" menu: "Another broker…" opens the empty form without a Target row; "This app's broker" shows "Use an existing listener" and "Add a listener…"; the first-launch cards route to the same places | As specified. |
+| C-13 | E | auto | "This app's broker" > "Add a listener…": Add listener steps 1 and 2 (no login row), then the dialog's steps run (user, certificate if mutual TLS, restart, connect) and the Explorer opens on "Local broker"; with Anonymous on no user is created and the dialog says so | As specified. |
 | C-11 | I | nightly | Public brokers plain: connect to each F-05 broker on 1883, subscribe `mqttpanel-test/<id>/#`, publish 3 messages, receive them. | Received within 2 s; SKIP if unreachable. |
 
 ## 2. Certificates and TLS (the combination matrix)
@@ -146,15 +148,18 @@ Replayed from `datapoints.json` into the engine (U) and verified on screen (E) f
 | B-03 | I | auto | Port validation: 80, 1023, 1024, 65535, 65536, a port in use | Refused with the exact messages; in-use reported before start. |
 | B-04 | I | auto | Network vs Localhost switch per listener | Bound address verified by connecting from 127.0.0.1 and from the LAN address of the machine. |
 | B-05 | I | auto | Users: add, change password, remove; argon2 at rest; login with right and wrong password on TCP and TLS | CONNACK 0x05 (3.1.1) / 0x86 (5) on wrong password, with the broker log line. |
-| B-06 | I | auto | Per-listener login accepted on its listener only; shared user still accepted (assumption under confirmation) | As specified. |
+| B-06 | I | auto | Shared users are accepted on every listener (TCP, TLS, WS, WSS); no per-listener login exists in the config or the UI | As specified. |
 | B-07 | I | auto | Anonymous on: users, logins and client certs ignored; mTLS listener accepts a client without a certificate; pill shows "anonymous"; Anonymous off restores | As specified. |
 | B-08 | I | auto | Issue client cert, export PEM and PKCS#12, connect with each; revoke; the revoked one is refused at the next handshake | As specified. |
 | B-09 | I | auto | Import CSR, sign it, connect with the device-held key | As specified. |
-| B-10 | I | auto | Rotate CA: existing client certs refused after rotation with a clear log line; "Connect Explorer here" re-issues the desktop cert | As specified. |
+| B-10 | I | auto | Rotate CA: existing client certs refused after rotation with a clear log line; the next "This app's broker" connection re-issues the desktop cert | As specified. |
 | B-11 | I | auto | Retained messages count; disconnect a client from the Clients table; last-will delivery on an abrupt disconnect | As specified. |
-| B-12 | I | auto | "Connect Explorer here" picks the most secure enabled listener and reuses the "Local broker" profile | No duplicate profiles after 3 clicks. |
+| B-12 | I | auto | "This app's broker" > "Use an existing listener" preselects the most secure enabled listener, creates the user "mqtt-panel" once (kept on later runs), issues "mqttpanel-desktop" only when required, restarts only when needed, connects, and updates the single profile "Local broker" | No duplicate profiles or users after 3 runs; connected within 5 s with the broker stopped beforehand. |
 | B-13 | I | auto | CLI `mqttpanel broker` with the desktop config and with `--config` file; `--bind 127.0.0.1` | Same behaviour as the app. |
 | B-14 | I | nightly | 1 000 clients (harness) connected, 5 000 msg/s fan-in, 20 000 msg/s fan-out for 60 s | No drops at QoS 1; memory stable. |
+| B-15 | E | auto | Restart prompt: adding a listener, changing a port or reachability asks "Restart now" / "Later"; "Later" leaves the Restart button pulsing with "Restart broker and apply changes" and the pill "restart pending"; pressing it applies; user and anonymous changes never prompt; reduced motion shows a static highlight | As specified. |
+| B-16 | E | auto | Users table: eye reveals the password, copy puts it on the clipboard, in every password and passphrase field the app owns | As specified. |
+| B-17 | M | manual | Test lab: `tools/testlab/mosquitto_broker.py` in all five modes, app connects with the printed values and files; `tools/testlab/load_client.py --check` against each listener kind of the app's broker with exported CA, PEM and PKCS#12; 500 msg/s for 60 s with charts and export | Round trips OK; app shows about 500 msg/s with no backlog. |
 
 ## 7. Error messages against external brokers
 

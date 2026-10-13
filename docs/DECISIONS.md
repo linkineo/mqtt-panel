@@ -14,7 +14,7 @@
 | CLI | Simple: sub, pub, broker, profiles. No capture or export command in v1. |
 | Languages | EN (source), FR, DE from v1.0. |
 | Look | Developer-tool density, identical on all platforms, light and dark, mqtt-panel palette with Sage (default), Slate and Clay accents. Native menus, shortcuts, dialogs and window chrome on each OS. Rail labels are verbs: Connect, Explore, Publish, Charts, Broker, Settings. Sent log in the right column of Publish. Tree rows show values and sparklines by default. Plain words in user-facing labels, never jargon; form rows never wrap (helper text short, explanation in the ⓘ bubble). |
-| Mockups | `docs/mockups/mqtt-panel-mockups.html` is the validated UI reference (22 screens, 1280×700, validated by the owner on 12 Oct 2026). The UI must match it. |
+| Mockups | `docs/mockups/mqtt-panel-mockups.html` is the validated UI reference (22 screens validated by the owner on 12 Oct 2026, 1280×700; change set 1 of 13 Oct 2026 added 02b and 12c and edited 02, 12, 12b, 14, 19). The UI must match it. |
 | Licence | Apache 2.0, confirmed by the owner (12 Oct 2026). Dependencies: MIT, BSD, Apache 2.0, ISC, MPL 2.0; no GPL or AGPL. |
 | Repository | github.com/linkineo/mqtt-panel, private until release. Website: mqtt-panel.com. |
 | Signing | Beta builds are not signed on Windows or macOS. Signing (Windows) and signing plus notarization (macOS) are the final step before a release. Windows: the cheapest option that stays hassle-free for end users; candidate Azure Trusted Signing, eligibility and price to verify. |
@@ -80,9 +80,20 @@
 - Public copy (README, site, release notes) must not name the predecessor tool: checked by `scripts/check-forbidden-words.sh` before each release.
 
 ## Open
-- Awaiting owner confirmation (per-listener login): (1) a listener's own login is accepted in addition to the shared users list, not instead of it; (2) on a mutual-TLS listener the login is optional and the client certificate stays required. Implemented as stated until the owner says otherwise.
+- (Closed 13 Oct 2026) Per-listener login: dropped altogether by the owner, see change set 1.
 - Library candidates are verified in the spike (`SPEC.md` section 10).
 - Small layout deviations from the mockups made so French and German fit (listed under "13 Oct 2026, phases 2 to 4 UI" below): the "unencrypted" chip sits next to the listener kind instead of next to the Network/Localhost switch; the broker uptime sits on the Status tile's label line; the series unit hint is an ⓘ bubble. Awaiting owner confirmation; easy to revert.
+
+### 13 Oct 2026, owner feedback after the first run (change set 1)
+Owner feedback on the running app, 13 Oct 2026. Specified in `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` section 7, mockups 02, 02b, 12, 12b, 12c, 14, 19, and `docs/TESTPLAN.md` C-12, C-13, B-06, B-10, B-12, B-15.
+- "New connection" becomes a menu: "Another broker…" (the form) or "This app's broker" with "Use an existing listener" and "Add a listener…". The Target row leaves the form.
+- "This app's broker" does everything itself: user "mqtt-panel" with a strong password, client certificate when required, CA trust, broker start or restart, connect; one profile "Local broker".
+- A listener change that needs a restart prompts "Restart now" or "Later"; on "Later" the Restart button pulses with "Restart broker and apply changes" until pressed (static highlight under reduced motion).
+- "Connect Explorer here" and "Connect Explorer to this listener" are removed.
+- One broker, several ports: per-listener logins are removed; the users table in Authentication is the only login store. Authentication moves above Client certificates.
+- Passwords and passphrases the app owns can be revealed with an eye icon and copied.
+- The test button reads "Test" (FR « Tester », DE „Testen“).
+- Test lab scripts (`tools/testlab/`, Python, mosquitto and Paho): mosquitto in five security modes for the app to connect to; Paho clients against the app's broker with a 500 msg/s generator over 50 topics.
 
 ## Implementation decisions
 

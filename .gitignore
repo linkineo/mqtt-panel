@@ -45,3 +45,8 @@ packages/ui/playwright-report/
 packages/ui/e2e/screenshots/
 packages/ui/test-results/
 packages/ui/playwright-report/
+
+# Test lab
+tools/testlab/.venv/
+tools/testlab/out/
+__pycache__/

@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 13 Oct 2026 (phases 1 to 4 complete on macOS; Windows and Linux through CI).
+Last update: 13 Oct 2026 (phases 1 to 4 complete on macOS; change set 1 specified, implementation pending; Windows and Linux through CI).
 
 ## Summary
 
@@ -11,6 +11,21 @@ Last update: 13 Oct 2026 (phases 1 to 4 complete on macOS; Windows and Linux thr
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, Connect Explorer here, CLI | Done on macOS. See "UI" below. |
+
+## Change set 1 (13 Oct 2026, owner feedback after the first run): to implement
+
+Specified in `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` section 7, mockups 02, 02b, 12, 12b, 12c, 14, 19 and `docs/TESTPLAN.md` C-12, C-13, B-06, B-12, B-15, B-16, B-17. Status per item:
+
+| Item | Status |
+|---|---|
+| "New connection" menu (Another broker… / This app's broker > Use an existing listener / Add a listener…); Target row removed from the form; first-launch cards routed | Pending |
+| "Connect to this app's broker" dialog (02b): listener list, explainer, steps, user "mqtt-panel", certificate "mqttpanel-desktop" when required, CA trust, start or restart, connect, single profile "Local broker" | Pending |
+| Restart prompt (12c): "Restart now" / "Later"; pulsing "Restart broker and apply changes"; pill and heading "restart pending"; reduced motion | Pending |
+| Broker screen: "Connect Explorer here" and the row menu entry removed; Authentication above Client certificates; users table with eye and copy; per-listener login removed from UI, model, TOML config and broker runtime | Pending |
+| Eye and copy on every password and passphrase field the app owns | Pending |
+| "Test" / « Tester » / „Testen“ | Pending |
+| Tests updated: Vitest, Playwright states and overflow check (EN, FR, DE), Rust broker tests (B-06, B-12), new flows (C-12, C-13, B-15, B-16) | Pending |
+| Test lab scripts `tools/testlab/` (mosquitto in five modes, Paho load client) | Done, verified on macOS 13 Oct 2026 (B-17 manual run by the owner pending) |
 
 ## What works
 
