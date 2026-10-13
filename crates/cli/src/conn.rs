@@ -30,9 +30,7 @@ pub fn secret_store() -> Arc<dyn SecretStore> {
         return Arc::new(mem);
     }
     let dir = mqttpanel_profiles::default_dir();
-    let mut legacy = Store::new(dir.clone(), Arc::new(MemorySecrets::new())).secret_keys();
-    legacy.extend(mqttpanel_broker::manager::secret_keys_in(&dir.join("broker")));
-    mqttpanel_profiles::open_app_secrets(&dir, &legacy)
+    mqttpanel_profiles::open_app_secrets(&dir)
 }
 
 /// The profile store of the desktop app (`MQTTPANEL_HOME` overrides the folder).

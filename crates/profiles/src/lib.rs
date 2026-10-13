@@ -9,6 +9,6 @@ pub mod store;
 
 pub use connect::connect_options;
 pub use model::*;
-pub use secrets::{KeychainSecrets, MemorySecrets, SecretError, SecretStore};
-pub use secrets_file::{open_app_secrets, FileSecrets, FixedMasterKey, KeychainMasterKey, MasterKeySource, MigrationReport, SECRETS_FILE};
+pub use secrets::{MemorySecrets, SecretError, SecretStore};
+pub use secrets_file::{open_app_secrets, FileSecrets, FixedMasterKey, KeychainMasterKey, MasterKeySource, SECRETS_FILE};
 pub use store::{default_dir, Store};

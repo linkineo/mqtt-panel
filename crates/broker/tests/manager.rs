@@ -954,3 +954,141 @@ async fn v09_broker_restart_never_reads_the_secret_store() {
         m.stop().await;
     }
 }
+
+// ---------------------------------------------------------------- B-20: missing keys heal, a refusing store fails
+
+fn has_log(m: &BrokerManager, text: &str) -> bool {
+    m.log(LogLevel::Info, 0).iter().any(|l| l.text == text)
+}
+
+/// The TLS listener answers a handshake with a certificate that chains to the broker's current CA.
+async fn tls_ok(m: &BrokerManager) {
+    let port = port_of(m, "tls");
+    let s = tls_stream(port, tls_cfg(&ca_roots(m), None)).await;
+    assert!(s.is_ok(), "TLS handshake: {:?}", s.err());
+}
+
+#[tokio::test]
+async fn b20_missing_server_key_issues_a_new_server_certificate() {
+    let dir = tempfile::tempdir().unwrap();
+    let (m, secrets) = open(dir.path());
+    randomize_ports(&m);
+    let before = m.broker_certs().unwrap();
+    drop(m);
+    secrets.delete("broker/server-key").unwrap();
+    let m = BrokerManager::open(dir.path(), Arc::new(secrets.clone())).unwrap();
+    let st = m.start().await;
+    assert_eq!(st.state, BrokerState::Running, "{:?}", st.error);
+    assert!(st.listeners.iter().filter(|l| l.id == "tls").all(|l| l.up));
+    let after = m.broker_certs().unwrap();
+    assert_ne!(after.server.fingerprint, before.server.fingerprint, "a new server certificate");
+    assert_eq!(after.ca.fingerprint, before.ca.fingerprint, "the CA is kept");
+    assert_eq!(after.server.san, before.server.san, "same names");
+    assert!(secrets.get("broker/server-key").unwrap().is_some(), "the new key is stored");
+    assert!(has_log(&m, "server certificate issued again: its key was missing"));
+    assert!(!m.take_ca_regenerated());
+    tls_ok(&m).await;
+    m.stop().await;
+}
+
+#[tokio::test]
+async fn b20_missing_server_and_ca_keys_regenerate_the_local_ca() {
+    let dir = tempfile::tempdir().unwrap();
+    let (m, secrets) = open(dir.path());
+    randomize_ports(&m);
+    m.issue_client_cert(IssueCertRequest {
+        name: "sensor-1".into(),
+        valid_years: 2,
+        key_type: KeyAlg::Ecdsa,
+        format: CertFormat::Pem,
+        passphrase: String::new(),
+        save_ca: true,
+    })
+    .unwrap();
+    let before = m.broker_certs().unwrap();
+    drop(m);
+    secrets.delete("broker/server-key").unwrap();
+    secrets.delete("broker/ca-key").unwrap();
+    let m = BrokerManager::open(dir.path(), Arc::new(secrets.clone())).unwrap();
+    let st = m.start().await;
+    assert_eq!(st.state, BrokerState::Running, "{:?}", st.error);
+    let after = m.broker_certs().unwrap();
+    assert_ne!(after.ca.fingerprint, before.ca.fingerprint, "a new local CA");
+    assert_ne!(after.server.fingerprint, before.server.fingerprint);
+    assert!(secrets.get("broker/ca-key").unwrap().is_some());
+    assert!(secrets.get("broker/server-key").unwrap().is_some());
+    assert!(has_log(
+        &m,
+        "local CA regenerated: its key was missing; issued client certificates must be issued again"
+    ));
+    assert!(m.take_ca_regenerated());
+    assert!(!m.take_ca_regenerated(), "taken once");
+    assert!(
+        m.issued_certs().iter().filter(|c| c.name == "sensor-1").all(|c| c.superseded),
+        "earlier client certificates are no longer trusted"
+    );
+    tls_ok(&m).await;
+    m.stop().await;
+}
+
+/// A store that refuses every read, as the secrets file does after the keychain refused the master key.
+struct Refusing;
+
+impl SecretStore for Refusing {
+    fn get(&self, _: &str) -> Result<Option<String>, mqttpanel_profiles::SecretError> {
+        Err(mqttpanel_profiles::SecretError::Refused("denied".into()))
+    }
+    fn set(&self, _: &str, _: &str) -> Result<(), mqttpanel_profiles::SecretError> {
+        Err(mqttpanel_profiles::SecretError::Refused("denied".into()))
+    }
+    fn delete(&self, _: &str) -> Result<(), mqttpanel_profiles::SecretError> {
+        Ok(())
+    }
+    fn contains(&self, _: &str) -> Result<bool, mqttpanel_profiles::SecretError> {
+        Ok(true)
+    }
+}
+
+#[tokio::test]
+async fn b20_a_refusing_secret_store_fails_the_start_with_the_reason() {
+    let dir = tempfile::tempdir().unwrap();
+    let (m, _) = open(dir.path());
+    randomize_ports(&m);
+    let tcp_port = port_of(&m, "tcp");
+    let before = m.broker_certs().unwrap();
+    drop(m);
+    let m = BrokerManager::open(dir.path(), Arc::new(Refusing)).unwrap();
+    let st = m.start().await;
+    assert_eq!(st.state, BrokerState::Failed);
+    assert_eq!(st.error.as_ref().map(|e| e.key.as_str()), Some("keychain.refused"));
+    assert!(st.listeners.iter().all(|l| !l.up), "no listener up");
+    assert!(
+        tokio::net::TcpStream::connect(("127.0.0.1", tcp_port)).await.is_err(),
+        "not even the plain listener"
+    );
+    assert_eq!(
+        m.broker_certs().unwrap().server.fingerprint,
+        before.server.fingerprint,
+        "nothing regenerated when the store refuses"
+    );
+    // The CLI path refuses too.
+    assert!(RuntimeConfig::from_manager(&m).is_err());
+}
+
+#[tokio::test]
+async fn b20_no_tls_listener_reads_no_server_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let (m, _) = open(dir.path());
+    randomize_ports(&m);
+    for mut l in m.config().listeners {
+        if l.kind == ListenerKind::Tls || l.kind == ListenerKind::Wss {
+            l.enabled = false;
+            m.update_listener(l).unwrap();
+        }
+    }
+    drop(m);
+    let m = BrokerManager::open(dir.path(), Arc::new(Refusing)).unwrap();
+    let st = m.start().await;
+    assert_eq!(st.state, BrokerState::Running, "{:?}", st.error);
+    m.stop().await;
+}

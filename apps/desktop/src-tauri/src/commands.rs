@@ -149,7 +149,7 @@ pub fn inspect_file(kind: String, path: String) -> FileInspection {
 #[tauri::command]
 pub fn set_profile_file(state: State<'_, AppState>, profile_id: String, field: String, path: Option<String>, passphrase: Option<String>) -> R<Profile> {
     let secrets = state.store.secrets().clone();
-    let set = |k: String, v: &str| secrets.set(&k, v).map_err(|e| msg!("keychain.unavailable", detail = e.to_string()));
+    let set = |k: String, v: &str| secrets.set(&k, v).map_err(|e| msg!(e.catalog_key(), detail = e.to_string()));
     let del = |k: String| {
         let _ = secrets.delete(&k);
     };

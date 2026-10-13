@@ -1,7 +1,9 @@
 //! The secrets file (SPEC 6, change set 2, TESTPLAN V-09 at crate level): one master key, every secret encrypted in
-//! `secrets.enc`, the key read lazily and once per session, migration of per-secret keychain entries.
+//! `secrets.enc`, the key read lazily and once per session, a refusal remembered for the session (change set 3), no
+//! migration of per-secret keychain entries.
 
-use mqttpanel_profiles::{FileSecrets, FixedMasterKey, MemorySecrets, SecretStore, Store, SECRETS_FILE};
+use mqttpanel_profiles::{FileSecrets, FixedMasterKey, MasterKeySource, SecretError, SecretStore, Store, SECRETS_FILE};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 fn open(dir: &std::path::Path, key: [u8; 32]) -> (FileSecrets, Arc<FixedMasterKey>) {
@@ -77,33 +79,80 @@ fn records_are_authenticated_and_bound_to_their_name() {
     assert!(fs.get("x").is_err());
 }
 
-#[test]
-fn v09_per_secret_keychain_entries_are_migrated_once_and_deleted() {
-    let dir = tempfile::tempdir().unwrap();
-    let legacy = MemorySecrets::new();
-    legacy.set("profile/p1/password", "pw-1").unwrap();
-    legacy.set("broker/ca-key", "CA-KEY").unwrap();
-    legacy.set("unrelated", "kept").unwrap();
-    let (fs, src) = open(dir.path(), [3; 32]);
-    assert!(fs.needs_migration());
-    let keys: Vec<String> = ["profile/p1/password", "profile/p1/client-key", "broker/ca-key"].iter().map(|s| s.to_string()).collect();
-    let r = fs.migrate_from(&legacy, &keys);
-    assert_eq!((r.moved, r.failed), (2, 0));
-    assert!(!fs.needs_migration());
-    assert_eq!(fs.get("profile/p1/password").unwrap().as_deref(), Some("pw-1"));
-    assert_eq!(fs.get("broker/ca-key").unwrap().as_deref(), Some("CA-KEY"));
-    assert_eq!(legacy.get("profile/p1/password").unwrap(), None, "deleted from the keychain");
-    assert_eq!(legacy.get("broker/ca-key").unwrap(), None);
-    assert_eq!(legacy.get("unrelated").unwrap().as_deref(), Some("kept"), "only the listed keys");
-    assert_eq!(src.loads(), 1);
+/// A master key source that always fails, as when the user clicks Deny or the keychain is locked.
+#[derive(Default)]
+struct Refusing {
+    calls: AtomicUsize,
+}
 
-    // Nothing to migrate: the file is marked without touching the key.
-    let dir2 = tempfile::tempdir().unwrap();
-    let (fs2, src2) = open(dir2.path(), [3; 32]);
-    let r = fs2.migrate_from(&MemorySecrets::new(), &keys);
-    assert_eq!((r.moved, r.failed), (0, 0));
-    assert!(!fs2.needs_migration());
-    assert_eq!(src2.loads(), 0);
+impl MasterKeySource for Refusing {
+    fn load_or_create(&self) -> Result<[u8; 32], SecretError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Err(SecretError::Unavailable("user denied access".into()))
+    }
+}
+
+#[test]
+fn v09_a_refused_master_key_is_asked_once_per_session() {
+    let dir = tempfile::tempdir().unwrap();
+    // A file with one record, written in an earlier session.
+    let (fs0, _) = open(dir.path(), [5; 32]);
+    fs0.set("profile/a/password", "pw").unwrap();
+
+    let src = Arc::new(Refusing::default());
+    let fs = FileSecrets::new(dir.path().join(SECRETS_FILE), src.clone());
+    let attempts: Vec<Result<(), SecretError>> = vec![
+        fs.get("profile/a/password").map(|_| ()),
+        fs.set("profile/b/password", "x"),
+        fs.get("profile/a/password").map(|_| ()),
+        fs.set("broker/server-key", "y"),
+        fs.get("profile/a/password").map(|_| ()),
+    ];
+    for r in attempts {
+        let e = r.unwrap_err();
+        assert!(matches!(e, SecretError::Refused(_)), "{e:?}");
+        assert_eq!(e.catalog_key(), "keychain.refused");
+    }
+    assert_eq!(src.calls.load(Ordering::SeqCst), 1, "the keychain is asked exactly once");
+    assert!(fs.key_refused());
+    assert!(!fs.key_loaded());
+    // Paths that need no key keep working and nothing was written.
+    assert!(fs.contains("profile/a/password").unwrap());
+    assert!(!fs.contains("profile/b/password").unwrap());
+    assert_eq!(fs.get("profile/missing").unwrap(), None);
+    assert_eq!(src.calls.load(Ordering::SeqCst), 1);
+    // Other store errors keep their own sentence.
+    assert_eq!(SecretError::Unavailable("x".into()).catalog_key(), "keychain.unavailable");
+}
+
+#[test]
+fn v09_a_file_written_with_the_old_migrated_field_still_loads() {
+    let dir = tempfile::tempdir().unwrap();
+    let (fs, _) = open(dir.path(), [4; 32]);
+    fs.set("profile/a/password", "pw").unwrap();
+    let path = dir.path().join(SECRETS_FILE);
+    let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    v["migrated"] = true.into();
+    std::fs::write(&path, serde_json::to_vec(&v).unwrap()).unwrap();
+
+    let (fs2, src2) = open(dir.path(), [4; 32]);
+    assert_eq!(fs2.names().unwrap(), vec!["profile/a/password".to_string()]);
+    assert_eq!(fs2.get("profile/a/password").unwrap().as_deref(), Some("pw"));
+    fs2.set("profile/b/password", "pw2").unwrap();
+    assert_eq!(src2.loads(), 1);
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(!text.contains("migrated"), "the field is no longer written");
+}
+
+#[test]
+fn v09_opening_the_app_store_touches_no_keychain_item() {
+    // `open_app_secrets` takes the data folder only: no legacy key list, no read at open.
+    let dir = tempfile::tempdir().unwrap();
+    let fs = mqttpanel_profiles::open_app_secrets(dir.path());
+    assert!(!fs.key_loaded());
+    assert!(!fs.key_refused());
+    assert!(fs.names().unwrap().is_empty());
+    assert!(!dir.path().join(SECRETS_FILE).exists(), "nothing written at open");
 }
 
 #[test]
@@ -128,5 +177,4 @@ fn the_profile_store_works_on_the_secrets_file_without_reading_the_key_for_listi
     assert_eq!(src2.loads(), 0, "start-up paths do not touch the keychain");
     assert_eq!(store2.password(&p.id).as_deref(), Some("pw"));
     assert_eq!(src2.loads(), 1);
-    assert_eq!(store2.secret_keys().len(), 4);
 }

@@ -5,16 +5,20 @@
 //! - The master key is read lazily, the first time a secret value is read or written, never when the store is created,
 //!   and cached for the session. Listing, `contains` and `delete` never need it, nor does reading a secret that is not
 //!   there.
+//! - A refusal (Deny, locked keychain, any error of the source) is remembered for the life of the store and never
+//!   retried: every later use fails at once with [`SecretError::Refused`] (change set 3).
+//! - The master key is the only keychain item MQTT Panel reads or writes. Per-secret keychain entries of earlier test
+//!   builds are ignored (no migration, change set 3).
 //! - Each record has its own random 24-byte nonce; the record name is bound as associated data, so a record cannot be
 //!   moved to another name.
 //! - The file is versioned (`version`, `cipher`); names are visible, values are not.
-//! - Existing per-secret keychain entries are moved into the file once ([`FileSecrets::migrate_from`]) and deleted.
 //!
 //! File format (JSON):
 //! ```json
-//! { "format": "mqttpanel-secrets", "version": 1, "cipher": "xchacha20poly1305", "migrated": true,
+//! { "format": "mqttpanel-secrets", "version": 1, "cipher": "xchacha20poly1305",
 //!   "records": { "profile/<id>/password": { "nonce": "<base64, 24 bytes>", "data": "<base64 ciphertext + tag>" } } }
 //! ```
+//! Files of earlier builds may carry a `"migrated"` field; it is ignored on read and no longer written.
 
 use crate::secrets::{SecretError, SecretStore, SERVICE};
 use base64::Engine as _;
@@ -122,32 +126,29 @@ struct FileData {
     version: u32,
     cipher: String,
     #[serde(default)]
-    migrated: bool,
-    #[serde(default)]
     records: BTreeMap<String, Record>,
 }
 
 impl Default for FileData {
     fn default() -> Self {
-        FileData { format: FORMAT.into(), version: VERSION, cipher: CIPHER.into(), migrated: false, records: BTreeMap::new() }
+        FileData { format: FORMAT.into(), version: VERSION, cipher: CIPHER.into(), records: BTreeMap::new() }
     }
-}
-
-/// What [`FileSecrets::migrate_from`] did.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct MigrationReport {
-    /// Secrets moved into the file (and deleted from the keychain).
-    pub moved: usize,
-    /// Keys whose keychain entry could not be read; migration is retried at the next start.
-    pub failed: usize,
 }
 
 /// Secrets in an encrypted file, keyed by one master key (see the module documentation).
 pub struct FileSecrets {
     path: PathBuf,
     source: Arc<dyn MasterKeySource>,
-    key: Mutex<Option<[u8; 32]>>,
+    key: Mutex<KeyState>,
     io: Mutex<()>,
+}
+
+/// The master key of the session: not asked yet, loaded, or refused (never asked again).
+#[derive(Clone)]
+enum KeyState {
+    NotLoaded,
+    Loaded([u8; 32]),
+    Refused(String),
 }
 
 impl std::fmt::Debug for FileSecrets {
@@ -167,7 +168,7 @@ fn aad(name: &str) -> Vec<u8> {
 impl FileSecrets {
     /// A store on `path` (usually `<data folder>/secrets.enc`). Nothing is read and the master key is not touched.
     pub fn new(path: PathBuf, source: Arc<dyn MasterKeySource>) -> Self {
-        FileSecrets { path, source, key: Mutex::new(None), io: Mutex::new(()) }
+        FileSecrets { path, source, key: Mutex::new(KeyState::NotLoaded), io: Mutex::new(()) }
     }
 
     /// The store of the data folder `dir` with the master key in the OS keychain.
@@ -182,17 +183,39 @@ impl FileSecrets {
 
     /// True once the master key was loaded in this session.
     pub fn key_loaded(&self) -> bool {
-        self.key.lock().map(|k| k.is_some()).unwrap_or(false)
+        self.key.lock().map(|k| matches!(*k, KeyState::Loaded(_))).unwrap_or(false)
     }
 
+    /// True once the keychain refused the master key in this session.
+    pub fn key_refused(&self) -> bool {
+        self.key.lock().map(|k| matches!(*k, KeyState::Refused(_))).unwrap_or(false)
+    }
+
+    /// The master key: asked from the source at most once per store. A refusal is kept and returned at once on every
+    /// later call without asking again.
     fn master(&self) -> Result<[u8; 32], SecretError> {
         let mut k = self.key.lock().map_err(unavailable)?;
-        if let Some(key) = *k {
-            return Ok(key);
+        match &*k {
+            KeyState::Loaded(key) => return Ok(*key),
+            KeyState::Refused(detail) => return Err(SecretError::Refused(detail.clone())),
+            KeyState::NotLoaded => {}
         }
-        let key = self.source.load_or_create()?;
-        *k = Some(key);
-        Ok(key)
+        match self.source.load_or_create() {
+            Ok(key) => {
+                *k = KeyState::Loaded(key);
+                Ok(key)
+            }
+            Err(e) => {
+                let detail = match e {
+                    SecretError::Unavailable(d) | SecretError::Refused(d) => d,
+                };
+                if std::env::var_os("MQTTPANEL_LOG").is_some() {
+                    eprintln!("[mqttpanel] keychain refused the master key: {detail}; not asked again in this session");
+                }
+                *k = KeyState::Refused(detail.clone());
+                Err(SecretError::Refused(detail))
+            }
+        }
     }
 
     fn read(&self) -> Result<Option<FileData>, SecretError> {
@@ -271,40 +294,6 @@ impl FileSecrets {
     pub fn names(&self) -> Result<Vec<String>, SecretError> {
         Ok(self.read()?.map(|d| d.records.keys().cloned().collect()).unwrap_or_default())
     }
-
-    /// True when the per-secret keychain entries of earlier builds have not been moved into the file yet.
-    pub fn needs_migration(&self) -> bool {
-        !matches!(self.read(), Ok(Some(d)) if d.migrated)
-    }
-
-    /// Moves the given per-secret keychain entries (`legacy`) into the file and deletes them from the keychain.
-    /// Secrets already in the file win. When every entry could be read the file is marked as migrated; otherwise the
-    /// next start tries again. With nothing to move the master key is not touched.
-    pub fn migrate_from(&self, legacy: &dyn SecretStore, keys: &[String]) -> MigrationReport {
-        let mut report = MigrationReport::default();
-        let present: std::collections::HashSet<String> = self.names().unwrap_or_default().into_iter().collect();
-        for k in keys {
-            match legacy.get(k) {
-                Ok(Some(v)) => {
-                    if present.contains(k) || self.set(k, &v).is_ok() {
-                        let _ = legacy.delete(k);
-                        report.moved += 1;
-                    } else {
-                        report.failed += 1;
-                    }
-                }
-                Ok(None) => {}
-                Err(_) => report.failed += 1,
-            }
-        }
-        if report.failed == 0 {
-            let _ = self.modify(|d| {
-                d.migrated = true;
-                Ok(())
-            });
-        }
-        report
-    }
 }
 
 impl SecretStore for FileSecrets {
@@ -338,16 +327,8 @@ impl SecretStore for FileSecrets {
     }
 }
 
-/// Opens the secrets file of the data folder `dir` (master key in the OS keychain) and, once, moves the per-secret
-/// keychain entries of earlier builds (`legacy_keys`, from the profiles and the broker state) into it. Without legacy
-/// keys nothing touches the keychain here; the master key is read on first secret use.
-pub fn open_app_secrets(dir: &Path, legacy_keys: &[String]) -> Arc<FileSecrets> {
-    let fs = Arc::new(FileSecrets::in_dir(dir));
-    if fs.needs_migration() {
-        let report = fs.migrate_from(&crate::secrets::KeychainSecrets::new(), legacy_keys);
-        if std::env::var_os("MQTTPANEL_LOG").is_some() {
-            eprintln!("[mqttpanel] secrets migration: {} moved, {} failed", report.moved, report.failed);
-        }
-    }
-    fs
+/// Opens the secrets file of the data folder `dir`, its master key the single OS keychain item. Nothing touches the
+/// keychain here; the master key is read on first secret use.
+pub fn open_app_secrets(dir: &Path) -> Arc<FileSecrets> {
+    Arc::new(FileSecrets::in_dir(dir))
 }

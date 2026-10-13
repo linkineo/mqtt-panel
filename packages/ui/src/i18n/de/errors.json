@@ -92,6 +92,7 @@
  "broker.noListener": "Kein Listener ist aktiv. Schalte zuerst einen ein.",
  "broker.notRunning": "Der Broker läuft nicht. Starte ihn zuerst.",
  "keychain.unavailable": "Der Schlüsselbund des Systems ist nicht verfügbar: {detail}",
+ "keychain.refused": "Der Schlüsselbund hat MQTT Panel den Schlüssel nicht gegeben. Starte MQTT Panel neu, um es noch einmal zu versuchen.",
  "profile.notFound": "Dieses Profil gibt es nicht mehr.",
  "profile.noSubscriptions": "Keine Abonnements: Du siehst nichts, bis du eins hinzufügst.",
  "cli.badArgs": "{detail} Führe mqttpanel {command} --help aus, um die Optionen zu sehen.",

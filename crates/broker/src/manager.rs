@@ -141,6 +141,9 @@ struct Inner {
     state: BrokerState,
     error: Option<crate::error::UserMessage>,
     restart_needed: bool,
+    /// Set when a start regenerated the local CA because its key was missing; taken by the shell, which then lets the
+    /// "Local broker" profile follow the new CA.
+    ca_regenerated: bool,
 }
 
 /// Manages the broker configuration, certificates and the running broker.
@@ -280,27 +283,6 @@ fn port_in_use(port: u16) -> bool {
     false
 }
 
-/// Every secret key the broker state in `dir` may use (CA and server keys, user passwords, issued client keys and
-/// passphrases), read from `broker.json` without opening the manager. Used to migrate per-secret keychain entries of
-/// earlier builds into the secrets file.
-pub fn secret_keys_in(dir: &Path) -> Vec<String> {
-    let Ok(text) = std::fs::read_to_string(dir.join(CONFIG_FILE)) else {
-        return Vec::new();
-    };
-    let Ok(st) = serde_json::from_str::<Stored>(&text) else {
-        return Vec::new();
-    };
-    let mut keys = vec![SECRET_CA_KEY.to_string(), SECRET_SERVER_KEY.to_string()];
-    keys.extend(st.users.iter().map(|u| secret_user_password(&u.username)));
-    for c in &st.issued {
-        keys.push(secret_client_key(&c.name));
-        keys.push(secret_client_passphrase(&c.name));
-    }
-    keys.sort();
-    keys.dedup();
-    keys
-}
-
 impl BrokerManager {
     /// Opens (or creates with defaults) the broker state in `dir`.
     ///
@@ -374,6 +356,7 @@ impl BrokerManager {
                 state: BrokerState::Stopped,
                 error: None,
                 restart_needed: false,
+                ca_regenerated: false,
             }),
             log: LogBuffer::new(),
             revoked,
@@ -420,13 +403,91 @@ impl BrokerManager {
         Ok(())
     }
 
-    /// The server key: from memory after the first read of the session.
-    fn server_key(&self) -> Option<String> {
+    /// The server key: from memory after the first read of the session. `Ok(None)` when the store has none; a store
+    /// error (for example the keychain refused the master key) is returned as is.
+    fn server_key(&self) -> Result<Option<String>, BrokerError> {
         let mut cached = self.server_key.lock().unwrap_or_else(|p| p.into_inner());
         if cached.is_none() {
-            *cached = self.secrets.get(SECRET_SERVER_KEY).ok().flatten();
+            *cached = self
+                .secrets
+                .get(SECRET_SERVER_KEY)
+                .map_err(|e| BrokerError::keychain(&e))?;
         }
-        cached.clone()
+        Ok(cached.clone())
+    }
+
+    /// True when an enabled listener needs the server certificate and key (TLS or WSS).
+    fn needs_tls(st: &Stored) -> bool {
+        st.listeners.iter().any(|l| l.enabled && l.kind.encrypted())
+    }
+
+    /// Before a start (SPEC 6, change set 3): a server key missing from the secret store issues a new server
+    /// certificate from the local CA; a CA key missing too regenerates the local CA first. Same SANs and key type as
+    /// the current server certificate (localhost and the host name after an imported one). A store error is returned,
+    /// so the start fails with its reason. Nothing is read when no TLS or WSS listener is enabled.
+    fn heal_tls(&self) -> Result<(), BrokerError> {
+        let mut inner = self.lock();
+        if !Self::needs_tls(&inner.stored) || self.server_key()?.is_some() {
+            return Ok(());
+        }
+        let current = if inner.stored.server_imported {
+            None
+        } else {
+            details_of_pem(&inner.stored.server_pem).ok()
+        };
+        let sans = current
+            .as_ref()
+            .map(|d| d.san.clone())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(kit::local_sans);
+        let key_type = match &current {
+            Some(d) if d.key_type.starts_with("RSA") => KeyAlg::Rsa,
+            _ => KeyAlg::Ecdsa,
+        };
+        let (ca, regenerated) = match self.secret(SECRET_CA_KEY)? {
+            Some(key) => (
+                Ca::from_pem(&inner.stored.ca_pem, &key).map_err(|e| BrokerError::kit(&e))?,
+                false,
+            ),
+            None => (
+                Ca::new_root(LOCAL_CA_NAME, KeyAlg::Ecdsa, Validity::years(5))
+                    .map_err(|e| BrokerError::kit(&e))?,
+                true,
+            ),
+        };
+        let server = ca
+            .issue(
+                SERVER_CERT_NAME,
+                &sans,
+                Usage::Server,
+                key_type,
+                Validity::years(2),
+            )
+            .map_err(|e| BrokerError::kit(&e))?;
+        if regenerated {
+            self.secrets
+                .set(SECRET_CA_KEY, &ca.key_pem)
+                .map_err(|e| BrokerError::keychain(&e))?;
+            inner.stored.ca_pem = ca.cert_pem.clone();
+        }
+        self.set_server_key(&server.key_pem)?;
+        inner.stored.server_pem = format!("{}{}", server.cert_pem, inner.stored.ca_pem);
+        inner.stored.server_imported = false;
+        if regenerated {
+            inner.ca_regenerated = true;
+            self.log.warn(
+                "local CA regenerated: its key was missing; issued client certificates must be issued again",
+            );
+        } else {
+            self.log
+                .warn("server certificate issued again: its key was missing");
+        }
+        self.save(&inner.stored)
+    }
+
+    /// True (once) when a start regenerated the local CA because its key was missing.
+    pub fn take_ca_regenerated(&self) -> bool {
+        std::mem::take(&mut self.lock().ca_regenerated)
     }
 
     fn set_server_key(&self, pem: &str) -> Result<(), BrokerError> {
@@ -585,7 +646,7 @@ impl BrokerManager {
     pub(crate) fn runtime_config(&self) -> Result<RuntimeConfig, BrokerError> {
         let inner = self.lock();
         let st = &inner.stored;
-        let tls = self.tls_material(st);
+        let tls = self.tls_material(st)?;
         let listeners = st
             .listeners
             .iter()
@@ -619,10 +680,23 @@ impl BrokerManager {
         })
     }
 
-    fn tls_material(&self, st: &Stored) -> Option<Arc<TlsMaterial>> {
-        let chain = parse_certs(st.server_pem.as_bytes()).ok()?;
-        let key_pem = self.server_key()?;
-        let key = parse_private_key(key_pem.as_bytes(), None).ok()?;
+    /// The server certificate, key and client roots for the TLS and WSS listeners. `Ok(None)` only when no such
+    /// listener is enabled: an encrypted listener never starts without its material (change set 3).
+    fn tls_material(&self, st: &Stored) -> Result<Option<Arc<TlsMaterial>>, BrokerError> {
+        if !Self::needs_tls(st) {
+            return Ok(None);
+        }
+        let chain = parse_certs(st.server_pem.as_bytes())
+            .map_err(|e| BrokerError::tls_file(&e, "server certificate"))?;
+        let key_pem = self.server_key()?.ok_or_else(|| {
+            BrokerError::new(
+                "keychain.unavailable",
+                &[("detail", s("the server key is missing"))],
+            )
+            .with_detail("the server key is missing from the secret store")
+        })?;
+        let key = parse_private_key(key_pem.as_bytes(), None)
+            .map_err(|e| BrokerError::tls_file(&e, "server key"))?;
         let roots_pem = match st.verify_against {
             VerifyAgainst::Local => Some(st.ca_pem.clone()),
             VerifyAgainst::Imported => st.imported_ca_pem.clone(),
@@ -630,11 +704,11 @@ impl BrokerManager {
         let client_roots = roots_pem
             .and_then(|p| parse_certs(p.as_bytes()).ok())
             .unwrap_or_default();
-        Some(Arc::new(TlsMaterial {
+        Ok(Some(Arc::new(TlsMaterial {
             chain,
             key,
             client_roots,
-        }))
+        })))
     }
 
     /// Starts the broker (no-op when running).
@@ -647,7 +721,7 @@ impl BrokerManager {
             inner.state = BrokerState::Starting;
             inner.error = None;
         }
-        let cfg = self.runtime_config();
+        let cfg = self.heal_tls().and_then(|_| self.runtime_config());
         let result = match cfg {
             Ok(cfg) => Broker::start(cfg).await,
             Err(e) => Err(e),
@@ -1600,7 +1674,9 @@ impl BrokerManager {
 
 impl RuntimeConfig {
     /// The runtime configuration of the desktop app's broker (CLI `mqttpanel broker` without `--config`).
+    /// A missing server or CA key is made again first, as on a start of the app's broker.
     pub fn from_manager(manager: &BrokerManager) -> Result<RuntimeConfig, BrokerError> {
+        manager.heal_tls()?;
         manager.runtime_config()
     }
 }

@@ -129,11 +129,6 @@ impl Store {
 
     // ------------------------------------------------------------ profiles
 
-    /// Every secret key the profiles may use (the migration of per-secret keychain entries reads these).
-    pub fn secret_keys(&self) -> Vec<String> {
-        self.list().iter().flat_map(|p| secret_keys::all(&p.profile.id)).collect()
-    }
-
     pub fn list(&self) -> Vec<StoredProfile> {
         self.read_json::<Vec<StoredProfile>>("profiles.json")
     }
@@ -232,7 +227,7 @@ impl Store {
     pub fn set_password(&self, id: &str, password: &str) -> Result<Profile, UserMessage> {
         let key = secret_keys::password(id);
         let r = if password.is_empty() { self.secrets.delete(&key) } else { self.secrets.set(&key, password) };
-        r.map_err(|e| msg!("keychain.unavailable", detail = e.to_string()))?;
+        r.map_err(|e| msg!(e.catalog_key(), detail = e.to_string()))?;
         let p = self.update(id, |p| p.profile.has_password = !password.is_empty())?;
         Ok(p.profile)
     }

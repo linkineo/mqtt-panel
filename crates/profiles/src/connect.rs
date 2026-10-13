@@ -21,7 +21,7 @@ pub fn connect_options(p: &StoredProfile, secrets: &dyn SecretStore, skip_verify
     if !pr.username.is_empty() {
         o.username = Some(pr.username.clone());
     }
-    let get = |k: String| secrets.get(&k).map_err(|e| msg!("keychain.unavailable", detail = e.to_string()));
+    let get = |k: String| secrets.get(&k).map_err(|e| msg!(e.catalog_key(), detail = e.to_string()));
     o.password = get(secret_keys::password(&pr.id))?;
     if o.password.is_some() && o.username.is_none() {
         o.username = Some(String::new());

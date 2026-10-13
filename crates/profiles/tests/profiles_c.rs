@@ -146,16 +146,19 @@ fn connect_options_from_profile() {
     assert_eq!(o.subscriptions, vec![("#".to_string(), 0)]);
 }
 
-/// C-02 against the real OS keychain: store, read and delete within one process (no access prompt).
+/// C-02 against the real OS keychain: the master key item (under a test service name) is created once, read back
+/// unchanged, and a secret written with it is read by a second store; the test item is removed afterwards.
 #[test]
 #[cfg_attr(not(target_os = "macos"), ignore = "needs an OS keychain (Secret Service on Linux); run with --ignored")]
 fn c02_os_keychain_round_trip() {
-    let k = KeychainSecrets::with_service("MQTT Panel test");
-    let key = format!("test/{}", uuid_like());
-    k.set(&key, "secret-value").unwrap();
-    assert_eq!(k.get(&key).unwrap().as_deref(), Some("secret-value"));
-    k.delete(&key).unwrap();
-    assert_eq!(k.get(&key).unwrap(), None);
+    let service = format!("MQTT Panel test {}", uuid_like());
+    let dir = tempfile::tempdir().unwrap();
+    let fs = FileSecrets::new(dir.path().join(SECRETS_FILE), Arc::new(KeychainMasterKey::with_service(&service)));
+    fs.set("test/secret", "secret-value").unwrap();
+    let fs2 = FileSecrets::new(dir.path().join(SECRETS_FILE), Arc::new(KeychainMasterKey::with_service(&service)));
+    let read = fs2.get("test/secret");
+    let _ = keyring::Entry::new(&service, mqttpanel_profiles::secrets_file::MASTER_KEY_ACCOUNT).and_then(|e| e.delete_credential());
+    assert_eq!(read.unwrap().as_deref(), Some("secret-value"));
 }
 
 fn uuid_like() -> String {

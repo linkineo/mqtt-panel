@@ -1,6 +1,6 @@
 //! Secrets (passwords, private keys, PKCS#12 bundles and passphrases) never sit in profile files. The app and the CLI
 //! keep them in the encrypted secrets file ([`crate::secrets_file::FileSecrets`]) whose master key is the single OS
-//! keychain item; [`KeychainSecrets`] is the per-secret keychain store of earlier builds, used for the migration.
+//! keychain item (SPEC section 6). [`MemorySecrets`] serves tests and `MQTTPANEL_SECRETS=memory`.
 //! Keys are strings such as "profile/<id>/password" or "broker/ca-key"; values are text (binary is base64).
 
 use std::collections::HashMap;
@@ -14,16 +14,23 @@ pub enum SecretError {
     /// The OS keychain is not available or refused access; the detail is for the log only.
     #[error("keychain unavailable: {0}")]
     Unavailable(String),
+    /// The keychain did not give the master key (Deny, locked keychain, any error) earlier in this session. The
+    /// refusal is remembered and never retried until the next start (SPEC 6, change set 3).
+    #[error("keychain refused the master key: {0}")]
+    Refused(String),
 }
 
 impl SecretError {
     /// Catalog key for the user-facing sentence.
     pub fn catalog_key(&self) -> &'static str {
-        "keychain.unavailable"
+        match self {
+            SecretError::Unavailable(_) => "keychain.unavailable",
+            SecretError::Refused(_) => "keychain.refused",
+        }
     }
 }
 
-/// A store for secrets. Implemented by the OS keychain and, for tests, by memory.
+/// A store for secrets: the encrypted secrets file and, for tests, memory.
 pub trait SecretStore: Send + Sync {
     fn get(&self, key: &str) -> Result<Option<String>, SecretError>;
     fn set(&self, key: &str, value: &str) -> Result<(), SecretError>;
@@ -32,44 +39,6 @@ pub trait SecretStore: Send + Sync {
     /// without touching the keychain.
     fn contains(&self, key: &str) -> Result<bool, SecretError> {
         Ok(self.get(key)?.is_some())
-    }
-}
-
-/// The OS keychain (macOS Keychain, Windows Credential Manager, Secret Service on Linux).
-#[derive(Debug, Clone, Default)]
-pub struct KeychainSecrets {
-    service: Option<String>,
-}
-
-impl KeychainSecrets {
-    pub fn new() -> Self {
-        Self { service: None }
-    }
-    /// A separate service name, for tests that must not touch real entries.
-    pub fn with_service(service: &str) -> Self {
-        Self { service: Some(service.to_string()) }
-    }
-    fn entry(&self, key: &str) -> Result<keyring::Entry, SecretError> {
-        keyring::Entry::new(self.service.as_deref().unwrap_or(SERVICE), key).map_err(|e| SecretError::Unavailable(e.to_string()))
-    }
-}
-
-impl SecretStore for KeychainSecrets {
-    fn get(&self, key: &str) -> Result<Option<String>, SecretError> {
-        match self.entry(key)?.get_password() {
-            Ok(v) => Ok(Some(v)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(SecretError::Unavailable(e.to_string())),
-        }
-    }
-    fn set(&self, key: &str, value: &str) -> Result<(), SecretError> {
-        self.entry(key)?.set_password(value).map_err(|e| SecretError::Unavailable(e.to_string()))
-    }
-    fn delete(&self, key: &str) -> Result<(), SecretError> {
-        match self.entry(key)?.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(SecretError::Unavailable(e.to_string())),
-        }
     }
 }
 

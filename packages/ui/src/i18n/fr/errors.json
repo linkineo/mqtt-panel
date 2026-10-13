@@ -92,6 +92,7 @@
  "broker.noListener": "Aucun listener n’est activé. Activez-en un d’abord.",
  "broker.notRunning": "Le broker n’est pas démarré. Démarrez-le d’abord.",
  "keychain.unavailable": "Le trousseau du système n’est pas disponible : {detail}",
+ "keychain.refused": "Le trousseau n’a pas fourni sa clé à MQTT Panel. Redémarrez MQTT Panel pour réessayer.",
  "profile.notFound": "Ce profil n’existe plus.",
  "profile.noSubscriptions": "Aucun abonnement : vous ne verrez rien tant que vous n’en ajoutez pas.",
  "cli.badArgs": "{detail} Lancez mqttpanel {command} --help pour voir les options.",

@@ -93,6 +93,9 @@ pub fn broker_config(state: State<'_, AppState>) -> R<BrokerConfig> {
 #[tauri::command]
 pub async fn broker_start(state: State<'_, AppState>) -> R<BrokerStatus> {
     mgr(&state)?.start().await;
+    if mgr(&state)?.take_ca_regenerated() {
+        follow_local_profile(&state);
+    }
     reconnect_local(&state).await;
     Ok(mgr(&state)?.status())
 }
@@ -105,6 +108,9 @@ pub async fn broker_stop(state: State<'_, AppState>) -> R<BrokerStatus> {
 #[tauri::command]
 pub async fn broker_restart(state: State<'_, AppState>) -> R<BrokerStatus> {
     mgr(&state)?.restart().await;
+    if mgr(&state)?.take_ca_regenerated() {
+        follow_local_profile(&state);
+    }
     reconnect_local(&state).await;
     Ok(mgr(&state)?.status())
 }
@@ -366,7 +372,7 @@ pub fn save_local_profile(state: &AppState, lc: &LocalConnection, profile_name: 
     p.tls.trusted_fingerprints.clear();
     p.username = lc.username.clone().unwrap_or_default();
     let secrets = state.store.secrets().clone();
-    let set = |k: String, v: &str| secrets.set(&k, v).map_err(|e| msg!("keychain.unavailable", detail = e.to_string()));
+    let set = |k: String, v: &str| secrets.set(&k, v).map_err(|e| msg!(e.catalog_key(), detail = e.to_string()));
     match &lc.password {
         Some(pw) => set(secret_keys::password(&id), pw)?,
         None => {

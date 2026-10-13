@@ -87,14 +87,12 @@ fn logged<R: Runtime>(handler: impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + S
 }
 
 /// The secret store: `secrets.enc` in the data folder, its master key the single keychain item (SPEC 6). The master
-/// key is read on first secret use, never here; per-secret keychain entries of earlier builds are moved in once.
+/// key is read on first secret use, never here; it is the only keychain item the app reads or writes (change set 3).
 fn secrets(dir: &std::path::Path) -> Arc<dyn SecretStore> {
     if std::env::var("MQTTPANEL_SECRETS").as_deref() == Ok("memory") {
         return Arc::new(MemorySecrets::new());
     }
-    let mut legacy = Store::new(dir.to_path_buf(), Arc::new(MemorySecrets::new())).secret_keys();
-    legacy.extend(mqttpanel_broker::manager::secret_keys_in(&broker::broker_dir()));
-    mqttpanel_profiles::open_app_secrets(dir, &legacy)
+    mqttpanel_profiles::open_app_secrets(dir)
 }
 
 fn main() {
