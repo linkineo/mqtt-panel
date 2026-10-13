@@ -109,7 +109,7 @@ mqtt-panel/
 | Series | topic ref, valuePath (JSON pointer, optional), cast rule, points [(t, f64)], skipped count, max points | A series is one topic plus one field, never the whole payload; the engine records a series for every numeric and boolean field automatically, charts show only the fields the user picks (owner, 12 Oct 2026). Any JSON attribute or whole payload can be charted. Cast to a plottable number: integers and floats as they are, numeric strings parsed, booleans and boolean-like text (true/false, T/F, on/off, yes/no, 1/0, case-insensitive) as 0/1 drawn as a step series. Values that cannot be cast are skipped and counted, never break the series. Default 5 000 points, oldest dropped. |
 | View | name, subscription filters, search, pinned topics, layout (tree/table), column set | Saved per profile. |
 | PublishTemplate | name, topic, payload, format, qos, retain, mqtt5 props | Per profile, created only on "Save as template". Also "last 500 sent" log entries, re-sendable. |
-| BrokerConfig | listeners [{kind: tcp/tls/ws/wss, bind (network/localhost), port 1024..65535, enabled, requireClientCert, preset}], certs {ca, server, issuedClients[]}, auth {anonymous, users[]}, maxClients, retained store | Stored next to the profiles. The broker's own CA, server and client certificates are generated locally. |
+| BrokerConfig | listeners [{kind: tcp/tls/ws/wss, bind (network/localhost), port 1024..65535, enabled, preset}], requireClientCert (broker-wide, encrypted listeners only; change set 2), verifyAgainst, certs {ca, server, issuedClients[]}, auth {anonymous, users[]}, maxClients, retained store | Stored next to the profiles. The broker's own CA, server and client certificates are generated locally. |
 
 ## 5. Performance plan
 

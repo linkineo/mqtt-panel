@@ -4,9 +4,9 @@ How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules
 
 ## Status (13 Oct 2026)
 - Phases 1 to 4 implemented and tested on macOS: engine, TLS kit, client, profiles with keychain, embedded broker, CLI, Tauri shell, and the full React UI for every mockup screen. Details, test counts, the native-feel checklist and the phase 5 task list are in `docs/PROGRESS.md`.
-- Change set 2 (owner feedback on the second build, 13 Oct 2026) is specified and awaits implementation: see `docs/PROGRESS.md` "Change set 2".
+- Change set 2 (owner feedback on the second build, 13 Oct 2026) is implemented: connected cards in the accent colour, card menu and visible Delete, connection bar under the title bar (the pill keeps broker state and lab flags), the "Local broker" profile follows every broker change, broker-wide client certificate setting, live clients and collapsed log, Send top right, bigger buttons, macOS title alignment, secrets in `secrets.enc` with one keychain master key. Manual checks V-08 (title bar) and V-09 (keychain prompts) are the owner's. See `docs/PROGRESS.md` "Change set 2" and the open points in `docs/DECISIONS.md`.
 - Change set 1 (owner feedback, 13 Oct 2026) is implemented: "New connection" menu, "Connect to this app's broker" (02b), restart prompt (12c), shared users only (no per-listener login anywhere), eye and copy on app-owned secrets, "Test". See `docs/PROGRESS.md` "Change set 1"; readings awaiting the owner are under "Open" in `docs/DECISIONS.md`. Test lab scripts for manual testing live in `tools/testlab/` (README there); B-17 is the owner's manual run.
-- Tests: Rust 183 passed (4 opt-in ignored), Vitest 44, Playwright 189 (V-02 overflow check in EN, FR, DE on 32 states; screenshots light and dark; 29 end-to-end flows with the mock engine). All green.
+- Tests: Rust 190 passed (4 opt-in ignored), Vitest 54, Playwright 207 (V-02 overflow check in EN, FR, DE on 35 states; screenshots light and dark; 32 end-to-end flows with the mock engine). All green.
 - Next: phase 5 (native FR and DE review, accessibility pass, native-feel walk of the real window on all three OSes, visual regression baselines in CI, installers, auto-update, website).
 - Specification and mockups (12 Oct 2026): `docs/SPEC.md`, `docs/FEATURES.md`, `docs/DECISIONS.md`, `docs/mockups/mqtt-panel-mockups.html` (22 screens). Implementation decisions and the small mockup deviations awaiting the owner are in `docs/DECISIONS.md`.
 
@@ -48,10 +48,10 @@ cargo deny check                            # licences, advisories, sources
 scripts/check-forbidden-words.sh            # must pass before every commit
 MQTTPANEL_PUBLIC_BROKERS=1 cargo test --workspace -- --ignored   # nightly: public brokers, performance
 ```
-`MQTTPANEL_HOME=<dir>` points the app and the CLI to another data folder (tests); `MQTTPANEL_SECRETS=memory` keeps secrets in memory instead of the OS keychain (tests only).
+`MQTTPANEL_HOME=<dir>` points the app and the CLI to another data folder (tests); `MQTTPANEL_SECRETS=memory` keeps secrets in memory instead of `secrets.enc` and the OS keychain (tests only).
 
 ## Mockups
-- `docs/mockups/mqtt-panel-mockups.html` is the validated visual contract (24 screens and states: 22 validated 12 Oct 2026, 02b and 12c plus edits to 02, 12, 12b, 14 and 19 from change set 1 on 13 Oct 2026; implemented 13 Oct 2026). The UI must match it: layout, wording, states (empty state, trust dialog, context menus, field picker, Add listener steps, Anonymous on, French and German samples). Deviations need a note in `docs/DECISIONS.md` under "Open".
+- `docs/mockups/mqtt-panel-mockups.html` is the validated visual contract (25 screens and states: 22 validated 12 Oct 2026, 02b and 12c plus edits from change set 1, 02c and the connection bar from change set 2, all on 13 Oct 2026; implemented 13 Oct 2026). The UI must match it: layout, wording, states (empty state, trust dialog, context menus, field picker, Add listener steps, Anonymous on, French and German samples). Deviations need a note in `docs/DECISIONS.md` under "Open".
 
 ## Toolchain on the build Mac (checked 12 Oct 2026)
 - Present: cargo 1.98, node 26.9, npm 11.19, Xcode 27 at `/Applications/Xcode.app`, macOS 27.0.1.

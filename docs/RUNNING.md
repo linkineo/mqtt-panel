@@ -86,7 +86,7 @@ cargo build --release -p mqttpanel-cli
 ./target/release/mqttpanel profiles list
 ```
 
-The CLI shares the app's saved profiles and the OS keychain.
+The CLI shares the app's saved profiles and secrets (`secrets.enc` and its master key in the OS keychain).
 
 ## 6. Where the app stores data
 
@@ -96,14 +96,14 @@ The CLI shares the app's saved profiles and the OS keychain.
 | Windows | `%APPDATA%\com.remora-labs.mqttpanel\` |
 | Linux | `~/.local/share/com.remora-labs.mqttpanel/` |
 
-Profiles, settings, templates, saved views and broker configuration live there as JSON. Passwords, private keys and passphrases are in the OS keychain only. Message history stays in memory and is gone when the app closes.
+Profiles, settings, templates, saved views and broker configuration live there as JSON. Passwords, private keys and passphrases are in `secrets.enc` in the same folder, encrypted (XChaCha20-Poly1305) with a random master key that is the only MQTT Panel item in the OS keychain; the key is read the first time a secret is needed in a session, never at start-up. Per-secret keychain entries of earlier builds are moved into the file once and deleted. Message history stays in memory and is gone when the app closes.
 
 Environment variables for tests and diagnostics:
 
 | Variable | Effect |
 |---|---|
 | `MQTTPANEL_HOME=<dir>` | Use another data folder (tests, portable use) |
-| `MQTTPANEL_SECRETS=memory` | Keep secrets in memory instead of the keychain (tests only) |
+| `MQTTPANEL_SECRETS=memory` | Keep secrets in memory instead of `secrets.enc` and the keychain (tests only) |
 | `MQTTPANEL_LOG=1` | Print page loads and the name of every IPC command to stderr (no payloads) |
 
 Example, a clean sandbox that leaves the real profiles and keychain untouched:
