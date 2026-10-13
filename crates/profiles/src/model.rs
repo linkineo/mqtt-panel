@@ -239,6 +239,8 @@ pub struct Settings {
     pub skip_verify: bool,
     pub update_check: bool,
     pub update_channel: String,
+    /// The broker log is expanded in the right pane of the Broker screen (collapsed by default, change set 2).
+    pub broker_log_open: bool,
 }
 
 impl Default for Settings {
@@ -258,6 +260,7 @@ impl Default for Settings {
             skip_verify: false,
             update_check: true,
             update_channel: "stable".into(),
+            broker_log_open: false,
         }
     }
 }

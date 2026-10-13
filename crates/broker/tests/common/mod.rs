@@ -42,13 +42,12 @@ pub fn kit_material() -> Arc<TlsMaterial> {
 }
 
 /// A listener on a free port, localhost.
-pub fn spec(id: &str, kind: ListenerKind, require_client_cert: bool) -> ListenerSpec {
+pub fn spec(id: &str, kind: ListenerKind) -> ListenerSpec {
     ListenerSpec {
         id: id.into(),
         kind,
         bind: BindAddr::Localhost,
         port: 0,
-        require_client_cert,
         tls: kind.encrypted().then(kit_material),
     }
 }
@@ -63,14 +62,25 @@ pub async fn start(listeners: Vec<ListenerSpec>, auth: AuthConfig) -> BrokerHand
     Broker::start(cfg).await.expect("broker starts")
 }
 
+/// Starts a broker that requires a client certificate on every encrypted listener (broker-wide setting).
+pub async fn start_mtls(listeners: Vec<ListenerSpec>, auth: AuthConfig) -> BrokerHandle {
+    let cfg = RuntimeConfig {
+        listeners,
+        auth,
+        require_client_cert: true,
+        ..Default::default()
+    };
+    Broker::start(cfg).await.expect("broker starts")
+}
+
 /// Anonymous broker with one listener of each kind (ids tcp, tls, ws, wss).
 pub async fn start_all_anonymous() -> BrokerHandle {
     start(
         vec![
-            spec("tcp", ListenerKind::Tcp, false),
-            spec("tls", ListenerKind::Tls, false),
-            spec("ws", ListenerKind::Ws, false),
-            spec("wss", ListenerKind::Wss, false),
+            spec("tcp", ListenerKind::Tcp),
+            spec("tls", ListenerKind::Tls),
+            spec("ws", ListenerKind::Ws),
+            spec("wss", ListenerKind::Wss),
         ],
         AuthConfig {
             anonymous: true,

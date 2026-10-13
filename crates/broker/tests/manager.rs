@@ -141,25 +141,19 @@ async fn b02_presets_create_the_right_combination() {
     let plain = add(Preset::Plain, ListenerKind::Tcp);
     let enc = add(Preset::Encrypted, ListenerKind::Tls);
     let pw = add(Preset::Passwords, ListenerKind::Tls);
-    let mtls = add(Preset::Mtls, ListenerKind::Tls);
-    assert_eq!(
-        (plain.kind, plain.require_client_cert),
-        (ListenerKind::Tcp, false)
-    );
-    assert_eq!(
-        (enc.kind, enc.require_client_cert),
-        (ListenerKind::Tls, false)
-    );
+    assert_eq!(plain.kind, ListenerKind::Tcp);
+    assert_eq!(enc.kind, ListenerKind::Tls);
     assert_eq!((pw.kind, pw.preset), (ListenerKind::Tls, Preset::Passwords));
-    assert!(mtls.require_client_cert);
+    assert!(
+        !m.config().require_client_cert,
+        "encrypted presets leave the broker-wide setting alone"
+    );
+    let mtls = add(Preset::Mtls, ListenerKind::Tls);
+    assert_eq!(mtls.preset, Preset::Mtls);
     let cfg = m.config();
-    assert_eq!(
-        cfg.listeners
-            .iter()
-            .filter(|l| l.require_client_cert)
-            .count(),
-        1,
-        "mutual TLS on that listener only"
+    assert!(
+        cfg.require_client_cert,
+        "B-18: the Mutual TLS preset sets the broker-wide requirement to Required"
     );
     assert!(!cfg.anonymous, "plain does not turn anonymous on");
     // Encrypting a TCP request upgrades it to TLS.
@@ -174,6 +168,8 @@ async fn b02_presets_create_the_right_combination() {
         l.enabled = false;
         m.update_listener(l).unwrap();
     }
+    // Logins first with the client certificate optional (broker-wide), then Required below.
+    m.set_require_client_cert(false).unwrap();
     m.add_user("shared", "pw-s").unwrap();
     m.add_user("dev", "pw-dev").unwrap();
     assert_eq!(m.start().await.state, BrokerState::Running);
@@ -221,7 +217,29 @@ async fn b02_presets_create_the_right_combination() {
         Some(("shared", "pw-s"))
     ))
     .await
+    .is_ok(), "Optional: a login is enough on every encrypted listener");
+    m.set_require_client_cert(true).unwrap();
+    assert!(m.status().restart_needed);
+    assert_eq!(m.restart().await.state, BrokerState::Running);
+    assert!(c4(opts4(
+        "p5b",
+        mtls.port,
+        Some(tls_cfg(&roots, None)),
+        Some(("shared", "pw-s"))
+    ))
+    .await
     .is_err());
+    assert!(c4(opts4(
+        "p5c",
+        enc.port,
+        Some(tls_cfg(&roots, None)),
+        Some(("shared", "pw-s"))
+    ))
+    .await
+    .is_err(), "B-18: Required applies to every encrypted listener");
+    assert!(c4(opts4("p5d", plain.port, None, Some(("shared", "pw-s"))))
+        .await
+        .is_ok(), "B-18: a plain listener is never affected");
     let files = m
         .issue_client_cert(IssueCertRequest {
             name: "sensor-1".into(),
@@ -240,11 +258,14 @@ async fn b02_presets_create_the_right_combination() {
     assert!(c4(opts4(
         "p6",
         mtls.port,
-        Some(tls_cfg(&roots, Some(id))),
+        Some(tls_cfg(&roots, Some(id.clone()))),
         None
     ))
     .await
     .is_ok());
+    assert!(c4(opts4("p7", enc.port, Some(tls_cfg(&roots, Some(id))), None))
+        .await
+        .is_ok());
     m.stop().await;
 }
 
@@ -368,7 +389,7 @@ async fn b07_anonymous_gates_everything_and_off_restores() {
             .is_ok(),
         "previous setup restored"
     );
-    assert!(m.config().listeners.iter().any(|l| l.require_client_cert));
+    assert!(m.config().require_client_cert);
     m.stop().await;
 }
 
@@ -383,9 +404,9 @@ async fn b08_issue_export_pem_and_pkcs12_then_revoke() {
         .into_iter()
         .find(|l| l.id == "tls")
         .unwrap();
-    tls.require_client_cert = true;
     tls.preset = Preset::Mtls;
     m.update_listener(tls).unwrap();
+    m.set_require_client_cert(true).unwrap();
     let req = |name: &str, format, pass: &str| IssueCertRequest {
         name: name.into(),
         valid_years: 2,
@@ -494,14 +515,7 @@ async fn b09_csr_import_device_keeps_its_key() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
     randomize_ports(&m);
-    let mut tls = m
-        .config()
-        .listeners
-        .into_iter()
-        .find(|l| l.id == "tls")
-        .unwrap();
-    tls.require_client_cert = true;
-    m.update_listener(tls).unwrap();
+    m.set_require_client_cert(true).unwrap();
     let (csr, key_der) = mqttpanel_tls::kit::make_csr("device-7", KeyAlg::Ecdsa).unwrap();
     let (fname, cert) = m.import_csr(csr.as_bytes(), None, 2).unwrap();
     assert_eq!(fname, "device-7.pem");
@@ -553,7 +567,7 @@ async fn b10_rotate_ca_refuses_old_certs_and_reissues_desktop_cert() {
             save_ca: false,
         })
         .unwrap();
-    let lc1 = m.local_connection(None).unwrap();
+    let lc1 = m.local_connection(Some("tls-2")).unwrap();
     assert_eq!(lc1.port, mp);
     assert_eq!(m.start().await.state, BrokerState::Running);
     let old_roots = ca_roots(&m);
@@ -589,7 +603,7 @@ async fn b10_rotate_ca_refuses_old_certs_and_reissues_desktop_cert() {
         "{:?}",
         m.log(LogLevel::Warn, 0)
     );
-    let lc2 = m.local_connection(None).unwrap();
+    let lc2 = m.local_connection(Some("tls-2")).unwrap();
     assert_ne!(
         lc1.client_cert_pem, lc2.client_cert_pem,
         "desktop certificate re-issued"
@@ -632,9 +646,12 @@ async fn b12_local_connection_picks_most_secure_listener() {
     })
     .unwrap();
     let mut first_pw = None;
+    assert!(m.config().require_client_cert);
     for _ in 0..3 {
+        // Broker-wide: both TLS listeners are mutual TLS now; the first one ranks first.
         let lc = m.local_connection(None).unwrap();
-        assert_eq!(lc.port, mp);
+        assert_eq!(lc.listener_id, "tls");
+        assert_eq!(m.local_connection(Some("tls-2")).unwrap().port, mp);
         assert!(lc.client_cert_pem.is_some() && lc.client_key_pem.is_some());
         assert_eq!(lc.username.as_deref(), Some("mqtt-panel"));
         let pw = lc.password.clone().unwrap();
@@ -654,7 +671,7 @@ async fn b12_local_connection_picks_most_secure_listener() {
     assert_eq!(desktop[0].name, "mqttpanel-desktop");
     // Ranking: mutual TLS, TLS, secure WebSocket, TCP, WebSocket.
     let rank_order = |m: &BrokerManager| m.preferred_listener().map(|l| l.id);
-    assert_eq!(rank_order(&m).as_deref(), Some("tls-2"));
+    assert_eq!(rank_order(&m).as_deref(), Some("tls"));
     let mut cfg = m.config();
     for l in cfg.listeners.iter_mut() {
         l.enabled = l.kind == ListenerKind::Wss || l.kind == ListenerKind::Tcp || l.kind == ListenerKind::Ws;
@@ -818,14 +835,7 @@ async fn import_server_cert_and_client_ca() {
     )
     .unwrap();
     randomize_ports(&m);
-    let mut tls = m
-        .config()
-        .listeners
-        .into_iter()
-        .find(|l| l.id == "tls")
-        .unwrap();
-    tls.require_client_cert = true;
-    m.update_listener(tls).unwrap();
+    m.set_require_client_cert(true).unwrap();
     assert_eq!(m.start().await.state, BrokerState::Running);
     assert!(c4(opts4(
         "imp",
@@ -839,4 +849,108 @@ async fn import_server_cert_and_client_ca() {
     assert_eq!(name, "CA.pem");
     assert!(String::from_utf8(ca).unwrap().contains("BEGIN CERTIFICATE"));
     m.stop().await;
+}
+
+#[tokio::test]
+async fn b18_client_certificate_requirement_is_broker_wide() {
+    let dir = tempfile::tempdir().unwrap();
+    let (m, secrets) = open(dir.path());
+    randomize_ports(&m);
+    let cfg = m.config();
+    assert!(!cfg.require_client_cert, "Optional by default");
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert_eq!(json["requireClientCert"], serde_json::Value::Bool(false));
+    assert!(
+        json["listeners"][0].get("requireClientCert").is_none(),
+        "no per-listener field any more"
+    );
+    // Stopped: no restart needed, applied at the next start.
+    m.set_require_client_cert(true).unwrap();
+    assert!(!m.status().restart_needed);
+    assert!(m.config().require_client_cert);
+    assert!(m.log_buffer().contains("client certificate required on encrypted listeners"));
+    // Persisted at the top of broker.json.
+    let text = std::fs::read_to_string(dir.path().join("broker.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["requireClientCert"], serde_json::Value::Bool(true));
+    drop(m);
+    let m = BrokerManager::open(dir.path(), Arc::new(secrets.clone())).unwrap();
+    assert!(m.config().require_client_cert, "kept across restarts of the app");
+    // Running: a change of the setting asks for a restart; setting the same value does not.
+    m.add_user("u", "pw").unwrap();
+    for mut l in m.config().listeners {
+        l.enabled = l.kind == ListenerKind::Tcp || l.kind == ListenerKind::Tls;
+        m.update_listener(l).unwrap();
+    }
+    assert_eq!(m.start().await.state, BrokerState::Running);
+    m.set_require_client_cert(true).unwrap();
+    assert!(!m.status().restart_needed);
+    let roots = ca_roots(&m);
+    assert!(c4(opts4("tcp", port_of(&m, "tcp"), None, Some(("u", "pw")))).await.is_ok());
+    assert!(c4(opts4("tls", port_of(&m, "tls"), Some(tls_cfg(&roots, None)), Some(("u", "pw"))))
+        .await
+        .is_err());
+    m.set_require_client_cert(false).unwrap();
+    assert!(m.status().restart_needed);
+    assert_eq!(m.restart().await.state, BrokerState::Running);
+    assert!(c4(opts4("tls2", port_of(&m, "tls"), Some(tls_cfg(&roots, None)), Some(("u", "pw"))))
+        .await
+        .is_ok());
+    m.stop().await;
+}
+
+/// Counts reads and writes of the secret store.
+#[derive(Default)]
+struct Counting {
+    inner: MemorySecrets,
+    gets: std::sync::atomic::AtomicUsize,
+}
+
+impl SecretStore for Counting {
+    fn get(&self, key: &str) -> Result<Option<String>, mqttpanel_profiles::SecretError> {
+        self.gets.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.inner.get(key)
+    }
+    fn set(&self, key: &str, value: &str) -> Result<(), mqttpanel_profiles::SecretError> {
+        self.inner.set(key, value)
+    }
+    fn delete(&self, key: &str) -> Result<(), mqttpanel_profiles::SecretError> {
+        self.inner.delete(key)
+    }
+    /// Like the secrets file: answered from the record names, no decryption.
+    fn contains(&self, key: &str) -> Result<bool, mqttpanel_profiles::SecretError> {
+        self.inner.contains(key)
+    }
+}
+
+#[tokio::test]
+async fn v09_broker_restart_never_reads_the_secret_store() {
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let (m, secrets) = open(dir.path());
+        randomize_ports(&m);
+        m.add_user("alice", "pw").unwrap();
+        // carry the secrets over to a new manager, as a new session would find them in secrets.enc
+        let c = Counting::default();
+        for k in ["broker/ca-key", "broker/server-key", "broker/user/alice/password"] {
+            c.inner.set(k, &secrets.get(k).unwrap().unwrap()).unwrap();
+        }
+        drop(m);
+        let c = Arc::new(c);
+        let m = BrokerManager::open(dir.path(), c.clone()).unwrap();
+        let reads = || c.gets.load(std::sync::atomic::Ordering::SeqCst);
+        let _ = m.config();
+        let _ = m.status();
+        assert_eq!(reads(), 0, "opening, the config and the status read no secret");
+        assert_eq!(m.start().await.state, BrokerState::Running);
+        let after_start = reads();
+        assert_eq!(after_start, 1, "the first start reads the server key once");
+        for _ in 0..3 {
+            assert_eq!(m.restart().await.state, BrokerState::Running);
+        }
+        m.stop().await;
+        assert_eq!(m.start().await.state, BrokerState::Running);
+        assert_eq!(reads(), after_start, "restarts use the key kept in memory");
+        m.stop().await;
+    }
 }

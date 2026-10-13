@@ -129,6 +129,11 @@ impl Store {
 
     // ------------------------------------------------------------ profiles
 
+    /// Every secret key the profiles may use (the migration of per-secret keychain entries reads these).
+    pub fn secret_keys(&self) -> Vec<String> {
+        self.list().iter().flat_map(|p| secret_keys::all(&p.profile.id)).collect()
+    }
+
     pub fn list(&self) -> Vec<StoredProfile> {
         self.read_json::<Vec<StoredProfile>>("profiles.json")
     }
@@ -159,7 +164,7 @@ impl Store {
     /// Creates or updates; keeps stored blobs; `has_password` reflects the keychain.
     pub fn save(&self, mut profile: Profile) -> Result<Profile, UserMessage> {
         let mut all = self.list();
-        profile.has_password = self.secrets.get(&secret_keys::password(&profile.id)).ok().flatten().is_some();
+        profile.has_password = self.secrets.contains(&secret_keys::password(&profile.id)).unwrap_or(false);
         match all.iter_mut().find(|p| p.profile.id == profile.id) {
             Some(existing) => existing.profile = profile.clone(),
             None => all.push(StoredProfile { profile: profile.clone(), blobs: Default::default() }),

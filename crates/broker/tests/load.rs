@@ -21,7 +21,7 @@ async fn b14_thousand_clients_5000_msgs_fan_in() {
     const SECONDS: u64 = 10;
     const PER_CLIENT_RATE: u64 = 5; // 1000 x 5 = 5 000 msg/s
     let cfg = RuntimeConfig {
-        listeners: vec![spec("tcp", ListenerKind::Tcp, false)],
+        listeners: vec![spec("tcp", ListenerKind::Tcp)],
         auth: AuthConfig {
             anonymous: true,
             ..Default::default()

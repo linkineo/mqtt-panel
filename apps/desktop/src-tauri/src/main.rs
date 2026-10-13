@@ -11,7 +11,7 @@ mod state;
 mod tests;
 mod types;
 
-use mqttpanel_profiles::{KeychainSecrets, MemorySecrets, SecretStore, Store};
+use mqttpanel_profiles::{MemorySecrets, SecretStore, Store};
 use state::{lock, AppState};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -86,11 +86,15 @@ fn logged<R: Runtime>(handler: impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + S
     }
 }
 
-fn secrets() -> Arc<dyn SecretStore> {
+/// The secret store: `secrets.enc` in the data folder, its master key the single keychain item (SPEC 6). The master
+/// key is read on first secret use, never here; per-secret keychain entries of earlier builds are moved in once.
+fn secrets(dir: &std::path::Path) -> Arc<dyn SecretStore> {
     if std::env::var("MQTTPANEL_SECRETS").as_deref() == Ok("memory") {
         return Arc::new(MemorySecrets::new());
     }
-    Arc::new(KeychainSecrets::new())
+    let mut legacy = Store::new(dir.to_path_buf(), Arc::new(MemorySecrets::new())).secret_keys();
+    legacy.extend(mqttpanel_broker::manager::secret_keys_in(&broker::broker_dir()));
+    mqttpanel_profiles::open_app_secrets(dir, &legacy)
 }
 
 fn main() {
@@ -99,7 +103,8 @@ fn main() {
         .setup(|app| {
             let dir = mqttpanel_profiles::default_dir();
             let _ = std::fs::create_dir_all(&dir);
-            let store = Store::new(dir, secrets());
+            let secrets = secrets(&dir);
+            let store = Store::new(dir, secrets);
             let settings = store.settings();
             app.manage(AppState {
                 store,
@@ -196,6 +201,7 @@ fn main() {
             broker::update_listener,
             broker::remove_listener,
             broker::set_anonymous,
+            broker::set_require_client_cert,
             broker::set_verify_against,
             broker::add_user,
             broker::set_user_password,

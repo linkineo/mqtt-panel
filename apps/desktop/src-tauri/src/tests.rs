@@ -294,12 +294,15 @@ fn local_state(dir: &std::path::Path) -> (AppState, String) {
     for mut l in m.config().listeners {
         l.port = free_port();
         l.bind = Bind::Localhost;
+        // the client certificate requirement is broker-wide: keep one TLS listener, the mutual-TLS one added below
+        l.enabled = l.enabled && l.kind != ListenerKind::Tls;
         m.update_listener(l).unwrap();
     }
     let cfg = m
         .add_listener(AddListenerRequest { preset: Preset::Mtls, kind: ListenerKind::Tls, port: u32::from(free_port()), bind: Bind::Localhost })
         .unwrap();
-    let mtls = cfg.listeners.iter().find(|l| l.require_client_cert).unwrap().id.clone();
+    assert!(cfg.require_client_cert);
+    let mtls = cfg.listeners.iter().find(|l| l.preset == Preset::Mtls).unwrap().id.clone();
     let state = AppState {
         store,
         settings: std::sync::Mutex::new(Settings::default()),
@@ -387,5 +390,91 @@ async fn c13_this_apps_broker_flow_with_anonymous_on() {
     let p = state.store.list().into_iter().find(|p| p.profile.is_local_broker).unwrap().profile;
     assert!(p.username.is_empty() && !p.has_password && p.tls.client_cert.is_none());
     crate::commands::close(&state, &p.id).await;
+    m.stop().await;
+}
+
+fn local_profile(state: &AppState) -> mqttpanel_profiles::StoredProfile {
+    state.store.list().into_iter().find(|p| p.profile.is_local_broker).unwrap()
+}
+
+/// C-16: the profile "Local broker" follows every broker change at once and reconnects after the restart.
+#[tokio::test]
+async fn c16_local_broker_profile_follows_the_broker() {
+    use mqttpanel_profiles::SecretStore;
+    let dir = tempfile::tempdir().unwrap();
+    let (state, mtls) = local_state(dir.path());
+    let m = manager(&state);
+    assert_eq!(run_flow(&state, &mtls).await, ["created", "issued", "trusted", "started", "connected"]);
+    let id = local_profile(&state).profile.id.clone();
+    let open = |state: &AppState| lock(&state.conns).get(&id).map(|c| (c.is_open(), lock(&c.link).state.clone()));
+    assert_eq!(open(&state), Some((true, "connected".to_string())));
+
+    // Port of its listener: the profile has the new port at once; the connection runs on until the restart.
+    let mut l = m.config().listeners.into_iter().find(|l| l.id == mtls).unwrap();
+    let new_port = free_port();
+    l.port = new_port;
+    m.update_listener(l).unwrap();
+    crate::broker::follow_local_profile(&state);
+    assert_eq!(local_profile(&state).profile.port, new_port);
+    assert!(m.restart_needed());
+    assert_eq!(open(&state).unwrap().1, "connected");
+    m.restart().await;
+    crate::broker::reconnect_local(&state).await;
+    assert_eq!(open(&state), Some((true, "connected".to_string())), "reconnected after the restart");
+    assert_eq!(m.clients().iter().filter(|c| c.client_id == "mqttpanel-desktop").count(), 1);
+
+    // Client certificate requirement off and on again.
+    m.set_require_client_cert(false).unwrap();
+    crate::broker::follow_local_profile(&state);
+    let p = local_profile(&state);
+    assert!(p.profile.tls.client_cert.is_none() && p.blobs.client_cert_pem.is_none());
+    assert!(!state.store.secrets().contains(&mqttpanel_profiles::model::secret_keys::client_key(&id)).unwrap());
+    m.set_require_client_cert(true).unwrap();
+    crate::broker::follow_local_profile(&state);
+    assert!(local_profile(&state).profile.tls.client_cert.is_some());
+
+    // The mqtt-panel password.
+    m.set_user_password("mqtt-panel", "a-new-password-0123456789").unwrap();
+    crate::broker::follow_local_profile(&state);
+    assert_eq!(state.store.password(&id).as_deref(), Some("a-new-password-0123456789"));
+
+    // A CA rotation: the profile trusts the new CA and carries a re-issued certificate.
+    let ca_before = local_profile(&state).blobs.ca_pem.clone();
+    let cert_before = local_profile(&state).blobs.client_cert_pem.clone();
+    m.rotate_ca().unwrap();
+    crate::broker::follow_local_profile(&state);
+    let p = local_profile(&state);
+    assert_ne!(p.blobs.ca_pem, ca_before);
+    assert_ne!(p.blobs.client_cert_pem, cert_before);
+    m.restart().await;
+    crate::broker::reconnect_local(&state).await;
+    assert_eq!(open(&state), Some((true, "connected".to_string())), "connected with the new CA and certificate");
+
+    // Anonymous: no user, no password, no client certificate; off again restores them.
+    m.set_anonymous(true).unwrap();
+    crate::broker::follow_local_profile(&state);
+    let p = local_profile(&state);
+    assert!(p.profile.username.is_empty() && !p.profile.has_password && p.profile.tls.client_cert.is_none());
+    m.set_anonymous(false).unwrap();
+    crate::broker::follow_local_profile(&state);
+    let p = local_profile(&state);
+    assert_eq!(p.profile.username, "mqtt-panel");
+    assert!(p.profile.has_password && p.profile.tls.client_cert.is_some());
+
+    // Its listener switched off: the profile moves to the most secure enabled listener (here plain TCP).
+    let mut l = m.config().listeners.into_iter().find(|l| l.id == mtls).unwrap();
+    l.enabled = false;
+    m.update_listener(l).unwrap();
+    crate::broker::follow_local_profile(&state);
+    let p = local_profile(&state).profile;
+    assert_eq!((p.scheme.as_str(), p.broker_listener_id.as_deref()), ("mqtt", Some("tcp")));
+    m.restart().await;
+    crate::broker::reconnect_local(&state).await;
+    assert_eq!(open(&state), Some((true, "connected".to_string())));
+    // Not connected: a restart does not open a connection.
+    crate::commands::close(&state, &id).await;
+    m.restart().await;
+    crate::broker::reconnect_local(&state).await;
+    assert!(open(&state).is_none());
     m.stop().await;
 }

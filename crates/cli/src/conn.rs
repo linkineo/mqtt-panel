@@ -4,12 +4,13 @@ use crate::args::{Global, TlsArgs};
 use crate::i18n::{cat, t, Failure, EXIT_ARGS, EXIT_CONNECTION};
 use mqttpanel_client::catalog::Lang;
 use mqttpanel_client::{msg, ConnectFailure, ConnectOptions, Scheme, TrustInfo};
-use mqttpanel_profiles::{KeychainSecrets, MemorySecrets, SecretStore, Store};
+use mqttpanel_profiles::{MemorySecrets, SecretStore, Store};
 use std::io::IsTerminal;
 use std::path::Path;
 use std::sync::Arc;
 
-/// The secret store: the OS keychain, shared with the desktop app.
+/// The secret store, shared with the desktop app: `secrets.enc` in the data folder with its master key in the OS
+/// keychain (read on first secret use only).
 ///
 /// Test hook: `MQTTPANEL_SECRETS=memory` switches to an in-memory store (nothing touches the keychain), optionally
 /// seeded from `MQTTPANEL_SECRETS_SEED`, a JSON object of secret keys and values
@@ -28,7 +29,10 @@ pub fn secret_store() -> Arc<dyn SecretStore> {
         }
         return Arc::new(mem);
     }
-    Arc::new(KeychainSecrets::new())
+    let dir = mqttpanel_profiles::default_dir();
+    let mut legacy = Store::new(dir.clone(), Arc::new(MemorySecrets::new())).secret_keys();
+    legacy.extend(mqttpanel_broker::manager::secret_keys_in(&dir.join("broker")));
+    mqttpanel_profiles::open_app_secrets(&dir, &legacy)
 }
 
 /// The profile store of the desktop app (`MQTTPANEL_HOME` overrides the folder).

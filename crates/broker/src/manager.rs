@@ -65,7 +65,6 @@ struct StoredListener {
     bind: Bind,
     port: u16,
     enabled: bool,
-    require_client_cert: bool,
     preset: Preset,
 }
 
@@ -105,6 +104,10 @@ struct Stored {
     listeners: Vec<StoredListener>,
     anonymous: bool,
     users: Vec<StoredUser>,
+    /// Client certificate on encrypted listeners, broker-wide (change set 2). Older files carried it per listener;
+    /// pre-release, that field is ignored.
+    #[serde(default)]
+    require_client_cert: bool,
     verify_against: VerifyAgainst,
     max_clients: u32,
     issued: Vec<StoredCert>,
@@ -124,7 +127,6 @@ fn default_listener(id: &str, kind: ListenerKind, port: u16, enabled: bool) -> S
         bind: Bind::Network,
         port,
         enabled,
-        require_client_cert: false,
         preset: if kind.encrypted() {
             Preset::Encrypted
         } else {
@@ -148,6 +150,9 @@ pub struct BrokerManager {
     inner: Mutex<Inner>,
     log: LogBuffer,
     revoked: RevocationList,
+    /// The server key, read once per session from the secret store and kept in memory, so a broker start or restart
+    /// never touches the secret store (and the OS keychain) again (SPEC 6, change set 2).
+    server_key: Mutex<Option<String>>,
 }
 
 impl std::fmt::Debug for BrokerManager {
@@ -275,6 +280,27 @@ fn port_in_use(port: u16) -> bool {
     false
 }
 
+/// Every secret key the broker state in `dir` may use (CA and server keys, user passwords, issued client keys and
+/// passphrases), read from `broker.json` without opening the manager. Used to migrate per-secret keychain entries of
+/// earlier builds into the secrets file.
+pub fn secret_keys_in(dir: &Path) -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(dir.join(CONFIG_FILE)) else {
+        return Vec::new();
+    };
+    let Ok(st) = serde_json::from_str::<Stored>(&text) else {
+        return Vec::new();
+    };
+    let mut keys = vec![SECRET_CA_KEY.to_string(), SECRET_SERVER_KEY.to_string()];
+    keys.extend(st.users.iter().map(|u| secret_user_password(&u.username)));
+    for c in &st.issued {
+        keys.push(secret_client_key(&c.name));
+        keys.push(secret_client_passphrase(&c.name));
+    }
+    keys.sort();
+    keys.dedup();
+    keys
+}
+
 impl BrokerManager {
     /// Opens (or creates with defaults) the broker state in `dir`.
     ///
@@ -327,6 +353,7 @@ impl BrokerManager {
                 ],
                 anonymous: false,
                 users: Vec::new(),
+                require_client_cert: false,
                 verify_against: VerifyAgainst::Local,
                 max_clients: 1000,
                 issued: Vec::new(),
@@ -350,6 +377,7 @@ impl BrokerManager {
             }),
             log: LogBuffer::new(),
             revoked,
+            server_key: Mutex::new(None),
         };
         if !path.exists() {
             m.save(&m.lock().stored)?;
@@ -392,6 +420,23 @@ impl BrokerManager {
         Ok(())
     }
 
+    /// The server key: from memory after the first read of the session.
+    fn server_key(&self) -> Option<String> {
+        let mut cached = self.server_key.lock().unwrap_or_else(|p| p.into_inner());
+        if cached.is_none() {
+            *cached = self.secrets.get(SECRET_SERVER_KEY).ok().flatten();
+        }
+        cached.clone()
+    }
+
+    fn set_server_key(&self, pem: &str) -> Result<(), BrokerError> {
+        self.secrets
+            .set(SECRET_SERVER_KEY, pem)
+            .map_err(|e| BrokerError::keychain(&e))?;
+        *self.server_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(pem.to_string());
+        Ok(())
+    }
+
     fn secret(&self, key: &str) -> Result<Option<String>, BrokerError> {
         self.secrets.get(key).map_err(|e| BrokerError::keychain(&e))
     }
@@ -421,11 +466,11 @@ impl BrokerManager {
                     bind: l.bind,
                     port: l.port,
                     enabled: l.enabled,
-                    require_client_cert: l.require_client_cert,
                     preset: l.preset,
                 })
                 .collect(),
             anonymous: st.anonymous,
+            require_client_cert: st.require_client_cert,
             users: st
                 .users
                 .iter()
@@ -455,8 +500,8 @@ impl BrokerManager {
         let mut c = Self::view(st);
         for u in &mut c.users {
             u.has_password = matches!(
-                self.secrets.get(&secret_user_password(&u.username)),
-                Ok(Some(_))
+                self.secrets.contains(&secret_user_password(&u.username)),
+                Ok(true)
             );
         }
         c
@@ -553,7 +598,6 @@ impl BrokerManager {
                     Bind::Localhost => BindAddr::Localhost,
                 },
                 port: l.port,
-                require_client_cert: l.require_client_cert && l.kind.encrypted(),
                 tls: if l.kind.encrypted() {
                     tls.clone()
                 } else {
@@ -567,6 +611,7 @@ impl BrokerManager {
         Ok(RuntimeConfig {
             listeners,
             auth: self.auth_config(st),
+            require_client_cert: st.require_client_cert,
             max_clients: st.max_clients as usize,
             max_packet_size: crate::runtime::DEFAULT_MAX_PACKET,
             revoked: self.revoked.clone(),
@@ -576,7 +621,7 @@ impl BrokerManager {
 
     fn tls_material(&self, st: &Stored) -> Option<Arc<TlsMaterial>> {
         let chain = parse_certs(st.server_pem.as_bytes()).ok()?;
-        let key_pem = self.secrets.get(SECRET_SERVER_KEY).ok().flatten()?;
+        let key_pem = self.server_key()?;
         let key = parse_private_key(key_pem.as_bytes(), None).ok()?;
         let roots_pem = match st.verify_against {
             VerifyAgainst::Local => Some(st.ca_pem.clone()),
@@ -716,7 +761,8 @@ impl BrokerManager {
     /// - plain: TCP (or WS), no encryption, labelled "Plain, lab only". Global anonymous stays as it is.
     /// - encrypted: TLS (or WSS) with the local CA's server certificate; client certificate optional.
     /// - passwords: encrypted; clients log in with a shared user (there is no per-listener login).
-    /// - mtls: TLS (or WSS) with "require client certificate" on this listener only, verified by the local CA.
+    /// - mtls: TLS (or WSS); sets the broker-wide "client certificate on encrypted listeners" to Required, verified by
+    ///   the local CA (or the imported CA when that is the current choice).
     pub fn add_listener(&self, req: AddListenerRequest) -> Result<BrokerConfig, BrokerError> {
         let port = self.check_port(req.port, None)?;
         let kind = match (req.preset, req.kind) {
@@ -741,10 +787,10 @@ impl BrokerManager {
             bind: req.bind,
             port,
             enabled: true,
-            require_client_cert: req.preset == Preset::Mtls,
             preset: req.preset,
         });
         if req.preset == Preset::Mtls {
+            inner.stored.require_client_cert = true;
             inner.stored.verify_against = if inner.stored.imported_ca_pem.is_some() {
                 inner.stored.verify_against
             } else {
@@ -757,7 +803,7 @@ impl BrokerManager {
         Ok(self.view_with_secrets(&inner.stored))
     }
 
-    /// Updates kind, bind, port, enabled, require-client-certificate and preset of a listener.
+    /// Updates kind, bind, port, enabled and preset of a listener.
     pub fn update_listener(&self, l: Listener) -> Result<BrokerConfig, BrokerError> {
         let current_port = self
             .lock()
@@ -778,7 +824,6 @@ impl BrokerManager {
             x.bind = l.bind;
             x.port = l.port;
             x.enabled = l.enabled;
-            x.require_client_cert = l.require_client_cert && l.kind.encrypted();
             x.preset = l.preset;
         }
         self.commit(&mut inner, true)?;
@@ -803,6 +848,23 @@ impl BrokerManager {
             "anonymous access off"
         });
         self.commit(&mut inner, false)?;
+        Ok(self.view_with_secrets(&inner.stored))
+    }
+
+    /// Client certificate on encrypted listeners: Required (true) or Optional (false), for the whole broker. Plain
+    /// listeners are never affected. Takes effect at the next start (`restartNeeded` while running).
+    pub fn set_require_client_cert(&self, on: bool) -> Result<BrokerConfig, BrokerError> {
+        let mut inner = self.lock();
+        let changed = inner.stored.require_client_cert != on;
+        inner.stored.require_client_cert = on;
+        if changed {
+            self.log.info(if on {
+                "client certificate required on encrypted listeners"
+            } else {
+                "client certificate optional on encrypted listeners"
+            });
+        }
+        self.commit(&mut inner, changed)?;
         Ok(self.view_with_secrets(&inner.stored))
     }
 
@@ -1276,9 +1338,7 @@ impl BrokerManager {
                     Validity::years(2),
                 )
                 .map_err(|e| BrokerError::kit(&e))?;
-            self.secrets
-                .set(SECRET_SERVER_KEY, &server.key_pem)
-                .map_err(|e| BrokerError::keychain(&e))?;
+            self.set_server_key(&server.key_pem)?;
             inner.stored.server_pem = format!("{}{}", server.cert_pem, inner.stored.ca_pem);
             inner.stored.server_imported = false;
             self.log.info("server certificate regenerated");
@@ -1305,9 +1365,7 @@ impl BrokerManager {
         }
         {
             let mut inner = self.lock();
-            self.secrets
-                .set(SECRET_SERVER_KEY, &key_pem)
-                .map_err(|e| BrokerError::keychain(&e))?;
+            self.set_server_key(&key_pem)?;
             inner.stored.server_pem = certs_pem(&id.certs);
             inner.stored.server_imported = true;
             self.log.info("server certificate imported");
@@ -1353,9 +1411,7 @@ impl BrokerManager {
             self.secrets
                 .set(SECRET_CA_KEY, &ca.key_pem)
                 .map_err(|e| BrokerError::keychain(&e))?;
-            self.secrets
-                .set(SECRET_SERVER_KEY, &server.key_pem)
-                .map_err(|e| BrokerError::keychain(&e))?;
+            self.set_server_key(&server.key_pem)?;
             inner.stored.ca_pem = ca.cert_pem.clone();
             inner.stored.server_pem = format!("{}{}", server.cert_pem, ca.cert_pem);
             inner.stored.server_imported = false;
@@ -1388,8 +1444,9 @@ impl BrokerManager {
 
     /// Security rank of a listener for the "Connect to this app's broker" preselection: mutual TLS, then TLS, then
     /// secure WebSocket, then TCP, then WebSocket (higher is more secure).
-    pub fn listener_rank(l: &Listener) -> u8 {
-        let mtls = l.kind.encrypted() && l.require_client_cert;
+    /// `require_client_cert` is the broker-wide setting ([`BrokerConfig::require_client_cert`]).
+    pub fn listener_rank(l: &Listener, require_client_cert: bool) -> u8 {
+        let mtls = l.kind.encrypted() && require_client_cert;
         match (mtls, l.kind) {
             (true, ListenerKind::Tls) => 6,
             (true, _) => 5,
@@ -1403,11 +1460,12 @@ impl BrokerManager {
     /// The most secure enabled listener (see [`BrokerManager::listener_rank`]).
     pub fn preferred_listener(&self) -> Option<Listener> {
         let cfg = self.config();
+        let req = cfg.require_client_cert;
         let mut best: Option<Listener> = None;
         for l in cfg.listeners.into_iter().filter(|l| l.enabled) {
             if best
                 .as_ref()
-                .is_none_or(|b| Self::listener_rank(&l) > Self::listener_rank(b))
+                .is_none_or(|b| Self::listener_rank(&l, req) > Self::listener_rank(b, req))
             {
                 best = Some(l);
             }
@@ -1420,11 +1478,12 @@ impl BrokerManager {
     pub fn needs_desktop_cert(&self, listener_id: &str) -> bool {
         let inner = self.lock();
         !inner.stored.anonymous
+            && inner.stored.require_client_cert
             && inner
                 .stored
                 .listeners
                 .iter()
-                .any(|l| l.id == listener_id && l.kind.encrypted() && l.require_client_cert)
+                .any(|l| l.id == listener_id && l.kind.encrypted())
     }
 
     /// Makes sure the client certificate "mqttpanel-desktop" exists, issued by the current CA, not revoked, with its

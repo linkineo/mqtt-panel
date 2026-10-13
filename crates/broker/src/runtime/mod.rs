@@ -39,8 +39,6 @@ pub struct ListenerSpec {
     pub bind: BindAddr,
     /// 0 picks a free port (see [`BrokerHandle::port`]).
     pub port: u16,
-    /// Mutual TLS on this listener (TLS and WSS only).
-    pub require_client_cert: bool,
     /// Server certificate, key and client CA for TLS and WSS.
     pub tls: Option<Arc<TlsMaterial>>,
 }
@@ -51,6 +49,8 @@ pub struct ListenerSpec {
 pub struct RuntimeConfig {
     pub listeners: Vec<ListenerSpec>,
     pub auth: AuthConfig,
+    /// Client certificate required on every encrypted listener (TLS and WSS); plain listeners are never affected.
+    pub require_client_cert: bool,
     pub max_clients: usize,
     pub max_packet_size: usize,
     /// Revoked client-certificate serials; shared, so revocations apply while running.
@@ -64,6 +64,7 @@ impl Default for RuntimeConfig {
         RuntimeConfig {
             listeners: Vec::new(),
             auth: AuthConfig::default(),
+            require_client_cert: false,
             max_clients: 1000,
             max_packet_size: DEFAULT_MAX_PACKET,
             revoked: RevocationList::default(),
@@ -196,7 +197,7 @@ impl Broker {
             };
             let lctx = Arc::new(ListenerCtx {
                 kind: spec.kind,
-                require_client_cert: spec.require_client_cert && spec.kind.encrypted(),
+                require_client_cert: cfg.require_client_cert && spec.kind.encrypted(),
             });
             let mut addrs = Vec::new();
             for sock in socks {

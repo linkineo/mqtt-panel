@@ -20,7 +20,7 @@ fn anon() -> AuthConfig {
 
 #[tokio::test]
 async fn qos_round_trips_mqtt_311() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let port = b.port("tcp").unwrap();
     let mut sub = c4(opts4("sub4", port, None, None)).await.unwrap();
     sub.subscribe("q/#", 2).await;
@@ -53,7 +53,7 @@ async fn qos_round_trips_mqtt_311() {
 
 #[tokio::test]
 async fn qos_round_trips_mqtt_5_with_properties() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let port = b.port("tcp").unwrap();
     let mut sub = c5(opts5("sub5", port, None, None)).await.unwrap();
     assert!(sub.max_packet.is_some(), "CONNACK maximum packet size");
@@ -94,7 +94,7 @@ async fn qos_round_trips_mqtt_5_with_properties() {
 
 #[tokio::test]
 async fn v5_empty_client_id_gets_assigned_id() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let c = c5(opts5("", b.port("tcp").unwrap(), None, None))
         .await
         .unwrap();
@@ -105,7 +105,7 @@ async fn v5_empty_client_id_gets_assigned_id() {
 
 #[tokio::test]
 async fn session_takeover_disconnects_old_connection_with_0x8e() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let port = b.port("tcp").unwrap();
     let mut first = Raw::tcp(port, true).await;
     assert_eq!(first.connect("same", None, None, 30).await, 0);
@@ -123,7 +123,7 @@ async fn session_takeover_disconnects_old_connection_with_0x8e() {
 
 #[tokio::test]
 async fn keep_alive_is_enforced() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let mut c = Raw::tcp(b.port("tcp").unwrap(), true).await;
     assert_eq!(c.connect("sleepy", None, None, 1).await, 0);
     let started = std::time::Instant::now();
@@ -137,7 +137,7 @@ async fn keep_alive_is_enforced() {
 
 #[tokio::test]
 async fn persistent_session_receives_messages_sent_while_offline() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let port = b.port("tcp").unwrap();
     let mut o = opts4("durable", port, None, None);
     o.clean = false;
@@ -158,7 +158,7 @@ async fn persistent_session_receives_messages_sent_while_offline() {
 
 #[tokio::test]
 async fn shared_subscription_delivers_to_one_member() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let port = b.port("tcp").unwrap();
     let mut a = c5(opts5("ga", port, None, None)).await.unwrap();
     let mut c = c5(opts5("gb", port, None, None)).await.unwrap();
@@ -213,8 +213,7 @@ async fn websocket_and_secure_websocket_on_path_mqtt() {
 
 #[tokio::test]
 async fn t11_client_cert_required_but_none_given() {
-    let b = start(
-        vec![spec("mtls", ListenerKind::Tls, true)],
+    let b = start_mtls(vec![spec("mtls", ListenerKind::Tls)],
         AuthConfig::default(),
     )
     .await;
@@ -234,8 +233,7 @@ async fn t11_client_cert_required_but_none_given() {
 
 #[tokio::test]
 async fn t12_client_ok_accepted_with_cn_in_log_and_last_seen() {
-    let b = start(
-        vec![spec("mtls", ListenerKind::Tls, true)],
+    let b = start_mtls(vec![spec("mtls", ListenerKind::Tls)],
         AuthConfig::default(),
     )
     .await;
@@ -278,8 +276,7 @@ async fn t12_client_ok_accepted_with_cn_in_log_and_last_seen() {
 
 #[tokio::test]
 async fn t13_client_cert_from_other_ca_refused() {
-    let b = start(
-        vec![spec("mtls", ListenerKind::Tls, true)],
+    let b = start_mtls(vec![spec("mtls", ListenerKind::Tls)],
         AuthConfig::default(),
     )
     .await;
@@ -298,8 +295,7 @@ async fn t13_client_cert_from_other_ca_refused() {
 
 #[tokio::test]
 async fn t14_revoked_client_cert_refused_at_next_handshake() {
-    let b = start(
-        vec![spec("mtls", ListenerKind::Tls, true)],
+    let b = start_mtls(vec![spec("mtls", ListenerKind::Tls)],
         AuthConfig::default(),
     )
     .await;
@@ -333,9 +329,9 @@ async fn t14_revoked_client_cert_refused_at_next_handshake() {
 
 #[tokio::test]
 async fn b04_localhost_bind_refuses_lan_address() {
-    let mut local = spec("local", ListenerKind::Tcp, false);
+    let mut local = spec("local", ListenerKind::Tcp);
     local.bind = BindAddr::Localhost;
-    let mut net = spec("net", ListenerKind::Tcp, false);
+    let mut net = spec("net", ListenerKind::Tcp);
     net.bind = BindAddr::Network;
     let b = start(vec![local, net], anon()).await;
     let (lp, np) = (b.port("local").unwrap(), b.port("net").unwrap());
@@ -366,10 +362,10 @@ async fn b06_shared_users_on_every_listener_no_listener_login() {
     );
     let b = start(
         vec![
-            spec("tcp", ListenerKind::Tcp, false),
-            spec("tls", ListenerKind::Tls, false),
-            spec("ws", ListenerKind::Ws, false),
-            spec("wss", ListenerKind::Wss, false),
+            spec("tcp", ListenerKind::Tcp),
+            spec("tls", ListenerKind::Tls),
+            spec("ws", ListenerKind::Ws),
+            spec("wss", ListenerKind::Wss),
         ],
         auth,
     )
@@ -400,7 +396,7 @@ async fn b06_shared_users_on_every_listener_no_listener_login() {
     // A mutual-TLS listener: a user login never replaces the certificate.
     let mut auth2 = AuthConfig::default();
     auth2.users.insert("dev".into(), Credential::Plain("pw-dev".into()));
-    let b2 = start(vec![spec("m", ListenerKind::Tls, true)], auth2).await;
+    let b2 = start_mtls(vec![spec("m", ListenerKind::Tls)], auth2).await;
     let pm = b2.port("m").unwrap();
     assert!(
         c4(opts4("m1", pm, Some(kit_tls(None)), Some(("dev", "pw-dev"))))
@@ -418,7 +414,7 @@ async fn b06_shared_users_on_every_listener_no_listener_login() {
 
 #[tokio::test]
 async fn b11_retained_count_disconnect_and_last_will() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let port = b.port("tcp").unwrap();
     let mut p = Raw::tcp(port, false).await;
     assert_eq!(p.connect("pub", None, None, 30).await, 0);
@@ -479,7 +475,7 @@ async fn b05_runtime_connack_codes_and_log_line() {
         "alice".into(),
         Credential::Argon2(mqttpanel_broker::runtime::hash_password("right").unwrap()),
     );
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], auth).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], auth).await;
     let port = b.port("tcp").unwrap();
     let mut r4 = Raw::tcp(port, false).await;
     assert_eq!(
@@ -512,8 +508,8 @@ async fn b05_runtime_connack_codes_and_log_line() {
 async fn garbage_input_never_takes_the_broker_down() {
     let b = start(
         vec![
-            spec("tcp", ListenerKind::Tcp, false),
-            spec("ws", ListenerKind::Ws, false),
+            spec("tcp", ListenerKind::Tcp),
+            spec("ws", ListenerKind::Ws),
         ],
         anon(),
     )
@@ -560,7 +556,7 @@ async fn garbage_input_never_takes_the_broker_down() {
 
 #[tokio::test]
 async fn slow_subscriber_drops_qos0_instead_of_growing() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let port = b.port("tcp").unwrap();
     let mut slow = Raw::tcp(port, false).await;
     assert_eq!(slow.connect("slow", None, None, 300).await, 0);
@@ -584,7 +580,7 @@ async fn slow_subscriber_drops_qos0_instead_of_growing() {
 
 #[tokio::test]
 async fn stop_closes_listeners_and_clients() {
-    let b = start(vec![spec("tcp", ListenerKind::Tcp, false)], anon()).await;
+    let b = start(vec![spec("tcp", ListenerKind::Tcp)], anon()).await;
     let port = b.port("tcp").unwrap();
     let mut c = Raw::tcp(port, true).await;
     assert_eq!(c.connect("bye", None, None, 30).await, 0);
@@ -615,6 +611,7 @@ password = "pw"
 cert = "server.pem"
 key = "server.key"
 client_ca = "root-ca.pem"
+require_client_cert = true
 revoked = ["{revoked}"]
 [[listener]]
 kind = "tcp"
@@ -623,7 +620,6 @@ bind = "network"
 [[listener]]
 kind = "tls"
 port = {p2}
-require_client_cert = true
 "#,
         revoked = kit().client_revoked.serial
     );
@@ -637,6 +633,7 @@ require_client_cert = true
         .iter()
         .all(|l| l.bind == BindAddr::Addr("127.0.0.1".parse().unwrap())));
     assert_eq!(cfg.max_clients, 50);
+    assert!(cfg.require_client_cert, "[tls] require_client_cert is broker-wide");
     let b = Broker::start(cfg).await.unwrap();
     assert_eq!(b.port("tcp"), Some(p1));
     assert!(c4(opts4("t1", p1, None, Some(("alice", "pw"))))
@@ -667,6 +664,13 @@ require_client_cert = true
     std::fs::write(
         &path,
         "[[listener]]\nkind = \"tcp\"\nport = 1883\nlogin = { username = \"dev\", password = \"pw\" }\n",
+    )
+    .unwrap();
+    assert_eq!(RuntimeConfig::from_toml_file(&path).unwrap_err().key(), "file.unreadable");
+    // B-18: the per-listener client-certificate key is gone (pre-release, no shim); it is refused like any unknown key.
+    std::fs::write(
+        &path,
+        "[[listener]]\nkind = \"tls\"\nport = 8883\nrequire_client_cert = true\n",
     )
     .unwrap();
     assert_eq!(RuntimeConfig::from_toml_file(&path).unwrap_err().key(), "file.unreadable");

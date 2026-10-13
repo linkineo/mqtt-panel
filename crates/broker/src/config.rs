@@ -82,7 +82,6 @@ pub struct Listener {
     pub bind: Bind,
     pub port: u16,
     pub enabled: bool,
-    pub require_client_cert: bool,
     pub preset: Preset,
 }
 
@@ -113,6 +112,9 @@ pub struct BrokerConfig {
     pub listeners: Vec<Listener>,
     pub anonymous: bool,
     pub users: Vec<UserView>,
+    /// Client certificate on encrypted listeners (broker-wide, owner 13 Oct 2026): required on every TLS and WSS
+    /// listener when true, optional otherwise. Plain listeners are never affected.
+    pub require_client_cert: bool,
     pub verify_against: VerifyAgainst,
     pub max_clients: u32,
 }

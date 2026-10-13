@@ -1,4 +1,6 @@
-//! Secrets (passwords, private keys, PKCS#12 bundles and passphrases) live in the OS keychain, never in files.
+//! Secrets (passwords, private keys, PKCS#12 bundles and passphrases) never sit in profile files. The app and the CLI
+//! keep them in the encrypted secrets file ([`crate::secrets_file::FileSecrets`]) whose master key is the single OS
+//! keychain item; [`KeychainSecrets`] is the per-secret keychain store of earlier builds, used for the migration.
 //! Keys are strings such as "profile/<id>/password" or "broker/ca-key"; values are text (binary is base64).
 
 use std::collections::HashMap;
@@ -26,6 +28,11 @@ pub trait SecretStore: Send + Sync {
     fn get(&self, key: &str) -> Result<Option<String>, SecretError>;
     fn set(&self, key: &str, value: &str) -> Result<(), SecretError>;
     fn delete(&self, key: &str) -> Result<(), SecretError>;
+    /// True when a secret is stored under `key`. Stores that can answer without decrypting (the secrets file) do so
+    /// without touching the keychain.
+    fn contains(&self, key: &str) -> Result<bool, SecretError> {
+        Ok(self.get(key)?.is_some())
+    }
 }
 
 /// The OS keychain (macOS Keychain, Windows Credential Manager, Secret Service on Linux).
@@ -108,5 +115,8 @@ impl<T: SecretStore + ?Sized> SecretStore for Arc<T> {
     }
     fn delete(&self, key: &str) -> Result<(), SecretError> {
         (**self).delete(key)
+    }
+    fn contains(&self, key: &str) -> Result<bool, SecretError> {
+        (**self).contains(key)
     }
 }

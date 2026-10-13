@@ -19,6 +19,7 @@
 //! key = "server.key"             # PEM key (PKCS#8, SEC1 or PKCS#1; encrypted PKCS#8 with key_passphrase)
 //! key_passphrase = ""            # optional
 //! client_ca = "ca.pem"           # CA that verifies client certificates (mutual TLS)
+//! require_client_cert = true     # client certificate required on every tls/wss listener (default false)
 //! revoked = ["4a:0b:..."]        # revoked client-certificate serials
 //!
 //! [[listener]]
@@ -30,7 +31,6 @@
 //! [[listener]]
 //! kind = "tls"
 //! port = 8883
-//! require_client_cert = true     # mutual TLS on this listener
 //! # cert, key, key_passphrase and client_ca may also be set per listener.
 //! ```
 //!
@@ -82,6 +82,8 @@ struct FileTls {
     key_passphrase: Option<String>,
     client_ca: Option<PathBuf>,
     #[serde(default)]
+    require_client_cert: bool,
+    #[serde(default)]
     revoked: Vec<String>,
 }
 
@@ -92,8 +94,6 @@ struct FileListener {
     kind: ListenerKind,
     port: u16,
     bind: Option<String>,
-    #[serde(default)]
-    require_client_cert: bool,
     cert: Option<PathBuf>,
     key: Option<PathBuf>,
     key_passphrase: Option<String>,
@@ -237,13 +237,13 @@ impl RuntimeConfig {
                 kind: l.kind,
                 bind,
                 port: l.port,
-                require_client_cert: l.require_client_cert,
                 tls,
             });
         }
         Ok(RuntimeConfig {
             listeners,
             auth,
+            require_client_cert: default_tls.require_client_cert,
             max_clients: fc.max_clients.unwrap_or(1000),
             max_packet_size: fc
                 .max_packet_size

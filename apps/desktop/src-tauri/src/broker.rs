@@ -92,7 +92,9 @@ pub fn broker_config(state: State<'_, AppState>) -> R<BrokerConfig> {
 
 #[tauri::command]
 pub async fn broker_start(state: State<'_, AppState>) -> R<BrokerStatus> {
-    Ok(mgr(&state)?.start().await)
+    mgr(&state)?.start().await;
+    reconnect_local(&state).await;
+    Ok(mgr(&state)?.status())
 }
 
 #[tauri::command]
@@ -102,7 +104,9 @@ pub async fn broker_stop(state: State<'_, AppState>) -> R<BrokerStatus> {
 
 #[tauri::command]
 pub async fn broker_restart(state: State<'_, AppState>) -> R<BrokerStatus> {
-    Ok(mgr(&state)?.restart().await)
+    mgr(&state)?.restart().await;
+    reconnect_local(&state).await;
+    Ok(mgr(&state)?.status())
 }
 
 #[tauri::command]
@@ -112,27 +116,33 @@ pub fn validate_port(state: State<'_, AppState>, port: u32, listener_id: Option<
 
 #[tauri::command]
 pub fn add_listener(state: State<'_, AppState>, request: AddListenerRequest) -> R<BrokerConfig> {
-    mgr(&state)?.add_listener(request).map_err(be)
+    followed(&state, mgr(&state)?.add_listener(request))
 }
 
 #[tauri::command]
 pub fn update_listener(state: State<'_, AppState>, listener: Listener) -> R<BrokerConfig> {
-    mgr(&state)?.update_listener(listener).map_err(be)
+    followed(&state, mgr(&state)?.update_listener(listener))
 }
 
 #[tauri::command]
 pub fn remove_listener(state: State<'_, AppState>, listener_id: String) -> R<BrokerConfig> {
-    mgr(&state)?.remove_listener(&listener_id).map_err(be)
+    followed(&state, mgr(&state)?.remove_listener(&listener_id))
 }
 
 #[tauri::command]
 pub fn set_anonymous(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
-    mgr(&state)?.set_anonymous(on).map_err(be)
+    followed(&state, mgr(&state)?.set_anonymous(on))
+}
+
+/// Client certificate on encrypted listeners, broker-wide: Required (true) or Optional (false).
+#[tauri::command]
+pub fn set_require_client_cert(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
+    followed(&state, mgr(&state)?.set_require_client_cert(on))
 }
 
 #[tauri::command]
 pub fn set_verify_against(state: State<'_, AppState>, source: VerifyAgainst) -> R<BrokerConfig> {
-    mgr(&state)?.set_verify_against(source).map_err(be)
+    followed(&state, mgr(&state)?.set_verify_against(source))
 }
 
 #[tauri::command]
@@ -142,7 +152,7 @@ pub fn add_user(state: State<'_, AppState>, username: String, password: String) 
 
 #[tauri::command]
 pub fn set_user_password(state: State<'_, AppState>, username: String, password: String) -> R<BrokerConfig> {
-    mgr(&state)?.set_user_password(&username, &password).map_err(be)
+    followed(&state, mgr(&state)?.set_user_password(&username, &password))
 }
 
 #[tauri::command]
@@ -200,7 +210,9 @@ pub async fn export_ca(app: AppHandle, state: State<'_, AppState>) -> R<SaveOutc
 
 #[tauri::command]
 pub fn regenerate_broker_certs(state: State<'_, AppState>, sans: Vec<String>, key_type: mqttpanel_tls::kit::KeyAlg) -> R<BrokerCerts> {
-    mgr(&state)?.regenerate(&sans, key_type).map_err(be)
+    let c = mgr(&state)?.regenerate(&sans, key_type).map_err(be)?;
+    follow_local_profile(&state);
+    Ok(c)
 }
 
 #[tauri::command]
@@ -224,7 +236,9 @@ pub async fn import_client_ca(app: AppHandle, state: State<'_, AppState>) -> R<O
 
 #[tauri::command]
 pub fn rotate_ca(state: State<'_, AppState>) -> R<BrokerCerts> {
-    mgr(&state)?.rotate_ca().map_err(be)
+    let c = mgr(&state)?.rotate_ca().map_err(be)?;
+    follow_local_profile(&state);
+    Ok(c)
 }
 
 #[tauri::command]
@@ -388,4 +402,62 @@ pub fn save_local_profile(state: &AppState, lc: &LocalConnection, profile_name: 
     }
     state.store.save_stored(stored)?;
     Ok(id)
+}
+
+/// A broker change followed by the profile "Local broker".
+fn followed(state: &AppState, r: Result<BrokerConfig, BrokerError>) -> R<BrokerConfig> {
+    let c = r.map_err(be)?;
+    follow_local_profile(state);
+    Ok(mgr(state).map(|m| m.config()).unwrap_or(c))
+}
+
+/// The profile "Local broker" follows every broker change at once (owner, 13 Oct 2026, change set 2): its
+/// listener's kind and port, the client-certificate requirement, a CA rotation, the "mqtt-panel" password and
+/// Anonymous. The configured port is used, so a change waiting for a restart is already in the profile; an open
+/// connection keeps running until the restart and then reconnects ([`reconnect_local`]). When the profile's listener
+/// was removed or switched off, the profile moves to the most secure enabled listener; with none, it stays as it is.
+pub fn follow_local_profile(state: &AppState) {
+    let Ok(m) = mgr(state) else { return };
+    let Some(stored) = state.store.list().into_iter().find(|p| p.profile.is_local_broker) else { return };
+    let cfg = m.config();
+    let current = stored.profile.broker_listener_id.as_deref().and_then(|id| cfg.listeners.iter().find(|l| l.id == id && l.enabled));
+    let listener = match current {
+        Some(l) => l.clone(),
+        None => match m.preferred_listener() {
+            Some(l) => l,
+            None => return,
+        },
+    };
+    let Ok(mut lc) = m.local_connection(Some(&listener.id)) else { return };
+    lc.port = listener.port;
+    let _ = save_local_profile(state, &lc, "");
+}
+
+/// After a broker start or restart: the profile "Local broker", when its connection was open (connected, connecting
+/// or reconnecting), reconnects with its current settings, keeping its topics and history.
+pub async fn reconnect_local(state: &AppState) {
+    let Some(stored) = state.store.list().into_iter().find(|p| p.profile.is_local_broker) else { return };
+    let id = stored.profile.id.clone();
+    let Some(c) = lock(&state.conns).get(&id).cloned() else { return };
+    if !c.is_open() {
+        return;
+    }
+    let h = lock(&c.handle).take();
+    if let Some(h) = h {
+        h.disconnect().await;
+    }
+    lock(&c.link).state = "connecting".into();
+    match crate::commands::connect_stored(state, stored).await {
+        ConnectOutcome::Connected { .. } => {}
+        ConnectOutcome::Failed { error } => {
+            let mut l = lock(&c.link);
+            l.state = "failed".into();
+            l.error = Some(error);
+        }
+        ConnectOutcome::NeedsTrust { .. } => {
+            let mut l = lock(&c.link);
+            l.state = "failed".into();
+            l.error = Some(msg!("tls.untrusted"));
+        }
+    }
 }
