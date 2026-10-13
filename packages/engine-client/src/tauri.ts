@@ -81,6 +81,7 @@ export function createTauriEngineClient(): EngineClient {
     updateListener: (listener) => invoke('update_listener', { listener }),
     removeListener: (listenerId) => invoke('remove_listener', { listenerId }),
     setAnonymous: (on) => invoke('set_anonymous', { on }),
+    setRequireClientCert: (on) => invoke('set_require_client_cert', { on }),
     setVerifyAgainst: (source) => invoke('set_verify_against', { source }),
     addUser: (username, password) => invoke('add_user', { username, password }),
     setUserPassword: (username, password) => invoke('set_user_password', { username, password }),

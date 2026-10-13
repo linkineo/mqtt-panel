@@ -62,6 +62,8 @@ export interface MockControls {
   emitMenu(id: string): void;
   /** Every file the mock "saved" through a native save dialog, oldest first (e2e). */
   savedFiles(): { fileName: string; bytes: number }[];
+  /** Forces a connection state (e2e: a reconnecting card and tab). */
+  setConnectionState(connectionId: string, state: ConnState): void;
   tick(): void;
   dispose(): void;
 }
@@ -122,6 +124,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     skipVerify: false,
     updateCheck: true,
     updateChannel: 'stable',
+    brokerLogOpen: false,
   };
   let profiles: Profile[] = demo ? demoProfiles(lang, now()) : [];
   const templates = new Map<string, Template[]>();
@@ -595,8 +598,58 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
   };
 
   const brokerChanged = () => {
+    followLocal();
     changedTick();
     return clone(broker.config);
+  };
+
+  /** Creates or updates the single profile "Local broker" for a listener (never a second one). */
+  const applyLocalProfile = (l: Listener, profileName: string) => {
+    const anonymous = broker.config.anonymous;
+    const secure = l.kind === 'tls' || l.kind === 'wss';
+    let p = profiles.find((x) => x.isLocalBroker);
+    if (!p) {
+      p = newProfileDefaults(profileById('local') ? `p-${randHex(8)}` : 'local', 'mqttpanel-desktop');
+      p.isLocalBroker = true;
+      p.name = profileName || words.profiles.local;
+      profiles.push(p);
+    }
+    const mtls = secure && broker.config.requireClientCert && !anonymous;
+    if (mtls) broker.ensureDesktopCert();
+    if (!anonymous) broker.ensureAppUser();
+    p.host = 'localhost';
+    p.port = l.port;
+    p.scheme = l.kind === 'tcp' ? 'mqtt' : l.kind === 'tls' ? 'mqtts' : l.kind;
+    p.target = 'app';
+    p.brokerListenerId = l.id;
+    p.mqttVersion = '5';
+    p.username = anonymous ? '' : APP_USER;
+    p.hasPassword = !anonymous;
+    localPassword = anonymous ? null : (broker.passwords.get(APP_USER) ?? null);
+    p.tls.verifyServer = true;
+    p.tls.trustedFingerprints = [];
+    p.tls.caCert = secure ? file('CA.pem', certSummary('MQTT Panel Local CA', broker.certs.ca.notAfter, { isCa: true, selfSigned: true, issuer: 'CN=MQTT Panel Local CA' })) : null;
+    p.tls.clientCert = mtls ? file('mqttpanel-desktop.pem', certSummary('mqttpanel-desktop', '2028-10-12', { issuer: 'CN=MQTT Panel Local CA' })) : null;
+    p.tls.clientKey = mtls ? file('mqttpanel-desktop.key', keySummary(), true) : null;
+  };
+
+  /** The profile "Local broker" follows every broker change at once (change set 2, C-16). */
+  const followLocal = () => {
+    const p = profiles.find((x) => x.isLocalBroker);
+    if (!p) return;
+    const current = broker.config.listeners.find((l) => l.id === p.brokerListenerId && l.enabled);
+    const l = current ?? broker.pickListener(null);
+    if (l) applyLocalProfile(l, p.name);
+  };
+
+  /** After a broker start or restart the open connection of "Local broker" reconnects with its current settings. */
+  const reconnectLocal = async () => {
+    const p = profiles.find((x) => x.isLocalBroker);
+    const c = p ? conns.get(p.id) : undefined;
+    if (!p || !c || c.state === 'disconnected' || c.state === 'failed') return;
+    c.state = 'reconnecting';
+    changedTick();
+    await connectNow(p.id);
   };
 
   // ---------------------------------------------------------------- the client
@@ -1000,10 +1053,14 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       await delay(latency);
       broker.start();
       changedTick();
+      await reconnectLocal();
       return broker.status();
     },
     async brokerStop() {
       broker.stop();
+      const p = profiles.find((x) => x.isLocalBroker);
+      const c = p ? conns.get(p.id) : undefined;
+      if (c && c.state === 'connected') c.state = 'reconnecting';
       changedTick();
       return broker.status();
     },
@@ -1013,6 +1070,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       await delay(latency);
       broker.start();
       changedTick();
+      await reconnectLocal();
       return broker.status();
     },
     async validatePort(port, listenerId) {
@@ -1039,6 +1097,10 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       broker.addLog('warn', on ? 'anonymous access turned on' : 'anonymous access turned off');
       return brokerChanged();
     },
+    async setRequireClientCert(on) {
+      broker.setRequireClientCert(on);
+      return brokerChanged();
+    },
     async setVerifyAgainst(source) {
       broker.config.verifyAgainst = source;
       return brokerChanged();
@@ -1046,7 +1108,8 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     async addUser(username, password) {
       const err = broker.addUser(username, password);
       if (err) throw err;
-      return brokerChanged();
+      changedTick();
+      return clone(broker.config);
     },
     async setUserPassword(username, password) {
       broker.passwords.set(username, password);
@@ -1059,7 +1122,8 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
     async removeUser(username) {
       broker.removeUser(username);
-      return brokerChanged();
+      changedTick();
+      return clone(broker.config);
     },
     async issuedCerts() {
       return clone(broker.issued);
@@ -1109,6 +1173,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
     async rotateCa() {
       broker.rotateCa();
+      followLocal();
       changedTick();
       return clone(broker.certs);
     },
@@ -1138,34 +1203,13 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
           return res(created ? 'created' : 'kept', { password });
         }
         case 'cert': {
-          if (anonymous || !secure || !l.requireClientCert) return res('skipped');
+          if (anonymous || !secure || !broker.config.requireClientCert) return res('skipped');
           const issued = broker.ensureDesktopCert();
           changedTick();
           return res(issued ? 'issued' : 'kept');
         }
         case 'trust': {
-          let p = profiles.find((x) => x.isLocalBroker);
-          if (!p) {
-            p = newProfileDefaults(profileById('local') ? `p-${randHex(8)}` : 'local', 'mqttpanel-desktop');
-            p.isLocalBroker = true;
-            p.name = profileName || words.profiles.local;
-            profiles.push(p);
-          }
-          const mtls = secure && l.requireClientCert && !anonymous;
-          p.host = 'localhost';
-          p.port = l.port;
-          p.scheme = l.kind === 'tcp' ? 'mqtt' : l.kind === 'tls' ? 'mqtts' : l.kind;
-          p.target = 'app';
-          p.brokerListenerId = l.id;
-          p.mqttVersion = '5';
-          p.username = anonymous ? '' : APP_USER;
-          p.hasPassword = !anonymous;
-          localPassword = anonymous ? null : (broker.passwords.get(APP_USER) ?? null);
-          p.tls.verifyServer = true;
-          p.tls.trustedFingerprints = [];
-          p.tls.caCert = secure ? file('CA.pem', certSummary('MQTT Panel Local CA', broker.certs.ca.notAfter, { isCa: true, selfSigned: true, issuer: 'CN=MQTT Panel Local CA' })) : null;
-          p.tls.clientCert = mtls ? file('mqttpanel-desktop.pem', certSummary('mqttpanel-desktop', '2028-10-12', { issuer: 'CN=MQTT Panel Local CA' })) : null;
-          p.tls.clientKey = mtls ? file('mqttpanel-desktop.key', keySummary(), true) : null;
+          applyLocalProfile(l, profileName);
           changedTick();
           return res(secure ? 'trusted' : 'skipped');
         }
@@ -1214,6 +1258,11 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
     emitMenu(id) {
       emit({ type: 'menu', id });
+    },
+    setConnectionState(connectionId, state) {
+      const c = conns.get(connectionId);
+      if (c) c.state = state;
+      tick();
     },
     tick,
     dispose() {

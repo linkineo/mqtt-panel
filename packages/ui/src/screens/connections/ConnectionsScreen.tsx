@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import type { ImportSummary, Profile } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
 import { useApp } from '../../store/app';
-import { run, saveProfile } from '../../lib/actions';
+import { connectProfile, disconnect, duplicateProfile, run, saveProfile, testProfile } from '../../lib/actions';
 import { shortcut } from '../../lib/keys';
 import { Kbd, Modal, Msg } from '../../components/ui';
+import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { ProfileForm } from './ProfileForm';
 import { AppBrokerDialog } from './AppBrokerDialog';
 
@@ -72,26 +73,35 @@ function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; 
     p.isLocalBroker ? null : t('conn.subCount', { count: p.subscriptions.length }),
     t(lk, lp),
   ].filter(Boolean);
+  // change set 2: a connected card is filled with the accent colour and reads "connected"; a reconnecting (or
+  // connecting) one is outlined in clay
+  const state = conn?.state === 'connected' ? 'connected' : conn?.state === 'reconnecting' ? 'reconnecting' : conn?.state === 'connecting' ? 'connecting' : null;
+  const tone = state === 'connected' ? ' live' : state ? ' retry' : '';
   return (
     <div
       role="option"
       aria-selected={on}
       tabIndex={on ? 0 : -1}
-      className={`card${on ? ' on' : ''}`}
+      className={`card${on ? ' on' : ''}${tone}`}
       data-testid="profile-card"
       data-profile={p.id}
+      data-state={state ?? 'idle'}
       onClick={onSelect}
       {...dragProps}
     >
       <div className="t">
-        <span>
-          {conn && conn.state === 'connected' && <span className="dot" style={{ marginRight: 6, verticalAlign: 1 }} />}
-          {p.name || t('conn.untitled')}
-        </span>
-        <span className={`chip ${chip.tone}`}>{chip.label === 'noTls' ? t('conn.noTls') : chip.label}</span>
+        <span>{p.name || t('conn.untitled')}</span>
+        {state && (
+          <span className="state" data-testid="card-state">
+            {t(state === 'connected' ? 'conn.stateConnected' : state === 'reconnecting' ? 'conn.stateReconnecting' : 'conn.stateConnecting')}
+          </span>
+        )}
       </div>
       <div className="s">
         <span className="mono ell">{profileUrl(p)}</span>
+        <span className={`chip ${chip.tone}`} data-testid="card-chip">
+          {chip.label === 'noTls' ? t('conn.noTls') : chip.label}
+        </span>
       </div>
       <div className="s">{meta.join(' · ')}</div>
     </div>
@@ -191,6 +201,7 @@ export function ConnectionsScreen() {
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [appDialog, setAppDialog] = useState<AppDialog>(null);
   const [drag, setDrag] = useState<{ id: string; over: number } | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Profile | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const sideRef = useRef<HTMLDivElement>(null);
 
@@ -255,6 +266,12 @@ export function ConnectionsScreen() {
       window.addEventListener('pointerup', up);
     },
     onKeyDown: (e) => {
+      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        e.preventDefault();
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        void cardMenu(p, index, r.left + 24, r.top + r.height / 2);
+        return;
+      }
       if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
         void reorder(p.id, index + (e.key === 'ArrowUp' ? -1 : 1));
@@ -269,27 +286,40 @@ export function ConnectionsScreen() {
         }
       }
     },
-    onContextMenu: async (e) => {
+    onContextMenu: (e) => {
       e.preventDefault();
-      const id = await platform().showContextMenu(
-        [
-          { id: 'dup', label: t('conn.duplicate') },
-          { id: 'up', label: t('conn.moveUp'), accelerator: '⌥↑', enabled: index > 0 },
-          { id: 'down', label: t('conn.moveDown'), accelerator: '⌥↓', enabled: index < profiles.length - 1 },
-        ],
-        e.clientX,
-        e.clientY,
-      );
-      if (id === 'dup') {
-        const d = await run(engine().duplicateProfile(p.id));
-        if (d) {
-          await useApp.getState().refreshProfiles();
-          useApp.getState().selectProfile(d.id);
-        }
-      } else if (id === 'up') void reorder(p.id, index - 1);
-      else if (id === 'down') void reorder(p.id, index + 1);
+      void cardMenu(p, index, e.clientX, e.clientY);
     },
   });
+
+  /** Card context menu (change set 2): Connect or Disconnect, Test, Duplicate, Delete… (plus moving the card). */
+  const cardMenu = async (p: Profile, index: number, x: number, y: number) => {
+    const c = useApp.getState().connections.find((k) => k.id === p.id);
+    const open = !!c && (c.state === 'connected' || c.state === 'connecting' || c.state === 'reconnecting');
+    const id = await platform().showContextMenu(
+      [
+        open ? { id: 'disconnect', label: t('conn.disconnect') } : { id: 'connect', label: t('conn.connect') },
+        { id: 'test', label: t('conn.tryConnect') },
+        { id: 'dup', label: t('conn.duplicate') },
+        { id: 'sep1', label: '', separator: true },
+        { id: 'up', label: t('conn.moveUp'), accelerator: '⌥↑', enabled: index > 0 },
+        { id: 'down', label: t('conn.moveDown'), accelerator: '⌥↓', enabled: index < profiles.length - 1 },
+        { id: 'sep2', label: '', separator: true },
+        { id: 'delete', label: t('conn.delete'), danger: true },
+      ],
+      x,
+      y,
+    );
+    if (id === 'connect') void connectProfile(p.id);
+    else if (id === 'disconnect') void disconnect(p.id);
+    else if (id === 'test') {
+      useApp.getState().selectProfile(p.id);
+      void testProfile(p.id);
+    } else if (id === 'dup') void duplicateProfile(p.id);
+    else if (id === 'delete') setConfirmDel(p);
+    else if (id === 'up') void reorder(p.id, index - 1);
+    else if (id === 'down') void reorder(p.id, index + 1);
+  };
 
   return (
     <div className="cols" style={{ gridTemplateColumns: '320px 1fr' }}>
@@ -335,6 +365,8 @@ export function ConnectionsScreen() {
       {sel ? <ProfileForm key={sel.id} profileId={sel.id} /> : <EmptyState onImport={setSummary} openApp={setAppDialog} />}
       {summary && <ImportSummaryDialog summary={summary} onClose={() => setSummary(null)} />}
       {appDialog && <AppBrokerDialog start={appDialog} onClose={() => setAppDialog(null)} />}
+      {confirmDel && <DeleteProfileDialog profile={confirmDel} onClose={() => setConfirmDel(null)} />}
     </div>
   );
 }
+

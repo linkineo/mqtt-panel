@@ -119,9 +119,9 @@ function CertKv({ c }: { c: CertDetails }) {
   );
 }
 
-export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c: BrokerConfig): void; onMenu(l: Listener, e: React.MouseEvent): void }) {
+export function ListenerRow(props: { l: Listener; anonymous: boolean; requireCert: boolean; onConfig(c: BrokerConfig): void; onMenu(l: Listener, e: React.MouseEvent): void }) {
   const { t } = useTranslation();
-  const { l, anonymous } = props;
+  const { l, anonymous, requireCert } = props;
   const secure = l.kind === 'tls' || l.kind === 'wss';
   const upd = async (p: Partial<Listener>) => {
     const c = await run(engine().updateListener({ ...l, ...p }));
@@ -159,10 +159,11 @@ export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c
         <PortCell l={l} disabled={false} onConfig={props.onConfig} />
       </td>
       <td>{t(`preset.${l.preset}`)}</td>
-      <td data-testid="listener-cert">
+      <td data-testid="listener-cert" title={secure ? t('broker.wideSetting') : undefined}>
+        {/* read-only: the requirement is one broker-wide setting, under Client certificates (change set 2) */}
         {!secure ? (
           <span className="muted">—</span>
-        ) : l.requireClientCert ? (
+        ) : requireCert ? (
           anonymous ? (
             <span className="chip clay">{t('broker.notChecked')}</span>
           ) : (
@@ -183,34 +184,75 @@ export function ListenerRow(props: { l: Listener; anonymous: boolean; onConfig(c
 
 const LEVELS: LogLine['level'][] = ['debug', 'info', 'warn', 'error'];
 
+/**
+ * The live broker log (B4). Collapsed by default to a title strip at the bottom of the right pane ("▸ Log · live ·
+ * n warnings"); a click expands it to the full log with the level filter (mockup 12c). Remembered in the settings.
+ */
 function LogView() {
   const { t } = useTranslation();
   const seq = useApp((s) => s.brokerLogSeq);
+  const open = useApp((s) => s.settings.brokerLogOpen);
   const [level, setLevel] = useState<LogLine['level']>('info');
   const [lines, setLines] = useState<LogLine[]>([]);
+  const [warnings, setWarnings] = useState(0);
   const after = useRef(0);
+  const warnAfter = useRef(0);
   useEffect(() => {
     after.current = 0;
     setLines([]);
-  }, [level]);
+  }, [level, open]);
   useEffect(() => {
     let live = true;
+    if (open) {
+      void engine()
+        .brokerLog(level, after.current)
+        .then((l) => {
+          if (!live || !l.length) return;
+          after.current = l[l.length - 1].seq;
+          setLines((x) => [...x, ...l].slice(-500));
+        })
+        .catch(() => undefined);
+    }
     void engine()
-      .brokerLog(level, after.current)
+      .brokerLog('warn', warnAfter.current)
       .then((l) => {
         if (!live || !l.length) return;
-        after.current = l[l.length - 1].seq;
-        setLines((x) => [...x, ...l].slice(-500));
+        warnAfter.current = l[l.length - 1].seq;
+        setWarnings((n) => n + l.length);
       })
       .catch(() => undefined);
     return () => {
       live = false;
     };
-  }, [seq, level]);
+  }, [seq, level, open]);
+  const toggle = () => void useApp.getState().saveSettings({ brokerLogOpen: !open });
+  const title = (
+    <button type="button" className="btn link logtitle" aria-expanded={open} data-testid="log-toggle" onClick={toggle}>
+      <span className="muted" aria-hidden="true">
+        {open ? '▾' : '▸'}
+      </span>
+      <strong>{t('broker.log')}</strong>
+      <span className="muted">· {t('broker.logLive')}</span>
+      {!open && warnings > 0 && <span className="muted">· {t('broker.logWarnings', { count: warnings, n: fmtNum(warnings) })}</span>}
+    </button>
+  );
+  if (!open) {
+    return (
+      <>
+        <span className="grow" style={{ flex: 1 }} />
+        <div className="ph logstrip" style={{ borderTop: '1px solid var(--line)' }} data-testid="broker-log-strip">
+          {title}
+          <span className="muted small ell" style={{ minWidth: 0 }}>
+            {t('broker.logExpand')}
+          </span>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <div className="ph" style={{ borderTop: '1px solid var(--line)' }}>
-        <h5>{t('broker.log')}</h5>
+        {title}
         <Seg
           label={t('broker.logLevel')}
           value={level}
@@ -274,12 +316,20 @@ export function BrokerScreen() {
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // refresh clients when the count changes
+  // clients update live (no Refresh button): on every change of the count or state, and once a second
   useEffect(() => {
-    void engine()
-      .brokerClients()
-      .then(setClients)
-      .catch(() => undefined);
+    let live = true;
+    const load = () =>
+      void engine()
+        .brokerClients()
+        .then((c) => live && setClients(c))
+        .catch(() => undefined);
+    load();
+    const timer = setInterval(load, 1000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
   }, [status?.clients, status?.state]);
 
   if (!config || !status) return <div className="pane" />;
@@ -344,7 +394,7 @@ export function BrokerScreen() {
         </thead>
         <tbody>
           {config.listeners.map((l) => (
-            <ListenerRow key={l.id} l={l} anonymous={anonymous} onConfig={setConfig} onMenu={(x, e) => void listenerMenu(x, e)} />
+            <ListenerRow key={l.id} l={l} anonymous={anonymous} requireCert={config.requireClientCert} onConfig={setConfig} onMenu={(x, e) => void listenerMenu(x, e)} />
           ))}
         </tbody>
       </table>
@@ -369,6 +419,62 @@ export function BrokerScreen() {
     <div className={anonymous ? 'gated' : undefined} data-testid="client-certs" aria-disabled={anonymous}>
       <div className="sec" style={{ marginTop: 18 }}>
         {t('broker.clientCerts')} <span className="lower">· {anonymous ? t('broker.clientCertsOff') : t('broker.clientCertsSub')}</span>
+      </div>
+      <div className="form wide-label" style={{ marginTop: 6 }} data-testid="client-cert-policy">
+        <div className="f" data-testid="require-cert">
+          <span className="lbl">
+            {t('broker.onEncrypted')} <Info id="onEncrypted" title={t('broker.onEncrypted')} />
+          </span>
+          <span className="row2">
+            <Seg
+              label={t('broker.onEncrypted')}
+              value={config.requireClientCert ? 'required' : 'optional'}
+              disabled={anonymous}
+              testId="require-cert-seg"
+              onChange={async (v) => {
+                const c = await run(engine().setRequireClientCert(v === 'required'));
+                if (c) {
+                  setConfig(c);
+                  void noteRestartChange({ key: v === 'required' ? 'rs.ch.certRequired' : 'rs.ch.certOptional', params: {} });
+                }
+              }}
+              options={[
+                { value: 'optional', label: t('broker.optionalCap') },
+                { value: 'required', label: t('broker.requiredCap') },
+              ]}
+            />
+          </span>
+        </div>
+        {config.requireClientCert && !anonymous && (
+          // own line under the choice, so the row itself never wraps in French and German
+          <div className="f">
+            <span />
+            <span className="hint" data-testid="require-cert-hint">
+              {t('broker.requiredHint')}
+            </span>
+          </div>
+        )}
+        <div className="f" data-testid="verify-against">
+          <span className="lbl">
+            {t('broker.verifyAgainst')} <Info id="verifyAgainst" title={t('broker.verifyAgainst')} />
+          </span>
+          <Seg
+            label={t('broker.verifyAgainst')}
+            value={config.verifyAgainst}
+            disabled={anonymous}
+            onChange={async (v) => {
+              const c = await run(engine().setVerifyAgainst(v));
+              if (c) {
+                setConfig(c);
+                void noteRestartChange({ key: 'rs.ch.verify', params: {} });
+              }
+            }}
+            options={[
+              { value: 'local', label: t('broker.localCa') },
+              { value: 'imported', label: t('broker.importedCa'), disabled: !certs?.importedCa },
+            ]}
+          />
+        </div>
       </div>
       <div className="row" style={{ marginTop: 6 }}>
         <button type="button" className="btn pri" disabled={anonymous} data-testid="issue-cert" onClick={() => setDialog({ kind: 'issue' })}>
@@ -525,30 +631,6 @@ export function BrokerScreen() {
             {anonymous ? <span className="small hint warn">{t('broker.anonOn')}</span> : <span className="hint">{t('broker.anonOff')}</span>}
           </span>
         </div>
-        <div className={`f${anonymous ? ' gated' : ''}`} data-testid="verify-against">
-          <span className="lbl">
-            {t('broker.clientCerts')} <Info id="requireClientCert" title={t('broker.clientCerts')} />
-          </span>
-          <span className="row2">
-            <span className="muted">{t('broker.verifyAgainst')}</span>
-            <Seg
-              label={t('broker.verifyAgainst')}
-              value={config.verifyAgainst}
-              disabled={anonymous}
-              onChange={async (v) => {
-                const c = await run(engine().setVerifyAgainst(v));
-                if (c) {
-                  setConfig(c);
-                  void noteRestartChange({ key: 'rs.ch.verify', params: {} });
-                }
-              }}
-              options={[
-                { value: 'local', label: t('broker.localCa') },
-                { value: 'imported', label: t('broker.importedCa'), disabled: !certs?.importedCa },
-              ]}
-            />
-          </span>
-        </div>
       </div>
       <UsersTable
         users={config.users}
@@ -651,9 +733,7 @@ export function BrokerScreen() {
       <div className="pane right" data-testid="broker-side">
         <div className="ph">
           <h5>{t('broker.clientsN', { n: fmtNum(clients.length) })}</h5>
-          <button type="button" className="btn sm" onClick={async () => setClients((await run(engine().brokerClients())) ?? clients)}>
-            {t('broker.refresh')}
-          </button>
+          <span className="muted small">{t('broker.logLive')}</span>
         </div>
         <div style={{ maxHeight: '45%', overflow: 'auto', flex: 'none' }}>
           <table className="tbl compact fixed" data-testid="clients">

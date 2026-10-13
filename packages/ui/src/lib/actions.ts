@@ -86,6 +86,25 @@ export async function disconnect(id: string): Promise<void> {
   await refresh();
 }
 
+/** Deletes a profile; an open connection of it is disconnected first (change set 2). */
+export async function deleteProfile(id: string): Promise<void> {
+  const c = useApp.getState().connections.find((x) => x.id === id);
+  if (c && c.state !== 'disconnected') await engine().disconnect(id);
+  await engine().deleteProfile(id);
+  await refresh();
+  const st = useApp.getState();
+  if (st.selectedProfileId === id || !st.profiles.some((p) => p.id === st.selectedProfileId)) st.selectProfile(st.profiles[0]?.id ?? null);
+  if (st.activeConnId === id) useApp.setState({ activeConnId: st.connections.find((x) => x.state === 'connected')?.id ?? null });
+}
+
+/** Duplicates a profile and selects the copy. */
+export async function duplicateProfile(id: string): Promise<void> {
+  const d = await run(engine().duplicateProfile(id));
+  if (!d) return;
+  await useApp.getState().refreshProfiles();
+  useApp.getState().selectProfile(d.id);
+}
+
 export async function saveProfile(p: Profile): Promise<Profile> {
   const saved = await engine().saveProfile(p);
   const profiles = useApp.getState().profiles;

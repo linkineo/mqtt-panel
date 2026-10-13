@@ -92,6 +92,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skipVerify: false,
   updateCheck: true,
   updateChannel: 'stable',
+  brokerLogOpen: false,
 };
 
 const sentListeners = new Set<SentListener>();
@@ -171,11 +172,12 @@ export const useApp = create<AppState>((set, get) => ({
       patch.broker = e.broker;
       if (!e.broker.restartNeeded && st.pendingChanges.length) patch.pendingChanges = [];
     }
-    // keep the active connection valid
-    const open = e.connections.filter((c) => c.state !== 'disconnected' || c.id === st.activeConnId);
-    if (st.activeConnId && !e.connections.some((c) => c.id === st.activeConnId)) {
-      patch.activeConnId = open[0]?.id ?? null;
-    }
+    // keep the active connection valid: when it is closed or no longer open, another open one takes over
+    const isOpenState = (s: ConnectionStatus['state']) => s === 'connected' || s === 'connecting' || s === 'reconnecting';
+    const open = e.connections.filter((c) => isOpenState(c.state));
+    const active = e.connections.find((c) => c.id === st.activeConnId);
+    if (st.activeConnId && !active) patch.activeConnId = open[0]?.id ?? e.connections[0]?.id ?? null;
+    else if (active && !isOpenState(active.state) && open.length) patch.activeConnId = open[0].id;
     set(patch);
     if (e.sentUpdates.length) sentListeners.forEach((l) => l(e.sentUpdates));
   },

@@ -11,20 +11,21 @@ import { IssueCertDialog } from '../screens/broker/BrokerDialogs';
 import { abbreviate } from '../components/Secret';
 import type { Listener } from '@mqttpanel/engine-client';
 
-const L = (id: string, kind: Listener['kind'], requireClientCert = false, enabled = true): Listener => ({
+const L = (id: string, kind: Listener['kind'], enabled = true): Listener => ({
   id,
   kind,
   bind: 'network',
   port: 1000,
   enabled,
-  requireClientCert,
   preset: 'plain',
 });
 
 describe('Change set 1: "This app\'s broker" (02b)', () => {
   it('preselects mutual TLS, then TLS, then secure WebSocket, then TCP, then WebSocket', () => {
-    const order = rankedListeners([L('ws', 'ws'), L('tcp', 'tcp'), L('wss', 'wss'), L('tls', 'tls'), L('mw', 'wss', true), L('mt', 'tls', true), L('off', 'tls', true, false)]).map((l) => l.id);
-    expect(order).toEqual(['mt', 'mw', 'tls', 'wss', 'tcp', 'ws']);
+    const ls = [L('ws', 'ws'), L('tcp', 'tcp'), L('wss', 'wss'), L('tls', 'tls'), L('off', 'tls', false)];
+    expect(rankedListeners(ls, false).map((l) => l.id)).toEqual(['tls', 'wss', 'tcp', 'ws']);
+    // the client certificate requirement is broker-wide: with Required, TLS and WSS are mutual TLS
+    expect(rankedListeners(ls, true).map((l) => l.id)).toEqual(['tls', 'wss', 'tcp', 'ws']);
   });
 
   it('C-12: "New connection" is a menu; "Another broker…" opens the form without a Target row', async () => {

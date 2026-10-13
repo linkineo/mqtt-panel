@@ -229,11 +229,12 @@ export function AddListenerDialog({
           </span>
         </div>
         {secure && (
-          <div className="f">
+          // information only: the requirement is broker-wide (change set 2); Mutual TLS sets it to Required
+          <div className="f" data-testid="addl-client-cert">
             <span className="lbl">{t('addl.clientCertificate')}</span>
             <span className="row2">
-              <span className={`chip${preset === 'mtls' ? ' on' : ''}`}>{preset === 'mtls' ? t('broker.required') : t('broker.optional')}</span>
-              <span className="hint">{preset === 'mtls' ? t('addl.mtlsHint') : t('addl.optionalHint')}</span>
+              <span className={`chip${preset === 'mtls' || config.requireClientCert ? ' on' : ''}`}>{preset === 'mtls' || config.requireClientCert ? t('broker.required') : t('broker.optional')}</span>
+              <span className="hint">{t('addl.wideHint')}</span>
             </span>
           </div>
         )}

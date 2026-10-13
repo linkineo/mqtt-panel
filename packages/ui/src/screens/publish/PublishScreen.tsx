@@ -256,7 +256,7 @@ function Publish({ connId }: { connId: string }) {
   const repeatRunning = repeat?.running;
 
   return (
-    <div className="cols" style={{ gridTemplateColumns: '250px minmax(0,1fr) 340px' }}>
+    <div className="cols" style={{ gridTemplateColumns: '232px minmax(0,1fr) 326px' }}>
       {/* templates */}
       <div className="pane side" data-testid="templates">
         <div className="ph">
@@ -302,7 +302,7 @@ function Publish({ connId }: { connId: string }) {
           <h5>
             {t('publish.compose')} <span className="muted" style={{ fontWeight: 500 }}>· {t('publish.oneOff')}</span>
           </h5>
-          <div className="row" style={{ gap: 6 }}>
+          <div className="row" style={{ gap: 4 }}>
             <button type="button" className="btn sm" onClick={() => usePublish.getState().clear()}>
               {t('publish.clear')}
             </button>
@@ -326,6 +326,10 @@ function Publish({ connId }: { connId: string }) {
               }}
             >
               {t('publish.copyCli')}
+            </button>
+            {/* "Send ⌘↵" top right in the composer header, like Connect on the Connections screen (owner, 13 Oct 2026) */}
+            <button type="button" className="btn pri" data-testid="send" onClick={() => send()}>
+              {t('publish.send')} <Kbd>{shortcut(info, 'mod+enter')}</Kbd>
             </button>
           </div>
         </div>
@@ -471,9 +475,6 @@ function Publish({ connId }: { connId: string }) {
           )}
 
           <div className="row" style={{ marginTop: 18, flexWrap: 'wrap', rowGap: 8 }}>
-            <button type="button" className="btn pri" data-testid="send" onClick={() => send()}>
-              {t('publish.send')} <Kbd>{shortcut(info, 'mod+enter')}</Kbd>
-            </button>
             <button type="button" className="btn" data-testid="send-clear" onClick={() => send(true)}>
               {t('publish.sendClear')}
             </button>

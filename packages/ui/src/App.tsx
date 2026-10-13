@@ -4,7 +4,7 @@ import { useApp, isMac, SCREENS, type Screen } from './store/app';
 import { useExplorer } from './store/explorer';
 import { RailIcon, AppMark } from './components/icons';
 import { Toasts } from './components/ui';
-import { TitlePill } from './components/TitlePill';
+import { ConnectionBar, TitlePill, useOpenTabs } from './components/TitlePill';
 import { TrustDialog } from './components/TrustDialog';
 import { CommandPalette } from './components/CommandPalette';
 import { FieldPicker } from './screens/explorer/FieldPicker';
@@ -152,6 +152,8 @@ export function App() {
   const ready = useApp((s) => s.ready);
   const palette = useApp((s) => s.paletteOpen);
   const info = useApp((s) => s.appInfo);
+  const tabs = useOpenTabs();
+  const withBar = tabs.length > 0;
   useGlobalShortcuts();
   useMenuEvents();
   useEffect(() => {
@@ -164,8 +166,9 @@ export function App() {
   }, []);
   if (!ready) return null;
   return (
-    <div className="app" id="app-root" data-mac={isMac(info) ? 'true' : 'false'}>
+    <div className={`app${withBar ? ' with-bar' : ''}`} id="app-root" data-mac={isMac(info) ? 'true' : 'false'}>
       <TitleBar />
+      <ConnectionBar tabs={tabs} />
       <div className="body">
         <Rail />
         <main className="main">

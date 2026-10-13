@@ -97,18 +97,73 @@ test.describe('Connections', () => {
     await expect(page.locator('[data-testid=user-row]')).toHaveCount(0);
   });
 
-  test('C-05 several connections open at once, the pill switches the active one', async ({ page }) => {
+  test('C-05 / C-15 several connections open at once; the connection bar switches the active one', async ({ page }) => {
     await open(page, 'mock=demo&connect=plant&screen=explore');
-    await expect(page.locator('[data-testid=pill]')).toContainText('Plant broker');
+    const tabs = page.locator('[data-testid=cbar-tab]');
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.first()).toContainText('Plant broker');
+    await expect(tabs.first()).toContainText(/topics · [\d.,]+ msg\/s · MQTT 5/);
+    // the pill no longer lists connections: broker state only
+    await expect(page.locator('[data-testid=pill]')).toHaveText('Local broker · running · 7 clients');
     await page.click('[data-testid=rail-connect]');
     await page.click('[data-profile=emqx]');
     await page.click('[data-testid=connect]');
-    await expect(page.locator('[data-testid=pill]')).toContainText(/Cloud EMQX/, { timeout: 5000 });
+    await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 5000 });
+    await expect(tabs).toHaveCount(2);
+    await expect(page.locator('[data-testid=cbar-tab][aria-selected=true]')).toContainText('Cloud EMQX');
+    // click a tab: Explorer on that connection, tab active
+    await page.click('[data-testid=rail-publish]');
+    await tabs.filter({ hasText: 'Plant broker' }).click();
     await expect(page.locator('[data-testid=explorer]')).toBeVisible();
-    await page.waitForTimeout(300);
-    await page.click('[data-testid=pill]');
-    await menuItem(page, /Plant broker/);
-    await expect(page.locator('[data-testid=pill]')).toContainText('Plant broker');
+    await expect(page.locator('[data-testid=cbar-tab][aria-selected=true]')).toContainText('Plant broker');
+    // ⌘⇧L lists the open connections and opens the Explorer on the chosen one
+    await page.click('[data-testid=rail-charts]');
+    await page.keyboard.press('ControlOrMeta+Shift+L');
+    await menuItem(page, /Cloud EMQX/);
+    await expect(page.locator('[data-testid=explorer]')).toBeVisible();
+    await expect(page.locator('[data-testid=cbar-tab][aria-selected=true]')).toContainText('Cloud EMQX');
+    // ✕ disconnects; the bar disappears with the last open connection
+    await page.locator('[data-testid=cbar-tab][aria-selected=true] [data-testid=cbar-close]').click();
+    await expect(tabs).toHaveCount(1);
+    await expect(page.locator('[data-testid=cbar-tab][aria-selected=true]')).toContainText('Plant broker');
+    await page.locator('[data-testid=cbar-close]').click();
+    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+  });
+
+  test('C-14 connected card in the accent colour, card menu, Delete with confirmation', async ({ page }) => {
+    await open(page, 'mock=demo&connect=local&screen=connect');
+    const local = page.locator('[data-profile=local]');
+    await expect(local).toHaveClass(/live/);
+    await expect(local.locator('[data-testid=card-state]')).toHaveText('connected');
+    const bg = await local.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const accent = await page.evaluate(() => getComputedStyle(document.querySelector('.btn.pri')!).backgroundColor);
+    expect(bg).toBe(accent);
+    await expect(local.locator('[data-testid=card-state]')).toHaveCSS('text-transform', 'uppercase');
+    await page.evaluate(() => (window as any).__mqttpanelMock.engine.setConnectionState('local', 'reconnecting'));
+    await expect(local).toHaveClass(/retry/);
+    await expect(local.locator('[data-testid=card-state]')).toHaveText('reconnecting');
+    await page.evaluate(() => (window as any).__mqttpanelMock.engine.setConnectionState('local', 'connected'));
+    // card menu by state
+    await local.click({ button: 'right' });
+    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['Disconnect', 'Test', 'Duplicate', 'Move up', 'Move down', 'Delete…']);
+    await page.keyboard.press('Escape');
+    await page.locator('[data-profile=lab]').click({ button: 'right' });
+    await expect(page.locator('[data-testid=context-menu] .ctx-label').first()).toHaveText('Connect');
+    await menuItem(page, 'Duplicate');
+    await expect(page.locator('[data-testid=profile-card]')).toHaveCount(5);
+    // header: Delete (outlined brick, normal size), Test, Connect; no Duplicate
+    await page.click('[data-profile=plant]');
+    await expect(page.locator('[data-testid=profile-form] .ph .row button')).toHaveText(['Delete', 'Test', 'Connect']);
+    const del = page.locator('[data-testid=delete-profile-btn]');
+    await expect(del).toHaveCSS('font-size', '13px');
+    await expect(del).toHaveCSS('padding', '6px 13px');
+    // deleting the connected profile from its menu disconnects it first
+    await local.click({ button: 'right' });
+    await menuItem(page, 'Delete…');
+    await expect(page.locator('[data-testid=delete-profile] .mh')).toHaveText('Delete the connection "Local broker"?');
+    await page.click('[data-testid=confirm-ok]');
+    await expect(page.locator('[data-profile=local]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
   });
 });
 
@@ -523,5 +578,56 @@ test.describe('Native feel (N1, SPEC 1.2)', () => {
     await page.click('[data-testid=settings-nav-language]');
     await page.locator('[data-testid=language] button', { hasText: 'Deutsch' }).click();
     await expect.poll(menuLang).toBe('de');
+  });
+});
+
+test.describe('Change set 2', () => {
+  test('P-11 "Send ⌘↵" sits top right in the composer header', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=publish');
+    const head = page.locator('[data-testid=composer] > .ph');
+    await expect(head.locator('button').last()).toHaveAttribute('data-testid', 'send');
+    await expect(head.locator('[data-testid=send-clear], [data-testid=delete-retained-btn], [data-testid=repeat-s]')).toHaveCount(0);
+    const sendBox = await head.locator('[data-testid=send]').boundingBox();
+    const paneBox = await page.locator('[data-testid=composer]').boundingBox();
+    expect(paneBox!.x + paneBox!.width - (sendBox!.x + sendBox!.width)).toBeLessThan(20);
+    await page.fill('[data-testid=pub-topic]', 'building/f2/r204/setpoint');
+    await page.keyboard.press('Escape');
+    await head.locator('[data-testid=send]').click();
+    await expect(page.locator('[data-testid=sent-row]').first()).toContainText('r204/setpoint');
+  });
+
+  test('B-18 broker-wide client certificate control; B-19 log collapsed, expands, remembered', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    const certs = page.locator('[data-testid=client-certs]');
+    await expect(certs.locator('[data-testid=require-cert]')).toContainText('On encrypted listeners');
+    await expect(certs.locator('[data-testid=verify-against]')).toContainText('Verify against');
+    await expect(page.locator('[data-testid=require-cert-hint]')).toHaveText('Every device needs its own certificate, issued here, before it can connect.');
+    const cell = (id: string) => page.locator(`[data-testid=listener-row][data-listener=${id}] [data-testid=listener-cert]`);
+    await expect(cell('l-tls')).toHaveText('required');
+    await expect(cell('l-wss')).toHaveText('required');
+    await expect(cell('l-tcp')).toHaveText('—');
+    await page.locator('[data-testid=require-cert-seg] button', { hasText: 'Optional' }).click();
+    await expect(page.locator('[data-testid=restart-prompt]')).toBeVisible();
+    await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: client certificate optional on encrypted listeners.');
+    await page.click('[data-testid=restart-later]');
+    await expect(cell('l-tls')).toHaveText('optional');
+    await expect(page.locator('[data-testid=require-cert-hint]')).toHaveCount(0);
+    // B-19: no Refresh, the log is a title strip at the bottom of the right pane until clicked
+    const side = page.locator('[data-testid=broker-side]');
+    await expect(side.getByText('Refresh')).toHaveCount(0);
+    const strip = page.locator('[data-testid=broker-log-strip]');
+    await expect(strip).toContainText('Log');
+    await expect(strip).toContainText('live');
+    await expect(strip).toContainText(/\d+ warnings?/);
+    const sideBox = await side.boundingBox();
+    const stripBox = await strip.boundingBox();
+    expect(Math.abs(sideBox!.y + sideBox!.height - (stripBox!.y + stripBox!.height))).toBeLessThan(3);
+    await page.click('[data-testid=log-toggle]');
+    await expect(page.locator('[data-testid=broker-log]')).toBeVisible();
+    await page.click('[data-testid=rail-connect]');
+    await page.click('[data-testid=rail-broker]');
+    await expect(page.locator('[data-testid=broker-log]')).toBeVisible();
+    await page.click('[data-testid=log-toggle]');
+    await expect(page.locator('[data-testid=broker-log]')).toHaveCount(0);
   });
 });

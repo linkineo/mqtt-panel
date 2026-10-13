@@ -20,7 +20,7 @@ const FEATURES: Record<string, string> = {
     'Request and response is an MQTT 5 feature. Your message carries a response topic and a correlation ID. The device answers on that response topic and copies the correlation ID into its reply. MQTT Panel subscribes to the response topic for you, matches the reply by correlation ID and shows it next to the sent entry. Broker and device must both speak MQTT 5; on 3.1.1 this section is not available.',
 };
 
-const SECURITY = ['caCert', 'clientCert', 'clientKey', 'sni', 'alpn', 'verifyServer', 'filters', 'anonymous', 'requireClientCert', 'reachable', 'appbAdd', 'passphrase', 'certName', 'preset.plain', 'preset.encrypted', 'preset.passwords', 'preset.mtls', 'skipVerify', 'request'];
+const SECURITY = ['caCert', 'clientCert', 'clientKey', 'sni', 'alpn', 'verifyServer', 'filters', 'anonymous', 'onEncrypted', 'verifyAgainst', 'reachable', 'appbAdd', 'passphrase', 'certName', 'preset.plain', 'preset.encrypted', 'preset.passwords', 'preset.mtls', 'skipVerify', 'request'];
 
 describe('Info bubbles (T-26)', () => {
   it('match the FEATURES text exactly in English', () => {

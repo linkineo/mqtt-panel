@@ -20,9 +20,9 @@ export const APP_USER = 'mqtt-panel';
 export const DESKTOP_CERT = 'mqttpanel-desktop';
 
 /** Security rank: mutual TLS (TLS before WSS), TLS, secure WebSocket, TCP, WebSocket. */
-export function listenerRank(l: Listener): number {
+export function listenerRank(l: Listener, requireClientCert: boolean): number {
   const secure = l.kind === 'tls' || l.kind === 'wss';
-  if (secure && l.requireClientCert) return l.kind === 'tls' ? 6 : 5;
+  if (secure && requireClientCert) return l.kind === 'tls' ? 6 : 5;
   return { tls: 4, wss: 3, tcp: 2, ws: 1 }[l.kind];
 }
 
@@ -55,10 +55,10 @@ export class MockBroker {
     const t = now();
     this.config = {
       listeners: [
-        { id: 'l-tcp', kind: 'tcp', bind: 'network', port: 1883, enabled: true, requireClientCert: false, preset: 'plain' },
-        { id: 'l-tls', kind: 'tls', bind: 'network', port: 8883, enabled: true, requireClientCert: demo, preset: demo ? 'mtls' : 'encrypted' },
-        { id: 'l-ws', kind: 'ws', bind: 'localhost', port: 8083, enabled: demo, requireClientCert: false, preset: 'plain' },
-        { id: 'l-wss', kind: 'wss', bind: 'network', port: 8084, enabled: false, requireClientCert: false, preset: 'encrypted' },
+        { id: 'l-tcp', kind: 'tcp', bind: 'network', port: 1883, enabled: true, preset: 'plain' },
+        { id: 'l-tls', kind: 'tls', bind: 'network', port: 8883, enabled: true, preset: demo ? 'mtls' : 'encrypted' },
+        { id: 'l-ws', kind: 'ws', bind: 'localhost', port: 8083, enabled: demo, preset: 'plain' },
+        { id: 'l-wss', kind: 'wss', bind: 'network', port: 8084, enabled: false, preset: 'encrypted' },
       ],
       anonymous: false,
       users: demo
@@ -69,6 +69,7 @@ export class MockBroker {
             { username: 'dashboard', system: false, hasPassword: true },
           ]
         : [],
+      requireClientCert: demo,
       verifyAgainst: 'local',
       maxClients: 1000,
     };
@@ -212,10 +213,19 @@ export class MockBroker {
       bind: req.bind,
       port: req.port,
       enabled: true,
-      requireClientCert: req.preset === 'mtls',
       preset: req.preset,
     };
     this.config.listeners.push(l);
+    // Mutual TLS sets the broker-wide client certificate requirement to Required.
+    if (req.preset === 'mtls') this.config.requireClientCert = true;
+    this.changed();
+  }
+
+  /** Client certificate on encrypted listeners, for the whole broker. */
+  setRequireClientCert(on: boolean): void {
+    if (this.config.requireClientCert === on) return;
+    this.config.requireClientCert = on;
+    this.addLog('info', on ? 'client certificate required on encrypted listeners' : 'client certificate optional on encrypted listeners');
     this.changed();
   }
 
@@ -340,6 +350,7 @@ export class MockBroker {
   pickListener(id: string | null): Listener | null {
     const enabled = this.config.listeners.filter((l) => l.enabled);
     if (id) return this.config.listeners.find((l) => l.id === id) ?? null;
-    return [...enabled].sort((a, b) => listenerRank(b) - listenerRank(a))[0] ?? null;
+    const req = this.config.requireClientCert;
+    return [...enabled].sort((a, b) => listenerRank(b, req) - listenerRank(a, req))[0] ?? null;
   }
 }

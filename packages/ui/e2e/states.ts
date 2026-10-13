@@ -31,7 +31,24 @@ async function changeTlsPort(page: Page) {
 
 export const STATES: UiState[] = [
   { id: '01-first-launch', query: 'mock=empty' },
-  { id: '02-connections', query: 'mock=demo' },
+  { id: '02-connections', query: 'mock=demo&connect=local&screen=connect' },
+  {
+    id: '02c-card-menu',
+    query: 'mock=demo&connect=local,plant&reconnecting=plant&screen=connect',
+    steps: async (p) => {
+      await p.click('[data-profile=lab]');
+      await p.locator('[data-profile=lab]').click({ button: 'right' });
+      await p.waitForSelector('[data-testid=context-menu]');
+    },
+  },
+  {
+    id: '02c-delete-confirm',
+    query: 'mock=demo&connect=local&screen=connect',
+    steps: async (p) => {
+      await p.click('[data-testid=delete-profile-btn]');
+      await p.waitForSelector('[data-testid=delete-profile]');
+    },
+  },
   {
     id: '02-new-connection-menu',
     query: 'mock=demo',
@@ -77,7 +94,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '04-explorer-tree',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/r204', 'building/f2/r204/setpoint');
       await p.locator('[data-testid=tree-row][data-path="building/f2/r204/temperature"]').click({ button: 'right' });
@@ -86,7 +103,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '05-explorer-table',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await p.click('[data-testid=layout-table]');
       await p.click('[data-testid=filters-btn]');
@@ -95,7 +112,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '05b-columns',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await p.click('[data-testid=layout-table]');
       await p.click('[data-testid=columns-btn]');
@@ -104,7 +121,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '06-diff',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
       await p.click('[data-testid=tab-diff]');
@@ -113,7 +130,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '07-properties',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/ahu01/cmd', 'building/f2/ahu01/cmd');
       await p.click('[data-testid=tab-properties]');
@@ -122,7 +139,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '07b-history',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/r204', 'building/f2/r204/temperature');
       await p.click('[data-testid=tab-history]');
@@ -131,7 +148,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '08-publish',
-    query: 'mock=demo&connect=plant&screen=publish',
+    query: 'mock=demo&connect=plant,local&screen=publish',
     steps: async (p) => {
       await p.locator('[data-testid=template]').nth(2).click();
       await p.click('[data-testid=props-toggle]');
@@ -145,7 +162,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '09-delete-retained-repeat',
-    query: 'mock=demo&connect=plant&screen=publish',
+    query: 'mock=demo&connect=plant,local&screen=publish',
     steps: async (p) => {
       await p.locator('[data-testid=template]').nth(3).click();
       await p.click('[data-testid=repeat-start]');
@@ -159,7 +176,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '10-charts',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
       await p.click('[data-testid=tab-chart]');
@@ -176,7 +193,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '10b-field-picker',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
       await p.click('[data-testid=tab-chart]');
@@ -186,7 +203,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '11-export',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/r204', 'building/f2/r204/temperature');
       await p.click('[data-testid=export-btn]');
@@ -211,7 +228,25 @@ export const STATES: UiState[] = [
       await p.waitForSelector('[data-testid=anon-warning]');
     },
   },
-  { id: '12c-restart-prompt', query: 'mock=demo&screen=broker', steps: changeTlsPort },
+  {
+    id: '12c-restart-prompt',
+    query: 'mock=demo&screen=broker',
+    steps: async (p) => {
+      // mockup 12c: the log expanded with its level filter, then a port change asks for a restart
+      await p.click('[data-testid=log-toggle]');
+      await p.waitForSelector('[data-testid=broker-log]');
+      await changeTlsPort(p);
+    },
+  },
+  {
+    id: '12e-client-cert-optional',
+    query: 'mock=demo&screen=broker',
+    steps: async (p) => {
+      await p.locator('[data-testid=require-cert-seg] button').first().click();
+      await p.waitForSelector('[data-testid=restart-prompt]');
+      await p.click('[data-testid=restart-later]');
+    },
+  },
   {
     id: '12d-restart-pending',
     query: 'mock=demo&screen=broker',
@@ -248,10 +283,10 @@ export const STATES: UiState[] = [
       await p.keyboard.type('sensor-r206');
     },
   },
-  { id: '16-settings', query: 'mock=demo&connect=plant&screen=settings' },
+  { id: '16-settings', query: 'mock=demo&connect=plant,local&screen=settings' },
   {
     id: '17-settings-data',
-    query: 'mock=demo&connect=plant&screen=settings',
+    query: 'mock=demo&connect=plant,local&screen=settings',
     steps: async (p) => {
       await p.click('[data-testid=skip-verify]');
       await p.click('[data-testid=settings-nav-data]');
@@ -266,7 +301,7 @@ export const STATES: UiState[] = [
   },
   {
     id: '18-palette',
-    query: 'mock=demo&connect=plant&screen=explore',
+    query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/r204', 'building/f2/r204/setpoint');
       await p.keyboard.press('ControlOrMeta+K');
@@ -276,5 +311,5 @@ export const STATES: UiState[] = [
     },
   },
   { id: '19-no-connection', query: 'mock=demo&screen=explore' },
-  { id: '20-charts-empty', query: 'mock=demo&connect=plant&screen=charts' },
+  { id: '20-charts-empty', query: 'mock=demo&connect=plant,local&screen=charts' },
 ];

@@ -8,7 +8,10 @@ export interface BootOverrides {
   theme?: Settings['theme'];
   accent?: Settings['accent'];
   screen?: Screen;
+  /** One profile id or several, comma-separated; the first one becomes the active connection. */
   connect?: string;
+  /** Mock only: a connected profile shown as reconnecting (mockup 02c). */
+  reconnecting?: string;
   motion?: boolean;
 }
 
@@ -26,6 +29,7 @@ export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 
     accent: accent === 'sage' || accent === 'slate' || accent === 'clay' ? accent : undefined,
     screen: screen && (SCREENS as string[]).includes(screen) ? (screen as Screen) : undefined,
     connect: p.get('connect') ?? undefined,
+    reconnecting: p.get('reconnecting') ?? undefined,
     motion: p.get('motion') === 'off' ? false : undefined,
     // mock only: slower engine steps, so screenshots can catch a flow half-way (02b steps)
     latency: p.get('latency') ? Math.min(20_000, Number(p.get('latency')) || 0) : undefined,
@@ -94,10 +98,15 @@ export async function startApp(eng: EngineClient, plat: Platform, o: BootOverrid
     mq.addEventListener?.('change', () => applySettings(useApp.getState().settings, useApp.getState().appInfo));
   }
   if (o.connect) {
-    const out = await engine().connectProfile(o.connect);
-    if (out.kind === 'connected') {
-      useApp.setState({ activeConnId: o.connect, connections: await engine().listConnections(), profiles: await engine().listProfiles() });
+    const ids = o.connect.split(',').filter(Boolean);
+    let first: string | null = null;
+    for (const id of ids) {
+      const out = await engine().connectProfile(id);
+      if (out.kind === 'connected') first ??= id;
     }
+    const mock = eng as Partial<{ setConnectionState(id: string, s: 'reconnecting'): void }>;
+    if (o.reconnecting && mock.setConnectionState) mock.setConnectionState(o.reconnecting, 'reconnecting');
+    if (first) useApp.setState({ activeConnId: first, connections: await engine().listConnections(), profiles: await engine().listProfiles() });
   }
   useApp.setState({ ready: true });
 }

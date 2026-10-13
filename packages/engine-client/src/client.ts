@@ -161,6 +161,8 @@ export interface EngineClient {
   updateListener(listener: Listener): Promise<BrokerConfig>;
   removeListener(listenerId: string): Promise<BrokerConfig>;
   setAnonymous(on: boolean): Promise<BrokerConfig>;
+  /** Client certificate on encrypted listeners, for the whole broker: Required (true) or Optional (false). */
+  setRequireClientCert(on: boolean): Promise<BrokerConfig>;
   setVerifyAgainst(source: 'local' | 'imported'): Promise<BrokerConfig>;
   addUser(username: string, password: string): Promise<BrokerConfig>;
   setUserPassword(username: string, password: string): Promise<BrokerConfig>;

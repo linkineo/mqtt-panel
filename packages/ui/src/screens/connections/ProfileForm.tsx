@@ -4,8 +4,9 @@ import type { Profile, Qos, Scheme, Subscription } from '@mqttpanel/engine-clien
 import { engine } from '../../services';
 import { useApp } from '../../store/app';
 import { connectProfile, testProfile, disconnect, saveProfile, replaceProfile, useBusy, run } from '../../lib/actions';
-import { Info, Msg, Modal, Popover, Seg, Switch, ConfirmDialog } from '../../components/ui';
+import { Info, Msg, Modal, Popover, Seg, Switch } from '../../components/ui';
 import { FileField } from './FileField';
+import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { SecretText } from '../../components/Secret';
 import { fmtAge, fmtBytes } from '../../lib/format';
 
@@ -208,16 +209,11 @@ export function ProfileForm({ profileId }: { profileId: string }) {
       <div className="ph">
         <h5>{p.name || t('conn.untitled')}</h5>
         <div className="row">
-          <button type="button" className="btn" onClick={async () => {
-            await flush();
-            const d = await run(engine().duplicateProfile(p.id));
-            if (d) {
-              await useApp.getState().refreshProfiles();
-              useApp.getState().selectProfile(d.id);
-            }
-          }}>
-            {t('conn.duplicate')}
+          {/* change set 2: Delete outlined in brick, normal size, then Test and Connect; Duplicate is in the card menu */}
+          <button type="button" className="btn danger out" data-testid="delete-profile-btn" onClick={() => setConfirmDelete(true)}>
+            {t('conn.deleteBtn')}
           </button>
+          <span style={{ width: 10 }} aria-hidden="true" />
           <button type="button" className="btn" data-testid="try-connect" disabled={busy.testing === p.id} onClick={async () => {
             await flush();
             await testProfile(p.id);
@@ -506,33 +502,21 @@ export function ProfileForm({ profileId }: { profileId: string }) {
             </p>
           </div>
         )}
-        <div style={{ marginTop: 16 }}>
-          <button type="button" className="btn sm danger" onClick={() => setConfirmDelete(true)}>
-            {t('conn.delete')}
-          </button>
-        </div>
       </div>
       {protoEdit && (
         <ProtoDialog profile={p} fileName={protoEdit.fileName} onClose={() => setProtoEdit(null)} onProfile={fromEngine} />
       )}
       {confirmDelete && (
-        <ConfirmDialog
-          title={t('conn.deleteTitle', { name: p.name || t('conn.untitled') })}
-          confirmLabel={t('conn.delete')}
-          danger
+        <DeleteProfileDialog
+          profile={p}
           onClose={() => setConfirmDelete(false)}
-          onConfirm={async () => {
+          beforeDelete={() => {
             if (timer.current) {
               clearTimeout(timer.current);
               timer.current = null;
             }
-            await run(engine().deleteProfile(p.id));
-            await useApp.getState().refreshProfiles();
-            useApp.getState().selectProfile(useApp.getState().profiles[0]?.id ?? null);
           }}
-        >
-          <div className="muted small">{t('conn.deleteBody')}</div>
-        </ConfirmDialog>
+        />
       )}
     </div>
   );

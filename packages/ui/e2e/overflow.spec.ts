@@ -23,6 +23,8 @@ const SELECTORS = [
   '.f .row2:not(.wrap)',
   '.ph',
   '.meta',
+  '.cbar .tab',
+  '.card .state',
 ].join(',');
 
 async function violations(page: Page): Promise<string[]> {

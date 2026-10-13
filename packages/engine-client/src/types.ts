@@ -32,6 +32,8 @@ export interface Settings {
   skipVerify: boolean; // lab only; never persisted, resets at launch
   updateCheck: boolean;
   updateChannel: 'stable' | 'beta';
+  /** The broker log is expanded in the Broker screen's right pane (collapsed by default). */
+  brokerLogOpen: boolean;
 }
 
 export interface AppInfo {
@@ -499,7 +501,6 @@ export interface Listener {
   bind: 'network' | 'localhost';
   port: number;
   enabled: boolean;
-  requireClientCert: boolean;
   preset: Preset;
 }
 
@@ -507,6 +508,9 @@ export interface BrokerConfig {
   listeners: Listener[];
   anonymous: boolean;
   users: BrokerUser[];
+  /** Client certificate on encrypted listeners (broker-wide, change set 2): required on every TLS and WSS listener
+   * when true, optional otherwise. Plain listeners are never affected. Needs a restart while running. */
+  requireClientCert: boolean;
   verifyAgainst: 'local' | 'imported';
   maxClients: number;
 }

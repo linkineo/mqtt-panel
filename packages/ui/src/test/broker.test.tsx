@@ -17,7 +17,9 @@ describe('Broker anonymous gating (12b)', () => {
     await waitFor(() => expect(screen.getAllByTestId('issued-row').length).toBeGreaterThan(0));
     expect(screen.getByTestId('anon-warning').textContent).toContain('Anonymous access is on.');
     expect(screen.getByTestId('users').className).toContain('gated');
-    expect(screen.getByTestId('verify-against').className).toContain('gated');
+    // change set 2: "On encrypted listeners" and "Verify against" live under Client certificates, gated with it
+    expect(screen.getByTestId('client-certs').contains(screen.getByTestId('verify-against'))).toBe(true);
+    expect(within(screen.getByTestId('require-cert-seg')).getAllByRole('radio').every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
     expect(screen.getByTestId('client-certs').className).toContain('gated');
     expect(screen.getByTestId('issue-cert')).toBeDisabled();
     expect(screen.queryAllByTestId('listener-login')).toHaveLength(0);

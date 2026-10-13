@@ -1,3 +1,4 @@
+import { isOpen, openConnection } from './TitlePill';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { engine } from '../services';
@@ -98,10 +99,11 @@ export function CommandPalette() {
       });
     }
     cmd('new', t('palette.newConnection'), shortcut(info, 'mod+N'), () => newConnection());
-    for (const c of connections.filter((c) => c.state !== 'disconnected' && c.id !== activeId)) {
-      out.push({ id: `sw:${c.id}`, group: 'connections', label: t('palette.switchTo', { name: c.name }), keys: shortcut(info, 'mod+shift+L'), run: () => useApp.getState().setActiveConn(c.id) });
+    // "Switch connection" lists the open connections of the connection bar and opens the Explorer on the chosen one
+    for (const c of connections.filter((c) => isOpen(c) && c.id !== activeId)) {
+      out.push({ id: `sw:${c.id}`, group: 'connections', label: t('palette.switchTo', { name: c.name }), keys: shortcut(info, 'mod+shift+L'), run: () => openConnection(c.id) });
     }
-    for (const p of profiles.filter((p) => !connections.some((c) => c.id === p.id && c.state !== 'disconnected'))) {
+    for (const p of profiles.filter((p) => !connections.some((c) => c.id === p.id && isOpen(c)))) {
       out.push({ id: `co:${p.id}`, group: 'connections', label: t('palette.connectTo', { name: p.name }), run: () => void connectProfile(p.id) });
     }
     for (const topic of topics) {

@@ -11,15 +11,16 @@ import { AddListenerDialog, kindLabel } from '../broker/BrokerDialogs';
 
 const secure = (l: Listener) => l.kind === 'tls' || l.kind === 'wss';
 
-/** Security rank for the preselection: mutual TLS, then TLS, then secure WebSocket, then TCP, then WebSocket. */
-export function listenerRank(l: Listener): number {
-  if (secure(l) && l.requireClientCert) return l.kind === 'tls' ? 6 : 5;
+/** Security rank for the preselection: mutual TLS, then TLS, then secure WebSocket, then TCP, then WebSocket. The
+ * client certificate requirement is broker-wide (change set 2). */
+export function listenerRank(l: Listener, requireClientCert: boolean): number {
+  if (secure(l) && requireClientCert) return l.kind === 'tls' ? 6 : 5;
   return { tls: 4, wss: 3, tcp: 2, ws: 1 }[l.kind];
 }
 
 /** Enabled listeners, most secure first. */
-export function rankedListeners(ls: Listener[]): Listener[] {
-  return ls.filter((l) => l.enabled).sort((a, b) => listenerRank(b) - listenerRank(a));
+export function rankedListeners(ls: Listener[], requireClientCert: boolean): Listener[] {
+  return ls.filter((l) => l.enabled).sort((a, b) => listenerRank(b, requireClientCert) - listenerRank(a, requireClientCert));
 }
 
 interface Line {
@@ -30,9 +31,9 @@ interface Line {
 }
 
 /** The steps shown for a listener, decided before the run (mockup 02b). */
-function plan(l: Listener, anonymous: boolean, status: BrokerStatus | null): Line[] {
+function plan(l: Listener, anonymous: boolean, requireClientCert: boolean, status: BrokerStatus | null): Line[] {
   const steps: AppBrokerStep[] = ['user'];
-  if (!anonymous && secure(l) && l.requireClientCert) steps.push('cert');
+  if (!anonymous && secure(l) && requireClientCert) steps.push('cert');
   steps.push('trust');
   if (!status || status.state !== 'running' || status.restartNeeded) steps.push('broker');
   steps.push('connect');
@@ -79,7 +80,7 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
   useEffect(() => {
     void load().then((c) => {
       if (!c) return;
-      const best = rankedListeners(c.listeners)[0];
+      const best = rankedListeners(c.listeners, c.requireClientCert)[0];
       setSel((s) => s ?? (best ? best.id : 'add'));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,7 +89,7 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
   const runFor = async (listenerId: string, c: BrokerConfig, st: BrokerStatus | null) => {
     const l = c.listeners.find((x) => x.id === listenerId);
     if (!l) return;
-    const ls = plan(l, c.anonymous, st);
+    const ls = plan(l, c.anonymous, c.requireClientCert, st);
     setLines(ls);
     setError(null);
     setRunning(true);
@@ -160,7 +161,7 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
     );
   }
 
-  const listeners = cfg ? rankedListeners(cfg.listeners) : [];
+  const listeners = cfg ? rankedListeners(cfg.listeners, cfg.requireClientCert) : [];
   const best = listeners[0]?.id;
   const anonymous = cfg?.anonymous ?? false;
 
@@ -208,7 +209,7 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
       <div className="muted small">{t('appb.which')}</div>
       <div style={{ display: 'grid', gap: 6 }} role="radiogroup" aria-label={t('appb.which')}>
         {listeners.map((l) => {
-          const mtls = secure(l) && l.requireClientCert;
+          const mtls = secure(l) && !!cfg?.requireClientCert;
           return (
             <div
               key={l.id}
