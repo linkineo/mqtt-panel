@@ -98,6 +98,14 @@
   - (Closed 13 Oct 2026, change set 3) The migration of the per-secret keychain entries is gone; see "13 Oct 2026, keychain prompts (change set 3)".
   - Removing the user "mqtt-panel" does not touch the profile "Local broker" at once; the next broker change that the profile follows creates the user again, because the profile needs it.
   - UI texts still say passwords and keys go to "the system keychain" (empty state, delete confirmation, file fields). With the master key design that stays true from the user's point of view ("protected by the keychain"); the phase 5 copy review may reword.
+- Change set 3 (13 Oct 2026), readings of the spec awaiting owner confirmation:
+  - The server key is read, and repaired, only when a TLS or WSS listener is enabled. A broker with plain listeners only never reads a secret on start, so it starts even after a refusal; with an encrypted listener enabled, a refusal fails the whole start (no listener comes up), as TESTPLAN B-20 says "start fails".
+  - The new server certificate keeps the names and key type of the current one. When the current one was imported (its key missing), it is replaced by a certificate from the local CA for localhost and the host name.
+  - After a start that regenerated the CA, the desktop shell lets the profile "Local broker" follow the new CA at once (as after a CA rotation), so its client certificate is issued again when needed; other issued certificates show as superseded.
+  - `mqttpanel broker` without `--config` repairs missing keys the same way before it starts.
+  - The refusal is remembered per secret store, and the app and the CLI each hold one store per process, so "per session" is per run of the program. With `MQTTPANEL_LOG=1` the refusal is printed once.
+  - Error sites that hard-coded `keychain.unavailable` for secret store errors (profile password, connect, file fields, "Local broker" set-up) now take the key from the error, so a refusal reads `keychain.refused` everywhere.
+  - Test C-02 (real OS keychain) now round-trips through the master key under a test service name and removes that item afterwards; the per-secret keychain store it used is gone.
 
 ### 13 Oct 2026, owner feedback after the first run (change set 1)
 Owner feedback on the running app, 13 Oct 2026. Specified in `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` section 7, mockups 02, 02b, 12, 12b, 12c, 14, 19, and `docs/TESTPLAN.md` C-12, C-13, B-06, B-10, B-12, B-15.
