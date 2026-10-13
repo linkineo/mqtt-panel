@@ -67,6 +67,8 @@ On Windows and Linux open the bundle from the file manager or run the installer.
 
 Beta builds are not signed. On macOS Gatekeeper may refuse a build that was downloaded from elsewhere; a bundle built locally opens without a prompt. A downloaded unsigned build opens with right-click, Open, then Open again. On Windows SmartScreen shows "Windows protected your PC"; choose More info, then Run anyway. Release builds will be signed (see `docs/SPEC.md` section 11).
 
+Keychain prompts on macOS: the keychain identifies a program by its code signature. An unsigned build carries only a hash of itself, so every new build is a new program to the keychain. Each build asks once, at the first secret use of a session (for example the first broker start); after "Always Allow" that build never asks again. The CLI is a separate program and asks once as well. A signed release build asks once ever. If you rebuild often and want no prompt, sign your local bundles with a self-signed code-signing identity made in Keychain Access and build with `APPLE_SIGNING_IDENTITY="<name>"`; `npm run tauri dev` relinks the binary on every Rust change and asks once per rebuild.
+
 ## 4. UI alone in a browser (mock engine)
 
 ```
@@ -96,7 +98,7 @@ The CLI shares the app's saved profiles and secrets (`secrets.enc` and its maste
 | Windows | `%APPDATA%\com.remora-labs.mqttpanel\` |
 | Linux | `~/.local/share/com.remora-labs.mqttpanel/` |
 
-Profiles, settings, templates, saved views and broker configuration live there as JSON. Passwords, private keys and passphrases are in `secrets.enc` in the same folder, encrypted (XChaCha20-Poly1305) with a random master key that is the only MQTT Panel item in the OS keychain; the key is read the first time a secret is needed in a session, never at start-up. Per-secret keychain entries of earlier builds are moved into the file once and deleted. Message history stays in memory and is gone when the app closes.
+Profiles, settings, templates, saved views and broker configuration live there as JSON. Passwords, private keys and passphrases are in `secrets.enc` in the same folder, encrypted (XChaCha20-Poly1305) with a random master key that is the only MQTT Panel item in the OS keychain; the key is read the first time a secret is needed in a session, never at start-up. That master key is the only keychain item the app reads or writes; entries of earlier test builds are ignored and can be removed in Keychain Access (service "MQTT Panel"). Message history stays in memory and is gone when the app closes.
 
 Environment variables for tests and diagnostics:
 

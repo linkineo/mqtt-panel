@@ -165,6 +165,7 @@ Replayed from `datapoints.json` into the engine (U) and verified on screen (E) f
 | B-16 | E | auto | Users table: eye reveals the password, copy puts it on the clipboard, in every password and passphrase field the app owns | As specified. |
 | B-18 | E | auto | Client certificate requirement is one broker-wide control under Client certificates (Optional / Required, with "Verify against"); Required shows the device explanation; every encrypted listener row shows the state read-only; Mutual TLS preset sets Required; plain listeners unaffected | As specified. |
 | B-19 | E | auto | Clients and log update live without a Refresh button; the log opens collapsed as a title strip at the bottom of the right pane and expands on click; state remembered | As specified. |
+| B-20 | M | auto | Broker start with the server key missing from the secret store: a new server certificate is issued from the local CA, logged, TLS listener up; CA key missing too: CA regenerated, logged; secret store refusing: start fails with the reason, no TLS listener without material | Crate test. |
 | B-17 | M | manual | Test lab: `tools/testlab/mosquitto_broker.py` in all five modes, app connects with the printed values and files; `tools/testlab/load_client.py --check` against each listener kind of the app's broker with exported CA, PEM and PKCS#12; 500 msg/s for 60 s with charts and export | Round trips OK; app shows about 500 msg/s with no backlog. |
 
 ## 7. Error messages against external brokers
@@ -213,7 +214,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | V-05 | E | auto | Language switch at runtime EN → FR → DE; French typography (narrow no-break space before `:` `;` `?` `!`), German "du" | Catalog checks plus screenshots. |
 | V-06 | M | manual | Native review of FR and DE by a native reader, logged in `docs/COPY_REVIEW.md` | No literal translations left. |
 | V-08 | M | manual | macOS: the app name and pill sit on the centre line of the traffic lights; nothing under the lights; Windows and Linux unchanged | By eye on each OS. |
-| V-09 | M | manual | macOS unsigned build: at most one keychain prompt per session (first secret use), none at start-up, none on broker start or restart; secrets.enc present, no per-secret keychain items left after migration | As specified. |
+| V-09 | M | manual | macOS unsigned build: no keychain prompt at start-up; one prompt at the first secret use of a session (for example the first broker start), "Always allow" accepted; quit and start the same build again: no prompt at all; Deny instead: no second prompt in that session, the sentence `keychain.refused` where a secret is needed; the old per-secret items in Keychain Access are never read (no prompt names them) | As specified. |
 | V-07 | E | auto | Accessibility: tab order through every screen, screen-reader labels on icon buttons, contrast AA in both themes, reduced motion | axe-core clean; manual VoiceOver/NVDA spot check before release. |
 
 ## 10. CLI
