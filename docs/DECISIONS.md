@@ -89,6 +89,7 @@
   - A revealed password longer than 12 characters is shown as its first and last four characters ("Vq7m…kR2p", as drawn in mockup 12); the full value is in the tooltip and on the clipboard. Inputs (passphrases, dialogs) reveal the full text.
   - The 02b dialog lists enabled listeners only; a switched-off listener is not offered (it would need switching on first). With none enabled, the dialog says so and preselects "Add a listener…".
   - (Closed 13 Oct 2026, owner: yes) The profile "Local broker" follows every broker change at once; see change set 2.
+- Change set 4 (13 Oct 2026), readings of the owner's message awaiting confirmation: listed under "13 Oct 2026, owner feedback on the third build (change set 4)" in the decision log.
 - Change set 2 (13 Oct 2026), readings of the spec awaiting owner confirmation, details under "13 Oct 2026, change set 2" below:
   - (Closed 13 Oct 2026) The stale "title bar pill switches the active one" bullet in `docs/FEATURES.md` was rewritten for the connection bar.
   - Mockups 04 to 11 and 18 draw an empty pill while "Local broker" is connected (so the broker runs). The app follows the spec text: the pill shows "Local broker · running · n clients" whenever the broker runs; it is hidden only when connections are open and there is nothing to show.
@@ -117,6 +118,20 @@ Owner feedback on the running app, 13 Oct 2026. Specified in `docs/FEATURES.md` 
 - Passwords and passphrases the app owns can be revealed with an eye icon and copied.
 - The test button reads "Test" (FR « Tester », DE „Testen“).
 - Test lab scripts (`tools/testlab/`, Python, mosquitto and Paho): mosquitto in five security modes for the app to connect to; Paho clients against the app's broker with a 500 msg/s generator over 50 topics.
+
+### 13 Oct 2026, owner feedback on the third build (change set 4)
+Owner, after the third build, in one message: start the broker when connecting to the local broker; a stop icon on each active connection; the parsed chips next to CA, client certificate and client key removed; no "mTLS"; Security in a fold closed by default, Session, Subscriptions and Decoders in an "Advanced" fold; the title bar broker status replaced by a play badge on the Broker rail icon and a count bubble on the Connect icon; the Broker screen reorganised (one reachability for all listeners, no client-cert column, ✕ instead of the ⋯ menu, Users and Client certificates as separate panels, certificate verification and broker certificates in an "Advanced security" fold, the network explanation behind an ⓘ only, no "live", no client counts); everything less verbose. Spec: `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` (1.2, 4, 6), `docs/TESTPLAN.md` C-17 to C-20, B-21 to B-24, V-10, mockups 02, 02b, 02c, 02d (new: folds open), 12, 12b, 12c, 13, 14, 19 and the pill removed from every screen.
+
+Readings of the owner's words, to confirm:
+- "On each connexion pill (left bar)" is read as the cards in the Connections list (the left column of the Connections screen), which get the stop button; the ✕ on the connection bar tabs stays as it is.
+- The "Keychain" chip is removed everywhere in the form (password, client key, PKCS#12), not only next to the three certificate fields.
+- Folds are closed when the app starts and keep their state while it runs, so editing several profiles in a row does not reopen them each time.
+- Add listener step 2 keeps kind and port only; the server certificate choice moves to "Advanced security".
+- Reachability defaults to "Whole network" as before (SPEC 6); the switch only moved from the rows to the Listeners line.
+- The count bubble counts connected, connecting and reconnecting connections, the same set as the connection bar.
+- Revoking a certificate keeps its confirmation (not reversible); removing a listener or a user does not (the restart prompt follows a listener removal; a user can be added again).
+- The Clients status tile is dropped because the right pane lists the clients; the tiles are Status, In, Out, Retained.
+- The "Required" explanation and the network explanation live in ⓘ bubbles only.
 
 ### 13 Oct 2026, owner feedback on the second build (change set 2)
 Specified in `docs/FEATURES.md` (Connections, Publish, Broker), `docs/SPEC.md` sections 1.2 and 6, mockups 02, 02c, 04 to 11, 12, 12c, 13, 14, 18, 19, and `docs/TESTPLAN.md` C-14 to C-16, P-11, B-18, B-19, V-08, V-09.
