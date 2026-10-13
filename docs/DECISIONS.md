@@ -186,6 +186,9 @@ Log of decisions taken by the implementing model where the specs leave room. Eac
 - **Strings.** The FR and DE texts suggested in the brief are used as given (FR « Redémarrer » for "Restart now"); the 02b explainer in FR and DE follows the EN text. Nothing had to be shortened: the V-02 overflow check is green for every new state in EN, FR and DE. Native review stays in phase 5.
 - **Screenshot states.** Five new states (02 menu, 02b, 02b with running steps, 12c, 12d pending) and 12 with a revealed password. The mock accepts `latency=<ms>` in the URL so the running steps can be captured.
 
+### 13 Oct 2026, app icon
+Owner: "change the icon to something inspired from my other simple apps, not the other logo." The app icon is now in the mqtt-panel.com family of the owner's other apps (flat solid tile, paper cards in plain geometry, one clay dot, no gradients): a slate tile (`#56697A`, the family accent not yet used by another app), a muted rear card, a paper front card with a three-row topic tree and the clay dot as the live value. Source: `scripts/make-icon.swift` renders `apps/desktop/src-tauri/icons/app-icon.png` (1024 px, transparent corners, macOS rounded-square margin); `cargo tauri icon icons/app-icon.png -o icons` makes the platform set. The app mark stays in the title bar; only the icon changed.
+
 ### 13 Oct 2026, keychain prompts (change set 3)
 Owner, third build: "it keeps prompting many times for the keychain password: I entered it several times, even clicked on always allow, and it keeps prompting. It's only ok to ask exactly once and the user can then click on always allow and it shall never pop up again."
 
