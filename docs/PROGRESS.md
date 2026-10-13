@@ -48,7 +48,7 @@ The first tree slice after a structural change rebuilds the visible list (3.3 ms
 
 ## How to run and test
 
-See `HANDOFF.md` section "Commands". The macOS app is built with `cd apps/desktop/src-tauri && cargo tauri build` (bundle under `target/release/bundle/macos/MQTT Panel.app`).
+See `docs/RUNNING.md` and `HANDOFF.md` section "Commands". The macOS app is built with `cd apps/desktop/src-tauri && cargo tauri build` (bundle under `target/release/bundle/macos/MQTT Panel.app`).
 
 ## UI (React in Tauri 2, `packages/ui`)
 

@@ -34,6 +34,7 @@ crates/profiles profile storage, OS keychain (keyring), import and export withou
 5. Polish and release: FR and DE catalogs with native review, accessibility, native-feel review, installers, auto-update, website.
 
 ## Commands
+Step by step in `docs/RUNNING.md`.
 ```
 cargo test --workspace                      # engine, tls, client, profiles, broker, cli, desktop adapter
 npm install && npm test                     # UI component tests (Vitest)
