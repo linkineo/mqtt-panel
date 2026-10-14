@@ -125,7 +125,19 @@
   - Error sites that hard-coded `keychain.unavailable` for secret store errors (profile password, connect, file fields, "Local broker" set-up) now take the key from the error, so a refusal reads `keychain.refused` everywhere.
   - Test C-02 (real OS keychain) now round-trips through the master key under a test service name and removes that item afterwards; the per-secret keychain store it used is gone.
 
-### 14 Oct 2026, owner feedback on the fifth build (change set 6)
+### 14 Oct 2026, live apply instead of restarts (change set 7)
+Owner, 14 Oct 2026, asked whether the broker really needs a restart, wanting live reload and connections that are not affected by a change to stay open; after the assessment: "do it, no restart button". Spec: `docs/FEATURES.md` (Connections "Local broker follows", Built-in broker dialog, Broker: live apply, reachability, revoke), `docs/SPEC.md` (6 table: Live apply), `docs/TESTPLAN.md` B-15 rewritten, B-25, B-26, C-06, C-13, C-16, B-12, B-22, mockups 02b, 12, 12b, 12c (now "a listener change applied live"), 14. Same day, same change set: the PEM and PKCS#12 pills on the client-certificate rows become one small ↓ download button whose menu offers both formats (FEATURES Broker, TESTPLAN B-26, mockups 12 and 12b).
+
+Readings to confirm:
+- The rule is "only the sessions a change invalidates are dropped": the list in FEATURES says which change drops which sessions. Two choices lean towards security over continuity: removing a user or changing a password drops that user's sessions, and turning Anonymous off drops sessions that had no login.
+- Changing reachability keeps every open session, since accepted connections do not depend on the listening socket; only new binds change.
+- Regenerating or importing the server certificate keeps open sessions (their handshake is done); rotating the CA drops the sessions that authenticated with a certificate from the old CA.
+- Start and Stop stay on the Broker screen; there is no Restart action anywhere, as asked. A manual Stop then Start is the only way to recycle everything.
+- A listener that cannot start fails alone, with its error on its row, and the broker status stays "running" when at least one listener serves.
+- While the broker is stopped, changes are saved and used at the next start; nothing is shown as pending.
+- The standalone CLI broker (`mqttpanel broker`, TOML file) is unchanged: it reads its file at start and does not watch it (a later feature).
+- The engine API drops `restartNeeded` and the restart command; the status gains a per-listener error.
+
 Owner, after the fifth build, in one message: "Another broker…" renamed "New broker…" and "MQTT Panel broker" renamed "Built-in broker"; the connection cards keep the title, then one left-aligned chip with the protocol instead of TLS / no TLS, then host or IP and port only, every other text removed; text fields in the whole app no longer take the full width, smaller but aligned; cards slightly taller; FR « Aléatoire » becomes « Générer » (other languages too); « Se connecter » replaced by « Connecter » everywhere; a new connection takes its name from the host (myhost for wss://myhost.com, IPs too), editable at any time; the global "skip verification" setting leaves Settings and goes to each connection; a warning icon with a tooltip on the cards when an unverified certificate was accepted; when connecting to a broker with an unverified certificate, offer "permanently" or "only this time", always for this connection only, with the risk explained; under Advanced a switch "Skip unverified broker certificate" that opens the same prompt. Spec: `docs/FEATURES.md` (Connections, Settings, Localisation rules, B5), `docs/SPEC.md` (4, 6), `docs/TESTPLAN.md` C-26 to C-30, T-20 and S-05 rewritten, mockups 02, 02b, 02c, 02d, 02e, 03 (new certificate prompt), 17 and 19.
 
 Readings of the owner's words, to confirm:
