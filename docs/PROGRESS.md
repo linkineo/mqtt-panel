@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 4 complete on macOS; change set 5 specified, implementation in progress; Windows and Linux through CI).
+Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 5 complete on macOS; change set 5 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -17,19 +17,19 @@ Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 4 complete on macOS; c
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
 
-## Change set 5 (14 Oct 2026, owner feedback on the fourth build): in progress
+## Change set 5 (14 Oct 2026, owner feedback on the fourth build): implemented
 
 Specified in `docs/FEATURES.md` (Connections, X2, B5), `docs/SPEC.md` 4 and 6, mockups 01, 02, 02b, 02c, 02d, 02e, 03 and 19, `docs/TESTPLAN.md` C-21 to C-25. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
 
 | Item | Status |
 |---|---|
-| Round play button (▶, "Connect") on idle cards, same place as ■; starts the broker first for "Local broker" | Specified |
-| Basics order: Name, Protocol, MQTT version, Host and port, WebSocket path, Client ID, Username, Password | Specified |
-| Address prefiller: scheme prefix always shown, prefix selects the protocol, ":port" and the port box mirror each other, pasted full address fills everything | Specified |
-| Security fold disabled with mqtt or ws, reason in place of the summary, values kept | Specified |
-| "MQTT Panel broker" (menu, dialog title, card meta line) in EN, FR, DE | Specified |
-| Import hidden from the UI (list line, drop zone, welcome card, native menu, palette); code and crate tests kept | Specified |
-| Tests C-21 to C-25; screenshots re-recorded | Specified |
+| Round play button (▶, "Connect") on idle cards, same place as ■; starts the broker first for "Local broker" | Done 14 Oct 2026. Stays on the Connections screen (see Open) |
+| Basics order: Name, Protocol, MQTT version, Host and port, WebSocket path, Client ID, Username, Password | Done 14 Oct 2026 |
+| Address prefiller: scheme prefix always shown, prefix selects the protocol, ":port" and the port box mirror each other, pasted full address fills everything | Done 14 Oct 2026. Pure module `lib/address.ts` with unit tests; profile model unchanged |
+| Security fold disabled with mqtt or ws, reason in place of the summary, values kept | Done 14 Oct 2026. `conn.tlsUnused` removed |
+| "MQTT Panel broker" (menu, dialog title, card meta line) in EN, FR, DE | Done 14 Oct 2026. Also the "Verify against" ⓘ in EN and DE |
+| Import hidden from the UI (list line, drop zone, welcome card, native menu, palette); code and crate tests kept | Done 14 Oct 2026. The palette had no import entry |
+| Tests C-21 to C-25; screenshots re-recorded | Done 14 Oct 2026. Rust 200, Vitest 90, Playwright 231, all green; new state 02e |
 
 ## Change set 4 (13 Oct 2026, owner feedback on the third build): implemented
 
