@@ -29,7 +29,6 @@ export interface Settings {
   pointsPerSeries: number; // default 5000
   memoryBudgetMb: number; // default 256
   payloadRenderLimitKb: number; // default 256
-  skipVerify: boolean; // lab only; never persisted, resets at launch
   updateCheck: boolean;
   updateChannel: 'stable' | 'beta';
   /** The broker log is expanded in the Broker screen's right pane (collapsed by default). */
@@ -101,7 +100,8 @@ export interface LastWill {
 }
 
 export interface TlsSettings {
-  verifyServer: boolean;
+  /** Accept any broker certificate for this connection (change set 6; an old verifyServer: false loads as true). */
+  skipVerify: boolean;
   caCert: FileField | null;
   clientCert: FileField | null;
   clientKey: FileField | null;
@@ -173,6 +173,7 @@ export interface ConnectionStatus {
   requestedVersion: MqttVersionPref;
   topics: number;
   msgRate: number; // messages per second, 10 s window
+  /** The open connection accepted the broker certificate without verification (profile switch or "only this time"). */
   skipVerify: boolean;
   error: UserMessage | null;
   reconnectAttempt: number;
@@ -211,6 +212,10 @@ export type ConnectOutcome =
   | { kind: 'connected'; status: ConnectionStatus }
   | { kind: 'needsTrust'; trust: TrustPrompt }
   | { kind: 'failed'; error: UserMessage };
+
+/** How the certificate prompt resolves: pin the certificate, trust its CA, skip verification for this attempt
+ * only, or skip it always for this connection (saved in the profile). */
+export type TrustMode = 'certificate' | 'ca' | 'skipOnce' | 'skipAlways';
 
 export type TestOutcome =
   | { kind: 'tested'; result: TestResult }

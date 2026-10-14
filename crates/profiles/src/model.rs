@@ -33,10 +33,10 @@ pub struct FileField {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", from = "TlsSettingsFile")]
 pub struct TlsSettings {
-    #[serde(default = "yes")]
-    pub verify_server: bool,
+    /// Accept any broker certificate for this connection (change set 6; replaces `verifyServer`).
+    pub skip_verify: bool,
     pub ca_cert: Option<FileField>,
     pub client_cert: Option<FileField>,
     pub client_key: Option<FileField>,
@@ -50,7 +50,44 @@ pub struct TlsSettings {
 
 impl Default for TlsSettings {
     fn default() -> Self {
-        TlsSettings { verify_server: true, ca_cert: None, client_cert: None, client_key: None, trusted_fingerprints: vec![], sni: String::new(), alpn: String::new() }
+        TlsSettings { skip_verify: false, ca_cert: None, client_cert: None, client_key: None, trusted_fingerprints: vec![], sni: String::new(), alpn: String::new() }
+    }
+}
+
+/// On-disk shape of [`TlsSettings`], also accepting the field `verifyServer` of profiles saved before
+/// change set 6: `verifyServer: false` loads as `skipVerify: true`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TlsSettingsFile {
+    #[serde(default)]
+    skip_verify: Option<bool>,
+    #[serde(default)]
+    verify_server: Option<bool>,
+    #[serde(default)]
+    ca_cert: Option<FileField>,
+    #[serde(default)]
+    client_cert: Option<FileField>,
+    #[serde(default)]
+    client_key: Option<FileField>,
+    #[serde(default)]
+    trusted_fingerprints: Vec<String>,
+    #[serde(default)]
+    sni: String,
+    #[serde(default)]
+    alpn: String,
+}
+
+impl From<TlsSettingsFile> for TlsSettings {
+    fn from(f: TlsSettingsFile) -> Self {
+        TlsSettings {
+            skip_verify: f.skip_verify.unwrap_or(f.verify_server == Some(false)),
+            ca_cert: f.ca_cert,
+            client_cert: f.client_cert,
+            client_key: f.client_key,
+            trusted_fingerprints: f.trusted_fingerprints,
+            sni: f.sni,
+            alpn: f.alpn,
+        }
     }
 }
 
@@ -221,7 +258,8 @@ pub mod secret_keys {
     }
 }
 
-/// App settings (see the TS type Settings). skipVerify is never persisted.
+/// App settings (see the TS type Settings). An old settings file with `skipVerify` still loads; the field
+/// is ignored (skipping verification is per connection since change set 6).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -236,7 +274,6 @@ pub struct Settings {
     pub points_per_series: u32,
     pub memory_budget_mb: u32,
     pub payload_render_limit_kb: u32,
-    pub skip_verify: bool,
     pub update_check: bool,
     pub update_channel: String,
     /// The broker log is expanded in the right pane of the Broker screen (collapsed by default, change set 2).
@@ -257,7 +294,6 @@ impl Default for Settings {
             points_per_series: 5000,
             memory_budget_mb: 256,
             payload_render_limit_kb: 256,
-            skip_verify: false,
             update_check: true,
             update_channel: "stable".into(),
             broker_log_open: false,

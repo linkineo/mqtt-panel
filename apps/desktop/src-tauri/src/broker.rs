@@ -346,7 +346,7 @@ pub async fn app_broker_step_on(state: &AppState, listener_id: &str, step: &str,
             if lock(&state.conns).contains_key(&id) {
                 crate::commands::close(state, &id).await;
             }
-            let outcome = crate::commands::connect_stored(state, stored).await;
+            let outcome = crate::commands::connect_stored(state, stored, false).await;
             let mut r = step_result(step, if matches!(outcome, ConnectOutcome::Connected { .. }) { "connected" } else { "failed" });
             r.outcome = Some(outcome);
             Ok(r)
@@ -374,7 +374,7 @@ pub fn save_local_profile(state: &AppState, lc: &LocalConnection, profile_name: 
     p.scheme = lc.scheme.clone();
     p.ws_path = lc.ws_path.clone().unwrap_or_else(|| "/mqtt".into());
     p.mqtt_version = "5".into();
-    p.tls.verify_server = true;
+    p.tls.skip_verify = false;
     p.tls.trusted_fingerprints.clear();
     p.username = lc.username.clone().unwrap_or_default();
     let secrets = state.store.secrets().clone();
@@ -459,7 +459,7 @@ pub async fn reconnect_local(state: &AppState) {
         h.disconnect().await;
     }
     lock(&c.link).state = "connecting".into();
-    match crate::commands::connect_stored(state, stored).await {
+    match crate::commands::connect_stored(state, stored, false).await {
         ConnectOutcome::Connected { .. } => {}
         ConnectOutcome::Failed { error } => {
             let mut l = lock(&c.link);

@@ -140,7 +140,7 @@ function blankProfile(): Profile {
     clientId: 'mqttpanel-0000',
     username: '',
     hasPassword: false,
-    tls: { verifyServer: true, caCert: null, clientCert: null, clientKey: null, trustedFingerprints: [], sni: '', alpn: '' },
+    tls: { skipVerify: false, caCert: null, clientCert: null, clientKey: null, trustedFingerprints: [], sni: '', alpn: '' },
     subscriptions: [{ filter: '#', qos: 0 }],
     keepAlive: 60,
     cleanStart: true,
@@ -195,7 +195,7 @@ export function demoProfiles(lang: Lang, now: number): Profile[] {
     username: 'commissioning',
     hasPassword: true,
     tls: {
-      verifyServer: true,
+      skipVerify: false,
       caCert: file('plant-root-ca.pem', certSummary('Plant Root CA', '2031-03-01', { isCa: true })),
       clientCert: file('commissioning-laptop.pem', certSummary('commissioning-laptop', '2027-10-12')),
       clientKey: file('commissioning-laptop.key', keySummary(), true),
@@ -230,7 +230,7 @@ export function demoProfiles(lang: Lang, now: number): Profile[] {
     username: 'mqtt-panel',
     hasPassword: true,
     tls: {
-      verifyServer: true,
+      skipVerify: false,
       caCert: file('CA.pem', certSummary('MQTT Panel Local CA', '2031-10-12', { isCa: true })),
       clientCert: file('mqttpanel-desktop.pem', certSummary('mqttpanel-desktop', '2028-10-12', { issuer: 'CN=MQTT Panel Local CA' })),
       clientKey: file('mqttpanel-desktop.key', keySummary(), true),
@@ -263,6 +263,7 @@ export function demoProfiles(lang: Lang, now: number): Profile[] {
     wsPath: '/mqtt',
     mqttVersion: '5',
     clientId: 'mqttpanel-c10d',
+    tls: { ...blankProfile().tls, skipVerify: true },
     subscriptions: [
       { filter: 'demo/#', qos: 0 },
       { filter: 'building/f1/#', qos: 0 },

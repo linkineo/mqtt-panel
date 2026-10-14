@@ -96,7 +96,7 @@ async fn e08_client_id_rejected() {
         o.client_id = "dup-id".into();
         let m = failure_key(test_connection(&o).await);
         assert_eq!(m.key, "error.clientIdRejected");
-        assert!(m.text.contains("dup-id") && m.text.contains("Random"), "{}", m.text);
+        assert!(m.text.contains("dup-id") && m.text.contains("Generate"), "{}", m.text);
     }
 }
 

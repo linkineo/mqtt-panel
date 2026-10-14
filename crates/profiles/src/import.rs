@@ -109,7 +109,7 @@ fn from_predecessor<'a>(conns: impl Iterator<Item = &'a Value>) -> ImportResult 
             p.client_id = s(c, "clientId");
         }
         p.username = s(c, "username");
-        p.tls.verify_server = c.get("certValidation").and_then(Value::as_bool).unwrap_or(true);
+        p.tls.skip_verify = !c.get("certValidation").and_then(Value::as_bool).unwrap_or(true);
         let subs = subs_of(c.get("subscriptions"));
         if !subs.is_empty() {
             p.subscriptions = subs;
@@ -168,7 +168,7 @@ fn from_mqttx(list: &[Value]) -> ImportResult {
         if let Some(clean) = c.get("clean").and_then(Value::as_bool) {
             p.clean_start = clean;
         }
-        p.tls.verify_server = c.get("rejectUnauthorized").and_then(Value::as_bool).unwrap_or(true);
+        p.tls.skip_verify = !c.get("rejectUnauthorized").and_then(Value::as_bool).unwrap_or(true);
         let subs = subs_of(c.get("subscriptions"));
         if !subs.is_empty() {
             p.subscriptions = subs;

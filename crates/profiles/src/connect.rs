@@ -6,8 +6,9 @@ use base64::Engine as _;
 use mqttpanel_client::{msg, ConnectOptions, Scheme, UserMessage, VersionPref, Will};
 use std::time::Duration;
 
-/// Builds the options for a profile. Secrets come from the store; `skip_verify` is the session-wide lab toggle.
-pub fn connect_options(p: &StoredProfile, secrets: &dyn SecretStore, skip_verify: bool) -> Result<ConnectOptions, UserMessage> {
+/// Builds the options for a profile. Secrets come from the store. Verification is skipped when the profile
+/// says so (`tls.skipVerify`) or for this one attempt (`skip_once`: "only this time", or the CLI's `--insecure`).
+pub fn connect_options(p: &StoredProfile, secrets: &dyn SecretStore, skip_once: bool) -> Result<ConnectOptions, UserMessage> {
     let pr = &p.profile;
     let mut o = ConnectOptions::new(&pr.host, pr.port);
     o.scheme = Scheme::parse(&pr.scheme).unwrap_or(Scheme::Mqtt);
@@ -39,8 +40,8 @@ pub fn connect_options(p: &StoredProfile, secrets: &dyn SecretStore, skip_verify
     o.reconnect = pr.reconnect.enabled;
     o.reconnect_min = Duration::from_secs(pr.reconnect.min_delay_s.max(1) as u64);
     o.reconnect_max = Duration::from_secs(pr.reconnect.max_delay_s.max(pr.reconnect.min_delay_s).max(1) as u64);
-    o.tls.verify_server = pr.tls.verify_server;
-    o.tls.skip_verify = skip_verify;
+    o.tls.verify_server = true;
+    o.tls.skip_verify = pr.tls.skip_verify || skip_once;
     o.tls.trusted_fingerprints = pr.tls.trusted_fingerprints.clone();
     o.tls.sni = Some(pr.tls.sni.clone()).filter(|s| !s.trim().is_empty());
     o.tls.alpn = Some(pr.tls.alpn.clone()).filter(|s| !s.trim().is_empty());

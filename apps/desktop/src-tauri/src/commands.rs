@@ -18,10 +18,6 @@ fn conn(state: &AppState, id: &str) -> R<Arc<Conn>> {
     lock(&state.conns).get(id).cloned().ok_or_else(|| msg!("error.notConnected"))
 }
 
-fn skip_verify(state: &AppState) -> bool {
-    lock(&state.settings).skip_verify
-}
-
 // ---------------------------------------------------------------- app and settings
 
 #[tauri::command]
@@ -275,17 +271,19 @@ fn stored(state: &AppState, id: &str) -> R<StoredProfile> {
     state.store.get(id).ok_or_else(|| msg!("profile.notFound"))
 }
 
-pub async fn connect_stored(state: &AppState, p: StoredProfile) -> ConnectOutcome {
+/// Connects a profile. `skip_once` skips certificate verification for this attempt only ("only this time").
+pub async fn connect_stored(state: &AppState, p: StoredProfile, skip_once: bool) -> ConnectOutcome {
     let id = p.profile.id.clone();
     if let Some(c) = lock(&state.conns).get(&id).cloned() {
         if c.is_open() && c.handle().is_some() {
-            return ConnectOutcome::Connected { status: c.status(skip_verify(state), now_ms()) };
+            return ConnectOutcome::Connected { status: c.status(now_ms()) };
         }
     }
-    let opts = match mqttpanel_profiles::connect_options(&p, state.store.secrets().as_ref(), skip_verify(state)) {
+    let opts = match mqttpanel_profiles::connect_options(&p, state.store.secrets().as_ref(), skip_once) {
         Ok(o) => o,
         Err(error) => return ConnectOutcome::Failed { error },
     };
+    let opts_skip = opts.tls.skip_verify && opts.scheme.is_tls();
     match mqttpanel_client::connect(opts).await {
         Ok((handle, info, rx)) => {
             let existing = lock(&state.conns).get(&id).cloned();
@@ -302,12 +300,13 @@ pub async fn connect_stored(state: &AppState, p: StoredProfile) -> ConnectOutcom
                 }
             };
             *lock(&c.ever_connected) = true;
+            c.skip_verify.store(opts_skip, std::sync::atomic::Ordering::Relaxed);
             on_connected(&c, &info);
             lock(&c.link).sub_errors.clear();
             *lock(&c.handle) = Some(handle);
             tokio::spawn(pump(c.clone(), rx));
             let _ = state.store.update(&id, |s| s.profile.last_used = Some(now_ms()));
-            ConnectOutcome::Connected { status: c.status(skip_verify(state), now_ms()) }
+            ConnectOutcome::Connected { status: c.status(now_ms()) }
         }
         Err(ConnectFailure::Trust(t)) => ConnectOutcome::NeedsTrust { trust: trust_prompt(state, &id, *t) },
         Err(ConnectFailure::Message(error)) => ConnectOutcome::Failed { error },
@@ -315,15 +314,15 @@ pub async fn connect_stored(state: &AppState, p: StoredProfile) -> ConnectOutcom
 }
 
 #[tauri::command]
-pub async fn connect_profile(state: State<'_, AppState>, profile_id: String) -> R<ConnectOutcome> {
+pub async fn connect_profile(state: State<'_, AppState>, profile_id: String, skip_once: Option<bool>) -> R<ConnectOutcome> {
     let p = stored(&state, &profile_id)?;
-    Ok(connect_stored(&state, p).await)
+    Ok(connect_stored(&state, p, skip_once.unwrap_or(false)).await)
 }
 
 #[tauri::command]
-pub async fn test_profile(state: State<'_, AppState>, profile_id: String) -> R<TestOutcome> {
+pub async fn test_profile(state: State<'_, AppState>, profile_id: String, skip_once: Option<bool>) -> R<TestOutcome> {
     let p = stored(&state, &profile_id)?;
-    let opts = mqttpanel_profiles::connect_options(&p, state.store.secrets().as_ref(), skip_verify(&state))?;
+    let opts = mqttpanel_profiles::connect_options(&p, state.store.secrets().as_ref(), skip_once.unwrap_or(false))?;
     let tls = opts.scheme.is_tls();
     let result = match mqttpanel_client::test_connection(&opts).await {
         Ok(r) => TestResult {
@@ -359,14 +358,17 @@ pub async fn test_profile(state: State<'_, AppState>, profile_id: String) -> R<T
 pub fn trust_certificate(state: State<'_, AppState>, profile_id: String, mode: String) -> R<Profile> {
     let t = lock(&state.pending_trust).remove(&profile_id).ok_or_else(|| msg!("profile.notFound"))?;
     let p = state.store.update(&profile_id, |p| {
-        if mode == "ca" {
+        if mode == "skipOnce" {
+            // Nothing is saved: the UI retries with skipOnce.
+        } else if mode == "skipAlways" {
+            p.profile.tls.skip_verify = true;
+        } else if mode == "ca" {
             if let Some(der) = &t.ca_der {
                 let pem = mqttpanel_tls::to_pem("CERTIFICATE", der);
                 let summary = mqttpanel_tls::inspect(pem.as_bytes(), mqttpanel_tls::FileExpect::Certificate, None).ok();
                 let name = summary.as_ref().and_then(|s| s.cn.clone()).unwrap_or_else(|| "broker-ca".into());
                 p.blobs.ca_pem = Some(pem);
                 p.profile.tls.ca_cert = Some(FileField { file_name: format!("{name}.pem"), summary, in_keychain: false });
-                p.profile.tls.verify_server = true;
             }
         } else {
             if t.reason == mqttpanel_client::TrustReason::FingerprintChanged {
@@ -412,9 +414,8 @@ pub async fn close_connection(state: State<'_, AppState>, connection_id: String)
 
 #[tauri::command]
 pub fn list_connections(state: State<'_, AppState>) -> Vec<ConnectionStatus> {
-    let sv = skip_verify(&state);
     let now = now_ms();
-    lock(&state.conns).values().map(|c| c.status(sv, now)).collect()
+    lock(&state.conns).values().map(|c| c.status(now)).collect()
 }
 
 // ---------------------------------------------------------------- explorer

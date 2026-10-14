@@ -64,6 +64,8 @@ pub struct Conn {
     pub repeat: Mutex<Option<RepeatState>>,
     pub correlation: AtomicU64,
     pub ever_connected: Mutex<bool>,
+    /// The open connection accepted the broker certificate without verification (profile switch or "only this time").
+    pub skip_verify: std::sync::atomic::AtomicBool,
 }
 
 pub fn engine_config(s: &Settings) -> EngineConfig {
@@ -96,10 +98,11 @@ impl Conn {
             repeat: Mutex::new(None),
             correlation: AtomicU64::new(1041),
             ever_connected: Mutex::new(false),
+            skip_verify: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
-    pub fn status(&self, skip_verify: bool, now: i64) -> ConnectionStatus {
+    pub fn status(&self, now: i64) -> ConnectionStatus {
         let link = lock(&self.link).clone();
         let (topics, rate) = {
             let e = lock(&self.engine);
@@ -113,7 +116,7 @@ impl Conn {
             requested_version: self.requested_version.clone(),
             topics,
             msg_rate: (rate * 10.0).round() / 10.0,
-            skip_verify,
+            skip_verify: self.skip_verify.load(std::sync::atomic::Ordering::Relaxed),
             error: link.error,
             reconnect_attempt: link.attempt,
             max_packet_size: link.max_packet,

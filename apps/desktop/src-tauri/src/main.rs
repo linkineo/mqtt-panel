@@ -29,7 +29,6 @@ fn spawn_ticker(app: AppHandle) {
             interval.tick().await;
             let st = app.state::<AppState>();
             let now = types::now_ms();
-            let skip = lock(&st.settings).skip_verify;
             let conns: Vec<_> = lock(&st.conns).values().cloned().collect();
             let mut changed = HashMap::new();
             let mut statuses = Vec::new();
@@ -44,7 +43,7 @@ fn spawn_ticker(app: AppHandle) {
                     last_seq.insert(c.id.clone(), seq);
                 }
                 changed.insert(c.id.clone(), seq);
-                statuses.push(c.status(skip, now));
+                statuses.push(c.status(now));
                 if let Some(r) = lock(&c.repeat).as_ref() {
                     repeats.push(r.status.clone());
                 }

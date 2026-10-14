@@ -239,17 +239,13 @@ impl Store {
     // ------------------------------------------------------------ settings
 
     pub fn settings(&self) -> Settings {
-        let mut s: Settings = self.read_json("settings.json");
-        s.skip_verify = false;
+        let s: Settings = self.read_json("settings.json");
         s.clamped()
     }
 
     pub fn save_settings(&self, s: &Settings) -> Result<Settings, UserMessage> {
-        let mut persisted = s.clone().clamped();
-        let session_skip = persisted.skip_verify;
-        persisted.skip_verify = false;
+        let persisted = s.clone().clamped();
         self.write_json("settings.json", &persisted)?;
-        persisted.skip_verify = session_skip;
         Ok(persisted)
     }
 

@@ -67,16 +67,41 @@ fn find_by_slug_duplicate_delete() {
     assert_eq!(secrets.len(), 1);
 }
 
+/// S-05: an old settings file with the app-wide `skipVerify` flag loads; the flag is ignored and not written back.
 #[test]
-fn settings_skip_verify_never_persisted() {
-    let (_d, s, _) = store();
-    let mut set = s.settings();
-    set.skip_verify = true;
-    set.buffer_per_topic = 5;
-    let saved = s.save_settings(&set).unwrap();
-    assert!(saved.skip_verify);
-    assert_eq!(saved.buffer_per_topic, 10);
-    assert!(!s.settings().skip_verify);
+fn s05_old_settings_skip_verify_ignored() {
+    let (d, s, _) = store();
+    std::fs::write(d.path().join("settings.json"), br#"{"theme":"dark","skipVerify":true,"bufferPerTopic":5}"#).unwrap();
+    let set = s.settings();
+    assert_eq!(set.theme, "dark");
+    assert_eq!(set.buffer_per_topic, 10);
+    s.save_settings(&set).unwrap();
+    let raw = std::fs::read_to_string(d.path().join("settings.json")).unwrap();
+    assert!(!raw.contains("skipVerify"));
+}
+
+/// S-05: an old profile with `verifyServer: false` loads with the per-connection skip switch on;
+/// `verifyServer: true` (or absent) loads with it off; the file is written back with `skipVerify` only.
+#[test]
+fn s05_old_profile_verify_server_migrates() {
+    let (d, s, _) = store();
+    let old = r#"[
+      {"id":"a","name":"Lab","host":"10.20.4.17","port":8883,"scheme":"mqtts","clientId":"c1","tls":{"verifyServer":false,"caCert":null,"clientCert":null,"clientKey":null}},
+      {"id":"b","name":"Plant","host":"broker.plant.example","port":8883,"scheme":"mqtts","clientId":"c2","tls":{"verifyServer":true,"caCert":null,"clientCert":null,"clientKey":null}},
+      {"id":"c","name":"Cloud","host":"demo.example","port":8883,"scheme":"mqtts","clientId":"c3"}
+    ]"#;
+    std::fs::write(d.path().join("profiles.json"), old).unwrap();
+    assert!(s.get("a").unwrap().profile.tls.skip_verify);
+    assert!(!s.get("b").unwrap().profile.tls.skip_verify);
+    assert!(!s.get("c").unwrap().profile.tls.skip_verify);
+    let p = s.get("a").unwrap().profile;
+    s.save(p).unwrap();
+    let raw = std::fs::read_to_string(d.path().join("profiles.json")).unwrap();
+    assert!(raw.contains("\"skipVerify\": true"));
+    assert!(!raw.contains("verifyServer"));
+    // skipVerify wins over a stale verifyServer.
+    let both: mqttpanel_profiles::model::TlsSettings = serde_json::from_str(r#"{"skipVerify":false,"verifyServer":false}"#).unwrap();
+    assert!(!both.skip_verify);
 }
 
 #[test]
@@ -144,6 +169,15 @@ fn connect_options_from_profile() {
     assert_eq!(o.scheme, mqttpanel_client::Scheme::Mqtts);
     assert_eq!(o.password.as_deref(), Some("pw"));
     assert_eq!(o.subscriptions, vec![("#".to_string(), 0)]);
+    assert!(!o.tls.skip_verify && o.tls.verify_server);
+    // "Only this time": skipped for this attempt, the profile unchanged.
+    let once = connect_options(&stored, s.secrets().as_ref(), true).unwrap();
+    assert!(once.tls.skip_verify);
+    assert!(!s.get(&p.id).unwrap().profile.tls.skip_verify);
+    // "Always for this connection".
+    let mut always = stored.clone();
+    always.profile.tls.skip_verify = true;
+    assert!(connect_options(&always, s.secrets().as_ref(), false).unwrap().tls.skip_verify);
 }
 
 /// C-02 against the real OS keychain: the master key item (under a test service name) is created once, read back

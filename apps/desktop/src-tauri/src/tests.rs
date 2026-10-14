@@ -192,7 +192,7 @@ fn contract_ts_methods_match_rust_commands() {
             continue;
         }
         let close = l.find("): Promise<").unwrap();
-        let params: Vec<String> = l[open + 1..close].split(", ").filter(|p| !p.is_empty()).map(|p| snake(p.split(':').next().unwrap().trim())).collect();
+        let params: Vec<String> = l[open + 1..close].split(", ").filter(|p| !p.is_empty()).map(|p| snake(p.split(':').next().unwrap().trim().trim_end_matches('?'))).collect();
         let cmd = snake(name);
         assert!(main_rs.contains(&format!("::{cmd},")), "command {cmd} not registered in main.rs");
         let sig_start = sources
@@ -354,7 +354,7 @@ async fn b12_this_apps_broker_flow_three_runs_no_duplicates() {
     assert_eq!(locals.len(), 1, "one profile Local broker");
     let p = &locals[0].profile;
     assert_eq!((p.name.as_str(), p.username.as_str(), p.scheme.as_str(), p.mqtt_version.as_str()), ("Local broker", "mqtt-panel", "mqtts", "5"));
-    assert!(p.has_password && p.tls.verify_server && p.tls.ca_cert.is_some() && p.tls.client_cert.is_some());
+    assert!(p.has_password && !p.tls.skip_verify && p.tls.ca_cert.is_some() && p.tls.client_cert.is_some());
     let users = m.config().users;
     assert_eq!(users.iter().filter(|u| u.username == "mqtt-panel").count(), 1, "{users:?}");
     assert!(users[0].system);

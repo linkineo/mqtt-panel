@@ -89,6 +89,8 @@ interface Conn {
   backfilled: boolean;
   defs: { def: TopicDef; nextAt: number }[];
   gen: GenState;
+  /** The open connection skipped certificate verification (profile switch or "only this time"). */
+  skipVerify: boolean;
 }
 
 const CHANGED_FINGERPRINT = 'C4:10:7E:2B:99:5A:03:DF:61:8C:E2:47:B0:1D:7A:93:5E:C8:24:F6:0B:AD:31:72:E9:46:18:BC:0F:85:D3:2A';
@@ -123,7 +125,6 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     pointsPerSeries: 5000,
     memoryBudgetMb: 256,
     payloadRenderLimitKb: 256,
-    skipVerify: false,
     updateCheck: true,
     updateChannel: 'stable',
     brokerLogOpen: false,
@@ -176,7 +177,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       requestedVersion: p?.mqttVersion ?? 'auto',
       topics: c.store.topics.size,
       msgRate: c.state === 'connected' ? c.store.msgRate(now()) : 0,
-      skipVerify: settings.skipVerify,
+      skipVerify: c.skipVerify,
       error: null,
       reconnectAttempt: 0,
       maxPacketSize: c.negotiated === '5' ? 1048576 : null,
@@ -247,7 +248,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       renderLimitBytes: () => settings.payloadRenderLimitKb * 1024,
       protoSchemas: () => profileById(id)?.protoSchemas ?? [],
     });
-    return { id, state: 'connecting', negotiated: '5', store, sent: [], repeat: null, backfilled: false, defs: [], gen: { values: new Map(), seq: 0 } };
+    return { id, state: 'connecting', negotiated: '5', store, sent: [], repeat: null, backfilled: false, defs: [], gen: { values: new Map(), seq: 0 }, skipVerify: false };
   };
 
   const genMessage = (c: Conn, def: TopicDef, at: number) => {
@@ -351,9 +352,9 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
   const localDown = (p: Profile): UserMessage | null =>
     p.isLocalBroker && broker.state !== 'running' ? um('error.refused', { host: p.host, port: p.port }) : null;
 
-  const trustCheck = (p: Profile): TrustPrompt | UserMessage | null => {
+  const trustCheck = (p: Profile, skipOnce = false): TrustPrompt | UserMessage | null => {
     if (p.host.includes('nowhere')) return um('error.dns', { host: p.host });
-    if (settings.skipVerify || !isTls(p)) return null;
+    if (p.tls.skipVerify || skipOnce || !isTls(p)) return null;
     const trusted = p.tls.trustedFingerprints;
     if (p.host === '10.20.4.17' || p.host.includes('changed')) {
       const fp = p.host.includes('changed') ? CHANGED_FINGERPRINT : LAB_FINGERPRINT;
@@ -425,7 +426,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
 
   // ---------------------------------------------------------------- connection flow
 
-  const connectNow = async (profileId: string): Promise<ConnectOutcome> => {
+  const connectNow = async (profileId: string, skipOnce = false): Promise<ConnectOutcome> => {
     const p = needProfile(profileId);
     let c = conns.get(profileId);
     if (c && c.state === 'connected') return { kind: 'connected', status: status(c) };
@@ -438,7 +439,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     changedTick();
     await delay(latency);
     if (disposed) return { kind: 'failed', error: um('error.notConnected') };
-    const check = localDown(p) ?? trustCheck(p);
+    const check = localDown(p) ?? trustCheck(p, skipOnce);
     if (check !== null) {
       if (isNew) conns.delete(profileId);
       else c.state = 'disconnected';
@@ -450,6 +451,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       return { kind: 'failed', error: check as UserMessage };
     }
     c.negotiated = negotiatedFor(p);
+    c.skipVerify = isTls(p) && (p.tls.skipVerify || skipOnce);
     c.state = 'connected';
     if (!c.backfilled) {
       backfill(c);
@@ -632,7 +634,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     p.username = anonymous ? '' : APP_USER;
     p.hasPassword = !anonymous;
     localPassword = anonymous ? null : (broker.passwords.get(APP_USER) ?? null);
-    p.tls.verifyServer = true;
+    p.tls.skipVerify = false;
     p.tls.trustedFingerprints = [];
     p.tls.caCert = secure ? file('CA.pem', certSummary('MQTT Panel Local CA', broker.certs.ca.notAfter, { isCa: true, selfSigned: true, issuer: 'CN=MQTT Panel Local CA' })) : null;
     p.tls.clientCert = mtls ? file('mqttpanel-desktop.pem', certSummary('mqttpanel-desktop', '2028-10-12', { issuer: 'CN=MQTT Panel Local CA' })) : null;
@@ -779,11 +781,11 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
 
     // connections
-    connectProfile: (id) => connectNow(id),
-    async testProfile(id) {
+    connectProfile: (id, skipOnce) => connectNow(id, skipOnce ?? false),
+    async testProfile(id, skipOnce) {
       const p = needProfile(id);
       await delay(latency);
-      const check = localDown(p) ?? trustCheck(p);
+      const check = localDown(p) ?? trustCheck(p, skipOnce ?? false);
       if (check !== null && 'leaf' in check) {
         pendingTrust.set(id, check);
         return { kind: 'needsTrust', trust: clone(check) } as TestOutcome;
@@ -800,7 +802,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
               maxPacketSize: v === '5' ? 1048576 : null,
               serverCert: serverCertFor(p),
               tlsVersion: isTls(p) ? 'TLS 1.3' : null,
-              verified: isTls(p) ? !settings.skipVerify && !p.tls.trustedFingerprints.length : null,
+              verified: isTls(p) ? !(p.tls.skipVerify || skipOnce) && !p.tls.trustedFingerprints.length : null,
               error: null,
             };
       p.lastTest = result;
@@ -809,7 +811,11 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     async trustCertificate(profileId, mode) {
       const p = needProfile(profileId);
       const prompt = pendingTrust.get(profileId);
-      if (mode === 'ca') {
+      if (mode === 'skipOnce') {
+        // Nothing is saved: the caller retries with skipOnce.
+      } else if (mode === 'skipAlways') {
+        p.tls.skipVerify = true;
+      } else if (mode === 'ca') {
         p.tls.caCert = file('lab-private-ca.pem', certSummary('Lab Private CA', '2035-01-01', { isCa: true, selfSigned: true, issuer: 'CN=Lab Private CA' }));
       } else {
         const fp = prompt?.leaf.fingerprint ?? LAB_FINGERPRINT;

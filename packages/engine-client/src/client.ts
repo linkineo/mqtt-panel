@@ -36,6 +36,7 @@ import type {
   TableSlice,
   Template,
   TestOutcome,
+  TrustMode,
   TopicDetail,
   TreeQuery,
   TreeSlice,
@@ -86,10 +87,12 @@ export interface EngineClient {
   removeProtoSchema(profileId: string, fileName: string): Promise<Profile>;
 
   // connections (C2, C3, C6, C7)
-  connectProfile(profileId: string): Promise<ConnectOutcome>;
-  testProfile(profileId: string): Promise<TestOutcome>;
-  /** Stores trust for the presented certificate ('certificate', by fingerprint) or its CA ('ca', fills the CA field). */
-  trustCertificate(profileId: string, mode: 'certificate' | 'ca'): Promise<Profile>;
+  /** `skipOnce` skips certificate verification for this attempt only ("only this time"); nothing is saved. */
+  connectProfile(profileId: string, skipOnce?: boolean): Promise<ConnectOutcome>;
+  testProfile(profileId: string, skipOnce?: boolean): Promise<TestOutcome>;
+  /** Resolves the certificate prompt: 'certificate' pins the fingerprint, 'ca' fills the CA field, 'skipAlways' saves
+   * tls.skipVerify, 'skipOnce' saves nothing (the caller retries with skipOnce). */
+  trustCertificate(profileId: string, mode: TrustMode): Promise<Profile>;
   disconnect(connectionId: string): Promise<void>;
   /** Closes the connection and drops its history. */
   closeConnection(connectionId: string): Promise<void>;
