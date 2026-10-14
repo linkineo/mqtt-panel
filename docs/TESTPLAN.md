@@ -199,7 +199,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | E-05 | I | auto | Plain on a TLS port | "localhost:8883 expects TLS. Try mqtts://." |
 | E-06 | I | auto | Bad username/password, 3.1.1 and 5 | "The broker refused the login for user commissioning (bad username or password)." with the reason code. |
 | E-07 | I | auto | Not authorised (CONNACK 0x87) | "The broker does not allow this client to connect (not authorized)." |
-| E-08 | I | auto | Client ID rejected (0x02 / 0x85) | Names the client ID and suggests Random. |
+| E-08 | I | auto | Client ID rejected (0x02 / 0x85) | Names the client ID and suggests "Generate" (change set 6; "Random" before). |
 | E-09 | I | auto | Server unavailable (0x03 / 0x88) | "The broker is up but not accepting connections right now." |
 | E-10 | I | auto | Protocol version refused (0x01 / 0x84) when forcing MQTT 5 on a 3.1.1 broker | "This broker does not speak MQTT 5. Set the version to 3.1.1 or auto." |
 | E-11 | I | auto | Keep-alive timeout (harness broker stops answering PINGREQ) | "The broker stopped answering; reconnecting…" then the reconnect counter. |
