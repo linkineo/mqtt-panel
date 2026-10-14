@@ -66,6 +66,9 @@ export interface MockControls {
   setConnectionState(connectionId: string, state: ConnState): void;
   /** Makes every broker start fail as if another program held a listener's port (e2e: C-17). */
   failBrokerStart(on: boolean): void;
+  /** Another program holds (or frees) a port: validation refuses it, a listener switched on there fails alone
+   * (e2e: B-25, change set 7). */
+  takePort(port: number, taken?: boolean): void;
   tick(): void;
   dispose(): void;
 }
@@ -605,10 +608,23 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     return { kind: 'saved', fileName };
   };
 
-  const brokerChanged = () => {
+  /** One broker change, applied at once (change set 7): the profile "Local broker" follows it and, when its
+   * connection is open, reconnects only when its own listener or login changed (C-16). */
+  const brokerChange = async (apply: () => void) => {
+    const before = localFingerprint();
+    apply();
     followLocal();
+    if (before !== null && localFingerprint() !== before) await reconnectLocal();
     changedTick();
     return clone(broker.config);
+  };
+
+  /** What the connection of "Local broker" depends on: its listener (kind, port, reachability) and its login. */
+  const localFingerprint = (): string | null => {
+    const p = profiles.find((x) => x.isLocalBroker);
+    if (!p) return null;
+    const desktop = broker.issued.find((c) => c.system && !c.revoked && !c.superseded);
+    return JSON.stringify([p.brokerListenerId, p.scheme, p.host, p.port, broker.config.bind, p.username, p.hasPassword, localPassword, p.tls.caCert ? broker.certs.ca.fingerprint : null, p.tls.clientCert ? (desktop?.serial ?? null) : null]);
   };
 
   /** Creates or updates the single profile "Local broker" for a listener (never a second one). */
@@ -650,7 +666,8 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     if (l) applyLocalProfile(l, p.name);
   };
 
-  /** After a broker start or restart the open connection of "Local broker" reconnects with its current settings. */
+  /** After a broker start or a change of its own settings, the open connection of "Local broker" reconnects with its
+   * current settings. */
   const reconnectLocal = async () => {
     const p = profiles.find((x) => x.isLocalBroker);
     const c = p ? conns.get(p.id) : undefined;
@@ -1060,6 +1077,12 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       return broker.getConfig();
     },
     async brokerStart() {
+      if (broker.isRunning()) {
+        // Already running: listeners that could not start are tried again.
+        broker.retryFailed();
+        changedTick();
+        return broker.status();
+      }
       broker.state = 'starting';
       changedTick();
       await delay(latency);
@@ -1076,50 +1099,38 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       changedTick();
       return broker.status();
     },
-    async brokerRestart() {
-      broker.state = 'starting';
-      changedTick();
-      await delay(latency);
-      broker.start();
-      changedTick();
-      if (broker.isRunning()) await reconnectLocal();
-      return broker.status();
-    },
     async validatePort(port, listenerId) {
       return broker.validatePort(port, listenerId);
     },
     async addListener(req) {
       const err = broker.validatePort(req.port, null);
       if (err) throw err;
-      broker.addListener(req);
-      return brokerChanged();
+      return brokerChange(() => broker.addListener(req));
     },
     async updateListener(l: Listener) {
-      const err = broker.validatePort(l.port, l.id);
-      if (err) throw err;
-      broker.updateListener(l);
-      return brokerChanged();
+      // Like the engine: the port is checked only when it changes (switching on a listener whose port another
+      // program took fails that listener alone, change set 7).
+      const old = broker.config.listeners.find((x) => x.id === l.id);
+      if (!old || old.port !== l.port) {
+        const err = broker.validatePort(l.port, l.id);
+        if (err) throw err;
+      }
+      return brokerChange(() => broker.updateListener(l));
     },
     async removeListener(id) {
-      broker.removeListener(id);
-      return brokerChanged();
+      return brokerChange(() => broker.removeListener(id));
     },
     async setBrokerBind(bind) {
-      broker.setBind(bind);
-      return brokerChanged();
+      return brokerChange(() => broker.setBind(bind));
     },
     async setAnonymous(on) {
-      broker.config.anonymous = on;
-      broker.addLog('warn', on ? 'anonymous access turned on' : 'anonymous access turned off');
-      return brokerChanged();
+      return brokerChange(() => broker.setAnonymous(on));
     },
     async setRequireClientCert(on) {
-      broker.setRequireClientCert(on);
-      return brokerChanged();
+      return brokerChange(() => broker.setRequireClientCert(on));
     },
     async setVerifyAgainst(source) {
-      broker.config.verifyAgainst = source;
-      return brokerChanged();
+      return brokerChange(() => broker.setVerifyAgainst(source));
     },
     async addUser(username, password) {
       const err = broker.addUser(username, password);
@@ -1128,10 +1139,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       return clone(broker.config);
     },
     async setUserPassword(username, password) {
-      broker.passwords.set(username, password);
-      const u = broker.config.users.find((x) => x.username === username);
-      if (u) u.hasPassword = true;
-      return brokerChanged();
+      return brokerChange(() => broker.setPassword(username, password));
     },
     async brokerUserPassword(username) {
       return broker.passwords.get(username) ?? null;
@@ -1172,8 +1180,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       return saved('CA.pem');
     },
     async regenerateBrokerCerts(sans, keyType) {
-      broker.regenerate(sans, keyType);
-      changedTick();
+      await brokerChange(() => broker.regenerate(sans, keyType));
       return clone(broker.certs);
     },
     async importBrokerCert() {
@@ -1188,9 +1195,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       return clone(broker.certs);
     },
     async rotateCa() {
-      broker.rotateCa();
-      followLocal();
-      changedTick();
+      await brokerChange(() => broker.rotateCa());
       return clone(broker.certs);
     },
     async brokerClients() {
@@ -1230,18 +1235,19 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
           return res(secure ? 'trusted' : 'skipped');
         }
         case 'broker': {
-          let action: AppBrokerStepResult['result'] = 'running';
-          if (broker.state !== 'running') action = 'started';
-          else if (broker.restartNeeded) action = 'restarted';
-          if (action !== 'running') {
+          // Starts the broker only when it is stopped; nothing restarts (change set 7).
+          const action: AppBrokerStepResult['result'] = broker.state === 'running' ? 'running' : 'started';
+          if (action === 'started') {
             broker.state = 'starting';
             changedTick();
             await delay(latency);
             broker.start();
             changedTick();
             if (!broker.isRunning() && broker.error) throw clone(broker.error);
-          }
+          } else broker.retryFailed();
           if (!l.enabled) throw um('broker.noListener');
+          const failed = broker.status().listeners.find((x) => x.id === l.id)?.error;
+          if (failed) throw failed;
           return res(action);
         }
         case 'connect': {
@@ -1283,6 +1289,10 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
     failBrokerStart(on) {
       broker.failStart = on;
+    },
+    takePort(port, taken = true) {
+      if (taken) broker.takenPorts.add(port);
+      else broker.takenPorts.delete(port);
     },
     tick,
     dispose() {

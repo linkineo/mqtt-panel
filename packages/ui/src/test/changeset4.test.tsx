@@ -153,14 +153,16 @@ describe('Change set 4: no parsed chips, no "mTLS" (C-20)', () => {
 });
 
 describe('Change set 4: broker-wide reachability (B-21, mock engine)', () => {
-  it('one value for the broker; a change while running needs a restart', async () => {
+  it('one value for the broker; a change while running applies at once (change set 7)', async () => {
     await boot('demo');
     const cfg = await engine().brokerConfig();
     expect(cfg.bind).toBe('network');
     expect(cfg.listeners.every((l) => !('bind' in l))).toBe(true);
     const c = await engine().setBrokerBind('localhost');
     expect(c.bind).toBe('localhost');
-    expect((await engine().brokerStatus()).restartNeeded).toBe(true);
+    const st = await engine().brokerStatus();
+    expect('restartNeeded' in st).toBe(false);
+    expect(st.state).toBe('running');
   });
 });
 
@@ -191,7 +193,7 @@ describe('Change set 4: title bar and rail (V-10)', () => {
     const warn = within(tabs.find((t) => t.getAttribute('data-conn') === 'plant')!).getByTestId('cbar-warn');
     expect(warn.textContent).toBe('⚠');
     expect(warn.getAttribute('title')).toContain('Certificate verification is off for this connection');
-    // the anonymous flag and the pending restart are not in the title bar
+    // the anonymous flag is not in the title bar
     await act(async () => {
       await engine().setAnonymous(true);
       useApp.setState({ brokerConfig: await engine().brokerConfig() });

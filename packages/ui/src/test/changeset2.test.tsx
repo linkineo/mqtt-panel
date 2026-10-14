@@ -149,8 +149,8 @@ describe('Change set 2: Broker (B-18, B-19)', () => {
     expect(screen.getByTestId('fold-brokerAdvanced-summary').textContent).toContain('client certificates required');
     await act(async () => fireEvent.click(within(seg).getByText('Optional')));
     await waitFor(() => expect(screen.getByTestId('fold-brokerAdvanced-summary').textContent).toContain('client certificates optional'));
-    expect(useApp.getState().restartPrompt).toBe(true);
-    expect(useApp.getState().pendingChanges.map((c) => c.key)).toContain('rs.ch.certOptional');
+    // applied at once: no prompt (change set 7)
+    expect(screen.queryByTestId('restart-prompt')).toBeNull();
     expect((await engine().brokerConfig()).requireClientCert).toBe(false);
   });
 
@@ -222,8 +222,7 @@ describe('Change set 2: the profile "Local broker" follows the broker (C-16, moc
     expect((await local()).username).toBe('');
     await engine().setAnonymous(false);
     expect((await local()).username).toBe('mqtt-panel');
-    // reconnects after the restart
-    await engine().brokerRestart();
+    // nothing restarts (change set 7): the connection is open again after each change of its own settings
     expect((await engine().listConnections()).find((c) => c.id === 'local')!.state).toBe('connected');
   });
 });

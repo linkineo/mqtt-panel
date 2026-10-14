@@ -355,11 +355,8 @@ button.chip:hover { filter: brightness(.97) }
 .eye:disabled { opacity: .45 }
 .eye svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round }
 
-/* Restart pending: the Restart button turns clay and pulses until pressed; a static highlight under reduced motion (12c) */
-.btn.pulse { background: var(--clay); border-color: var(--clay); color: #fff; animation: restart-pulse 1.2s ease-in-out infinite }
-@keyframes restart-pulse { 50% { box-shadow: 0 0 0 5px var(--clay-soft) } }
-@media (prefers-reduced-motion: reduce) { .btn.pulse { animation: none; box-shadow: 0 0 0 3px var(--clay-soft) } }
-:root[data-motion="off"] .btn.pulse { animation: none; box-shadow: 0 0 0 3px var(--clay-soft) }
+/* A listener that could not start: a short brick word after its port, the reason in the tooltip (change set 7) */
+.lerr { color: var(--brick); font-family: var(--sans); font-size: 12px; white-space: nowrap; cursor: help }
 
 /* Step list of "Connect to this app's broker" (02b) */
 .steps { display: grid; gap: 4px; font-size: 12px }

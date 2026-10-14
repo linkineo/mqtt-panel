@@ -24,14 +24,6 @@ export interface Toast {
   msg?: UserMessage | null;
 }
 
-/** A saved listener or certificate change waiting for a broker restart (restart prompt, mockup 12c). */
-export interface PendingChange {
-  key: string; // rs.ch.*
-  params: Record<string, string | number>;
-  listenerId?: string;
-  field?: 'port';
-}
-
 export type Fold = 'security' | 'advanced' | 'brokerAdvanced';
 
 type SentListener = (updates: { connectionId: string; entry: SentEntry }[]) => void;
@@ -57,10 +49,6 @@ interface AppState {
   /** Pending request from another screen (e.g. "Publish here"), consumed by the target screen. */
   publishPrefill: { topic: string; payload: string; format: 'json' | 'text' | 'hex' | 'base64'; nonce: number } | null;
   settingsPage: string;
-  /** Changes saved but not applied yet (the broker reports restartNeeded); cleared when the broker restarts. */
-  pendingChanges: PendingChange[];
-  /** The restart prompt is open. */
-  restartPrompt: boolean;
   /** Folds (change set 4): profile form "Security" and "Advanced", Broker "Advanced security". Closed when the app
    * starts, kept while it runs (not per profile, not saved). */
   folds: Record<Fold, boolean>;
@@ -129,8 +117,6 @@ export const useApp = create<AppState>((set, get) => ({
   reducedMotion: false,
   publishPrefill: null,
   settingsPage: 'appearance',
-  pendingChanges: [],
-  restartPrompt: false,
   folds: { security: false, advanced: false, brokerAdvanced: false },
   skipOnce: {},
   autoNamed: {},
@@ -183,10 +169,7 @@ export const useApp = create<AppState>((set, get) => ({
       repeats: e.repeats,
       brokerLogSeq: e.brokerLogSeq,
     };
-    if (e.broker) {
-      patch.broker = e.broker;
-      if (!e.broker.restartNeeded && st.pendingChanges.length) patch.pendingChanges = [];
-    }
+    if (e.broker) patch.broker = e.broker;
     // keep the active connection valid: when it is closed or no longer open, another open one takes over
     const isOpenState = (s: ConnectionStatus['state']) => s === 'connected' || s === 'connecting' || s === 'reconnecting';
     const open = e.connections.filter((c) => isOpenState(c.state));

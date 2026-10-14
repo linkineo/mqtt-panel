@@ -513,14 +513,14 @@ export interface Listener {
 }
 
 export interface BrokerConfig {
-  /** Reachability of every listener: the whole network (default) or this computer only (change set 4). Needs a
-   * restart while running. */
+  /** Reachability of every listener: the whole network (default) or this computer only (change set 4). Applies at
+   * once while running: the listeners bind again, open sessions stay (change set 7). */
   bind: BrokerBind;
   listeners: Listener[];
   anonymous: boolean;
   users: BrokerUser[];
   /** Client certificate on encrypted listeners (broker-wide, change set 2): required on every TLS and WSS listener
-   * when true, optional otherwise. Plain listeners are never affected. Needs a restart while running. */
+   * when true, optional otherwise. Plain listeners are never affected. Applies at once while running (change set 7). */
   requireClientCert: boolean;
   verifyAgainst: 'local' | 'imported';
   maxClients: number;
@@ -541,8 +541,10 @@ export interface BrokerStatus {
   msgInRate: number;
   msgOutRate: number;
   retained: number;
-  restartNeeded: boolean;
+  /** Why the broker could not start, or (while running) why no listener serves. */
   error: UserMessage | null;
+  /** Per listener: serving, or the error that kept it from starting (port taken, missing material); a listener that
+   * fails does not stop the others (change set 7). Every change applies live: there is no restart flag. */
   listeners: { id: string; up: boolean; error: UserMessage | null }[];
 }
 
@@ -605,7 +607,7 @@ export type AppBrokerStep = 'user' | 'cert' | 'trust' | 'broker' | 'connect';
 
 export interface AppBrokerStepResult {
   step: AppBrokerStep;
-  result: 'created' | 'kept' | 'issued' | 'skipped' | 'trusted' | 'started' | 'restarted' | 'running' | 'connected' | 'failed';
+  result: 'created' | 'kept' | 'issued' | 'skipped' | 'trusted' | 'started' | 'running' | 'connected' | 'failed';
   /** Step "user": the password of "mqtt-panel", behind the eye icon. */
   password: string | null;
   /** Step "connect". */

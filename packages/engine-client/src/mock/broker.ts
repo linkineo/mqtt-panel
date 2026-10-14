@@ -16,6 +16,12 @@ import type {
 import { clone, randHex, um } from './util';
 
 const LEVELS: LogLine['level'][] = ['debug', 'info', 'warn', 'error'];
+const LABEL: Record<Listener['kind'], BrokerClient['transport']> = { tcp: 'TCP', tls: 'TLS', ws: 'WS', wss: 'WSS' };
+
+/** " · 2 sessions dropped: port changed", or nothing. */
+function dropped(n: number, why: string): string {
+  return n ? ` · ${n} session${n === 1 ? '' : 's'} dropped: ${why}` : '';
+}
 export const APP_USER = 'mqtt-panel';
 export const DESKTOP_CERT = 'mqttpanel-desktop';
 
@@ -38,7 +44,6 @@ export class MockBroker {
   config: BrokerConfig;
   state: BrokerStatus['state'];
   startedAt: number | null;
-  restartNeeded = false;
   certs: BrokerCerts;
   issued: IssuedCert[];
   clients: BrokerClient[];
@@ -164,19 +169,29 @@ export class MockBroker {
 
   status(): BrokerStatus {
     const running = this.state === 'running';
+    const listeners = this.config.listeners.map((l) => {
+      const error = running && l.enabled ? (this.listenerErrors.get(l.id) ?? null) : null;
+      return { id: l.id, up: running && l.enabled && !error, error: error ? clone(error) : null };
+    });
+    // Running while one listener serves; failed when none does (change set 7).
+    const none = running && !listeners.some((l) => l.up);
     return {
-      state: this.state,
+      state: none ? 'failed' : this.state,
       startedAt: running ? this.startedAt : null,
       clients: running ? this.clients.length : 0,
       maxClients: this.config.maxClients,
       msgInRate: running ? this.inRate : 0,
       msgOutRate: running ? this.outRate : 0,
       retained: this.retained,
-      restartNeeded: this.restartNeeded,
-      error: this.state === 'failed' ? this.error : null,
-      listeners: this.config.listeners.map((l) => ({ id: l.id, up: running && l.enabled, error: null })),
+      error: this.state === 'failed' ? this.error : none ? (listeners.find((l) => l.error)?.error ?? um('broker.noListener')) : null,
+      listeners,
     };
   }
+
+  /** Ports held by another program: validation refuses them, and a listener switched on there fails alone. */
+  takenPorts = new Set<number>([8080]);
+  /** Why a listener of the running broker could not start, by listener id. */
+  listenerErrors = new Map<string, UserMessage>();
 
   getConfig(): BrokerConfig {
     return clone(this.config);
@@ -208,26 +223,79 @@ export class MockBroker {
     }
     this.state = 'running';
     this.startedAt = this.now();
-    this.restartNeeded = false;
-    this.addLog('info', `broker started · ${this.config.listeners.filter((l) => l.enabled).length} listeners`);
+    this.listenerErrors.clear();
+    for (const l of this.config.listeners.filter((x) => x.enabled && this.takenPorts.has(x.port))) {
+      this.listenerErrors.set(l.id, this.portTaken(l));
+    }
+    const n = this.config.listeners.filter((l) => l.enabled && !this.listenerErrors.has(l.id)).length;
+    this.addLog('info', `broker started · ${n} listener${n === 1 ? '' : 's'}`);
   }
 
   stop(): void {
     this.state = 'stopped';
     this.startedAt = null;
+    this.listenerErrors.clear();
     this.addLog('info', 'broker stopped');
+  }
+
+  /** While running: tries again the listeners that could not start. */
+  retryFailed(): void {
+    for (const l of this.config.listeners.filter((x) => x.enabled && this.listenerErrors.has(x.id))) this.startListener(l);
+  }
+
+  // ---------------------------------------------------------------- live apply (change set 7)
+
+  private portTaken(l: Listener): UserMessage {
+    return um('broker.listenerFailed', { kind: LABEL[l.kind], port: l.port, detail: 'port already in use' });
+  }
+
+  /** Starts one listener of the running broker; it fails alone on a taken port. */
+  private startListener(l: Listener, suffix = ''): void {
+    if (this.state !== 'running') return;
+    if (this.takenPorts.has(l.port)) {
+      this.listenerErrors.set(l.id, this.portTaken(l));
+      this.addLog('error', `listener ${LABEL[l.kind]} ${l.port} could not start: port already in use${suffix}`);
+      return;
+    }
+    this.listenerErrors.delete(l.id);
+    this.addLog('info', `listener ${LABEL[l.kind]} ${l.port} started${suffix}`);
+  }
+
+  /** The demo clients of a listener (by transport; the mock has one listener per kind in practice). */
+  private clientsOf(l: Listener): BrokerClient[] {
+    return this.clients.filter((c) => c.transport === LABEL[l.kind]);
+  }
+
+  /** Stops one listener: its sessions drop (`reconnect`: they come back at once, as after a port change). */
+  private stopListener(l: Listener, why: string | null, reconnect = false): number {
+    if (this.state !== 'running') return 0;
+    const failed = this.listenerErrors.delete(l.id);
+    const mine = failed ? [] : this.clientsOf(l);
+    if (reconnect) mine.forEach((c) => (c.connectedAt = this.now()));
+    else this.clients = this.clients.filter((c) => !mine.includes(c));
+    if (!failed) this.addLog('info', `listener ${LABEL[l.kind]} ${l.port} stopped${why ? dropped(mine.length, why) : ''}`);
+    return mine.length;
+  }
+
+  /** One applied change: its log line, with the sessions it dropped. */
+  private applied(level: LogLine['level'], text: string, n: number, why: string): void {
+    this.addLog(level, `${text}${dropped(n, why)}`);
+  }
+
+  /** Drops the demo sessions matching `pick` (e.g. password sessions when client certificates become required). */
+  private dropSessions(pick: (c: BrokerClient) => boolean): number {
+    if (this.state !== 'running') return 0;
+    const n = this.clients.filter(pick).length;
+    this.clients = this.clients.filter((c) => !pick(c));
+    return n;
   }
 
   validatePort(port: number, listenerId: string | null): UserMessage | null {
     if (!Number.isInteger(port) || port < 1 || port > 65535) return um('broker.portRange');
     if (port < 1024) return um('broker.portPrivileged');
     if (this.config.listeners.some((l) => l.port === port && l.id !== listenerId)) return um('broker.portDuplicate', { port });
-    if (port === 8080) return um('broker.portInUseBy', { port, process: 'node' });
+    if (this.takenPorts.has(port)) return um('broker.portInUseBy', { port, process: 'node' });
     return null;
-  }
-
-  changed(): void {
-    if (this.state === 'running') this.restartNeeded = true;
   }
 
   addListener(req: AddListenerRequest): void {
@@ -240,35 +308,53 @@ export class MockBroker {
     };
     this.config.listeners.push(l);
     // "Encrypted + client certificates" sets the broker-wide client certificate requirement to Required.
-    if (req.preset === 'mtls') this.config.requireClientCert = true;
-    this.changed();
+    if (req.preset === 'mtls') this.setRequireClientCert(true);
+    if (this.state === 'running') this.startListener(l);
+    else this.addLog('info', `${LABEL[l.kind]} listener added on port ${l.port}`);
   }
 
   /** Reachability of every listener (change set 4). */
   setBind(bind: BrokerConfig['bind']): void {
     if (this.config.bind === bind) return;
     this.config.bind = bind;
+    // The listening sockets bind again; open sessions stay.
     this.addLog('info', bind === 'network' ? 'listeners reachable from the whole network' : 'listeners reachable from this computer only');
-    this.changed();
   }
 
   /** Client certificate on encrypted listeners, for the whole broker. */
   setRequireClientCert(on: boolean): void {
     if (this.config.requireClientCert === on) return;
     this.config.requireClientCert = on;
-    this.addLog('info', on ? 'client certificate required on encrypted listeners' : 'client certificate optional on encrypted listeners');
-    this.changed();
+    // Optional -> Required drops the password sessions on encrypted listeners; Required -> Optional drops nothing.
+    const n = on && !this.config.anonymous ? this.dropSessions((c) => (c.transport === 'TLS' || c.transport === 'WSS') && !c.certCn) : 0;
+    this.applied('info', on ? 'client certificate required on encrypted listeners' : 'client certificate optional on encrypted listeners', n, 'client certificate required');
   }
 
+  /** Kind, port, on/off and setup: a port or kind change restarts that listener alone (change set 7). */
   updateListener(l: Listener): void {
     const i = this.config.listeners.findIndex((x) => x.id === l.id);
-    if (i >= 0) this.config.listeners[i] = clone(l);
-    this.changed();
+    if (i < 0) return;
+    const old = this.config.listeners[i];
+    this.config.listeners[i] = clone(l);
+    if (this.state !== 'running') return;
+    if (old.enabled && !l.enabled) this.stopListener(old, 'listener switched off');
+    else if (!old.enabled && l.enabled) this.startListener(l);
+    else if (l.enabled && (old.port !== l.port || old.kind !== l.kind)) {
+      const n = this.stopListener(old, null, true);
+      this.startListener(l, dropped(n, old.kind !== l.kind ? 'kind changed' : 'port changed'));
+    }
   }
 
   removeListener(id: string): void {
-    this.config.listeners = this.config.listeners.filter((l) => l.id !== id);
-    this.changed();
+    const l = this.config.listeners.find((x) => x.id === id);
+    this.config.listeners = this.config.listeners.filter((x) => x.id !== id);
+    if (l?.enabled) this.stopListener(l, 'listener removed');
+  }
+
+  /** Anonymous: off drops the sessions that logged in without a login, on drops nothing. */
+  setAnonymous(on: boolean): void {
+    this.config.anonymous = on;
+    this.applied('warn', on ? 'anonymous access on: users and client certificates are not checked' : 'anonymous access off', 0, 'anonymous access off');
   }
 
   addUser(username: string, password: string, system = false): UserMessage | null {
@@ -282,6 +368,16 @@ export class MockBroker {
   removeUser(username: string): void {
     this.config.users = this.config.users.filter((u) => u.username !== username);
     this.passwords.delete(username);
+    const n = this.dropSessions((c) => c.username === username);
+    this.applied('info', `user ${username} removed`, n, 'user removed');
+  }
+
+  setPassword(username: string, password: string): void {
+    this.passwords.set(username, password);
+    const u = this.config.users.find((x) => x.username === username);
+    if (u) u.hasPassword = true;
+    const n = this.dropSessions((c) => c.username === username);
+    this.applied('info', `password of user ${username} changed`, n, 'password changed');
   }
 
   /** "mqtt-panel" with a strong password: created once, then kept. */
@@ -290,7 +386,7 @@ export class MockBroker {
     if (existing && this.config.users.some((u) => u.username === APP_USER)) return { created: false, password: existing };
     const a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const pw = Array.from({ length: 24 }, () => a[Math.floor(Math.random() * a.length)]).join('');
-    this.removeUser(APP_USER);
+    this.config.users = this.config.users.filter((u) => u.username !== APP_USER);
     this.addUser(APP_USER, pw, true);
     this.addLog('info', `user ${APP_USER} created for the profile "Local broker"`);
     return { created: true, password: pw };
@@ -339,10 +435,13 @@ export class MockBroker {
     return { kind: 'saved', fileName: `${n}.crt` };
   }
 
+  /** Revoking drops the certificate's session at once. */
   revoke(name: string): void {
     const c = this.issued.find((x) => x.name === name);
     if (c) c.revoked = true;
-    this.addLog('info', `client certificate ${name} revoked`);
+    const n = this.dropSessions((x) => x.certCn === name);
+    if (c && n) c.lastSeen = this.now();
+    this.applied('warn', `client certificate ${name} revoked`, n, 'certificate revoked');
   }
 
   regenerate(sans: string[], keyType: 'ecdsa' | 'rsa'): void {
@@ -350,13 +449,22 @@ export class MockBroker {
     const today = new Date(this.now()).toISOString().slice(0, 10);
     this.certs.server = certDetails('CN=mqttpanel-local', this.certs.ca.subject, sans.length ? sans : this.certs.server.san, today, this.certs.server.notAfter, false, kt);
     this.certs.imported = false;
-    this.changed();
+    // New handshakes use it; open sessions stay.
+    this.addLog('info', 'server certificate regenerated');
   }
 
   importServer(): void {
     this.certs.server = certDetails('CN=broker.lab.example', 'CN=Lab Issuing CA', ['broker.lab.example'], '2026-01-01', '2027-12-31', false);
     this.certs.imported = true;
-    this.changed();
+    this.addLog('info', 'server certificate imported');
+  }
+
+  /** "Verify against": drops the sessions whose certificate the new CA did not sign. */
+  setVerifyAgainst(source: BrokerConfig['verifyAgainst']): void {
+    if (this.config.verifyAgainst === source) return;
+    this.config.verifyAgainst = source;
+    const n = this.dropSessions((c) => c.certCn !== null);
+    this.applied('info', `client certificates verified against the ${source === 'local' ? 'local' : 'imported'} CA`, n, 'verifying CA changed');
   }
 
   importClientCa(): void {
@@ -369,7 +477,9 @@ export class MockBroker {
     exp.setFullYear(exp.getFullYear() + 5);
     this.certs.ca = certDetails('CN=MQTT Panel Local CA', 'CN=MQTT Panel Local CA', [], today.toISOString().slice(0, 10), exp.toISOString().slice(0, 10), true);
     this.issued = this.issued.map((c) => (c.revoked ? c : { ...c, superseded: true }));
-    this.changed();
+    // The sessions that logged in with a certificate from the old CA drop.
+    const n = this.config.verifyAgainst === 'local' ? this.dropSessions((c) => c.certCn !== null) : 0;
+    this.applied('warn', 'CA rotated: issued client certificates must be re-issued', n, 'CA rotated');
   }
 
   logAfter(level: LogLine['level'], afterSeq: number): LogLine[] {

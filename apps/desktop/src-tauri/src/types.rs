@@ -72,7 +72,7 @@ pub enum ConnectOutcome {
 #[serde(rename_all = "camelCase")]
 pub struct AppBrokerStepResult {
     pub step: String,
-    /// created, kept, issued, skipped, trusted, started, restarted, running, connected or failed.
+    /// created, kept, issued, skipped, trusted, started, running, connected or failed.
     pub result: String,
     /// The password of the user "mqtt-panel" (step `user`), shown behind the eye icon.
     pub password: Option<String>,

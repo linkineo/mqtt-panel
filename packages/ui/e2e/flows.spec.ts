@@ -75,7 +75,8 @@ test.describe('Connections', () => {
     const step2 = page.locator('[data-testid=add-listener-2]');
     await expect(step2).not.toContainText('Login');
     await expect(step2.locator('input[type=password]')).toHaveCount(0);
-    await expect(page.locator('[data-testid=addl-after]')).toContainText('restarts the broker if needed and connects');
+    await expect(page.locator('[data-testid=addl-after]')).toContainText('starts the broker if it is stopped and connects');
+    await expect(page.locator('[data-testid=addl-after]')).not.toContainText('restart');
     await page.fill('[data-testid=addl-port]', '8886');
     await page.click('[data-testid=addl-add]');
     await expect(page.locator('[data-testid=app-broker]')).toBeVisible();
@@ -431,8 +432,9 @@ test.describe('Broker', () => {
     const added = page.locator('[data-testid=listener-row]').last();
     await expect(added).toContainText('8885');
     await expect(added).toContainText('Encrypted + client certificates');
-    await expect(page.locator('[data-testid=restart-chip]')).toBeVisible();
-    await page.click('[data-testid=restart-later]');
+    // started at once (change set 7): no prompt, no chip
+    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=restart-chip]')).toHaveCount(0);
     await page.click('[data-testid=fold-brokerAdvanced]');
     await expect(page.locator('[data-testid=require-cert-seg] button.on')).toHaveText('Required');
   });
@@ -448,7 +450,9 @@ test.describe('Broker', () => {
       }
       await expect(page.locator('[data-testid=appb-listener][aria-checked=true]')).toHaveAttribute('data-listener', 'l-tls');
       await page.click('[data-testid=appb-connect]');
+      // the broker starts only when it is stopped: a step on the first run only, never a restart (change set 7)
       if (i === 0) await expect(page.locator('[data-testid=appb-step-broker]')).toBeVisible();
+      else await expect(page.locator('[data-testid=appb-step-broker]')).toHaveCount(0);
       await expect(page.locator('[data-testid=explorer]')).toBeVisible({ timeout: 8000 });
     }
     await page.click('[data-testid=rail-connect]');
@@ -459,34 +463,31 @@ test.describe('Broker', () => {
     await expect(page.locator('[data-testid=connect-here]')).toHaveCount(0);
   });
 
-  test('B-15 restart prompt: Later leaves a pulsing "Restart broker and apply changes"; users never prompt', async ({ page }) => {
+  test('B-25 no restart: Start and Stop only; a port change applies at once, only that listener restarts', async ({ page }) => {
     await open(page, 'mock=demo&screen=broker');
+    const head = page.locator('[data-testid=broker] > .ph');
+    await expect(head.locator('button')).toHaveText(['Stop']);
+    await expect(page.locator('[data-testid=broker-restart]')).toHaveCount(0);
+    await expect(head.locator('.pulse')).toHaveCount(0);
+    await page.click('[data-testid=log-toggle]');
     await page.click('[data-testid=port-l-tls]');
     await page.fill('[data-testid=port-input-l-tls]', '8884');
     await page.keyboard.press('Enter');
-    await expect(page.locator('[data-testid=restart-prompt] .mh')).toHaveText('Restart the broker to apply the change?');
-    await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: TLS listener port 8883 → 8884.');
-    await page.click('[data-testid=restart-later]');
-    const btn = page.locator('[data-testid=broker-restart]');
-    await expect(btn).toHaveText('Restart broker and apply changes');
-    expect(await btn.evaluate((el) => getComputedStyle(el).animationName)).toBe('restart-pulse');
-    await expect(page.locator('[data-testid=restart-chip]')).toHaveText('restart pending');
-    await expect(page.locator('[data-testid=port-pending]')).toBeVisible();
-    // the pending state survives navigation
-    await page.click('[data-testid=rail-explore]');
-    await page.click('[data-testid=rail-broker]');
-    await expect(btn).toHaveText('Restart broker and apply changes');
-    // reachability (broker-wide) and adding a listener prompt too
+    await expect(page.locator('[data-testid=port-l-tls]')).toHaveText('8884');
+    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=restart-chip]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=port-pending]')).toHaveCount(0);
+    const log = page.locator('[data-testid=broker-log]');
+    await expect(log).toContainText('listener TLS 8883 stopped');
+    await expect(log).toContainText(/listener TLS 8884 started · \d+ sessions? dropped: port changed/);
+    // reachability, a new listener, users and Anonymous apply the same way, never prompting
     await page.click('[data-testid=reach-localhost]');
-    await expect(page.locator('[data-testid=restart-pending-list]')).toContainText('listeners reachable from this computer only');
-    await page.click('[data-testid=restart-later]');
     await page.click('[data-testid=add-listener]');
     await page.click('[data-testid=addl-next]');
+    await expect(page.locator('[data-testid=addl-after]')).not.toContainText(/restart/i);
     await page.fill('[data-testid=addl-port]', '8887');
     await page.click('[data-testid=addl-add]');
-    await expect(page.locator('[data-testid=restart-prompt]')).toBeVisible();
-    await page.click('[data-testid=restart-later]');
-    // users and Anonymous apply live and never prompt
+    await expect(log).toContainText('listener TLS 8887 started');
     await page.click('[data-testid=add-user]');
     await page.fill('#cred-user', 'tester');
     await page.fill('#cred-pass', 'pw-tester');
@@ -494,31 +495,82 @@ test.describe('Broker', () => {
     await expect(page.locator('[data-testid=user-row][data-user=tester]')).toBeVisible();
     await page.click('[data-testid=anonymous]');
     await page.click('[data-testid=confirm-ok]');
-    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
     await page.click('[data-testid=anonymous]');
-    await btn.click();
-    await expect(btn).toHaveText('Restart');
-    await expect(page.locator('[data-testid=restart-chip]')).toHaveCount(0);
-    await expect(page.locator('[data-testid=port-pending]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
+    await expect(head.locator('button')).toHaveText(['Stop']);
+    const st = await page.evaluate(() => (window as any).__mqttpanelMock.engine.brokerStatus());
+    expect(st.state).toBe('running');
+    expect('restartNeeded' in st).toBe(false);
+    // stopped: Start only
+    await page.click('[data-testid=broker-stop]');
+    await expect(head.locator('button')).toHaveText(['Start']);
   });
 
-  test('B-15 reduced motion: the pending Restart button is highlighted without pulsing', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
+  test('B-25 a listener that cannot start shows its error on its row; the others keep running', async ({ page }) => {
     await open(page, 'mock=demo&screen=broker');
+    await page.evaluate(() => (window as any).__mqttpanelMock.engine.takePort(8084));
+    const row = page.locator('[data-testid=listener-row][data-listener=l-wss]');
+    await row.getByRole('switch').click();
+    const err = page.locator('[data-testid=listener-error-l-wss]');
+    await expect(err).toHaveText('not started');
+    await expect(err).toHaveAttribute('title', 'The WSS listener on port 8084 could not start: port already in use');
+    expect(await err.evaluate((el) => getComputedStyle(el).color)).toBe(await page.evaluate(() => {
+      const d = document.createElement('span');
+      d.style.color = 'var(--brick)';
+      document.body.appendChild(d);
+      const c = getComputedStyle(d).color;
+      d.remove();
+      return c;
+    }));
+    // the row stays on one line
+    const h = await row.evaluate((el) => el.getBoundingClientRect().height);
+    const h0 = await page.locator('[data-testid=listener-row][data-listener=l-tcp]').evaluate((el) => el.getBoundingClientRect().height);
+    expect(h).toBeLessThanOrEqual(h0 + 1);
+    await expect(page.locator('[data-testid=listener-error-l-tcp]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=broker-tiles]')).toContainText('Running');
+  });
+
+  test('B-26 client certificate rows: one ↓ button with a menu PEM / PKCS#12…', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    const certs = page.locator('[data-testid=client-certs]');
+    await expect(certs.locator('tbody button', { hasText: /^PEM$|^PKCS#12$/ })).toHaveCount(0);
+    const rows = certs.locator('[data-testid=issued-row]');
+    await expect(certs.locator('[data-testid=cert-export]')).toHaveCount(await rows.count());
+    const btn = certs.locator('[data-cert=edge01] [data-testid=cert-export]');
+    await expect(btn).toHaveText('↓');
+    await expect(btn).toHaveAttribute('title', 'Export…');
+    await expect(btn).toHaveAttribute('aria-label', 'Export…');
+    await btn.click();
+    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['PEM', 'PKCS#12…']);
+    await menuItem(page, 'PEM');
+    await expect.poll(async () => (await saves(page)).map((f) => f.fileName)).toContain('edge01.pem');
+    await btn.click();
+    await menuItem(page, 'PKCS#12…');
+    await expect(page.locator('.modal', { hasText: 'Export edge01 as PKCS#12' })).toBeVisible();
+    await expect(page.locator('[data-testid=p12-passphrase]')).toBeVisible();
+    await page.keyboard.press('Escape');
+    // the certificate of "Local broker" keeps its tag instead of ✕
+    await expect(certs.locator('[data-cert=mqttpanel-desktop] [data-testid=cert-local-tag]')).toHaveText('Local broker');
+    await expect(certs.locator('[data-cert=mqttpanel-desktop] [data-testid=cert-export]')).toBeVisible();
+  });
+
+  test('C-16 "Local broker" follows its listener at once and stays connected; other changes leave it alone', async ({ page }) => {
+    await open(page, 'mock=demo&connect=local&screen=broker');
+    // another listener's port: the profile is untouched
+    await page.click('[data-testid=port-l-tcp]');
+    await page.fill('[data-testid=port-input-l-tcp]', '1884');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-testid=port-l-tcp]')).toHaveText('1884');
+    // its own listener's port: the profile has the new port and is connected again at once
     await page.click('[data-testid=port-l-tls]');
     await page.fill('[data-testid=port-input-l-tls]', '8884');
     await page.keyboard.press('Enter');
-    await page.click('[data-testid=restart-now]');
-    await expect(page.locator('[data-testid=broker-restart]')).toHaveText('Restart');
-    await expect(page.locator('[data-testid=broker-restart]')).toBeEnabled();
-    await page.click('[data-testid=port-l-tls]');
-    await page.fill('[data-testid=port-input-l-tls]', '8885');
-    await page.keyboard.press('Enter');
-    await page.click('[data-testid=restart-later]');
-    const btn = page.locator('[data-testid=broker-restart]');
-    await expect(btn).toHaveClass(/pulse/);
-    expect(await btn.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
-    expect(await btn.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
+    await expect(page.locator('[data-testid=port-l-tls]')).toHaveText('8884');
+    await page.click('[data-testid=rail-connect]');
+    const local = page.locator('[data-profile=local]');
+    await expect(local).toContainText('localhost:8884');
+    await expect(local.locator('[data-testid=card-state]')).toHaveText('connected');
+    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
   });
 
   test('B-16 eye and copy on every password and passphrase the app owns', async ({ page }) => {
@@ -612,10 +664,8 @@ test.describe('Change set 2', () => {
     await expect(page.locator('[data-testid=require-cert-hint]')).toHaveCount(0);
     await expect(page.locator('[data-testid=listener-cert]')).toHaveCount(0);
     await page.locator('[data-testid=require-cert-seg] button', { hasText: 'Optional' }).click();
-    await expect(page.locator('[data-testid=restart-prompt]')).toBeVisible();
-    await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: client certificate optional on encrypted listeners.');
-    await page.click('[data-testid=restart-later]');
     await expect(page.locator('[data-testid=fold-brokerAdvanced-summary]')).toContainText('client certificates optional');
+    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
     // B-19: no Refresh, the log is a title strip at the bottom of the right pane until clicked
     const side = page.locator('[data-testid=broker-side]');
     await expect(side.getByText('Refresh')).toHaveCount(0);
@@ -759,7 +809,7 @@ test.describe('Change set 4', () => {
     }
   });
 
-  test('B-21 reachability is one broker-wide choice with an ⓘ; switching asks to restart', async ({ page }) => {
+  test('B-21 reachability is one broker-wide choice with an ⓘ; switching applies at once, nothing prompts', async ({ page }) => {
     await open(page, 'mock=demo&screen=broker');
     const line = page.locator('[data-testid=listeners-line]');
     await expect(line.locator('[data-testid=reach-seg] button')).toHaveText(['This computer only', 'Whole network']);
@@ -770,15 +820,17 @@ test.describe('Change set 4', () => {
     await expect(page.locator('[data-testid=bubble-text-reachable]')).toContainText('Whole network: any device that can reach this computer can connect');
     await page.keyboard.press('Escape');
     await expect(page.locator('[data-testid=unencrypted]')).toHaveCount(2);
+    await expect(page.locator('[data-testid=bubble-text-reachable]')).toHaveCount(0);
     await page.click('[data-testid=reach-localhost]');
-    await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: listeners reachable from this computer only.');
-    await page.click('[data-testid=restart-later]');
     await expect(page.locator('[data-testid=reach-localhost]')).toHaveClass(/on/);
     await expect(page.locator('[data-testid=unencrypted]')).toHaveCount(0);
-    await expect(page.locator('[data-testid=restart-chip]')).toHaveText('restart pending');
+    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=restart-chip]')).toHaveCount(0);
+    await line.locator('[data-testid=info-reachable]').click();
+    await expect(page.locator('[data-testid=bubble-text-reachable]')).not.toContainText('restart');
   });
 
-  test('B-22 listener table: On, Kind, Port, Setup and ✕, which removes at once and asks to restart', async ({ page }) => {
+  test('B-22 listener table: On, Kind, Port, Setup and ✕, which removes at once; nothing prompts', async ({ page }) => {
     await open(page, 'mock=demo&screen=broker');
     await expect(page.locator('[data-testid=listeners] th')).toHaveText(['On', 'Kind', 'Port', 'Setup', '']);
     await expect(page.locator('[data-testid=listener-row] button', { hasText: '⋯' })).toHaveCount(0);
@@ -787,7 +839,9 @@ test.describe('Change set 4', () => {
     await page.click('[data-testid=remove-listener-l-ws]');
     await expect(page.locator('[data-testid=confirm-ok]')).toHaveCount(0);
     await expect(page.locator('[data-testid=listener-row]')).toHaveCount(before - 1);
-    await expect(page.locator('[data-testid=restart-pending-list]')).toHaveText('Pending: WebSocket listener on port 8083 removed.');
+    await expect(page.locator('[data-testid=restart-prompt]')).toHaveCount(0);
+    await page.click('[data-testid=log-toggle]');
+    await expect(page.locator('[data-testid=broker-log]')).toContainText(/listener WS 8083 stopped( · \d+ sessions? dropped: listener removed)?/);
   });
 
   test('B-23 Users and Client certificates are panels; "Advanced security" is folded; Add listener step 2 has kind and port only', async ({ page }) => {
@@ -857,7 +911,7 @@ test.describe('Change set 4', () => {
     await expect(page.locator('[data-profile=plant] [data-testid=card-warn]')).toHaveCount(0);
     await expect(page.locator('[data-profile=lab] [data-testid=card-warn]')).toHaveCount(0);
     await expect(page.locator('[data-profile=emqx] [data-testid=card-warn]')).toHaveAttribute('data-kind', 'skip');
-    // "anonymous" and "restart pending" live on the Broker screen only
+    // "anonymous" lives on the Broker screen only
     await mock(page, 'brokerStop');
     await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveCount(0);
     for (const id of ['plant', 'local']) await mock(page, 'disconnect', id);

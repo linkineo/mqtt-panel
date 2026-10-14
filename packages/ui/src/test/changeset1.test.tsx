@@ -117,35 +117,6 @@ describe('Change set 1: Broker screen (12, 12c)', () => {
     await act(async () => fireEvent.click(eye));
     expect(value.textContent).toBe('••••••••••••');
   });
-
-  it('B-15: a listener change asks to restart; Later leaves "Restart broker and apply changes" and "restart pending"', async () => {
-    await boot('demo');
-    useApp.setState({ brokerConfig: await engine().brokerConfig(), screen: 'broker' });
-    render(<BrokerScreen />);
-    await waitFor(() => expect(screen.getAllByTestId('listener-row').length).toBe(4));
-    // change set 4: reachability is broker-wide, on the Listeners line
-    await act(async () => fireEvent.click(screen.getByTestId('reach-localhost')));
-    const prompt = await screen.findByTestId('restart-prompt');
-    expect(prompt.textContent).toContain('Restart the broker to apply the change?');
-    expect(screen.getByTestId('restart-pending-list').textContent).toBe('Pending: listeners reachable from this computer only.');
-    await act(async () => fireEvent.click(screen.getByTestId('restart-later')));
-    expect(screen.queryByTestId('restart-prompt')).toBeNull();
-    const btn = screen.getByTestId('broker-restart');
-    expect(btn.textContent).toBe('Restart broker and apply changes');
-    expect(btn.className).toContain('pulse');
-    expect(screen.getByTestId('restart-chip').textContent).toBe('restart pending');
-    // users and Anonymous apply live and never ask
-    await act(async () => {
-      useApp.setState({ broker: await engine().brokerStatus() });
-    });
-    const dash = screen.getAllByTestId('user-row').find((r) => r.getAttribute('data-user') === 'dashboard')!;
-    await act(async () => fireEvent.click(within(dash).getByTestId('user-remove-dashboard')));
-    await waitFor(() => expect(screen.getAllByTestId('user-row')).toHaveLength(3));
-    expect(screen.queryByTestId('restart-prompt')).toBeNull();
-    await act(async () => fireEvent.click(btn));
-    await waitFor(() => expect(screen.getByTestId('broker-restart').textContent).toBe('Restart'));
-    expect(useApp.getState().pendingChanges).toEqual([]);
-  });
 });
 
 describe('Change set 1: eye and copy on passwords the app owns (B-16)', () => {

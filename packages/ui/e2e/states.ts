@@ -22,11 +22,12 @@ async function openAppBrokerDialog(page: Page) {
   await page.waitForSelector('[data-testid=app-broker]');
 }
 
+/** Mockup 12c: the TLS port moves to 8884 and applies at once (change set 7). */
 async function changeTlsPort(page: Page) {
   await page.click('[data-testid=port-l-tls]');
   await page.fill('[data-testid=port-input-l-tls]', '8884');
   await page.keyboard.press('Enter');
-  await page.waitForSelector('[data-testid=restart-prompt]');
+  await page.waitForFunction(() => document.querySelector('[data-testid=port-l-tls]')?.textContent === '8884');
 }
 
 export const STATES: UiState[] = [
@@ -98,15 +99,12 @@ export const STATES: UiState[] = [
   { id: '02b-app-broker', query: 'mock=demo', steps: openAppBrokerDialog },
   {
     id: '02b-app-broker-steps',
-    query: 'mock=demo&screen=broker&latency=8000',
+    query: 'mock=demo&latency=8000',
     steps: async (p) => {
-      // a pending listener change, so the flow restarts the broker as in the mockup
-      await changeTlsPort(p);
-      await p.click('[data-testid=restart-later]');
-      await p.click('[data-testid=rail-connect]');
+      // mockup 02b: the broker runs, so there is no broker step (nothing restarts, change set 7)
       await openAppBrokerDialog(p);
       await p.click('[data-testid=appb-connect]');
-      await p.waitForSelector('[data-testid=appb-step-broker][data-state=run]');
+      await p.waitForSelector('[data-testid=appb-step-connect][data-state=run]');
     },
   },
   {
@@ -257,14 +255,15 @@ export const STATES: UiState[] = [
     },
   },
   {
-    id: '12c-restart-prompt',
+    id: '12c-live-change',
     query: 'mock=demo&screen=broker',
     steps: async (p) => {
-      // mockup 12c: the log expanded with its level filter, then a port change asks for a restart
+      // mockup 12c: the log expanded with its level filter, Advanced security open, a port change applied live
       await p.click('[data-testid=log-toggle]');
       await p.waitForSelector('[data-testid=broker-log]');
       await p.click('[data-testid=fold-brokerAdvanced]');
       await changeTlsPort(p);
+      await p.waitForFunction(() => document.querySelector('[data-testid=broker-log]')?.textContent?.includes('listener TLS 8884 started'));
     },
   },
   {
@@ -273,17 +272,26 @@ export const STATES: UiState[] = [
     steps: async (p) => {
       await p.click('[data-testid=fold-brokerAdvanced]');
       await p.locator('[data-testid=require-cert-seg] button').first().click();
-      await p.waitForSelector('[data-testid=restart-prompt]');
-      await p.click('[data-testid=restart-later]');
+      await p.waitForFunction(() => document.querySelector('[data-testid=require-cert-seg] button')?.classList.contains('on'));
     },
   },
   {
-    id: '12d-restart-pending',
+    id: '12d-cert-export-menu',
     query: 'mock=demo&screen=broker',
     steps: async (p) => {
-      await changeTlsPort(p);
-      await p.click('[data-testid=restart-later]');
-      await p.waitForSelector('[data-testid=port-pending]');
+      // mockup 12: the ↓ button of a certificate row opens PEM / PKCS#12… (change set 7)
+      await p.click('[data-cert=sensor-r205] [data-testid=cert-export]');
+      await p.waitForSelector('[data-testid=context-menu]');
+    },
+  },
+  {
+    id: '12f-listener-error',
+    query: 'mock=demo&screen=broker',
+    steps: async (p) => {
+      // a listener that cannot start shows its error on its row (change set 7)
+      await p.evaluate(() => (window as any).__mqttpanelMock.engine.takePort(8084));
+      await p.locator('[data-testid=listener-row][data-listener=l-wss]').getByRole('switch').click();
+      await p.waitForSelector('[data-testid=listener-error-l-wss]');
     },
   },
   {

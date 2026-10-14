@@ -2,19 +2,30 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BrokerBind, BrokerCerts, BrokerClient, BrokerConfig, BrokerUser, CertDetails, IssuedCert, Listener, LogLine, UserMessage } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
-import { toMessage } from '../../i18n';
+import { renderMessage, toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
 import { reportSave, run } from '../../lib/actions';
 import { ConfirmDialog, Info, Modal, Msg, Popover, Seg, Switch } from '../../components/ui';
 import { fmtAge, fmtNum, fmtRate, fmtTime, fmtUptime, isoDateToMonth } from '../../lib/format';
 import { AddListenerDialog, CredentialsDialog, IssueCertDialog, RegenerateDialog, checkPort, kindLabel } from './BrokerDialogs';
 import { SecretInput, SecretText } from '../../components/Secret';
-import { noteRestartChange, restartBroker } from './restart';
 import { FoldHeader, useFold } from '../../components/Fold';
+
+/** Every change applies at once while the broker runs (change set 7): the status is read again right away, so a
+ * listener that could not start shows its error without waiting for the next tick, and the profiles too, since
+ * "Local broker" follows the broker (C-16). */
+export async function refreshBrokerStatus(): Promise<void> {
+  try {
+    useApp.setState({ broker: await engine().brokerStatus() });
+    await useApp.getState().refreshProfiles();
+  } catch {
+    // the next tick brings it
+  }
+}
 
 function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; onConfig(c: BrokerConfig): void }) {
   const { t } = useTranslation();
-  const pending = useApp((s) => s.broker?.restartNeeded === true && s.pendingChanges.some((c) => c.field === 'port' && c.listenerId === l.id));
+  const error = useApp((s) => s.broker?.listeners.find((x) => x.id === l.id)?.error ?? null);
   const [edit, setEdit] = useState(false);
   const [v, setV] = useState(String(l.port));
   const [err, setErr] = useState<UserMessage | null>(null);
@@ -31,10 +42,7 @@ function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; o
     if (err) return;
     if (Number(v) !== l.port) {
       const c = await run(engine().updateListener({ ...l, port: Number(v) }));
-      if (c) {
-        onConfig(c);
-        void noteRestartChange({ key: 'rs.ch.port', params: { kind: kindLabel(l.kind, t), from: l.port, to: Number(v) }, listenerId: l.id, field: 'port' });
-      }
+      if (c) onConfig(c);
     }
     setEdit(false);
   };
@@ -44,7 +52,7 @@ function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; o
         <button
           type="button"
           className="btn link mono"
-          style={{ fontWeight: 400, color: pending ? 'var(--clay)' : undefined }}
+          style={{ fontWeight: 400 }}
           disabled={disabled}
           title={t('broker.editPort')}
           data-testid={`port-${l.id}`}
@@ -52,9 +60,11 @@ function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; o
         >
           {l.port}
         </button>
-        {pending && (
-          <span className="chip clay" data-testid="port-pending">
-            {t('broker.pendingChip')}
+        {error && (
+          // A listener that could not start (port taken, missing material): a short brick word, the reason in the
+          // tooltip, so the row never wraps (change set 7).
+          <span className="lerr" title={renderMessage(t, error)} data-testid={`listener-error-${l.id}`}>
+            {t('broker.notStarted')}
           </span>
         )}
       </span>
@@ -74,7 +84,7 @@ function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; o
         onChange={(e) => setV(e.target.value.replace(/\D/g, ''))}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
-            // no implicit click: the restart prompt may open and take the focus before the key is released
+            // no implicit click on whatever takes the focus once the field closes
             e.preventDefault();
             void save();
           }
@@ -98,8 +108,8 @@ function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; o
   );
 }
 
-/** A listener row (mockup 12, change set 4): On, Kind, Port, Setup and ✕, which removes the listener at once (the
- * restart prompt follows; no menu, no confirmation). Reachability is broker-wide, on the Listeners line. */
+/** A listener row (mockup 12, change set 4): On, Kind, Port, Setup and ✕, which removes the listener at once (no menu,
+ * no confirmation; only its sessions drop, change set 7). Reachability is broker-wide, on the Listeners line. */
 export function ListenerRow(props: { l: Listener; network: boolean; onConfig(c: BrokerConfig): void }) {
   const { t } = useTranslation();
   const { l, network } = props;
@@ -107,15 +117,11 @@ export function ListenerRow(props: { l: Listener; network: boolean; onConfig(c: 
   const params = { kind: kindLabel(l.kind, t), port: l.port };
   const upd = async (p: Partial<Listener>) => {
     const c = await run(engine().updateListener({ ...l, ...p }));
-    if (!c) return;
-    props.onConfig(c);
-    if (p.enabled !== undefined) void noteRestartChange({ key: p.enabled ? 'rs.ch.on' : 'rs.ch.off', params, listenerId: l.id });
+    if (c) props.onConfig(c);
   };
   const remove = async () => {
     const c = await run(engine().removeListener(l.id));
-    if (!c) return;
-    props.onConfig(c);
-    void noteRestartChange({ key: 'rs.ch.removed', params });
+    if (c) props.onConfig(c);
   };
   return (
     <tr data-testid="listener-row" data-listener={l.id}>
@@ -246,10 +252,19 @@ export function BrokerScreen() {
   const { t } = useTranslation();
   const status = useApp((s) => s.broker);
   const config = useApp((s) => s.brokerConfig);
-  const setConfig = useApp((s) => s.setBrokerConfig);
-  const restartPrompt = useApp((s) => s.restartPrompt);
+  const storeConfig = useApp((s) => s.setBrokerConfig);
+  /** A new configuration after a change: shown at once, with the status and the profiles it may have changed. */
+  const setConfig = (c: BrokerConfig) => {
+    storeConfig(c);
+    void refreshBrokerStatus();
+  };
   const advancedOpen = useFold('brokerAdvanced');
-  const [certs, setCerts] = useState<BrokerCerts | null>(null);
+  const [certs, setCertsState] = useState<BrokerCerts | null>(null);
+  /** New broker certificates after a change (applied live): the profile "Local broker" may follow them. */
+  const setCerts = (c: BrokerCerts, changed = true) => {
+    setCertsState(c);
+    if (changed) void refreshBrokerStatus();
+  };
   const [issued, setIssued] = useState<IssuedCert[]>([]);
   const [clients, setClients] = useState<BrokerClient[]>([]);
   const [dialog, setDialog] = useState<
@@ -270,8 +285,8 @@ export function BrokerScreen() {
   const loadAll = async () => {
     try {
       const [c, cfg, iss, cl] = await Promise.all([engine().brokerCerts(), engine().brokerConfig(), engine().issuedCerts(), engine().brokerClients()]);
-      setCerts(c);
-      setConfig(cfg);
+      setCerts(c, false);
+      storeConfig(cfg);
       setIssued(iss);
       setClients(cl);
     } catch (e) {
@@ -330,20 +345,32 @@ export function BrokerScreen() {
     if (out) reportSave(out, t);
   };
 
-  /** Reachability is one choice for the whole broker (change set 4); a change needs a restart. */
+  /** Reachability is one choice for the whole broker (change set 4); it applies at once, open sessions stay. */
   const setBind = async (bind: BrokerBind) => {
     if (bind === config.bind) return;
     const c = await run(engine().setBrokerBind(bind));
-    if (!c) return;
-    setConfig(c);
-    void noteRestartChange({ key: bind === 'network' ? 'rs.ch.reachNetwork' : 'rs.ch.reachLocal', params: {} });
+    if (c) setConfig(c);
+  };
+
+  /** The ↓ button of a certificate row: a menu with PEM (exports at once) and PKCS#12… (asks for a passphrase). */
+  const exportMenu = async (name: string, anchor: HTMLElement) => {
+    const r = anchor.getBoundingClientRect();
+    const id = await platform().showContextMenu(
+      [
+        { id: 'pem', label: t('certs.pem') },
+        { id: 'p12', label: t('certs.p12Dots') },
+      ],
+      r.left,
+      r.bottom + 4,
+    );
+    if (id === 'pem') void exportCert(name, 'pem');
+    else if (id === 'p12') setDialog({ kind: 'p12', name });
   };
 
   const listenersSection = (
     <>
       <div className="sec lsec" style={{ marginTop: 18 }} data-testid="listeners-line">
         {t('broker.listeners')}
-        {status.restartNeeded && <span className="chip clay" data-testid="restart-chip">{t('broker.restartPending')}</span>}
         <span className="grow" />
         <Seg<BrokerBind>
           label={t('broker.reachable')}
@@ -377,13 +404,6 @@ export function BrokerScreen() {
           ))}
         </tbody>
       </table>
-      {status.listeners
-        .filter((x) => x.error)
-        .map((x) => (
-          <div key={x.id} className="hint err" style={{ marginTop: 4 }}>
-            <Msg msg={x.error} />
-          </div>
-        ))}
     </>
   );
 
@@ -470,11 +490,17 @@ export function BrokerScreen() {
               <td>
                 {!c.revoked && (
                   <span className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
-                    <button type="button" className="btn sm" disabled={anonymous} onClick={() => void exportCert(c.name, 'pem')}>
-                      PEM
-                    </button>
-                    <button type="button" className="btn sm" disabled={anonymous} onClick={() => setDialog({ kind: 'p12', name: c.name })}>
-                      PKCS#12
+                    <button
+                      type="button"
+                      className="btn sm icon"
+                      disabled={anonymous}
+                      aria-label={t('certs.exportDots')}
+                      title={t('certs.exportDots')}
+                      aria-haspopup="menu"
+                      data-testid="cert-export"
+                      onClick={(e) => void exportMenu(c.name, e.currentTarget)}
+                    >
+                      ↓
                     </button>
                     {c.system ? (
                       <span className="chip" data-testid="cert-local-tag">
@@ -540,10 +566,7 @@ export function BrokerScreen() {
                 testId="require-cert-seg"
                 onChange={async (v) => {
                   const c = await run(engine().setRequireClientCert(v === 'required'));
-                  if (c) {
-                    setConfig(c);
-                    void noteRestartChange({ key: v === 'required' ? 'rs.ch.certRequired' : 'rs.ch.certOptional', params: {} });
-                  }
+                  if (c) setConfig(c);
                 }}
                 options={[
                   { value: 'optional', label: t('broker.optionalCap') },
@@ -564,10 +587,7 @@ export function BrokerScreen() {
                 disabled={anonymous}
                 onChange={async (v) => {
                   const c = await run(engine().setVerifyAgainst(v));
-                  if (c) {
-                    setConfig(c);
-                    void noteRestartChange({ key: 'rs.ch.verify', params: {} });
-                  }
+                  if (c) setConfig(c);
                 }}
                 options={[
                   { value: 'local', label: t('broker.localCa') },
@@ -582,10 +602,7 @@ export function BrokerScreen() {
                 data-testid="import-client-ca"
                 onClick={async () => {
                   const c = await run(engine().importClientCa());
-                  if (c) {
-                    setCerts(c);
-                    if (config.verifyAgainst === 'imported') void noteRestartChange({ key: 'rs.ch.certs', params: {} });
-                  }
+                  if (c) setCerts(c);
                 }}
               >
                 {t('certs.importCa')}
@@ -630,10 +647,7 @@ export function BrokerScreen() {
                   data-testid="import-server-cert"
                   onClick={async () => {
                     const c = await run(engine().importBrokerCert());
-                    if (c) {
-                      setCerts(c);
-                      void noteRestartChange({ key: 'rs.ch.certs', params: {} });
-                    }
+                    if (c) setCerts(c);
                   }}
                 >
                   {t('certs.import')}
@@ -655,15 +669,7 @@ export function BrokerScreen() {
         <div className="ph">
           <h5>{t('broker.title')}</h5>
           <div className="row" style={{ gap: 6 }}>
-            {status.restartNeeded && running ? (
-              <button type="button" className="btn pulse" data-testid="broker-restart" onClick={() => void run(restartBroker())}>
-                {t('broker.restartApply')}
-              </button>
-            ) : (
-              <button type="button" className="btn" disabled={!running} data-testid="broker-restart" onClick={() => void lifecycle(() => engine().brokerRestart())}>
-                {t('broker.restart')}
-              </button>
-            )}
+            {/* Start and Stop only: every change applies live, nothing restarts (change set 7). */}
             {running || status.state === 'starting' ? (
               <button type="button" className="btn danger" data-testid="broker-stop" onClick={() => void lifecycle(() => engine().brokerStop())}>
                 {t('broker.stop')}
@@ -785,10 +791,7 @@ export function BrokerScreen() {
           config={config}
           onClose={() => setDialog(null)}
           onConfig={setConfig}
-          onAdded={(l) => {
-            setDialog(null);
-            void noteRestartChange({ key: 'rs.ch.added', params: { kind: kindLabel(l.kind, t), port: l.port }, listenerId: l.id });
-          }}
+          onAdded={() => setDialog(null)}
         />
       )}
       {dialog?.kind === 'issue' && <IssueCertDialog onClose={() => setDialog(null)} onIssued={async () => setIssued((await run(engine().issuedCerts())) ?? issued)} />}
@@ -858,7 +861,6 @@ export function BrokerScreen() {
             if (c) {
               setCerts(c);
               setIssued((await run(engine().issuedCerts())) ?? issued);
-              void noteRestartChange({ key: 'rs.ch.certs', params: {} });
             }
           }}
         >
@@ -869,13 +871,9 @@ export function BrokerScreen() {
         <RegenerateDialog
           certs={certs}
           onClose={() => setDialog(null)}
-          onCerts={(c) => {
-            setCerts(c);
-            void noteRestartChange({ key: 'rs.ch.certs', params: {} });
-          }}
+          onCerts={(c) => setCerts(c)}
         />
       )}
-      {restartPrompt && <RestartPrompt />}
       {dialog?.kind === 'p12' && <P12Dialog name={dialog.name} onClose={() => setDialog(null)} onExport={(p) => void exportCert(dialog.name, 'pkcs12', p)} />}
       {dialog?.kind === 'csr' && (
         <CsrDialog
@@ -1044,39 +1042,5 @@ function UsersTable(props: { users: BrokerUser[]; anonymous: boolean; onChange(u
       </table>
       {props.users.length === 0 && <div className="empty small">{t('users.none')}</div>}
     </div>
-  );
-}
-
-/** "Restart the broker to apply the change?" (mockup 12c). */
-function RestartPrompt() {
-  const { t } = useTranslation();
-  const pending = useApp((s) => s.pendingChanges);
-  const close = () => useApp.setState({ restartPrompt: false });
-  const list = pending.map((c) => t(c.key, c.params)).join('; ');
-  return (
-    <Modal
-      title={t('rs.title')}
-      width={520}
-      onClose={close}
-      testId="restart-prompt"
-      footer={
-        <>
-          <button type="button" className="btn" data-testid="restart-later" onClick={close}>
-            {t('rs.later')}
-          </button>
-          <span className="grow" />
-          <button type="button" className="btn pri" data-testid="restart-now" onClick={() => void run(restartBroker())}>
-            {t('rs.now')}
-          </button>
-        </>
-      }
-    >
-      <p style={{ margin: 0 }}>{t('rs.body')}</p>
-      {list && (
-        <div className="muted small" data-testid="restart-pending-list">
-          {t('rs.pending', { list })}
-        </div>
-      )}
-    </Modal>
   );
 }

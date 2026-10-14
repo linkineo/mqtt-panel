@@ -35,14 +35,15 @@ function plan(l: Listener, anonymous: boolean, requireClientCert: boolean, statu
   const steps: AppBrokerStep[] = ['user'];
   if (!anonymous && secure(l) && requireClientCert) steps.push('cert');
   steps.push('trust');
-  if (!status || status.state !== 'running' || status.restartNeeded) steps.push('broker');
+  // Starts the broker only when it is stopped; nothing restarts (change set 7).
+  if (!status || status.state !== 'running') steps.push('broker');
   steps.push('connect');
   return steps.map((step) => ({ step, state: 'wait' }));
 }
 
 /**
  * "Connect to this app's broker" (mockup 02b): pick a listener (the most secure one is preselected) or add one, then
- * one button runs the steps: user "mqtt-panel", client certificate when required, CA trust, start or restart, connect.
+ * one button runs the steps: user "mqtt-panel", client certificate when required, CA trust, start if stopped, connect.
  * The result is always the single profile "Local broker"; the Explorer opens on it.
  */
 export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onClose(): void }) {
@@ -177,8 +178,8 @@ export function AppBrokerDialog({ start, onClose }: { start: 'pick' | 'add'; onC
         return tls ? t('appb.s.trust') : t('appb.s.profile');
       }
       case 'broker':
-        if (done) return ln.result === 'started' ? t('appb.s.started') : ln.result === 'restarted' ? t('appb.s.restarted') : t('appb.s.running');
-        return status && status.state === 'running' ? t('appb.s.restart') : t('appb.s.start');
+        if (done) return ln.result === 'started' ? t('appb.s.started') : t('appb.s.running');
+        return t('appb.s.start');
       case 'connect':
         return done ? t('appb.s.connected') : t('appb.s.connect');
     }

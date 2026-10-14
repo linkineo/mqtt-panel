@@ -75,7 +75,6 @@ export function createTauriEngineClient(): EngineClient {
     brokerConfig: () => invoke('broker_config', {}),
     brokerStart: () => invoke('broker_start', {}),
     brokerStop: () => invoke('broker_stop', {}),
-    brokerRestart: () => invoke('broker_restart', {}),
     validatePort: (port, listenerId) => invoke('validate_port', { port, listenerId }),
     addListener: (request) => invoke('add_listener', { request }),
     updateListener: (listener) => invoke('update_listener', { listener }),

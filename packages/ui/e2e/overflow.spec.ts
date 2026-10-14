@@ -26,6 +26,8 @@ const SELECTORS = [
   '.meta',
   '.cbar .tab',
   '.card .state',
+  '.lerr',
+  '[data-testid=listener-row] td',
 ].join(',');
 
 async function violations(page: Page): Promise<string[]> {

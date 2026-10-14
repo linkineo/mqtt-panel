@@ -158,7 +158,6 @@ export interface EngineClient {
   brokerConfig(): Promise<BrokerConfig>;
   brokerStart(): Promise<BrokerStatus>;
   brokerStop(): Promise<BrokerStatus>;
-  brokerRestart(): Promise<BrokerStatus>;
   /** Validates a port for a listener: range 1024..65535, not used by another listener, not in use on this machine. */
   validatePort(port: number, listenerId: string | null): Promise<UserMessage | null>;
   addListener(request: AddListenerRequest): Promise<BrokerConfig>;

@@ -106,55 +106,61 @@ pub async fn broker_stop(state: State<'_, AppState>) -> R<BrokerStatus> {
 }
 
 #[tauri::command]
-pub async fn broker_restart(state: State<'_, AppState>) -> R<BrokerStatus> {
-    mgr(&state)?.restart().await;
-    if mgr(&state)?.take_ca_regenerated() {
-        follow_local_profile(&state);
-    }
-    reconnect_local(&state).await;
-    Ok(mgr(&state)?.status())
-}
-
-#[tauri::command]
 pub fn validate_port(state: State<'_, AppState>, port: u32, listener_id: Option<String>) -> R<Option<UserMessage>> {
     Ok(mgr(&state)?.validate_port(port, listener_id.as_deref()).map(um))
 }
 
+// Every broker change applies at once while the broker runs (change set 7); the profile "Local broker" follows it.
+
 #[tauri::command]
-pub fn add_listener(state: State<'_, AppState>, request: AddListenerRequest) -> R<BrokerConfig> {
-    followed(&state, mgr(&state)?.add_listener(request))
+pub async fn add_listener(state: State<'_, AppState>, request: AddListenerRequest) -> R<BrokerConfig> {
+    let before = local_fingerprint(&state);
+    let r = mgr(&state)?.add_listener(request).await;
+    followed(&state, before, r).await
 }
 
 #[tauri::command]
-pub fn update_listener(state: State<'_, AppState>, listener: Listener) -> R<BrokerConfig> {
-    followed(&state, mgr(&state)?.update_listener(listener))
+pub async fn update_listener(state: State<'_, AppState>, listener: Listener) -> R<BrokerConfig> {
+    let before = local_fingerprint(&state);
+    let r = mgr(&state)?.update_listener(listener).await;
+    followed(&state, before, r).await
 }
 
 #[tauri::command]
-pub fn remove_listener(state: State<'_, AppState>, listener_id: String) -> R<BrokerConfig> {
-    followed(&state, mgr(&state)?.remove_listener(&listener_id))
+pub async fn remove_listener(state: State<'_, AppState>, listener_id: String) -> R<BrokerConfig> {
+    let before = local_fingerprint(&state);
+    let r = mgr(&state)?.remove_listener(&listener_id).await;
+    followed(&state, before, r).await
 }
 
 /// Reachability of every listener, broker-wide (change set 4): the whole network or this computer only.
 #[tauri::command]
-pub fn set_broker_bind(state: State<'_, AppState>, bind: Bind) -> R<BrokerConfig> {
-    followed(&state, mgr(&state)?.set_bind(bind))
+pub async fn set_broker_bind(state: State<'_, AppState>, bind: Bind) -> R<BrokerConfig> {
+    let before = local_fingerprint(&state);
+    let r = mgr(&state)?.set_bind(bind).await;
+    followed(&state, before, r).await
 }
 
 #[tauri::command]
-pub fn set_anonymous(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
-    followed(&state, mgr(&state)?.set_anonymous(on))
+pub async fn set_anonymous(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
+    let before = local_fingerprint(&state);
+    let r = mgr(&state)?.set_anonymous(on);
+    followed(&state, before, r).await
 }
 
 /// Client certificate on encrypted listeners, broker-wide: Required (true) or Optional (false).
 #[tauri::command]
-pub fn set_require_client_cert(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
-    followed(&state, mgr(&state)?.set_require_client_cert(on))
+pub async fn set_require_client_cert(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
+    let before = local_fingerprint(&state);
+    let r = mgr(&state)?.set_require_client_cert(on);
+    followed(&state, before, r).await
 }
 
 #[tauri::command]
-pub fn set_verify_against(state: State<'_, AppState>, source: VerifyAgainst) -> R<BrokerConfig> {
-    followed(&state, mgr(&state)?.set_verify_against(source))
+pub async fn set_verify_against(state: State<'_, AppState>, source: VerifyAgainst) -> R<BrokerConfig> {
+    let before = local_fingerprint(&state);
+    let r = mgr(&state)?.set_verify_against(source);
+    followed(&state, before, r).await
 }
 
 #[tauri::command]
@@ -163,8 +169,10 @@ pub fn add_user(state: State<'_, AppState>, username: String, password: String) 
 }
 
 #[tauri::command]
-pub fn set_user_password(state: State<'_, AppState>, username: String, password: String) -> R<BrokerConfig> {
-    followed(&state, mgr(&state)?.set_user_password(&username, &password))
+pub async fn set_user_password(state: State<'_, AppState>, username: String, password: String) -> R<BrokerConfig> {
+    let before = local_fingerprint(&state);
+    let r = mgr(&state)?.set_user_password(&username, &password);
+    followed(&state, before, r).await
 }
 
 #[tauri::command]
@@ -221,9 +229,10 @@ pub async fn export_ca(app: AppHandle, state: State<'_, AppState>) -> R<SaveOutc
 }
 
 #[tauri::command]
-pub fn regenerate_broker_certs(state: State<'_, AppState>, sans: Vec<String>, key_type: mqttpanel_tls::kit::KeyAlg) -> R<BrokerCerts> {
+pub async fn regenerate_broker_certs(state: State<'_, AppState>, sans: Vec<String>, key_type: mqttpanel_tls::kit::KeyAlg) -> R<BrokerCerts> {
+    let before = local_fingerprint(&state);
     let c = mgr(&state)?.regenerate(&sans, key_type).map_err(be)?;
-    follow_local_profile(&state);
+    follow_and_reconnect(&state, before).await;
     Ok(c)
 }
 
@@ -247,9 +256,10 @@ pub async fn import_client_ca(app: AppHandle, state: State<'_, AppState>) -> R<O
 }
 
 #[tauri::command]
-pub fn rotate_ca(state: State<'_, AppState>) -> R<BrokerCerts> {
+pub async fn rotate_ca(state: State<'_, AppState>) -> R<BrokerCerts> {
+    let before = local_fingerprint(&state);
     let c = mgr(&state)?.rotate_ca().map_err(be)?;
-    follow_local_profile(&state);
+    follow_and_reconnect(&state, before).await;
     Ok(c)
 }
 
@@ -286,7 +296,8 @@ fn step_result(step: &str, result: &str) -> AppBrokerStepResult {
 ///   `skipped`).
 /// - `trust`: creates or updates the single profile "Local broker" (CA, certificate, user, password reference);
 ///   `trusted` for TLS and WSS listeners, `skipped` otherwise. `profile_name` names a new profile only.
-/// - `broker`: starts a stopped broker, restarts it when a change is pending, else `running`. No restart prompt.
+/// - `broker`: starts the broker when it is stopped (`started`), else `running`; nothing restarts (change set 7). A
+///   running broker whose listener for this profile could not start tries it again.
 /// - `connect`: connects the profile (`connected`, or `failed` with the outcome).
 pub async fn app_broker_step_on(state: &AppState, listener_id: &str, step: &str, profile_name: &str) -> R<AppBrokerStepResult> {
     let m = mgr(state)?;
@@ -317,18 +328,12 @@ pub async fn app_broker_step_on(state: &AppState, listener_id: &str, step: &str,
             Ok(step_result(step, if tls { "trusted" } else { "skipped" }))
         }
         "broker" => {
-            let action = if !m.is_running() {
-                "started"
-            } else if m.restart_needed() {
-                "restarted"
-            } else {
-                "running"
-            };
-            let st = match action {
-                "started" => m.start().await,
-                "restarted" => m.restart().await,
-                _ => m.status(),
-            };
+            let action = if m.is_running() { "running" } else { "started" };
+            let mut st = m.status();
+            let listener_failed = st.listeners.iter().any(|l| l.id == listener_id && l.error.is_some());
+            if action == "started" || listener_failed {
+                st = m.start().await;
+            }
             if !m.is_running() {
                 return Err(st.error.map(um).unwrap_or_else(|| msg!("broker.notRunning")));
             }
@@ -416,18 +421,52 @@ pub fn save_local_profile(state: &AppState, lc: &LocalConnection, profile_name: 
     Ok(id)
 }
 
-/// A broker change followed by the profile "Local broker".
-fn followed(state: &AppState, r: Result<BrokerConfig, BrokerError>) -> R<BrokerConfig> {
+/// A broker change followed by the profile "Local broker" (see [`follow_and_reconnect`]).
+async fn followed(state: &AppState, before: Option<String>, r: Result<BrokerConfig, BrokerError>) -> R<BrokerConfig> {
     let c = r.map_err(be)?;
-    follow_local_profile(state);
+    follow_and_reconnect(state, before).await;
     Ok(mgr(state).map(|m| m.config()).unwrap_or(c))
+}
+
+/// What the connection of the profile "Local broker" depends on: its listener (kind, port, reachability) and its
+/// login (user and password, client certificate and key, the CA it trusts, Anonymous). None without the profile.
+pub fn local_fingerprint(state: &AppState) -> Option<String> {
+    let m = mgr(state).ok()?;
+    let stored = state.store.list().into_iter().find(|p| p.profile.is_local_broker)?;
+    let p = &stored.profile;
+    let secrets = state.store.secrets();
+    let secret = |k: String| secrets.get(&k).ok().flatten().unwrap_or_default();
+    let fp = serde_json::json!([
+        p.broker_listener_id,
+        p.scheme,
+        p.host,
+        p.port,
+        p.ws_path,
+        serde_json::to_value(m.config().bind).ok(),
+        p.username,
+        p.has_password,
+        secret(secret_keys::password(&p.id)),
+        stored.blobs.ca_pem,
+        stored.blobs.client_cert_pem,
+        secret(secret_keys::client_key(&p.id)),
+    ]);
+    // Compared in memory only, never stored or logged.
+    Some(fp.to_string())
+}
+
+/// The profile "Local broker" follows the change at once and, when its connection is open, reconnects only when its
+/// own listener or login changed (change set 7); any other change leaves it connected.
+pub async fn follow_and_reconnect(state: &AppState, before: Option<String>) {
+    follow_local_profile(state);
+    if before.is_some() && local_fingerprint(state) != before {
+        reconnect_local(state).await;
+    }
 }
 
 /// The profile "Local broker" follows every broker change at once (owner, 13 Oct 2026, change set 2): its
 /// listener's kind and port, the client-certificate requirement, a CA rotation, the "mqtt-panel" password and
-/// Anonymous. The configured port is used, so a change waiting for a restart is already in the profile; an open
-/// connection keeps running until the restart and then reconnects ([`reconnect_local`]). When the profile's listener
-/// was removed or switched off, the profile moves to the most secure enabled listener; with none, it stays as it is.
+/// Anonymous. When the profile's listener was removed or switched off, the profile moves to the most secure enabled
+/// listener; with none, it stays as it is. Reconnecting is [`follow_and_reconnect`]'s job.
 pub fn follow_local_profile(state: &AppState) {
     let Ok(m) = mgr(state) else { return };
     let Some(stored) = state.store.list().into_iter().find(|p| p.profile.is_local_broker) else { return };
@@ -445,8 +484,8 @@ pub fn follow_local_profile(state: &AppState) {
     let _ = save_local_profile(state, &lc, "");
 }
 
-/// After a broker start or restart: the profile "Local broker", when its connection was open (connected, connecting
-/// or reconnecting), reconnects with its current settings, keeping its topics and history.
+/// After a broker start or a change of its own settings: the profile "Local broker", when its connection was open
+/// (connected, connecting or reconnecting), reconnects with its current settings, keeping its topics and history.
 pub async fn reconnect_local(state: &AppState) {
     let Some(stored) = state.store.list().into_iter().find(|p| p.profile.is_local_broker) else { return };
     let id = stored.profile.id.clone();

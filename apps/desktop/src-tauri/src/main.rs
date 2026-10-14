@@ -192,7 +192,6 @@ fn main() {
             broker::broker_config,
             broker::broker_start,
             broker::broker_stop,
-            broker::broker_restart,
             broker::validate_port,
             broker::add_listener,
             broker::update_listener,

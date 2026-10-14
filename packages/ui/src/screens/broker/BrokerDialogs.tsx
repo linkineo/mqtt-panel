@@ -35,8 +35,8 @@ function untilDate(years: number): string {
 /* ---------------------------------------------------------------- Add listener (mockups 13 and 14) */
 
 /**
- * Add listener, steps 1 and 2. `context`: "broker" (Broker screen: the app then asks to restart) or "flow"
- * ("Connect to this app's broker": the flow restarts and connects by itself). `onAdded` receives the new listener;
+ * Add listener, steps 1 and 2. `context`: "broker" (Broker screen: a running broker starts the listener at once,
+ * change set 7) or "flow" ("Connect to this app's broker": the flow starts a stopped broker and connects by itself). `onAdded` receives the new listener;
  * without it the dialog closes itself.
  */
 export function AddListenerDialog({
@@ -207,7 +207,8 @@ export function AddListenerDialog({
         </div>
       </div>
       <div className="warnstrip" data-testid="addl-after">
-        {context === 'flow' ? t('addl.afterFlow') : running ? t('addl.afterPrompt') : t('addl.afterStopped')} {t(`addl.after.${preset}`)}
+        {context === 'flow' ? `${t('addl.afterFlow')} ` : running ? '' : `${t('addl.afterStopped')} `}
+        {t(`addl.after.${preset}`)}
       </div>
     </Modal>
   );
