@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 6 complete on macOS; change set 7 specified and in progress; change set 5 and 6 readings awaiting the owner; Windows and Linux through CI).
+Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 7 complete on macOS; change set 5, 6 and 7 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -19,19 +19,19 @@ Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 6 complete on macOS; c
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
 
-## Change set 7 (14 Oct 2026, live apply, no restart): in progress
+## Change set 7 (14 Oct 2026, live apply, no restart): implemented
 
 Specified in `docs/FEATURES.md` (Broker: live apply; Connections), `docs/SPEC.md` 6, mockups 02b, 12, 12b, 12c, 14, `docs/TESTPLAN.md` B-15, B-25, C-06, C-13, C-16, B-12, B-22. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
 
 | Item | Status |
 |---|---|
-| Runtime: one task per listener (start, stop, rebind alone), swappable TLS material, live client-certificate rule and CA, session registry with drops by listener, login kind and issuer | Specified |
-| Manager: diff-and-apply on every change while running; `restart_needed` and `restart()` removed; per-listener error in the status | Specified |
-| Drops exactly as listed in FEATURES (port/kind, remove/off, CA rotation, Required, Verify against, revoke, user removed or password changed, Anonymous off); one log line per applied change | Specified |
-| UI: Restart button, restart prompt, "Later", pending state, "restart pending" chip and pulsing button removed; Start and Stop only; listener row error; "Local broker" reconnects only when touched | Specified |
-| Client certificate rows: one ↓ download button with the menu PEM / PKCS#12… instead of two pills | Specified |
-| Built-in broker dialog: no restart step; Add listener: no restart note; strings without "restart" | Specified |
-| Tests B-15 (crate level), B-25, updated C-06, C-13, C-16, B-12, B-22; screenshots re-recorded | Specified |
+| Runtime: one task per listener (start, stop, rebind alone), swappable TLS material, live client-certificate rule and CA, session registry with drops by listener, login kind and issuer | Done 14 Oct 2026. `RwLock` slots, no new dependency (Cargo.lock unchanged) |
+| Manager: diff-and-apply on every change while running; `restart_needed` and `restart()` removed; per-listener error in the status | Done 14 Oct 2026. Listener changes and reachability are `async` (they wait for the old socket to close) |
+| Drops exactly as listed in FEATURES (port/kind, remove/off, CA rotation, Required, Verify against, revoke, user removed or password changed, Anonymous off); one log line per applied change | Done 14 Oct 2026. Crate test B-15 with real clients (two tests) |
+| UI: Restart button, restart prompt, "Later", pending state, "restart pending" chip and pulsing button removed; Start and Stop only; listener row error; "Local broker" reconnects only when touched | Done 14 Oct 2026. Error as a short brick word after the port, reason in the tooltip |
+| Client certificate rows: one ↓ download button with the menu PEM / PKCS#12… instead of two pills | Done 14 Oct 2026. Same menu component as the card menu |
+| Built-in broker dialog: no restart step; Add listener: no restart note; strings without "restart" | Done 14 Oct 2026. Only `keychain.refused` still says "Restart MQTT Panel" |
+| Tests B-15 (crate level), B-25, updated C-06, C-13, C-16, B-12, B-22; screenshots re-recorded | Done 14 Oct 2026. Rust 203, Vitest 115, Playwright 248 (overflow 117 on 39 states × EN, FR, DE; screenshots 78; flows 53), all green; new states 12c-live-change, 12d-cert-export-menu, 12f-listener-error |
 
 ## Change set 6 (14 Oct 2026, owner feedback on the fifth build): implemented
 
