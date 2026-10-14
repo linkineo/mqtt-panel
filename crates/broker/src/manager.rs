@@ -4,8 +4,8 @@
 use crate::config::*;
 use crate::error::{n, s, BrokerError};
 use crate::runtime::{
-    hash_password, normalize_serial, AuthConfig, BindAddr, Broker, BrokerHandle, Credential,
-    ListenerSpec, LogBuffer, RevocationList, RuntimeConfig, TlsMaterial,
+    hash_password, normalize_serial, sessions_text, AuthConfig, BindAddr, Broker, BrokerHandle,
+    Credential, ListenerSpec, LogBuffer, RevocationList, RuntimeConfig, TlsMaterial,
 };
 use mqttpanel_profiles::SecretStore;
 use mqttpanel_tls::kit::{self, Ca, KeyAlg, Usage, Validity};
@@ -144,10 +144,10 @@ fn default_listener(id: &str, kind: ListenerKind, port: u16, enabled: bool) -> S
 
 struct Inner {
     stored: Stored,
-    handle: Option<BrokerHandle>,
+    /// The running broker. Shared so a live change can await listener tasks without holding the lock.
+    handle: Option<Arc<BrokerHandle>>,
     state: BrokerState,
     error: Option<crate::error::UserMessage>,
-    restart_needed: bool,
     /// Set when a start regenerated the local CA because its key was missing; taken by the shell, which then lets the
     /// "Local broker" profile follow the new CA.
     ca_regenerated: bool,
@@ -160,8 +160,10 @@ pub struct BrokerManager {
     inner: Mutex<Inner>,
     log: LogBuffer,
     revoked: RevocationList,
-    /// The server key, read once per session from the secret store and kept in memory, so a broker start or restart
-    /// never touches the secret store (and the OS keychain) again (SPEC 6, change set 2).
+    /// Serialises live changes, start and stop (a listener change awaits its tasks).
+    apply: tokio::sync::Mutex<()>,
+    /// The server key, read once per session from the secret store and kept in memory, so a later start or a live
+    /// certificate change never touches the secret store (and the OS keychain) again (SPEC 6, change set 2).
     server_key: Mutex<Option<String>>,
 }
 
@@ -230,6 +232,26 @@ fn stored_cert_from(issued: &kit::Issued, system: bool, has_key: bool, ca_fp: &s
         ca_fingerprint: ca_fp.to_string(),
         cert_pem: issued.cert_pem.clone(),
         last_seen: None,
+    }
+}
+
+/// What a saved change touches in a running broker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Apply {
+    /// Nothing live (issued certificates, the setup label of a listener).
+    Save,
+    /// Users, Anonymous, the client-certificate rule, revocations.
+    Auth,
+    /// The same, and the TLS material (server certificate, verifying CA).
+    Tls,
+}
+
+/// " · 2 sessions dropped: port changed", or nothing.
+fn dropped_suffix(n: usize, reason: &str) -> String {
+    if n == 0 {
+        String::new()
+    } else {
+        format!(" · {} dropped: {reason}", sessions_text(n))
     }
 }
 
@@ -372,11 +394,11 @@ impl BrokerManager {
                 handle: None,
                 state: BrokerState::Stopped,
                 error: None,
-                restart_needed: false,
                 ca_regenerated: false,
             }),
             log: LogBuffer::new(),
             revoked,
+            apply: tokio::sync::Mutex::new(()),
             server_key: Mutex::new(None),
         };
         if !path.exists() || migrated {
@@ -420,16 +442,50 @@ impl BrokerManager {
         std::fs::rename(&tmp, &path).map_err(fail)
     }
 
-    /// Saves and, when running, applies live settings or flags a restart.
-    fn commit(&self, inner: &mut Inner, needs_restart: bool) -> Result<(), BrokerError> {
+    /// Saves and, when the broker runs, applies the change at once (change set 7): the users, Anonymous and the
+    /// client-certificate rule are handed over, the TLS material is swapped when `apply` is [`Apply::Tls`], and the
+    /// sessions the change invalidates are dropped. Writes `line` (when given) as the one log line of the change,
+    /// with " · n sessions dropped: reason" when sessions dropped. Returns the number of sessions dropped.
+    fn commit(
+        &self,
+        inner: &mut Inner,
+        apply: Apply,
+        line: Option<(LogLevel, String)>,
+        reason: &str,
+    ) -> Result<usize, BrokerError> {
         self.save(&inner.stored)?;
-        if let Some(h) = &inner.handle {
-            h.update_auth(self.auth_config(&inner.stored));
-            if needs_restart {
-                inner.restart_needed = true;
+        let mut dropped = 0;
+        if let (Some(h), true) = (&inner.handle, apply != Apply::Save) {
+            if apply == Apply::Tls {
+                match self.tls_material(&inner.stored) {
+                    Ok(m) => {
+                        if let Err(e) = h.set_tls_material(m) {
+                            self.log
+                                .error(format!("new certificates could not be loaded: {e}"));
+                        }
+                    }
+                    Err(e) => self.log.error(format!(
+                        "new certificates could not be loaded: {}",
+                        e.detail.clone().unwrap_or_else(|| e.key().to_string())
+                    )),
+                }
             }
+            h.update_auth(self.auth_config(&inner.stored));
+            h.set_require_client_cert(inner.stored.require_client_cert);
+            dropped = h.revalidate();
         }
-        Ok(())
+        let suffix = dropped_suffix(dropped, reason);
+        match line {
+            Some((level, text)) => {
+                self.log.push(level, format!("{text}{suffix}"));
+            }
+            None if dropped > 0 => {
+                self.log
+                    .info(format!("{} dropped: {reason}", sessions_text(dropped)));
+            }
+            None => {}
+        }
+        Ok(dropped)
     }
 
     /// The server key: from memory after the first read of the session. `Ok(None)` when the store has none; a store
@@ -607,14 +663,15 @@ impl BrokerManager {
         self.log.lines(level, after_seq)
     }
 
-    /// Current status.
+    /// Current status. While the broker runs, a listener that could not start carries its error and the state stays
+    /// Running as long as one listener serves (Failed when none does).
     pub fn status(&self) -> BrokerStatus {
         let inner = self.lock();
         let st = &inner.stored;
-        let (stats, listeners) = match &inner.handle {
+        let (stats, listeners, state, error) = match &inner.handle {
             Some(h) => {
                 let rt = h.listeners();
-                let ls = st
+                let ls: Vec<ListenerStatus> = st
                     .listeners
                     .iter()
                     .map(|l| match rt.iter().find(|r| r.id == l.id) {
@@ -630,7 +687,15 @@ impl BrokerManager {
                         },
                     })
                     .collect();
-                (Some(h.stats()), ls)
+                let (state, error) = if ls.iter().any(|l| l.up) {
+                    (BrokerState::Running, None)
+                } else {
+                    let e = ls.iter().find_map(|l| l.error.clone()).unwrap_or_else(|| {
+                        crate::error::UserMessage::new("broker.noListener", &[])
+                    });
+                    (BrokerState::Failed, Some(e))
+                };
+                (Some(h.stats()), ls, state, error)
             }
             None => (
                 None,
@@ -642,18 +707,19 @@ impl BrokerManager {
                         error: None,
                     })
                     .collect(),
+                inner.state,
+                inner.error.clone(),
             ),
         };
         BrokerStatus {
-            state: inner.state,
+            state,
             started_at: stats.map(|s| s.started_at),
             clients: stats.map(|s| s.clients).unwrap_or(0),
             max_clients: st.max_clients,
             msg_in_rate: stats.map(|s| s.msg_in_rate).unwrap_or(0.0),
             msg_out_rate: stats.map(|s| s.msg_out_rate).unwrap_or(0.0),
             retained: stats.map(|s| s.retained).unwrap_or(0),
-            restart_needed: inner.restart_needed,
-            error: inner.error.clone(),
+            error,
             listeners,
         }
     }
@@ -676,13 +742,33 @@ impl BrokerManager {
         let inner = self.lock();
         let st = &inner.stored;
         let tls = self.tls_material(st)?;
-        // one reachability for the whole broker (change set 4)
-        let bind = match st.bind.unwrap_or_default() {
+        let listeners = Self::specs(st, tls);
+        if listeners.is_empty() {
+            return Err(BrokerError::new("broker.noListener", &[]));
+        }
+        Ok(RuntimeConfig {
+            listeners,
+            auth: self.auth_config(st),
+            require_client_cert: st.require_client_cert,
+            max_clients: st.max_clients as usize,
+            max_packet_size: crate::runtime::DEFAULT_MAX_PACKET,
+            revoked: self.revoked.clone(),
+            log: self.log.clone(),
+        })
+    }
+
+    /// The runtime reachability (one for the whole broker, change set 4).
+    fn bind_addr(st: &Stored) -> BindAddr {
+        match st.bind.unwrap_or_default() {
             Bind::Network => BindAddr::Network,
             Bind::Localhost => BindAddr::Localhost,
-        };
-        let listeners = st
-            .listeners
+        }
+    }
+
+    /// The enabled listeners as runtime specifications.
+    fn specs(st: &Stored, tls: Option<Arc<TlsMaterial>>) -> Vec<ListenerSpec> {
+        let bind = Self::bind_addr(st);
+        st.listeners
             .iter()
             .filter(|l| l.enabled)
             .map(|l| ListenerSpec {
@@ -696,19 +782,7 @@ impl BrokerManager {
                     None
                 },
             })
-            .collect::<Vec<_>>();
-        if listeners.is_empty() {
-            return Err(BrokerError::new("broker.noListener", &[]));
-        }
-        Ok(RuntimeConfig {
-            listeners,
-            auth: self.auth_config(st),
-            require_client_cert: st.require_client_cert,
-            max_clients: st.max_clients as usize,
-            max_packet_size: crate::runtime::DEFAULT_MAX_PACKET,
-            revoked: self.revoked.clone(),
-            log: self.log.clone(),
-        })
+            .collect()
     }
 
     /// The server certificate, key and client roots for the TLS and WSS listeners. `Ok(None)` only when no such
@@ -742,9 +816,12 @@ impl BrokerManager {
         })))
     }
 
-    /// Starts the broker (no-op when running).
+    /// Starts the broker. When it already runs, listeners that could not start are tried again.
     pub async fn start(&self) -> BrokerStatus {
+        let _g = self.apply.lock().await;
         if self.is_running() {
+            drop(_g);
+            self.retry_failed().await;
             return self.status();
         }
         {
@@ -761,9 +838,8 @@ impl BrokerManager {
             let mut inner = self.lock();
             match result {
                 Ok(h) => {
-                    inner.handle = Some(h);
+                    inner.handle = Some(Arc::new(h));
                     inner.state = BrokerState::Running;
-                    inner.restart_needed = false;
                 }
                 Err(e) => {
                     if let Some(d) = &e.detail {
@@ -779,6 +855,7 @@ impl BrokerManager {
 
     /// Stops the broker and remembers when issued certificates were last seen.
     pub async fn stop(&self) -> BrokerStatus {
+        let _g = self.apply.lock().await;
         let handle = {
             let mut inner = self.lock();
             let h = inner.handle.take();
@@ -794,7 +871,6 @@ impl BrokerManager {
                 let _ = self.save(&inner.stored);
             }
             inner.state = BrokerState::Stopped;
-            inner.restart_needed = false;
             inner.error = None;
             h
         };
@@ -804,10 +880,144 @@ impl BrokerManager {
         self.status()
     }
 
-    /// Stops and starts again (applies listener and certificate changes).
-    pub async fn restart(&self) -> BrokerStatus {
-        self.stop().await;
-        self.start().await
+    /// While running: starts again the listeners that could not start (for example after their port was freed).
+    async fn retry_failed(&self) {
+        let _g = self.apply.lock().await;
+        let Some(h) = self.lock().handle.clone() else {
+            return;
+        };
+        let failed: Vec<ListenerSpec> = {
+            let rt = h.listeners();
+            h.specs()
+                .into_iter()
+                .filter(|s| rt.iter().any(|r| r.id == s.id && r.error.is_some()))
+                .collect()
+        };
+        if failed.is_empty() {
+            return;
+        }
+        let tls = self.heal_tls().and_then(|_| {
+            let inner = self.lock();
+            self.tls_material(&inner.stored)
+        });
+        for mut spec in failed {
+            if spec.kind.encrypted() {
+                spec.tls = tls.as_ref().ok().cloned().flatten();
+            }
+            let rt = h.start_listener(spec.clone()).await;
+            self.log_listener_started(&spec, &rt, "");
+        }
+    }
+
+    fn log_listener_started(
+        &self,
+        spec: &ListenerSpec,
+        rt: &crate::runtime::ListenerRuntime,
+        suffix: &str,
+    ) {
+        let port = rt.addrs.first().map(|a| a.port()).unwrap_or(spec.port);
+        match &rt.error {
+            None => self.log.info(format!(
+                "listener {} {port} started{suffix}",
+                spec.kind.label()
+            )),
+            Some(e) => self.log.error(format!(
+                "listener {} {port} could not start: {}{suffix}",
+                spec.kind.label(),
+                e.detail.clone().unwrap_or_default()
+            )),
+        }
+    }
+
+    /// Brings the running listeners in line with the saved ones (change set 7): a new or switched-on listener starts,
+    /// a removed or switched-off one stops and drops its sessions, a port or kind change stops and starts that one
+    /// listener; the others are not touched. One log line per listener started or stopped.
+    async fn apply_listeners(&self) {
+        let Some(h) = self.lock().handle.clone() else {
+            return;
+        };
+        let wants_tls = Self::needs_tls(&self.lock().stored);
+        let tls = if wants_tls {
+            match self.heal_tls().and_then(|_| {
+                let inner = self.lock();
+                self.tls_material(&inner.stored)
+            }) {
+                Ok(t) => t,
+                Err(e) => {
+                    self.log.error(format!(
+                        "encrypted listeners cannot start: {}",
+                        e.detail.clone().unwrap_or_else(|| e.key().to_string())
+                    ));
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let (desired, stored_ids) = {
+            let inner = self.lock();
+            let ids: Vec<String> = inner
+                .stored
+                .listeners
+                .iter()
+                .map(|l| l.id.clone())
+                .collect();
+            (Self::specs(&inner.stored, tls), ids)
+        };
+        let running = h.specs();
+        let ports: Vec<(String, u16)> = h
+            .listeners()
+            .iter()
+            .map(|r| (r.id.clone(), r.addrs.first().map(|a| a.port()).unwrap_or(0)))
+            .collect();
+        let port_of = |r: &ListenerSpec| {
+            ports
+                .iter()
+                .find(|(id, p)| *id == r.id && *p != 0)
+                .map(|(_, p)| *p)
+                .unwrap_or(r.port)
+        };
+        for r in &running {
+            if desired.iter().any(|d| d.id == r.id) {
+                continue;
+            }
+            let n = h.stop_listener(&r.id).await.unwrap_or(0);
+            let why = if stored_ids.contains(&r.id) {
+                "listener switched off"
+            } else {
+                "listener removed"
+            };
+            self.log.info(format!(
+                "listener {} {} stopped{}",
+                r.kind.label(),
+                port_of(r),
+                dropped_suffix(n, why)
+            ));
+        }
+        for d in &desired {
+            match running.iter().find(|r| r.id == d.id) {
+                None => {
+                    let rt = h.start_listener(d.clone()).await;
+                    self.log_listener_started(d, &rt, "");
+                }
+                Some(r) if r.kind != d.kind || r.port != d.port => {
+                    let n = h.stop_listener(&r.id).await.unwrap_or(0);
+                    self.log.info(format!(
+                        "listener {} {} stopped",
+                        r.kind.label(),
+                        port_of(r)
+                    ));
+                    let why = if r.kind != d.kind {
+                        "kind changed"
+                    } else {
+                        "port changed"
+                    };
+                    let rt = h.start_listener(d.clone()).await;
+                    self.log_listener_started(d, &rt, &dropped_suffix(n, why));
+                }
+                Some(_) => {}
+            }
+        }
     }
 
     /// Validates a listener port: range, duplicates among listeners, and use by another program.
@@ -868,7 +1078,10 @@ impl BrokerManager {
     /// - passwords: encrypted; clients log in with a shared user (there is no per-listener login).
     /// - mtls: TLS (or WSS); sets the broker-wide "client certificate on encrypted listeners" to Required, verified by
     ///   the local CA (or the imported CA when that is the current choice).
-    pub fn add_listener(&self, req: AddListenerRequest) -> Result<BrokerConfig, BrokerError> {
+    ///
+    /// While the broker runs, the new listener starts at once (change set 7).
+    pub async fn add_listener(&self, req: AddListenerRequest) -> Result<BrokerConfig, BrokerError> {
+        let _g = self.apply.lock().await;
         let port = self.check_port(req.port, None)?;
         let kind = match (req.preset, req.kind) {
             (Preset::Plain, ListenerKind::Tls) => ListenerKind::Tcp,
@@ -878,38 +1091,62 @@ impl BrokerManager {
             (_, ListenerKind::Ws) => ListenerKind::Wss,
             (_, k) => k,
         };
-        let mut inner = self.lock();
-        let prefix = kind.id_prefix();
-        let mut id = prefix.to_string();
-        let mut i = 2;
-        while inner.stored.listeners.iter().any(|l| l.id == id) {
-            id = format!("{prefix}-{i}");
-            i += 1;
-        }
-        inner.stored.listeners.push(StoredListener {
-            id: id.clone(),
-            kind,
-            legacy_bind: None,
-            port,
-            enabled: true,
-            preset: req.preset,
-        });
-        if req.preset == Preset::Mtls {
-            inner.stored.require_client_cert = true;
-            inner.stored.verify_against = if inner.stored.imported_ca_pem.is_some() {
-                inner.stored.verify_against
+        {
+            let mut inner = self.lock();
+            let running = inner.handle.is_some();
+            let prefix = kind.id_prefix();
+            let mut id = prefix.to_string();
+            let mut i = 2;
+            while inner.stored.listeners.iter().any(|l| l.id == id) {
+                id = format!("{prefix}-{i}");
+                i += 1;
+            }
+            inner.stored.listeners.push(StoredListener {
+                id: id.clone(),
+                kind,
+                legacy_bind: None,
+                port,
+                enabled: true,
+                preset: req.preset,
+            });
+            let mut rule_line = None;
+            let before = (
+                inner.stored.require_client_cert,
+                inner.stored.verify_against,
+            );
+            if req.preset == Preset::Mtls {
+                inner.stored.require_client_cert = true;
+                inner.stored.verify_against = if inner.stored.imported_ca_pem.is_some() {
+                    inner.stored.verify_against
+                } else {
+                    VerifyAgainst::Local
+                };
+                if !before.0 {
+                    rule_line = Some((
+                        LogLevel::Info,
+                        "client certificate required on encrypted listeners".to_string(),
+                    ));
+                }
+            }
+            if !running {
+                self.log
+                    .info(format!("{} listener added on port {port}", kind.label()));
+            }
+            let apply = if before.1 != inner.stored.verify_against {
+                Apply::Tls
             } else {
-                VerifyAgainst::Local
+                Apply::Auth
             };
+            self.commit(&mut inner, apply, rule_line, "client certificate required")?;
         }
-        self.log
-            .info(format!("{} listener added on port {port}", kind.label()));
-        self.commit(&mut inner, true)?;
-        Ok(self.view_with_secrets(&inner.stored))
+        self.apply_listeners().await;
+        Ok(self.config())
     }
 
-    /// Updates kind, port, enabled and preset of a listener.
-    pub fn update_listener(&self, l: Listener) -> Result<BrokerConfig, BrokerError> {
+    /// Updates kind, port, enabled and preset of a listener. While the broker runs, a port or kind change stops and
+    /// starts that listener alone (its sessions drop), switching it off stops it, on starts it (change set 7).
+    pub async fn update_listener(&self, l: Listener) -> Result<BrokerConfig, BrokerError> {
+        let _g = self.apply.lock().await;
         let current_port = self
             .lock()
             .stored
@@ -923,68 +1160,108 @@ impl BrokerManager {
         if l.port != current_port {
             self.check_port(u32::from(l.port), Some(&l.id))?;
         }
-        let mut inner = self.lock();
-        if let Some(x) = inner.stored.listeners.iter_mut().find(|x| x.id == l.id) {
-            x.kind = l.kind;
-            x.port = l.port;
-            x.enabled = l.enabled;
-            x.preset = l.preset;
+        {
+            let mut inner = self.lock();
+            if let Some(x) = inner.stored.listeners.iter_mut().find(|x| x.id == l.id) {
+                x.kind = l.kind;
+                x.port = l.port;
+                x.enabled = l.enabled;
+                x.preset = l.preset;
+            }
+            self.commit(&mut inner, Apply::Save, None, "")?;
         }
-        self.commit(&mut inner, true)?;
-        Ok(self.view_with_secrets(&inner.stored))
+        self.apply_listeners().await;
+        Ok(self.config())
     }
 
-    /// Removes a listener.
-    pub fn remove_listener(&self, listener_id: &str) -> Result<BrokerConfig, BrokerError> {
-        let mut inner = self.lock();
-        inner.stored.listeners.retain(|l| l.id != listener_id);
-        self.commit(&mut inner, true)?;
-        Ok(self.view_with_secrets(&inner.stored))
+    /// Removes a listener; while the broker runs it stops at once and only its sessions drop (change set 7).
+    pub async fn remove_listener(&self, listener_id: &str) -> Result<BrokerConfig, BrokerError> {
+        let _g = self.apply.lock().await;
+        {
+            let mut inner = self.lock();
+            inner.stored.listeners.retain(|l| l.id != listener_id);
+            self.commit(&mut inner, Apply::Save, None, "")?;
+        }
+        self.apply_listeners().await;
+        Ok(self.config())
     }
 
-    /// Reachability of every listener: the whole network or this computer only (change set 4). Takes effect at the
-    /// next start (`restartNeeded` while running).
-    pub fn set_bind(&self, bind: Bind) -> Result<BrokerConfig, BrokerError> {
-        let mut inner = self.lock();
-        let changed = inner.stored.bind != Some(bind);
-        inner.stored.bind = Some(bind);
-        if changed {
+    /// Reachability of every listener: the whole network or this computer only (change set 4). While the broker
+    /// runs, every listening socket is bound again at once and open sessions stay (change set 7).
+    pub async fn set_bind(&self, bind: Bind) -> Result<BrokerConfig, BrokerError> {
+        let _g = self.apply.lock().await;
+        let h = {
+            let mut inner = self.lock();
+            let changed = inner.stored.bind != Some(bind);
+            inner.stored.bind = Some(bind);
+            self.commit(&mut inner, Apply::Save, None, "")?;
+            if !changed {
+                return Ok(self.view_with_secrets(&inner.stored));
+            }
             self.log.info(match bind {
                 Bind::Network => "listeners reachable from the whole network",
                 Bind::Localhost => "listeners reachable from this computer only",
             });
+            inner.handle.clone()
+        };
+        if let Some(h) = h {
+            let addr = match bind {
+                Bind::Network => BindAddr::Network,
+                Bind::Localhost => BindAddr::Localhost,
+            };
+            let specs = h.specs();
+            for rt in h.rebind(addr).await {
+                if let (Some(e), Some(spec)) = (&rt.error, specs.iter().find(|s| s.id == rt.id)) {
+                    self.log.error(format!(
+                        "listener {} {} could not start: {}",
+                        spec.kind.label(),
+                        spec.port,
+                        e.detail.clone().unwrap_or_default()
+                    ));
+                }
+            }
         }
-        self.commit(&mut inner, changed)?;
-        Ok(self.view_with_secrets(&inner.stored))
+        Ok(self.config())
     }
 
-    /// Turns anonymous access on or off; applies immediately when running.
+    /// Turns anonymous access on or off; applies immediately when running. Off drops the sessions that logged in
+    /// without a login; on drops nothing.
     pub fn set_anonymous(&self, on: bool) -> Result<BrokerConfig, BrokerError> {
         let mut inner = self.lock();
         inner.stored.anonymous = on;
-        self.log.warn(if on {
+        let line = if on {
             "anonymous access on: users and client certificates are not checked"
         } else {
             "anonymous access off"
-        });
-        self.commit(&mut inner, false)?;
+        };
+        self.commit(
+            &mut inner,
+            Apply::Auth,
+            Some((LogLevel::Warn, line.into())),
+            "anonymous access off",
+        )?;
         Ok(self.view_with_secrets(&inner.stored))
     }
 
     /// Client certificate on encrypted listeners: Required (true) or Optional (false), for the whole broker. Plain
-    /// listeners are never affected. Takes effect at the next start (`restartNeeded` while running).
+    /// listeners are never affected. Applies at once: Optional to Required drops the sessions without a client
+    /// certificate on encrypted listeners, Required to Optional drops nothing.
     pub fn set_require_client_cert(&self, on: bool) -> Result<BrokerConfig, BrokerError> {
         let mut inner = self.lock();
         let changed = inner.stored.require_client_cert != on;
         inner.stored.require_client_cert = on;
-        if changed {
-            self.log.info(if on {
-                "client certificate required on encrypted listeners"
-            } else {
-                "client certificate optional on encrypted listeners"
-            });
-        }
-        self.commit(&mut inner, changed)?;
+        let line = changed.then(|| {
+            (
+                LogLevel::Info,
+                if on {
+                    "client certificate required on encrypted listeners"
+                } else {
+                    "client certificate optional on encrypted listeners"
+                }
+                .to_string(),
+            )
+        });
+        self.commit(&mut inner, Apply::Auth, line, "client certificate required")?;
         Ok(self.view_with_secrets(&inner.stored))
     }
 
@@ -997,7 +1274,19 @@ impl BrokerManager {
         }
         let changed = inner.stored.verify_against != source;
         inner.stored.verify_against = source;
-        self.commit(&mut inner, changed)?;
+        let line = changed.then(|| {
+            (
+                LogLevel::Info,
+                match source {
+                    VerifyAgainst::Local => "client certificates verified against the local CA",
+                    VerifyAgainst::Imported => {
+                        "client certificates verified against the imported CA"
+                    }
+                }
+                .to_string(),
+            )
+        });
+        self.commit(&mut inner, Apply::Tls, line, "verifying CA changed")?;
         Ok(self.view_with_secrets(&inner.stored))
     }
 
@@ -1039,7 +1328,7 @@ impl BrokerManager {
             password_hash: hash,
             system,
         });
-        self.commit(&mut inner, false)
+        self.commit(&mut inner, Apply::Auth, None, "").map(|_| ())
     }
 
     /// Changes a shared user's password.
@@ -1071,7 +1360,15 @@ impl BrokerManager {
             {
                 u.password_hash = hash;
             }
-            self.commit(&mut inner, false)?;
+            self.commit(
+                &mut inner,
+                Apply::Auth,
+                Some((
+                    LogLevel::Info,
+                    format!("password of user {username} changed"),
+                )),
+                "password changed",
+            )?;
         }
         Ok(self.config())
     }
@@ -1082,14 +1379,25 @@ impl BrokerManager {
             let mut inner = self.lock();
             inner.stored.users.retain(|u| u.username != username);
             let _ = self.secrets.delete(&secret_user_password(username));
-            self.commit(&mut inner, false)?;
+            self.commit(
+                &mut inner,
+                Apply::Auth,
+                Some((LogLevel::Info, format!("user {username} removed"))),
+                "user removed",
+            )?;
         }
         Ok(self.config())
     }
 
     /// The plain password of a shared user, for the eye and copy icons (None when it was never kept).
     pub fn user_password(&self, username: &str) -> Result<Option<String>, BrokerError> {
-        if !self.lock().stored.users.iter().any(|u| u.username == username) {
+        if !self
+            .lock()
+            .stored
+            .users
+            .iter()
+            .any(|u| u.username == username)
+        {
             return Ok(None);
         }
         self.secret(&secret_user_password(username))
@@ -1108,16 +1416,22 @@ impl BrokerManager {
         if !exists {
             let pw = generate_password(APP_PASSWORD_LEN);
             self.insert_user(APP_USER_NAME, &pw, true)?;
-            self.log
-                .info(format!("user {APP_USER_NAME} created for the profile \"Local broker\""));
+            self.log.info(format!(
+                "user {APP_USER_NAME} created for the profile \"Local broker\""
+            ));
             return Ok((true, pw));
         }
         {
             let mut inner = self.lock();
-            if let Some(u) = inner.stored.users.iter_mut().find(|u| u.username == APP_USER_NAME) {
+            if let Some(u) = inner
+                .stored
+                .users
+                .iter_mut()
+                .find(|u| u.username == APP_USER_NAME)
+            {
                 if !u.system {
                     u.system = true;
-                    self.commit(&mut inner, false)?;
+                    self.commit(&mut inner, Apply::Save, None, "")?;
                 }
             }
         }
@@ -1291,7 +1605,7 @@ impl BrokerManager {
         )?;
         self.log
             .info(format!("client certificate {} issued", req.name));
-        self.commit(&mut inner, false)?;
+        self.commit(&mut inner, Apply::Save, None, "")?;
         Ok(files)
     }
 
@@ -1334,7 +1648,7 @@ impl BrokerManager {
             .push(stored_cert_from(&issued, false, false, &ca_fp));
         self.log
             .info(format!("certificate request {} signed", issued.cn));
-        self.commit(&mut inner, false)?;
+        self.commit(&mut inner, Apply::Save, None, "")?;
         Ok((format!("{}.pem", issued.cn), issued.cert_pem.into_bytes()))
     }
 
@@ -1373,7 +1687,8 @@ impl BrokerManager {
         )
     }
 
-    /// Revokes an issued certificate: refused from the next TLS handshake on, also while running.
+    /// Revokes an issued certificate: refused from the next TLS handshake on and, while running, its open session is
+    /// dropped at once.
     pub fn revoke_client_cert(&self, name: &str) -> Result<Vec<IssuedCert>, BrokerError> {
         {
             let mut inner = self.lock();
@@ -1395,8 +1710,12 @@ impl BrokerManager {
             }
             let _ = self.secrets.delete(&secret_client_key(name));
             let _ = self.secrets.delete(&secret_client_passphrase(name));
-            self.log.warn(format!("client certificate {name} revoked"));
-            self.commit(&mut inner, false)?;
+            self.commit(
+                &mut inner,
+                Apply::Auth,
+                Some((LogLevel::Warn, format!("client certificate {name} revoked"))),
+                "certificate revoked",
+            )?;
         }
         Ok(self.issued_certs())
     }
@@ -1461,8 +1780,12 @@ impl BrokerManager {
             self.set_server_key(&server.key_pem)?;
             inner.stored.server_pem = format!("{}{}", server.cert_pem, inner.stored.ca_pem);
             inner.stored.server_imported = false;
-            self.log.info("server certificate regenerated");
-            self.commit(&mut inner, true)?;
+            self.commit(
+                &mut inner,
+                Apply::Tls,
+                Some((LogLevel::Info, "server certificate regenerated".into())),
+                "server certificate changed",
+            )?;
         }
         self.broker_certs()
     }
@@ -1488,8 +1811,12 @@ impl BrokerManager {
             self.set_server_key(&key_pem)?;
             inner.stored.server_pem = certs_pem(&id.certs);
             inner.stored.server_imported = true;
-            self.log.info("server certificate imported");
-            self.commit(&mut inner, true)?;
+            self.commit(
+                &mut inner,
+                Apply::Tls,
+                Some((LogLevel::Info, "server certificate imported".into())),
+                "server certificate changed",
+            )?;
         }
         self.broker_certs()
     }
@@ -1500,8 +1827,17 @@ impl BrokerManager {
         {
             let mut inner = self.lock();
             inner.stored.imported_ca_pem = Some(certs_pem(&certs));
-            let needs = inner.stored.verify_against == VerifyAgainst::Imported;
-            self.commit(&mut inner, needs)?;
+            let apply = if inner.stored.verify_against == VerifyAgainst::Imported {
+                Apply::Tls
+            } else {
+                Apply::Save
+            };
+            self.commit(
+                &mut inner,
+                apply,
+                Some((LogLevel::Info, "client CA imported".into())),
+                "verifying CA changed",
+            )?;
         }
         self.broker_certs()
     }
@@ -1535,9 +1871,15 @@ impl BrokerManager {
             inner.stored.ca_pem = ca.cert_pem.clone();
             inner.stored.server_pem = format!("{}{}", server.cert_pem, ca.cert_pem);
             inner.stored.server_imported = false;
-            self.log
-                .warn("CA rotated: issued client certificates must be re-issued");
-            self.commit(&mut inner, true)?;
+            self.commit(
+                &mut inner,
+                Apply::Tls,
+                Some((
+                    LogLevel::Warn,
+                    "CA rotated: issued client certificates must be re-issued".into(),
+                )),
+                "CA rotated",
+            )?;
         }
         self.broker_certs()
     }
@@ -1650,7 +1992,7 @@ impl BrokerManager {
         self.log.info(format!(
             "client certificate {DESKTOP_CERT_NAME} issued for the profile \"Local broker\""
         ));
-        self.commit(&mut inner, false)?;
+        self.commit(&mut inner, Apply::Save, None, "")?;
         Ok((true, issued.cert_pem, issued.key_pem))
     }
 
@@ -1710,11 +2052,6 @@ impl BrokerManager {
     /// True when Anonymous is on.
     pub fn anonymous(&self) -> bool {
         self.lock().stored.anonymous
-    }
-
-    /// True when a saved change waits for a restart of the running broker.
-    pub fn restart_needed(&self) -> bool {
-        self.lock().restart_needed
     }
 }
 

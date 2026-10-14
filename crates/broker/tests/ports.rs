@@ -13,10 +13,10 @@ fn open(dir: &std::path::Path) -> BrokerManager {
     BrokerManager::open(dir, Arc::new(MemorySecrets::new())).expect("open")
 }
 
-fn randomize_ports(m: &BrokerManager) {
+async fn randomize_ports(m: &BrokerManager) {
     for mut l in m.config().listeners {
         l.port = free_port();
-        m.update_listener(l).expect("update port");
+        m.update_listener(l).await.expect("update port");
     }
 }
 
@@ -72,7 +72,7 @@ async fn b03_port_validation_messages() {
     }
     assert_eq!(u.params["port"], serde_json::json!(bp));
     // The broker's own running ports are not "in use"; adding a listener on a used port is refused before start.
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.add_user("u", "p").unwrap();
     assert_eq!(m.start().await.state, BrokerState::Running);
     let tcp_port = port_of(&m, "tcp");
@@ -83,6 +83,7 @@ async fn b03_port_validation_messages() {
             kind: ListenerKind::Tcp,
             port: u32::from(bp),
         })
+        .await
         .unwrap_err();
     assert!(e.key().starts_with("broker.portInUse"));
     m.stop().await;

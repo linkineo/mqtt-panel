@@ -496,6 +496,65 @@ impl Client {
     }
 }
 
+impl Client {
+    /// Subscribes and waits up to 2 s for SUBACK; None when it does not come (connection closed).
+    pub async fn try_subscribe(&self, filter: &str, qos: u8) -> Option<Vec<u8>> {
+        let (tx, rx) = oneshot::channel();
+        if let Ok(mut v) = self.subacks.lock() {
+            v.push(tx);
+        }
+        let mut b = BytesMut::new();
+        if self.v5 {
+            let mut s = v5::Subscribe::new(v5::Filter::new(filter, q5(qos)), None);
+            s.pkid = self.pkid();
+            v5::Packet::Subscribe(s).write(&mut b, None).ok()?;
+        } else {
+            let mut s = v4::Subscribe::new(filter, q4(qos));
+            s.pkid = self.pkid();
+            v4::Packet::Subscribe(s).write(&mut b, usize::MAX).ok()?;
+        }
+        write_packet(&self.w, &b).await;
+        tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .ok()?
+            .ok()
+    }
+}
+
+/// True when the broker closed this client's connection within `T` (live apply, change set 7).
+pub async fn dropped(c: &mut Client) -> bool {
+    let deadline = tokio::time::Instant::now() + T;
+    loop {
+        match tokio::time::timeout_at(deadline, c.rx.recv()).await {
+            Ok(None) => return true,
+            Ok(Some(_)) => continue,
+            Err(_) => return false,
+        }
+    }
+}
+
+/// True when the connection still works: a message the client publishes on its own subscription comes back.
+pub async fn still_open(c: &mut Client) -> bool {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static N: AtomicU32 = AtomicU32::new(0);
+    let topic = format!(
+        "alive/{}/{}",
+        std::process::id(),
+        N.fetch_add(1, Ordering::Relaxed)
+    );
+    if c.try_subscribe(&topic, 0).await.is_none() {
+        return false;
+    }
+    c.publish(&topic, 0, false, "ping", None).await;
+    loop {
+        match tokio::time::timeout(Duration::from_secs(2), c.rx.recv()).await {
+            Ok(Some(m)) if m.topic == topic => return true,
+            Ok(Some(_)) => continue,
+            _ => return false,
+        }
+    }
+}
+
 /// Waits for the next message on a receiver.
 pub async fn next<P>(rx: &mut mpsc::UnboundedReceiver<P>) -> Option<P> {
     tokio::time::timeout(T, rx.recv()).await.ok().flatten()

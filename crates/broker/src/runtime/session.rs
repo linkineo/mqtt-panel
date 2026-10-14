@@ -8,12 +8,13 @@ use super::log::now_ms;
 use super::router::{parse_shared, topic_matches, valid_filter, valid_topic};
 use super::state::{ClientInfo, ConnRef, Delivery, Outbound, Shared};
 use super::tls::PeerCert;
+use super::tls::TlsListener;
 use crate::config::ListenerKind;
 use bytes::BytesMut;
 use std::collections::{BTreeMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::{mpsc, watch};
@@ -23,11 +24,22 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Outgoing QoS 1/2 messages in flight per client, at most.
 const MAX_INFLIGHT: usize = 1024;
 
+/// The swappable TLS state of an encrypted listener, read at each handshake (change set 7).
+pub(crate) type TlsSlot = Arc<RwLock<Option<Arc<TlsListener>>>>;
+
 /// The listener a connection arrived on.
 #[derive(Debug, Clone)]
 pub(crate) struct ListenerCtx {
+    pub id: String,
     pub kind: ListenerKind,
-    pub require_client_cert: bool,
+    pub tls: TlsSlot,
+}
+
+impl ListenerCtx {
+    /// The current TLS state (None for plain listeners or when the material failed to load).
+    pub fn tls(&self) -> Option<Arc<TlsListener>> {
+        self.tls.read().ok().and_then(|g| g.clone())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +69,8 @@ enum Close {
     /// Closed by the broker with this reason code (takeover, administrative action).
     Kicked(u8),
     Shutdown,
+    /// Its listener was stopped (removed, switched off, port or kind changed) while the broker runs.
+    ListenerStopped,
 }
 
 impl Close {
@@ -70,6 +84,7 @@ impl Close {
             Close::Kicked(0x8E) => "session taken over by another connection".into(),
             Close::Kicked(_) => "disconnected by the broker".into(),
             Close::Shutdown => "broker stopping".into(),
+            Close::ListenerStopped => "its listener stopped".into(),
         }
     }
     fn publish_will(&self) -> bool {
@@ -111,6 +126,7 @@ pub(crate) async fn serve<S>(
     peer: SocketAddr,
     cert: Option<PeerCert>,
     mut shutdown: watch::Receiver<bool>,
+    mut closed: watch::Receiver<bool>,
 ) where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
@@ -216,27 +232,31 @@ pub(crate) async fn serve<S>(
 
     // 4. Authentication
     let auth = shared.auth();
-    let (req, verified) = (lctx.require_client_cert, cert.is_some());
+    let req = shared.require_client_cert() && lctx.kind.encrypted();
+    let verified = cert.is_some();
     let (user, pass) = (c.username.clone(), c.password.clone());
     let outcome = tokio::task::spawn_blocking(move || {
         authenticate(&auth, req, verified, user.as_deref(), pass.as_deref())
     })
     .await
     .unwrap_or(AuthOutcome::BadLogin);
-    if outcome == AuthOutcome::BadLogin {
-        codec::encode_connack(
-            v,
-            &mut out,
-            false,
-            ConnAckCode::BadLogin,
-            ConnAckExtra::default(),
-        );
-        let _ = write_out(&mut wr, &mut out).await;
-        shared.log.warn(format!(
-            "client {client_id} rejected: bad username or password"
-        ));
-        return;
-    }
+    let login = match outcome {
+        AuthOutcome::Accepted(l) => l,
+        AuthOutcome::BadLogin => {
+            codec::encode_connack(
+                v,
+                &mut out,
+                false,
+                ConnAckCode::BadLogin,
+                ConnAckExtra::default(),
+            );
+            let _ = write_out(&mut wr, &mut out).await;
+            shared.log.warn(format!(
+                "client {client_id} rejected: bad username or password"
+            ));
+            return;
+        }
+    };
 
     // 5. Register the session
     let conn_id = shared.next_conn_id.fetch_add(1, Ordering::Relaxed);
@@ -244,6 +264,9 @@ pub(crate) async fn serve<S>(
     let queued = Arc::new(AtomicUsize::new(0));
     let info = Arc::new(ClientInfo {
         client_id: client_id.clone(),
+        listener_id: lctx.id.clone(),
+        kind: lctx.kind,
+        login,
         address: display_addr(&peer),
         version: v,
         transport: lctx.kind.label(),
@@ -345,6 +368,10 @@ pub(crate) async fn serve<S>(
             _ = shutdown.changed() => {
                 codec::encode_disconnect(v, &mut out, 0x8B);
                 break 'session Close::Shutdown;
+            }
+            _ = closed.changed() => {
+                codec::encode_disconnect(v, &mut out, 0x8B);
+                break 'session Close::ListenerStopped;
             }
             r = rd.read_buf(&mut inbuf) => {
                 match r {

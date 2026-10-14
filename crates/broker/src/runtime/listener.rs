@@ -2,7 +2,7 @@
 
 use super::session::{serve, ListenerCtx};
 use super::state::Shared;
-use super::tls::{describe_cert_error, ClientAuthMode, TlsListener};
+use super::tls::{describe_cert_error, ClientAuthMode};
 use super::ws;
 use crate::config::ListenerKind;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -79,24 +79,32 @@ pub(crate) fn bind(bind: BindAddr, port: u16) -> std::io::Result<Vec<std::net::T
     }
 }
 
-/// Accepts connections until shutdown.
+/// The watch channels of one accept loop: `stop` ends the loop only (open sessions stay), `shutdown` stops the whole
+/// broker, `closed` ends the sessions of this listener (removed, switched off, port or kind changed).
+pub(crate) struct Signals {
+    pub stop: watch::Receiver<bool>,
+    pub shutdown: watch::Receiver<bool>,
+    pub closed: watch::Receiver<bool>,
+}
+
+/// Accepts connections until the listener stops or the broker shuts down.
 pub(crate) async fn accept_loop(
     shared: Arc<Shared>,
     lctx: Arc<ListenerCtx>,
-    tls: Option<Arc<TlsListener>>,
     listener: TcpListener,
-    mut shutdown: watch::Receiver<bool>,
+    mut sig: Signals,
     done: mpsc::Sender<()>,
 ) {
     loop {
         tokio::select! {
-            _ = shutdown.changed() => break,
+            _ = sig.stop.changed() => break,
+            _ = sig.shutdown.changed() => break,
             r = listener.accept() => match r {
                 Ok((sock, peer)) => {
                     let _ = sock.set_nodelay(true);
-                    let (shared, lctx, tls, sd, done) = (shared.clone(), lctx.clone(), tls.clone(), shutdown.clone(), done.clone());
+                    let (shared, lctx, sd, cl, done) = (shared.clone(), lctx.clone(), sig.shutdown.clone(), sig.closed.clone(), done.clone());
                     tokio::spawn(async move {
-                        handle(shared, lctx, tls, sock, peer, sd).await;
+                        handle(shared, lctx, sock, peer, sd, cl).await;
                         drop(done);
                     });
                 }
@@ -122,17 +130,17 @@ fn peer_text(peer: &SocketAddr) -> String {
 async fn handle(
     shared: Arc<Shared>,
     lctx: Arc<ListenerCtx>,
-    tls: Option<Arc<TlsListener>>,
     sock: TcpStream,
     peer: SocketAddr,
     shutdown: watch::Receiver<bool>,
+    closed: watch::Receiver<bool>,
 ) {
     let max = shared.max_packet;
     match lctx.kind {
-        ListenerKind::Tcp => serve(shared, lctx, sock, peer, None, shutdown).await,
+        ListenerKind::Tcp => serve(shared, lctx, sock, peer, None, shutdown, closed).await,
         ListenerKind::Ws => {
             match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::accept(sock, max)).await {
-                Ok(Ok(ws)) => serve(shared, lctx, ws, peer, None, shutdown).await,
+                Ok(Ok(ws)) => serve(shared, lctx, ws, peer, None, shutdown, closed).await,
                 Ok(Err(e)) => shared.log.debug(format!(
                     "WebSocket upgrade from {} failed: {e}",
                     peer_text(&peer)
@@ -144,10 +152,11 @@ async fn handle(
             }
         }
         ListenerKind::Tls | ListenerKind::Wss => {
-            let Some(tls) = tls else { return };
+            // Read at each handshake: the material and the rule can change while the broker runs (change set 7).
+            let Some(tls) = lctx.tls() else { return };
             let mode = if shared.auth().anonymous {
                 ClientAuthMode::Off
-            } else if lctx.require_client_cert {
+            } else if shared.require_client_cert() {
                 ClientAuthMode::Required
             } else {
                 ClientAuthMode::Optional
@@ -194,10 +203,10 @@ async fn handle(
                 slot.lock().ok().and_then(|s| s.verified.clone())
             };
             if lctx.kind == ListenerKind::Tls {
-                serve(shared, lctx, stream, peer, cert, shutdown).await;
+                serve(shared, lctx, stream, peer, cert, shutdown, closed).await;
             } else {
                 match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::accept(stream, max)).await {
-                    Ok(Ok(ws)) => serve(shared, lctx, ws, peer, cert, shutdown).await,
+                    Ok(Ok(ws)) => serve(shared, lctx, ws, peer, cert, shutdown, closed).await,
                     Ok(Err(e)) => shared.log.debug(format!(
                         "WebSocket upgrade from {} failed: {e}",
                         peer_text(&peer)

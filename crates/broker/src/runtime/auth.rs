@@ -58,14 +58,29 @@ pub struct AuthConfig {
     pub users: HashMap<String, Credential>,
 }
 
+/// How a session logged in (session registry, change set 7): decides which sessions a later change invalidates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Login {
+    /// Accepted because Anonymous is on, without a valid login.
+    Anonymous,
+    /// A shared user; the credential in force at login, so a password change or removal is detected.
+    Password {
+        username: String,
+        credential: Credential,
+    },
+    /// A client certificate on an encrypted listener that required one.
+    Certificate,
+}
+
 /// Outcome of the authentication step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum AuthOutcome {
-    Accepted,
+    Accepted(Login),
     BadLogin,
 }
 
-/// Decides whether a client may connect (order documented in the crate root).
+/// Decides whether a client may connect (order documented in the crate root): a required and verified client
+/// certificate, then a valid shared user, then Anonymous.
 pub(crate) fn authenticate(
     auth: &AuthConfig,
     require_client_cert: bool,
@@ -73,21 +88,39 @@ pub(crate) fn authenticate(
     username: Option<&str>,
     password: Option<&str>,
 ) -> AuthOutcome {
-    if auth.anonymous {
-        return AuthOutcome::Accepted;
+    if !auth.anonymous && require_client_cert && cert_verified {
+        return AuthOutcome::Accepted(Login::Certificate);
     }
-    if require_client_cert && cert_verified {
-        return AuthOutcome::Accepted;
-    }
-    let (Some(user), Some(pass)) = (username, password) else {
-        return AuthOutcome::BadLogin;
-    };
-    if let Some(c) = auth.users.get(user) {
-        if c.verify(pass) {
-            return AuthOutcome::Accepted;
+    if let (Some(user), Some(pass)) = (username, password) {
+        if let Some(c) = auth.users.get(user) {
+            if c.verify(pass) {
+                return AuthOutcome::Accepted(Login::Password {
+                    username: user.to_string(),
+                    credential: c.clone(),
+                });
+            }
         }
     }
+    if auth.anonymous {
+        return AuthOutcome::Accepted(Login::Anonymous);
+    }
     AuthOutcome::BadLogin
+}
+
+/// True when a session that logged in with `login` would still be accepted under `auth` (users and Anonymous only;
+/// certificates are checked by the caller).
+pub(crate) fn login_still_valid(auth: &AuthConfig, login: &Login) -> bool {
+    if auth.anonymous {
+        return true;
+    }
+    match login {
+        Login::Anonymous => false,
+        Login::Certificate => true,
+        Login::Password {
+            username,
+            credential,
+        } => auth.users.get(username) == Some(credential),
+    }
 }
 
 #[cfg(test)]
@@ -103,30 +136,43 @@ mod tests {
         let mut a = AuthConfig::default();
         a.users.insert("alice".into(), Credential::Argon2(h));
         a.users.insert("dev".into(), Credential::Plain("pw".into()));
-        assert_eq!(
+        assert!(matches!(
             authenticate(&a, false, false, Some("alice"), Some("s3cret")),
-            AuthOutcome::Accepted
-        );
+            AuthOutcome::Accepted(Login::Password { .. })
+        ));
         assert_eq!(
             authenticate(&a, false, false, Some("alice"), Some("wrong")),
             AuthOutcome::BadLogin
         );
-        assert_eq!(
+        assert!(matches!(
             authenticate(&a, false, false, Some("dev"), Some("pw")),
-            AuthOutcome::Accepted
-        );
+            AuthOutcome::Accepted(Login::Password { .. })
+        ));
         assert_eq!(
             authenticate(&a, true, true, None, None),
-            AuthOutcome::Accepted
+            AuthOutcome::Accepted(Login::Certificate)
         );
         assert_eq!(
             authenticate(&a, false, true, None, None),
             AuthOutcome::BadLogin
         );
+        // Session registry: a password change or removal invalidates the login, Anonymous off invalidates
+        // anonymous sessions.
+        let AuthOutcome::Accepted(login) = authenticate(&a, false, false, Some("dev"), Some("pw"))
+        else {
+            panic!()
+        };
+        assert!(login_still_valid(&a, &login));
+        a.users
+            .insert("dev".into(), Credential::Plain("pw2".into()));
+        assert!(!login_still_valid(&a, &login));
         a.anonymous = true;
         assert_eq!(
             authenticate(&a, false, false, None, None),
-            AuthOutcome::Accepted
+            AuthOutcome::Accepted(Login::Anonymous)
         );
+        assert!(login_still_valid(&a, &Login::Anonymous));
+        a.anonymous = false;
+        assert!(!login_still_valid(&a, &Login::Anonymous));
     }
 }

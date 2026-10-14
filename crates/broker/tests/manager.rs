@@ -20,10 +20,10 @@ fn open(dir: &std::path::Path) -> (BrokerManager, MemorySecrets) {
 }
 
 /// Moves every listener to a free port (tests never clash with a broker running on the machine).
-fn randomize_ports(m: &BrokerManager) {
+async fn randomize_ports(m: &BrokerManager) {
     for mut l in m.config().listeners {
         l.port = free_port();
-        m.update_listener(l).expect("update port");
+        m.update_listener(l).await.expect("update port");
     }
 }
 
@@ -63,7 +63,11 @@ async fn b01_defaults_listeners_accept_and_cert_sans() {
             ("wss".into(), ListenerKind::Wss, 8084, false),
         ]
     );
-    assert_eq!(c.bind, Bind::Network, "reachability is broker-wide, whole network by default");
+    assert_eq!(
+        c.bind,
+        Bind::Network,
+        "reachability is broker-wide, whole network by default"
+    );
     assert!(!c.anonymous);
     assert_eq!(c.max_clients, 1000);
     let certs = m.broker_certs().unwrap();
@@ -83,7 +87,7 @@ async fn b01_defaults_listeners_accept_and_cert_sans() {
             && secrets.get("broker/server-key").unwrap().is_some()
     );
 
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.add_user("alice", "pw").unwrap();
     let st = m.start().await;
     assert_eq!(st.state, BrokerState::Running, "{:?}", st.error);
@@ -127,7 +131,7 @@ async fn b01_defaults_listeners_accept_and_cert_sans() {
 async fn b02_presets_create_the_right_combination() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    let add = |preset, kind| {
+    async fn add_l(m: &BrokerManager, preset: Preset, kind: ListenerKind) -> Listener {
         let port = free_port();
         let cfg = m
             .add_listener(AddListenerRequest {
@@ -135,12 +139,14 @@ async fn b02_presets_create_the_right_combination() {
                 kind,
                 port: u32::from(port),
             })
+            .await
             .unwrap();
         cfg.listeners.into_iter().find(|l| l.port == port).unwrap()
-    };
-    let plain = add(Preset::Plain, ListenerKind::Tcp);
-    let enc = add(Preset::Encrypted, ListenerKind::Tls);
-    let pw = add(Preset::Passwords, ListenerKind::Tls);
+    }
+    let add = |preset, kind| add_l(&m, preset, kind);
+    let plain = add(Preset::Plain, ListenerKind::Tcp).await;
+    let enc = add(Preset::Encrypted, ListenerKind::Tls).await;
+    let pw = add(Preset::Passwords, ListenerKind::Tls).await;
     assert_eq!(plain.kind, ListenerKind::Tcp);
     assert_eq!(enc.kind, ListenerKind::Tls);
     assert_eq!((pw.kind, pw.preset), (ListenerKind::Tls, Preset::Passwords));
@@ -148,7 +154,7 @@ async fn b02_presets_create_the_right_combination() {
         !m.config().require_client_cert,
         "encrypted presets leave the broker-wide setting alone"
     );
-    let mtls = add(Preset::Mtls, ListenerKind::Tls);
+    let mtls = add(Preset::Mtls, ListenerKind::Tls).await;
     assert_eq!(mtls.preset, Preset::Mtls);
     let cfg = m.config();
     assert!(
@@ -157,7 +163,7 @@ async fn b02_presets_create_the_right_combination() {
     );
     assert!(!cfg.anonymous, "plain does not turn anonymous on");
     // Encrypting a TCP request upgrades it to TLS.
-    let up = add(Preset::Encrypted, ListenerKind::Tcp);
+    let up = add(Preset::Encrypted, ListenerKind::Tcp).await;
     assert_eq!(up.kind, ListenerKind::Tls);
 
     for l in m.config().listeners {
@@ -166,7 +172,7 @@ async fn b02_presets_create_the_right_combination() {
         }
         let mut l = l;
         l.enabled = false;
-        m.update_listener(l).unwrap();
+        m.update_listener(l).await.unwrap();
     }
     // Logins first with the client certificate optional (broker-wide), then Required below.
     m.set_require_client_cert(false).unwrap();
@@ -210,17 +216,20 @@ async fn b02_presets_create_the_right_combination() {
     ))
     .await
     .is_err());
-    assert!(c4(opts4(
-        "p5",
-        mtls.port,
-        Some(tls_cfg(&roots, None)),
-        Some(("shared", "pw-s"))
-    ))
-    .await
-    .is_ok(), "Optional: a login is enough on every encrypted listener");
+    assert!(
+        c4(opts4(
+            "p5",
+            mtls.port,
+            Some(tls_cfg(&roots, None)),
+            Some(("shared", "pw-s"))
+        ))
+        .await
+        .is_ok(),
+        "Optional: a login is enough on every encrypted listener"
+    );
+    // Applies at once (change set 7), the broker keeps running.
     m.set_require_client_cert(true).unwrap();
-    assert!(m.status().restart_needed);
-    assert_eq!(m.restart().await.state, BrokerState::Running);
+    assert_eq!(m.status().state, BrokerState::Running);
     assert!(c4(opts4(
         "p5b",
         mtls.port,
@@ -229,17 +238,23 @@ async fn b02_presets_create_the_right_combination() {
     ))
     .await
     .is_err());
-    assert!(c4(opts4(
-        "p5c",
-        enc.port,
-        Some(tls_cfg(&roots, None)),
-        Some(("shared", "pw-s"))
-    ))
-    .await
-    .is_err(), "B-18: Required applies to every encrypted listener");
-    assert!(c4(opts4("p5d", plain.port, None, Some(("shared", "pw-s"))))
+    assert!(
+        c4(opts4(
+            "p5c",
+            enc.port,
+            Some(tls_cfg(&roots, None)),
+            Some(("shared", "pw-s"))
+        ))
         .await
-        .is_ok(), "B-18: a plain listener is never affected");
+        .is_err(),
+        "B-18: Required applies to every encrypted listener"
+    );
+    assert!(
+        c4(opts4("p5d", plain.port, None, Some(("shared", "pw-s"))))
+            .await
+            .is_ok(),
+        "B-18: a plain listener is never affected"
+    );
     let files = m
         .issue_client_cert(IssueCertRequest {
             name: "sensor-1".into(),
@@ -263,9 +278,11 @@ async fn b02_presets_create_the_right_combination() {
     ))
     .await
     .is_ok());
-    assert!(c4(opts4("p7", enc.port, Some(tls_cfg(&roots, Some(id))), None))
-        .await
-        .is_ok());
+    assert!(
+        c4(opts4("p7", enc.port, Some(tls_cfg(&roots, Some(id))), None))
+            .await
+            .is_ok()
+    );
     m.stop().await;
 }
 
@@ -273,7 +290,7 @@ async fn b02_presets_create_the_right_combination() {
 async fn b05_users_argon2_at_rest_and_logins_on_tcp_and_tls() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.add_user("alice", "first-pw").unwrap();
     assert_eq!(
         m.add_user("alice", "x").unwrap_err().key(),
@@ -297,7 +314,10 @@ async fn b05_users_argon2_at_rest_and_logins_on_tcp_and_tls() {
         }]
     );
     // The plain password stays in the secret store so the UI can reveal and copy it.
-    assert_eq!(m.user_password("alice").unwrap().as_deref(), Some("second-pw"));
+    assert_eq!(
+        m.user_password("alice").unwrap().as_deref(),
+        Some("second-pw")
+    );
     assert_eq!(m.user_password("nobody").unwrap(), None);
     assert_eq!(m.start().await.state, BrokerState::Running);
     let (tp, sp) = (port_of(&m, "tcp"), port_of(&m, "tls"));
@@ -338,7 +358,7 @@ async fn b05_users_argon2_at_rest_and_logins_on_tcp_and_tls() {
     assert!(c4(opts4("u6", tp, None, Some(("alice", "second-pw"))))
         .await
         .is_err());
-    assert!(!m.status().restart_needed);
+    assert_eq!(m.status().state, BrokerState::Running);
     m.stop().await;
 }
 
@@ -346,13 +366,14 @@ async fn b05_users_argon2_at_rest_and_logins_on_tcp_and_tls() {
 async fn b07_anonymous_gates_everything_and_off_restores() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     let mp = free_port();
     m.add_listener(AddListenerRequest {
         preset: Preset::Mtls,
         kind: ListenerKind::Tls,
         port: u32::from(mp),
     })
+    .await
     .unwrap();
     m.add_user("alice", "pw").unwrap();
     assert_eq!(m.start().await.state, BrokerState::Running);
@@ -396,7 +417,7 @@ async fn b07_anonymous_gates_everything_and_off_restores() {
 async fn b08_issue_export_pem_and_pkcs12_then_revoke() {
     let dir = tempfile::tempdir().unwrap();
     let (m, secrets) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     let mut tls = m
         .config()
         .listeners
@@ -404,7 +425,7 @@ async fn b08_issue_export_pem_and_pkcs12_then_revoke() {
         .find(|l| l.id == "tls")
         .unwrap();
     tls.preset = Preset::Mtls;
-    m.update_listener(tls).unwrap();
+    m.update_listener(tls).await.unwrap();
     m.set_require_client_cert(true).unwrap();
     let req = |name: &str, format, pass: &str| IssueCertRequest {
         name: name.into(),
@@ -503,7 +524,7 @@ async fn b08_issue_export_pem_and_pkcs12_then_revoke() {
     .await
     .is_err());
     assert!(eventually(|| m.log_buffer().contains("revoked certificate dev-pem")).await);
-    assert!(!m.status().restart_needed);
+    assert_eq!(m.status().state, BrokerState::Running);
     let json = std::fs::read_to_string(dir.path().join("broker.json")).unwrap();
     assert!(!json.contains("PRIVATE KEY"));
     m.stop().await;
@@ -513,7 +534,7 @@ async fn b08_issue_export_pem_and_pkcs12_then_revoke() {
 async fn b09_csr_import_device_keeps_its_key() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.set_require_client_cert(true).unwrap();
     let (csr, key_der) = mqttpanel_tls::kit::make_csr("device-7", KeyAlg::Ecdsa).unwrap();
     let (fname, cert) = m.import_csr(csr.as_bytes(), None, 2).unwrap();
@@ -547,13 +568,14 @@ async fn b09_csr_import_device_keeps_its_key() {
 async fn b10_rotate_ca_refuses_old_certs_and_reissues_desktop_cert() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     let mp = free_port();
     m.add_listener(AddListenerRequest {
         preset: Preset::Mtls,
         kind: ListenerKind::Tls,
         port: u32::from(mp),
     })
+    .await
     .unwrap();
     let files = m
         .issue_client_cert(IssueCertRequest {
@@ -581,12 +603,12 @@ async fn b10_rotate_ca_refuses_old_certs_and_reissues_desktop_cert() {
     let fp_before = m.broker_certs().unwrap().ca.fingerprint;
     m.rotate_ca().unwrap();
     assert_ne!(m.broker_certs().unwrap().ca.fingerprint, fp_before);
-    assert!(m.status().restart_needed);
     assert!(m
         .log_buffer()
         .contains("CA rotated: issued client certificates must be re-issued"));
     assert!(m.issued_certs().iter().all(|c| c.superseded));
-    assert_eq!(m.restart().await.state, BrokerState::Running);
+    // Applied at once: the broker keeps running with the new CA (change set 7).
+    assert_eq!(m.status().state, BrokerState::Running);
     let new_roots = ca_roots(&m);
     assert!(c4(opts4(
         "old-dev-2",
@@ -641,6 +663,7 @@ async fn b12_local_connection_picks_most_secure_listener() {
         kind: ListenerKind::Tls,
         port: u32::from(mp),
     })
+    .await
     .unwrap();
     let mut first_pw = None;
     assert!(m.config().require_client_cert);
@@ -652,7 +675,10 @@ async fn b12_local_connection_picks_most_secure_listener() {
         assert!(lc.client_cert_pem.is_some() && lc.client_key_pem.is_some());
         assert_eq!(lc.username.as_deref(), Some("mqtt-panel"));
         let pw = lc.password.clone().unwrap();
-        assert!(pw.len() >= 20 && pw.chars().all(|c| c.is_ascii_alphanumeric()), "strong generated password");
+        assert!(
+            pw.len() >= 20 && pw.chars().all(|c| c.is_ascii_alphanumeric()),
+            "strong generated password"
+        );
         if let Some(p) = &first_pw {
             assert_eq!(p, &pw, "the user keeps its password on later runs");
         }
@@ -662,7 +688,9 @@ async fn b12_local_connection_picks_most_secure_listener() {
     assert_eq!(users.len(), 1, "user created once: {users:?}");
     assert!(users[0].system && users[0].has_password);
     assert_eq!(m.user_password("mqtt-panel").unwrap(), first_pw);
-    assert!(m.log_buffer().contains("user mqtt-panel created for the profile \"Local broker\""));
+    assert!(m
+        .log_buffer()
+        .contains("user mqtt-panel created for the profile \"Local broker\""));
     let desktop: Vec<IssuedCert> = m.issued_certs().into_iter().filter(|c| c.system).collect();
     assert_eq!(desktop.len(), 1, "issued once");
     assert_eq!(desktop[0].name, "mqttpanel-desktop");
@@ -671,14 +699,16 @@ async fn b12_local_connection_picks_most_secure_listener() {
     assert_eq!(rank_order(&m).as_deref(), Some("tls"));
     let mut cfg = m.config();
     for l in cfg.listeners.iter_mut() {
-        l.enabled = l.kind == ListenerKind::Wss || l.kind == ListenerKind::Tcp || l.kind == ListenerKind::Ws;
-        m.update_listener(l.clone()).unwrap();
+        l.enabled = l.kind == ListenerKind::Wss
+            || l.kind == ListenerKind::Tcp
+            || l.kind == ListenerKind::Ws;
+        m.update_listener(l.clone()).await.unwrap();
     }
     assert_eq!(rank_order(&m).as_deref(), Some("wss"));
     for mut l in m.config().listeners {
         if l.kind.encrypted() {
             l.enabled = false;
-            m.update_listener(l).unwrap();
+            m.update_listener(l).await.unwrap();
         }
     }
     assert_eq!(m.local_connection(None).unwrap().scheme, "mqtt");
@@ -698,7 +728,7 @@ async fn b12_local_connection_picks_most_secure_listener() {
 async fn b13_cli_runtime_config_from_manager_with_bind_override() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.add_user("cli", "pw").unwrap();
     let cfg = RuntimeConfig::from_manager(&m)
         .unwrap()
@@ -724,10 +754,10 @@ async fn b13_cli_runtime_config_from_manager_with_bind_override() {
 }
 
 #[tokio::test]
-async fn status_counts_and_restart_notice() {
+async fn status_counts_and_live_certificate_change() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.set_anonymous(true).unwrap();
     let st = m.start().await;
     assert_eq!(st.state, BrokerState::Running);
@@ -743,7 +773,7 @@ async fn status_counts_and_restart_notice() {
     assert!(eventually(|| m.clients().is_empty()).await);
     m.regenerate(&["broker.lab".to_string()], KeyAlg::Ecdsa)
         .unwrap();
-    assert!(m.status().restart_needed);
+    assert_eq!(m.status().state, BrokerState::Running);
     assert_eq!(
         m.broker_certs().unwrap().server.san,
         vec!["broker.lab".to_string()]
@@ -762,12 +792,15 @@ async fn status_counts_and_restart_notice() {
         "msgInRate",
         "msgOutRate",
         "retained",
-        "restartNeeded",
         "error",
         "listeners",
     ] {
         assert!(json.get(k).is_some(), "status.{k}");
     }
+    assert!(
+        json.get("restartNeeded").is_none(),
+        "no restart flag (change set 7)"
+    );
     let ic = serde_json::to_value(m.issued_certs()).unwrap();
     assert!(ic.as_array().unwrap().is_empty());
     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -831,7 +864,7 @@ async fn import_server_cert_and_client_ca() {
         None,
     )
     .unwrap();
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.set_require_client_cert(true).unwrap();
     assert_eq!(m.start().await.state, BrokerState::Running);
     assert!(c4(opts4(
@@ -852,7 +885,7 @@ async fn import_server_cert_and_client_ca() {
 async fn b18_client_certificate_requirement_is_broker_wide() {
     let dir = tempfile::tempdir().unwrap();
     let (m, secrets) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     let cfg = m.config();
     assert!(!cfg.require_client_cert, "Optional by default");
     let json = serde_json::to_value(&cfg).unwrap();
@@ -861,38 +894,55 @@ async fn b18_client_certificate_requirement_is_broker_wide() {
         json["listeners"][0].get("requireClientCert").is_none(),
         "no per-listener field any more"
     );
-    // Stopped: no restart needed, applied at the next start.
+    // Stopped: saved, used at the next start.
     m.set_require_client_cert(true).unwrap();
-    assert!(!m.status().restart_needed);
+    assert_eq!(m.status().state, BrokerState::Stopped);
     assert!(m.config().require_client_cert);
-    assert!(m.log_buffer().contains("client certificate required on encrypted listeners"));
+    assert!(m
+        .log_buffer()
+        .contains("client certificate required on encrypted listeners"));
     // Persisted at the top of broker.json.
     let text = std::fs::read_to_string(dir.path().join("broker.json")).unwrap();
     let v: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(v["requireClientCert"], serde_json::Value::Bool(true));
     drop(m);
     let m = BrokerManager::open(dir.path(), Arc::new(secrets.clone())).unwrap();
-    assert!(m.config().require_client_cert, "kept across restarts of the app");
-    // Running: a change of the setting asks for a restart; setting the same value does not.
+    assert!(
+        m.config().require_client_cert,
+        "kept across restarts of the app"
+    );
+    // Running: a change applies at once (change set 7).
     m.add_user("u", "pw").unwrap();
     for mut l in m.config().listeners {
         l.enabled = l.kind == ListenerKind::Tcp || l.kind == ListenerKind::Tls;
-        m.update_listener(l).unwrap();
+        m.update_listener(l).await.unwrap();
     }
     assert_eq!(m.start().await.state, BrokerState::Running);
     m.set_require_client_cert(true).unwrap();
-    assert!(!m.status().restart_needed);
     let roots = ca_roots(&m);
-    assert!(c4(opts4("tcp", port_of(&m, "tcp"), None, Some(("u", "pw")))).await.is_ok());
-    assert!(c4(opts4("tls", port_of(&m, "tls"), Some(tls_cfg(&roots, None)), Some(("u", "pw"))))
-        .await
-        .is_err());
+    assert!(
+        c4(opts4("tcp", port_of(&m, "tcp"), None, Some(("u", "pw"))))
+            .await
+            .is_ok()
+    );
+    assert!(c4(opts4(
+        "tls",
+        port_of(&m, "tls"),
+        Some(tls_cfg(&roots, None)),
+        Some(("u", "pw"))
+    ))
+    .await
+    .is_err());
     m.set_require_client_cert(false).unwrap();
-    assert!(m.status().restart_needed);
-    assert_eq!(m.restart().await.state, BrokerState::Running);
-    assert!(c4(opts4("tls2", port_of(&m, "tls"), Some(tls_cfg(&roots, None)), Some(("u", "pw"))))
-        .await
-        .is_ok());
+    assert_eq!(m.status().state, BrokerState::Running);
+    assert!(c4(opts4(
+        "tls2",
+        port_of(&m, "tls"),
+        Some(tls_cfg(&roots, None)),
+        Some(("u", "pw"))
+    ))
+    .await
+    .is_ok());
     m.stop().await;
 }
 
@@ -925,11 +975,15 @@ async fn v09_broker_restart_never_reads_the_secret_store() {
     let dir = tempfile::tempdir().unwrap();
     {
         let (m, secrets) = open(dir.path());
-        randomize_ports(&m);
+        randomize_ports(&m).await;
         m.add_user("alice", "pw").unwrap();
         // carry the secrets over to a new manager, as a new session would find them in secrets.enc
         let c = Counting::default();
-        for k in ["broker/ca-key", "broker/server-key", "broker/user/alice/password"] {
+        for k in [
+            "broker/ca-key",
+            "broker/server-key",
+            "broker/user/alice/password",
+        ] {
             c.inner.set(k, &secrets.get(k).unwrap().unwrap()).unwrap();
         }
         drop(m);
@@ -938,13 +992,20 @@ async fn v09_broker_restart_never_reads_the_secret_store() {
         let reads = || c.gets.load(std::sync::atomic::Ordering::SeqCst);
         let _ = m.config();
         let _ = m.status();
-        assert_eq!(reads(), 0, "opening, the config and the status read no secret");
+        assert_eq!(
+            reads(),
+            0,
+            "opening, the config and the status read no secret"
+        );
         assert_eq!(m.start().await.state, BrokerState::Running);
         let after_start = reads();
         assert_eq!(after_start, 1, "the first start reads the server key once");
         for _ in 0..3 {
-            assert_eq!(m.restart().await.state, BrokerState::Running);
+            m.stop().await;
+            assert_eq!(m.start().await.state, BrokerState::Running);
         }
+        // Live certificate swaps use the key kept in memory too.
+        m.set_require_client_cert(true).unwrap();
         m.stop().await;
         assert_eq!(m.start().await.state, BrokerState::Running);
         assert_eq!(reads(), after_start, "restarts use the key kept in memory");
@@ -969,7 +1030,7 @@ async fn tls_ok(m: &BrokerManager) {
 async fn b20_missing_server_key_issues_a_new_server_certificate() {
     let dir = tempfile::tempdir().unwrap();
     let (m, secrets) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     let before = m.broker_certs().unwrap();
     drop(m);
     secrets.delete("broker/server-key").unwrap();
@@ -978,11 +1039,23 @@ async fn b20_missing_server_key_issues_a_new_server_certificate() {
     assert_eq!(st.state, BrokerState::Running, "{:?}", st.error);
     assert!(st.listeners.iter().filter(|l| l.id == "tls").all(|l| l.up));
     let after = m.broker_certs().unwrap();
-    assert_ne!(after.server.fingerprint, before.server.fingerprint, "a new server certificate");
-    assert_eq!(after.ca.fingerprint, before.ca.fingerprint, "the CA is kept");
+    assert_ne!(
+        after.server.fingerprint, before.server.fingerprint,
+        "a new server certificate"
+    );
+    assert_eq!(
+        after.ca.fingerprint, before.ca.fingerprint,
+        "the CA is kept"
+    );
     assert_eq!(after.server.san, before.server.san, "same names");
-    assert!(secrets.get("broker/server-key").unwrap().is_some(), "the new key is stored");
-    assert!(has_log(&m, "server certificate issued again: its key was missing"));
+    assert!(
+        secrets.get("broker/server-key").unwrap().is_some(),
+        "the new key is stored"
+    );
+    assert!(has_log(
+        &m,
+        "server certificate issued again: its key was missing"
+    ));
     assert!(!m.take_ca_regenerated());
     tls_ok(&m).await;
     m.stop().await;
@@ -992,7 +1065,7 @@ async fn b20_missing_server_key_issues_a_new_server_certificate() {
 async fn b20_missing_server_and_ca_keys_regenerate_the_local_ca() {
     let dir = tempfile::tempdir().unwrap();
     let (m, secrets) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.issue_client_cert(IssueCertRequest {
         name: "sensor-1".into(),
         valid_years: 2,
@@ -1010,7 +1083,10 @@ async fn b20_missing_server_and_ca_keys_regenerate_the_local_ca() {
     let st = m.start().await;
     assert_eq!(st.state, BrokerState::Running, "{:?}", st.error);
     let after = m.broker_certs().unwrap();
-    assert_ne!(after.ca.fingerprint, before.ca.fingerprint, "a new local CA");
+    assert_ne!(
+        after.ca.fingerprint, before.ca.fingerprint,
+        "a new local CA"
+    );
     assert_ne!(after.server.fingerprint, before.server.fingerprint);
     assert!(secrets.get("broker/ca-key").unwrap().is_some());
     assert!(secrets.get("broker/server-key").unwrap().is_some());
@@ -1021,7 +1097,10 @@ async fn b20_missing_server_and_ca_keys_regenerate_the_local_ca() {
     assert!(m.take_ca_regenerated());
     assert!(!m.take_ca_regenerated(), "taken once");
     assert!(
-        m.issued_certs().iter().filter(|c| c.name == "sensor-1").all(|c| c.superseded),
+        m.issued_certs()
+            .iter()
+            .filter(|c| c.name == "sensor-1")
+            .all(|c| c.superseded),
         "earlier client certificates are no longer trusted"
     );
     tls_ok(&m).await;
@@ -1050,17 +1129,22 @@ impl SecretStore for Refusing {
 async fn b20_a_refusing_secret_store_fails_the_start_with_the_reason() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     let tcp_port = port_of(&m, "tcp");
     let before = m.broker_certs().unwrap();
     drop(m);
     let m = BrokerManager::open(dir.path(), Arc::new(Refusing)).unwrap();
     let st = m.start().await;
     assert_eq!(st.state, BrokerState::Failed);
-    assert_eq!(st.error.as_ref().map(|e| e.key.as_str()), Some("keychain.refused"));
+    assert_eq!(
+        st.error.as_ref().map(|e| e.key.as_str()),
+        Some("keychain.refused")
+    );
     assert!(st.listeners.iter().all(|l| !l.up), "no listener up");
     assert!(
-        tokio::net::TcpStream::connect(("127.0.0.1", tcp_port)).await.is_err(),
+        tokio::net::TcpStream::connect(("127.0.0.1", tcp_port))
+            .await
+            .is_err(),
         "not even the plain listener"
     );
     assert_eq!(
@@ -1076,11 +1160,11 @@ async fn b20_a_refusing_secret_store_fails_the_start_with_the_reason() {
 async fn b20_no_tls_listener_reads_no_server_key() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     for mut l in m.config().listeners {
         if l.kind == ListenerKind::Tls || l.kind == ListenerKind::Wss {
             l.enabled = false;
-            m.update_listener(l).unwrap();
+            m.update_listener(l).await.unwrap();
         }
     }
     drop(m);
@@ -1090,39 +1174,57 @@ async fn b20_no_tls_listener_reads_no_server_key() {
     m.stop().await;
 }
 
-/// B-21: reachability is one choice for the whole broker; a change needs a restart and the runtime binds every
-/// listener accordingly.
+/// B-21: reachability is one choice for the whole broker; a change applies at once (change set 7: the listeners bind
+/// again, open sessions stay) and the runtime binds every listener accordingly.
 #[tokio::test]
-async fn b21_bind_is_broker_wide_restart_and_runtime() {
+async fn b21_bind_is_broker_wide_live_and_runtime() {
     let dir = tempfile::tempdir().unwrap();
     let (m, _) = open(dir.path());
-    randomize_ports(&m);
+    randomize_ports(&m).await;
     m.set_anonymous(true).unwrap();
-    let c = m.set_bind(Bind::Localhost).unwrap();
+    let c = m.set_bind(Bind::Localhost).await.unwrap();
     assert_eq!(c.bind, Bind::Localhost);
-    assert!(!m.status().restart_needed, "a stopped broker applies it at the next start");
+    assert_eq!(
+        m.status().state,
+        BrokerState::Stopped,
+        "a stopped broker uses it at the next start"
+    );
     let json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(dir.path().join("broker.json")).unwrap()).unwrap();
+        serde_json::from_str(&std::fs::read_to_string(dir.path().join("broker.json")).unwrap())
+            .unwrap();
     assert_eq!(json["bind"], "localhost");
     assert!(
-        json["listeners"].as_array().unwrap().iter().all(|l| l.get("bind").is_none()),
+        json["listeners"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|l| l.get("bind").is_none()),
         "no per-listener reachability in broker.json"
     );
     assert_eq!(m.start().await.state, BrokerState::Running);
     let tp = port_of(&m, "tcp");
-    assert!(c4(opts4("b21-local", tp, None, None)).await.is_ok());
+    let mut kept = c4(opts4("b21-local", tp, None, None)).await.unwrap();
     if let Some(ip) = lan_ipv4() {
-        let r = tokio::time::timeout(Duration::from_secs(2), tokio::net::TcpStream::connect((ip, tp))).await;
-        assert!(!matches!(r, Ok(Ok(_))), "this computer only: not reachable on {ip}");
+        let r = tokio::time::timeout(
+            Duration::from_secs(2),
+            tokio::net::TcpStream::connect((ip, tp)),
+        )
+        .await;
+        assert!(
+            !matches!(r, Ok(Ok(_))),
+            "this computer only: not reachable on {ip}"
+        );
     } else {
         eprintln!("SKIP part of B-21: no non-loopback IPv4 address on this machine");
     }
-    // the same value again changes nothing; the other value flags a restart
-    m.set_bind(Bind::Localhost).unwrap();
-    assert!(!m.status().restart_needed);
-    m.set_bind(Bind::Network).unwrap();
-    assert!(m.status().restart_needed);
-    assert_eq!(m.restart().await.state, BrokerState::Running);
+    // the same value again changes nothing; the other value binds again at once and keeps the open session
+    let seq = m.log_buffer().last_seq();
+    m.set_bind(Bind::Localhost).await.unwrap();
+    assert_eq!(m.log_buffer().last_seq(), seq, "nothing to apply");
+    m.set_bind(Bind::Network).await.unwrap();
+    assert_eq!(m.status().state, BrokerState::Running);
+    assert!(m.status().listeners.iter().filter(|l| l.up).count() >= 1);
+    assert!(still_open(&mut kept).await, "the open session stays");
     if let Some(ip) = lan_ipv4() {
         let mut o = opts4("b21-net", port_of(&m, "tcp"), None, None);
         o.host = ip.to_string();
@@ -1136,24 +1238,41 @@ async fn b21_bind_is_broker_wide_restart_and_runtime() {
 #[test]
 fn b21_old_broker_json_migrates() {
     for (binds, expected) in [
-        (["localhost", "network", "localhost", "localhost"], Bind::Network),
-        (["localhost", "localhost", "localhost", "localhost"], Bind::Localhost),
+        (
+            ["localhost", "network", "localhost", "localhost"],
+            Bind::Network,
+        ),
+        (
+            ["localhost", "localhost", "localhost", "localhost"],
+            Bind::Localhost,
+        ),
     ] {
         let dir = tempfile::tempdir().unwrap();
         let secrets: Arc<dyn SecretStore> = Arc::new(MemorySecrets::new());
         drop(BrokerManager::open(dir.path(), secrets.clone()).unwrap());
         let path = dir.path().join("broker.json");
-        let mut json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let mut json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         json.as_object_mut().unwrap().remove("bind");
-        for (l, b) in json["listeners"].as_array_mut().unwrap().iter_mut().zip(binds) {
+        for (l, b) in json["listeners"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .zip(binds)
+        {
             l["bind"] = serde_json::Value::from(b);
         }
         std::fs::write(&path, serde_json::to_string_pretty(&json).unwrap()).unwrap();
         let m = BrokerManager::open(dir.path(), secrets).unwrap();
         assert_eq!(m.config().bind, expected, "{binds:?}");
         assert_eq!(m.config().listeners.len(), 4);
-        let again: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let again: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(again["bind"], serde_json::to_value(expected).unwrap());
-        assert!(again["listeners"].as_array().unwrap().iter().all(|l| l.get("bind").is_none()));
+        assert!(again["listeners"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|l| l.get("bind").is_none()));
     }
 }

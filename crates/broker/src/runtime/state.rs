@@ -1,13 +1,14 @@
 //! Shared broker state: sessions, subscription index, retained messages and message routing.
 
-use super::auth::AuthConfig;
+use super::auth::{AuthConfig, Login};
 use super::codec::{Message, Version};
 use super::log::LogBuffer;
 use super::router::{Router, SubOpts};
 use super::stats::Stats;
 use super::tls::PeerCert;
+use crate::config::ListenerKind;
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -37,10 +38,14 @@ pub(crate) enum Outbound {
     Disconnect(u8),
 }
 
-/// What the clients table shows about a connection.
+/// What the clients table shows about a connection, and the session registry entry (change set 7): the listener it
+/// arrived on and how it logged in, so a change drops exactly the sessions it invalidates.
 #[derive(Debug)]
 pub(crate) struct ClientInfo {
     pub client_id: String,
+    pub listener_id: String,
+    pub kind: ListenerKind,
+    pub login: Login,
     pub address: String,
     pub version: Version,
     pub transport: &'static str,
@@ -97,6 +102,8 @@ pub(crate) struct Shared {
     pub log: LogBuffer,
     pub stats: Stats,
     pub auth: RwLock<Arc<AuthConfig>>,
+    /// Client certificate required on encrypted listeners; read at each handshake and CONNECT (change set 7).
+    pub require_client_cert: AtomicBool,
     pub max_clients: usize,
     pub max_packet: usize,
     pub started_at_ms: i64,
@@ -107,6 +114,10 @@ pub(crate) struct Shared {
 impl Shared {
     pub fn auth(&self) -> Arc<AuthConfig> {
         self.auth.read().map(|a| a.clone()).unwrap_or_default()
+    }
+
+    pub fn require_client_cert(&self) -> bool {
+        self.require_client_cert.load(Ordering::Relaxed)
     }
 
     pub fn lock(&self) -> std::sync::MutexGuard<'_, State> {

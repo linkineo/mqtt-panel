@@ -151,7 +151,6 @@ pub struct BrokerStatus {
     pub msg_in_rate: f64,
     pub msg_out_rate: f64,
     pub retained: u32,
-    pub restart_needed: bool,
     pub error: Option<UserMessage>,
     pub listeners: Vec<ListenerStatus>,
 }

@@ -92,14 +92,40 @@ pub struct PeerCert {
     pub cn: Option<String>,
     /// Normalised serial (see [`normalize_serial`]).
     pub serial: String,
+    /// Identifies the CA set that verified it (SHA-256 fingerprints of the trust anchors), so a session can be checked
+    /// again when the verifying CA changes (change set 7).
+    pub issuer: String,
+    /// The certificate chain the client presented (end entity first), kept to verify it again against a new CA.
+    pub chain: Vec<CertificateDer<'static>>,
 }
 
-fn peer_cert_of(der: &[u8]) -> Option<PeerCert> {
-    let d = mqttpanel_tls::cert_details(der).ok()?;
+fn peer_cert_of(
+    end_entity: &CertificateDer<'_>,
+    intermediates: &[CertificateDer<'_>],
+    issuer: &str,
+) -> Option<PeerCert> {
+    let d = mqttpanel_tls::cert_details(end_entity.as_ref()).ok()?;
+    let mut chain = vec![end_entity.clone().into_owned()];
+    chain.extend(intermediates.iter().map(|c| c.clone().into_owned()));
     Some(PeerCert {
         cn: d.cn,
         serial: normalize_serial(&d.serial),
+        issuer: issuer.to_string(),
+        chain,
     })
+}
+
+/// Identifier of a set of trust anchors: their SHA-256 fingerprints, joined.
+pub(crate) fn roots_id(roots: &[CertificateDer<'_>]) -> String {
+    roots
+        .iter()
+        .map(|r| {
+            mqttpanel_tls::cert_details(r.as_ref())
+                .map(|d| d.fingerprint)
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 /// Per-connection record filled by the verifier.
@@ -128,6 +154,8 @@ pub(crate) struct TlsListener {
     required: Option<Arc<dyn ClientCertVerifier>>,
     optional: Option<Arc<dyn ClientCertVerifier>>,
     revoked: RevocationList,
+    /// See [`roots_id`].
+    roots: String,
 }
 
 impl std::fmt::Debug for TlsListener {
@@ -180,7 +208,23 @@ impl TlsListener {
             required,
             optional,
             revoked,
+            roots: roots_id(&material.client_roots),
         })
+    }
+
+    /// True when a client certificate accepted earlier would still be accepted by this listener's CA (same CA set,
+    /// or a new CA set that also verifies it) and is not revoked.
+    pub fn still_trusts(&self, cert: &PeerCert) -> bool {
+        if self.revoked.is_revoked(&cert.serial) {
+            return false;
+        }
+        if cert.issuer == self.roots {
+            return true;
+        }
+        let (Some(v), Some((end, rest))) = (&self.optional, cert.chain.split_first()) else {
+            return false;
+        };
+        v.verify_client_cert(end, rest, UnixTime::now()).is_ok()
     }
 
     /// A server config for one connection, with its handshake slot.
@@ -204,6 +248,7 @@ impl TlsListener {
                 inner,
                 slot: slot.clone(),
                 revoked: self.revoked.clone(),
+                roots: self.roots.clone(),
             }),
         };
         let mut cfg = ServerConfig::builder_with_provider(self.provider.clone())
@@ -221,6 +266,7 @@ struct SlotVerifier {
     inner: Arc<dyn ClientCertVerifier>,
     slot: Arc<Mutex<HandshakeSlot>>,
     revoked: RevocationList,
+    roots: String,
 }
 
 /// Short reason of a certificate error for the log ("unknown CA", "certificate expired", ...).
@@ -266,7 +312,7 @@ impl ClientCertVerifier for SlotVerifier {
         intermediates: &[CertificateDer<'_>],
         now: UnixTime,
     ) -> Result<ClientCertVerified, rustls::Error> {
-        let info = peer_cert_of(end_entity.as_ref());
+        let info = peer_cert_of(end_entity, intermediates, &self.roots);
         match self
             .inner
             .verify_client_cert(end_entity, intermediates, now)
