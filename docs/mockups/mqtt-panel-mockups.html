@@ -150,10 +150,12 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
 .sw.on { background: var(--sage) } .sw.on::after { left: 15px }
 .sec { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin-top: 8px }
 .list { display: grid; gap: 6px }
-.card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface) }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 13px 12px; background: var(--surface) }
 .card.on { border-color: var(--sage); box-shadow: 0 0 0 1px var(--sage) }
 .card .t { font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px }
-.card .s { color: var(--ink-2); font-size: 12px; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+.card .s { color: var(--ink-2); font-size: 12px; margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+.warn { color: var(--clay); font-size: 13px; cursor: help; line-height: 1 } .warn.pin { color: var(--ink-2) }
+.choice { display: grid; gap: 6px } .choice .card { padding: 9px 12px } .choice .card .t { font-size: 12px } .choice .card .s { margin-top: 2px }
 
 /* tree */
 .tree { font-family: var(--mono); font-size: 12px; line-height: 1.2 }
@@ -315,7 +317,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
     <h1 style="font-size:40px">Every screen and state</h1>
     <p class="lead" style="font-size:16px">Twenty-two screens at 1280 × 700, following the settled spec. They render in light and dark with the three accents; use the switches above. Window chrome, menus, dialogs and scrollbars will be the native ones of each OS; two screens carry a sample macOS and Windows menu bar to show the intent. All data is example data. Comment on anything; once validated, this file goes into the repository as the implementation reference.</p>
     <nav class="toc" aria-label="Screens">
-      <a href="#s01">01 First launch</a><a href="#s02">02 Connections</a><a href="#s02b">02b MQTT Panel broker</a><a href="#s02c">02c Card menu</a><a href="#s02d">02d Folds open</a><a href="#s02e">02e Unencrypted</a><a href="#s03">03 Trust certificate</a><a href="#s04">04 Explorer tree</a><a href="#s05">05 Explorer table</a><a href="#s06">06 Diff</a><a href="#s07">07 Properties</a><a href="#s08">08 Publish</a><a href="#s09">09 Delete retained</a><a href="#s10">10 Charts</a><a href="#s10b">10b Add to chart</a><a href="#s11">11 Export</a><a href="#s12">12 Broker</a><a href="#s12b">12b Anonymous</a><a href="#s12c">12c Restart prompt</a><a href="#s13">13 Add listener 1</a><a href="#s14">14 Add listener 2</a><a href="#s15">15 Issue client cert</a><a href="#s16">16 Settings</a><a href="#s17">17 Data and privacy</a><a href="#s18">18 Command palette</a><a href="#s19">19 French</a><a href="#s20">20 German</a>
+      <a href="#s01">01 First launch</a><a href="#s02">02 Connections</a><a href="#s02b">02b Built-in broker</a><a href="#s02c">02c Card menu</a><a href="#s02d">02d Folds open</a><a href="#s02e">02e Unencrypted</a><a href="#s03">03 Trust certificate</a><a href="#s04">04 Explorer tree</a><a href="#s05">05 Explorer table</a><a href="#s06">06 Diff</a><a href="#s07">07 Properties</a><a href="#s08">08 Publish</a><a href="#s09">09 Delete retained</a><a href="#s10">10 Charts</a><a href="#s10b">10b Add to chart</a><a href="#s11">11 Export</a><a href="#s12">12 Broker</a><a href="#s12b">12b Anonymous</a><a href="#s12c">12c Restart prompt</a><a href="#s13">13 Add listener 1</a><a href="#s14">14 Add listener 2</a><a href="#s15">15 Issue client cert</a><a href="#s16">16 Settings</a><a href="#s17">17 Data and privacy</a><a href="#s18">18 Command palette</a><a href="#s19">19 French</a><a href="#s20">20 German</a>
     </nav>
   </section>
   <!-- 01 First launch -->
@@ -340,31 +342,31 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   <p class="cap">On launch nothing is connected. The Explorer, Publish and Charts screens show "Choose a connection" until a profile is connected. Import from other tools is not offered in the UI (change set 5); the code stays for a later release.</p>
 
   <!-- 02 Connections -->
-  <div class="shot-head" id="s02"><h3>02 · Connections, editing a profile</h3><span class="muted small">"New connection" menu, play on idle cards and stop on the connected one, Protocol and MQTT version before the host, folds closed</span></div>
+  <div class="shot-head" id="s02"><h3>02 · Connections, editing a profile</h3><span class="muted small">"New connection" menu, three-line cards with the protocol chip, fixed field widths, folds closed</span></div>
   <div class="shotwrap"><div class="app">
     <div class="tb" data-tabs="Local broker|on|12 topics · MQTT 5"></div>
     <div class="body"><nav class="rail" data-broker="on" data-open="1" data-on="connect"></nav>
       <div class="main"><div class="cols" style="grid-template-columns: 320px 1fr">
-        <div class="pane side"><div class="ph" style="position:relative"><h5>Connections</h5><span class="btn pri sm">New connection ▾</span><div class="ctx" style="top:38px;right:8px;min-width:190px"><div>Another broker…</div><div class="on">MQTT Panel broker <span class="muted">▸</span></div></div><div class="ctx" style="top:94px;left:118px;min-width:210px"><div>Use an existing listener</div><div>Add a listener…</div></div></div>
+        <div class="pane side"><div class="ph" style="position:relative"><h5>Connections</h5><span class="btn pri sm">New connection ▾</span><div class="ctx" style="top:38px;right:8px;min-width:190px"><div>New broker…</div><div class="on">Built-in broker <span class="muted">▸</span></div></div><div class="ctx" style="top:94px;left:118px;min-width:210px"><div>Use an existing listener</div><div>Add a listener…</div></div></div>
           <div class="pc"><div class="search" style="margin-bottom:10px">Search profiles<span style="flex:1"></span><span class="kbd">⌘K</span></div>
             <div class="list">
-              <div class="card on"><div class="t">Plant broker <span class="play">▶</span></div><div class="s"><span class="mono">mqtts://broker.plant.example:8883</span> <span class="chip on">TLS</span></div><div class="s">MQTT 5 · 3 subscriptions · used today</div></div>
-              <div class="card live"><div class="t">Local broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state">connected</span><span class="stop">■</span></span></div><div class="s"><span class="mono">mqtts://localhost:8883</span> <span class="chip">TLS</span></div><div class="s">MQTT Panel broker · MQTT 5 · 2 min</div></div>
-              <div class="card"><div class="t">Lab Mosquitto <span class="play">▶</span></div><div class="s"><span class="mono">mqtt://10.20.4.17:1883</span> <span class="chip clay">no TLS</span></div><div class="s">MQTT 3.1.1 · 1 subscription · 3 days ago</div></div>
-              <div class="card"><div class="t">Cloud EMQX (WS) <span class="play">▶</span></div><div class="s"><span class="mono">wss://demo.emqx.example:8084/mqtt</span> <span class="chip on">WSS</span></div><div class="s">MQTT 5 · 2 subscriptions · last week</div></div>
+              <div class="card on"><div class="t">Plant broker <span class="play">▶</span></div><div class="s"><span class="chip on">mqtts</span></div><div class="s mono">broker.plant.example:8883</div></div>
+              <div class="card live"><div class="t">Local broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state">connected</span><span class="stop">■</span></span></div><div class="s"><span class="chip">mqtts</span></div><div class="s mono">localhost:8883</div></div>
+              <div class="card"><div class="t">Lab Mosquitto <span class="play">▶</span></div><div class="s"><span class="chip clay">mqtt</span></div><div class="s mono">10.20.4.17:1883</div></div>
+              <div class="card"><div class="t">Cloud EMQX (WS) <span class="play">▶</span></div><div class="s"><span class="chip on">wss</span><span class="warn" title="Certificate verification is off for this connection: any broker certificate is accepted, so an impostor could not be told apart.">⚠</span></div><div class="s mono">demo.emqx.example:8084</div></div>
             </div></div></div>
         <div class="pane"><div class="ph"><h5>Plant broker</h5><div style="display:flex;gap:8px"><span class="btn danger out">Delete</span><span style="width:10px"></span><span class="btn">Test</span><span class="btn pri">Connect</span></div></div>
           <div class="pc"><div class="form">
             <div class="sec">Basics</div>
-            <div class="f"><label>Name</label><span class="input">Plant broker</span></div>
+            <div class="f"><label>Name</label><span class="input" style="width:320px">Plant broker</span></div>
             
             <div class="f"><label>Protocol</label><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span></div>
             <div class="f"><label>MQTT version</label><span class="seg"><span>3.1.1</span><span class="on">5</span><span>auto</span></span></div>
-            <div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="flex:1">mqtts://broker.plant.example:8883</span><span class="input mono" style="width:80px">8883</span></span></div>
-            <div class="f"><label>Client ID</label><span class="row2"><span class="input mono" style="flex:1">mqttpanel-7f3a</span><span class="btn sm">Random</span></span></div>
-            <div class="f"><label>Username</label><span class="input">commissioning</span></div>
+            <div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="width:320px">mqtts://broker.plant.example:8883</span><span class="input mono" style="width:80px">8883</span></span></div>
+            <div class="f"><label>Client ID</label><span class="row2"><span class="input mono" style="width:240px">mqttpanel-7f3a</span><span class="btn sm">Generate</span></span></div>
+            <div class="f"><label>Username</label><span class="input" style="width:240px">commissioning</span></div>
             <div class="f"><label>Password</label><span class="input" style="width:220px">••••••••••••</span></div>
-            <div class="fold"><span class="chev">▸</span>Security <span class="sum">verify on · CA · client certificate · <span style="color:var(--sage)">verified</span></span></div>
+            <div class="fold"><span class="chev">▸</span>Security <span class="sum">CA · client certificate · <span style="color:var(--sage)">verified</span></span></div>
             <div class="fold"><span class="chev">▸</span>Advanced <span class="sum">keep-alive 60 s · 3 subscriptions · 1 schema</span></div>
           </div>
           <div class="callout" style="margin-top:16px"><div class="eyebrow">Last test · 2 min ago</div><p class="small">Connected in 84 ms. Server certificate CN=broker.plant.example, issued by Plant Root CA, valid until 2027-06-30. Negotiated MQTT 5, max packet 1 MB.</p></div>
@@ -372,15 +374,15 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       </div></div>
     </div>
   </div></div>
-  <p class="cap">Basics, in this order: Name, Protocol, MQTT version, Host and port, Client ID, Username, Password; "Security" and "Advanced" (Session, Subscriptions, Decoders) are folds closed when the app starts, their header line summarising what is set inside (02d shows them open). The host field always starts with the protocol's prefix and mirrors the port box: choosing ws writes "ws://", typing "mqtt://" selects mqtt, ":1884" at the end sets the port box and the port box rewrites the suffix; a pasted full address fills everything. A connected card is filled with the accent colour and carries a round stop button that disconnects this connection only, never the broker; an idle card carries a round play button in the same place that connects it. Connect on "Local broker" starts the broker first when it is stopped. "New connection" is a menu: "Another broker…" opens the empty form; "MQTT Panel broker" leads to "Use an existing listener" or "Add a listener…" (02b). There is no import line under the list any more (change set 5).</p>
+  <p class="cap">Basics, in this order: Name, Protocol, MQTT version, Host and port, Client ID, Username, Password; "Security" and "Advanced" (Session, Subscriptions, Decoders) are folds closed when the app starts, their header line summarising what is set inside (02d shows them open). The host field always starts with the protocol's prefix and mirrors the port box: choosing ws writes "ws://", typing "mqtt://" selects mqtt, ":1884" at the end sets the port box and the port box rewrites the suffix; a pasted full address fills everything. Cards have three lines: the name with the state and the play or stop button; one protocol chip (mqtts and wss in the accent, mqtt and ws in clay) with a ⚠ icon when the connection skips verification or pins a fingerprint (tooltip explains); host and port. A connected card is filled with the accent colour and carries a round stop button that disconnects this connection only, never the broker; an idle card carries a round play button in the same place that connects it. Connect on "Local broker" starts the broker first when it is stopped. Text fields have fixed widths and align on the label column; a new profile is named after its host until the user types a name. "New connection" is a menu: "New broker…" opens the empty form; "Built-in broker" leads to "Use an existing listener" or "Add a listener…" (02b).</p>
 
-  <!-- 02b MQTT Panel broker -->
-  <div class="shot-head" id="s02b"><h3>02b · New connection to the MQTT Panel broker</h3><span class="muted small">Pick a listener, the app does the rest: user, certificate, trust, restart, connect</span></div>
+  <!-- 02b Built-in broker -->
+  <div class="shot-head" id="s02b"><h3>02b · New connection to the built-in broker</h3><span class="muted small">Pick a listener, the app does the rest: user, certificate, trust, restart, connect</span></div>
   <div class="shotwrap"><div class="app" style="height:700px">
     <div class="tb"></div>
     <div class="body"><nav class="rail" data-on="connect"></nav><div class="main"><div class="pane"><div class="ph"><h5>Connections</h5><span class="btn pri sm">New connection ▾</span></div></div></div></div>
     <div class="overlay"><div class="modal" style="width:620px">
-      <div class="mh">Connect to the MQTT Panel broker</div>
+      <div class="mh">Connect to the built-in broker</div>
       <div class="mb">
         <div class="muted small">Which listener?</div>
         <div style="display:grid;gap:6px">
@@ -394,7 +396,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       <div class="mf"><span class="btn">Cancel</span><span style="flex:1"></span><span class="btn pri">Connect</span></div>
     </div></div>
   </div></div>
-  <p class="cap">The most secure enabled listener is preselected (TLS with client certificates, TLS, secure WebSocket, TCP, WebSocket). The menu entry and this title say "MQTT Panel broker" (change set 5). The steps tick off while it runs; an error stops the list with a plain-words reason. With Anonymous on, no user is created and the text says so. Restarts in this flow do not show the restart prompt. The profile "Local broker" is updated in place, never duplicated, and the Explorer opens on it.</p>
+  <p class="cap">The most secure enabled listener is preselected (TLS with client certificates, TLS, secure WebSocket, TCP, WebSocket). The menu entry says "Built-in broker" and this title "Connect to the built-in broker" (change set 6). The steps tick off while it runs; an error stops the list with a plain-words reason. With Anonymous on, no user is created and the text says so. Restarts in this flow do not show the restart prompt. The profile "Local broker" is updated in place, never duplicated, and the Explorer opens on it.</p>
 
   <!-- 02c Card menu -->
   <div class="shot-head" id="s02c"><h3>02c · Connections, right-click on a card</h3><span class="muted small">Connect or disconnect, Test, Duplicate, Delete; connected cards in the accent colour; the connection bar under the title</span></div>
@@ -405,15 +407,15 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
         <div class="pane side"><div class="ph"><h5>Connections</h5><span class="btn pri sm">New connection ▾</span></div>
           <div class="pc" style="position:relative"><div class="search" style="margin-bottom:10px">Search profiles<span style="flex:1"></span><span class="kbd">⌘K</span></div>
             <div class="list">
-              <div class="card live"><div class="t">Local broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state">connected</span><span class="stop">■</span></span></div><div class="s"><span class="mono">mqtts://localhost:8883</span> <span class="chip">TLS</span></div><div class="s">MQTT Panel broker · MQTT 5 · 2 min</div></div>
-              <div class="card" style="border-color:var(--clay)"><div class="t">Plant broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state" style="color:var(--clay)">reconnecting</span><span class="stop">■</span></span></div><div class="s"><span class="mono">mqtts://broker.plant.example:8883</span> <span class="chip on">TLS</span></div><div class="s">MQTT 5 · 3 subscriptions · retry in 4 s</div></div>
-              <div class="card on"><div class="t">Lab Mosquitto <span class="play">▶</span></div><div class="s"><span class="mono">mqtt://10.20.4.17:1883</span> <span class="chip clay">no TLS</span></div><div class="s">MQTT 3.1.1 · 1 subscription · 3 days ago</div></div>
-              <div class="card"><div class="t">Cloud EMQX (WS) <span class="play">▶</span></div><div class="s"><span class="mono">wss://demo.emqx.example:8084/mqtt</span> <span class="chip on">WSS</span></div><div class="s">MQTT 5 · 2 subscriptions · last week</div></div>
+              <div class="card live"><div class="t">Local broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state">connected</span><span class="stop">■</span></span></div><div class="s"><span class="chip">mqtts</span></div><div class="s mono">localhost:8883</div></div>
+              <div class="card" style="border-color:var(--clay)"><div class="t">Plant broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state" style="color:var(--clay)">reconnecting</span><span class="stop">■</span></span></div><div class="s"><span class="chip on">mqtts</span></div><div class="s mono">broker.plant.example:8883</div></div>
+              <div class="card on"><div class="t">Lab Mosquitto <span class="play">▶</span></div><div class="s"><span class="chip clay">mqtt</span></div><div class="s mono">10.20.4.17:1883</div></div>
+              <div class="card"><div class="t">Cloud EMQX (WS) <span class="play">▶</span></div><div class="s"><span class="chip on">wss</span><span class="warn" title="Certificate verification is off for this connection: any broker certificate is accepted, so an impostor could not be told apart.">⚠</span></div><div class="s mono">demo.emqx.example:8084</div></div>
             </div>
             <div class="ctx" style="left:150px;top:262px"><div>Connect<span class="kbd">↵</span></div><div>Test</div><div>Duplicate</div><hr><div class="danger">Delete…<span class="kbd">⌫</span></div></div>
           </div></div>
         <div class="pane"><div class="ph"><h5>Lab Mosquitto</h5><div style="display:flex;gap:8px"><span class="btn danger out">Delete</span><span style="width:10px"></span><span class="btn">Test</span><span class="btn pri">Connect</span></div></div>
-          <div class="pc"><div class="form"><div class="sec">Basics</div><div class="f"><label>Name</label><span class="input">Lab Mosquitto</span></div><div class="f"><label>Protocol</label><span class="seg"><span class="on">mqtt</span><span>mqtts</span><span>ws</span><span>wss</span></span></div><div class="f"><label>MQTT version</label><span class="seg"><span class="on">3.1.1</span><span>5</span><span>auto</span></span></div><div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="flex:1">mqtt://10.20.4.17:1883</span><span class="input mono" style="width:80px">1883</span></span></div></div></div></div>
+          <div class="pc"><div class="form"><div class="sec">Basics</div><div class="f"><label>Name</label><span class="input" style="width:320px">Lab Mosquitto</span></div><div class="f"><label>Protocol</label><span class="seg"><span class="on">mqtt</span><span>mqtts</span><span>ws</span><span>wss</span></span></div><div class="f"><label>MQTT version</label><span class="seg"><span class="on">3.1.1</span><span>5</span><span>auto</span></span></div><div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="width:320px">mqtt://10.20.4.17:1883</span><span class="input mono" style="width:80px">1883</span></span></div></div></div></div>
       </div></div>
     </div>
   </div></div>
@@ -428,34 +430,34 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
         <div class="pane side"><div class="ph" style="position:relative"><h5>Connections</h5><span class="btn pri sm">New connection ▾</span></div>
           <div class="pc"><div class="search" style="margin-bottom:10px">Search profiles<span style="flex:1"></span><span class="kbd">⌘K</span></div>
             <div class="list">
-              <div class="card on"><div class="t">Plant broker <span class="play">▶</span></div><div class="s"><span class="mono">mqtts://broker.plant.example:8883</span> <span class="chip on">TLS</span></div><div class="s">MQTT 5 · 3 subscriptions · used today</div></div>
-              <div class="card live"><div class="t">Local broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state">connected</span><span class="stop">■</span></span></div><div class="s"><span class="mono">mqtts://localhost:8883</span> <span class="chip">TLS</span></div><div class="s">MQTT Panel broker · MQTT 5 · 2 min</div></div>
-              <div class="card"><div class="t">Lab Mosquitto <span class="play">▶</span></div><div class="s"><span class="mono">mqtt://10.20.4.17:1883</span> <span class="chip clay">no TLS</span></div><div class="s">MQTT 3.1.1 · 1 subscription · 3 days ago</div></div>
-              <div class="card"><div class="t">Cloud EMQX (WS) <span class="play">▶</span></div><div class="s"><span class="mono">wss://demo.emqx.example:8084/mqtt</span> <span class="chip on">WSS</span></div><div class="s">MQTT 5 · 2 subscriptions · last week</div></div>
+              <div class="card on"><div class="t">Plant broker <span class="play">▶</span></div><div class="s"><span class="chip on">mqtts</span></div><div class="s mono">broker.plant.example:8883</div></div>
+              <div class="card live"><div class="t">Local broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state">connected</span><span class="stop">■</span></span></div><div class="s"><span class="chip">mqtts</span></div><div class="s mono">localhost:8883</div></div>
+              <div class="card"><div class="t">Lab Mosquitto <span class="play">▶</span></div><div class="s"><span class="chip clay">mqtt</span></div><div class="s mono">10.20.4.17:1883</div></div>
+              <div class="card"><div class="t">Cloud EMQX (WS) <span class="play">▶</span></div><div class="s"><span class="chip on">wss</span><span class="warn" title="Certificate verification is off for this connection: any broker certificate is accepted, so an impostor could not be told apart.">⚠</span></div><div class="s mono">demo.emqx.example:8084</div></div>
             </div></div></div>
         <div class="pane"><div class="ph"><h5>Plant broker</h5><div style="display:flex;gap:8px"><span class="btn danger out">Delete</span><span style="width:10px"></span><span class="btn">Test</span><span class="btn pri">Connect</span></div></div>
           <div class="pc"><div class="form">
             <div class="sec">Basics</div>
-            <div class="f"><label>Name</label><span class="input">Plant broker</span></div>
+            <div class="f"><label>Name</label><span class="input" style="width:320px">Plant broker</span></div>
             
             <div class="f"><label>Protocol</label><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span></div>
             <div class="f"><label>MQTT version</label><span class="seg"><span>3.1.1</span><span class="on">5</span><span>auto</span></span></div>
-            <div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="flex:1">mqtts://broker.plant.example:8883</span><span class="input mono" style="width:80px">8883</span></span></div>
-            <div class="f"><label>Client ID</label><span class="row2"><span class="input mono" style="flex:1">mqttpanel-7f3a</span><span class="btn sm">Random</span></span></div>
-            <div class="f"><label>Username</label><span class="input">commissioning</span></div>
+            <div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="width:320px">mqtts://broker.plant.example:8883</span><span class="input mono" style="width:80px">8883</span></span></div>
+            <div class="f"><label>Client ID</label><span class="row2"><span class="input mono" style="width:240px">mqttpanel-7f3a</span><span class="btn sm">Generate</span></span></div>
+            <div class="f"><label>Username</label><span class="input" style="width:240px">commissioning</span></div>
             <div class="f"><label>Password</label><span class="input" style="width:220px">••••••••••••</span></div>
-            <div class="fold"><span class="chev">▾</span>Security <span class="sum">verify on · CA · client certificate · <span style="color:var(--sage)">verified</span></span></div>
-            <div class="f"><label>Verify server <span class="chip">ⓘ</span></label><span class="sw on"></span></div>
-            <div class="f"><label>CA certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">plant-root-ca.pem</span><span class="btn sm">Browse…</span></span></div>
-            <div class="f"><label>Client certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">commissioning-laptop.pem</span><span class="btn sm">Browse…</span></span></div>
-            <div class="f"><label>Client key <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">commissioning-laptop.key</span><span class="btn sm">Browse…</span></span></div>
+            <div class="fold"><span class="chev">▾</span>Security <span class="sum">CA · client certificate · <span style="color:var(--sage)">verified</span></span></div>
+            <div class="f"><label>CA certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">plant-root-ca.pem</span><span class="btn sm">Browse…</span></span></div>
+            <div class="f"><label>Client certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.pem</span><span class="btn sm">Browse…</span></span></div>
+            <div class="f"><label>Client key <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.key</span><span class="btn sm">Browse…</span></span></div>
             <div class="f"><label>Server name (SNI) <span class="chip">ⓘ</span></label><span class="input mono" style="width:220px"><span class="ph-text">optional</span></span></div>
             <div class="f"><label>Protocol tag (ALPN) <span class="chip">ⓘ</span></label><span class="input mono" style="width:140px">mqtt</span></div>
             <div class="fold"><span class="chev">▾</span>Advanced <span class="sum">keep-alive 60 s · 3 subscriptions · 1 schema</span></div>
             <div class="sub">Session</div>
             <div class="f"><label>Keep-alive</label><span class="row2"><span class="input mono" style="width:80px">60 s</span><span class="muted">Clean start</span><span class="sw on"></span></span></div>
             <div class="f"><label>Session expiry</label><span class="row2"><span class="input mono" style="width:100px">0 (none)</span></span></div>
-            <div class="f"><label>Last will</label><span class="row2"><span class="input mono" style="flex:1"><span class="ph-text">topic (optional)</span></span><span class="input mono" style="flex:1"><span class="ph-text">payload</span></span></span></div>
+            <div class="f"><label>Skip unverified broker certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="sw"></span></span></div>
+            <div class="f"><label>Last will</label><span class="row2"><span class="input mono" style="width:240px"><span class="ph-text">topic (optional)</span></span><span class="input mono" style="width:240px"><span class="ph-text">payload</span></span></span></div>
             <div class="sub">Subscriptions</div>
             <div class="f"><label>Filters <span class="chip">ⓘ</span></label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">building/# · QoS 1 <span style="opacity:.6">✕</span></span><span class="chip mono">$SYS/broker/clients/# · QoS 0 <span style="opacity:.6">✕</span></span><span class="chip mono">spBv1.0/# · QoS 0 <span style="opacity:.6">✕</span></span><span class="btn sm">+ Add</span></span></div>
             <div class="sub">Decoders</div>
@@ -466,7 +468,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       </div></div>
     </div>
   </div></div>
-  <p class="cap">The two folds open in place. Security: Verify server, CA certificate, Client certificate, Client key, Server name (SNI), Protocol tag (ALPN), each with its ⓘ and nothing else on the row. Advanced: Session, Subscriptions and Decoders as sub-headings. The folds are closed when the app starts and keep their state while it runs.</p>
+  <p class="cap">The two folds open in place. Security: CA certificate, Client certificate, Client key, Server name (SNI), Protocol tag (ALPN), each with its ⓘ and nothing else on the row (the "Verify server" switch is gone, change set 6). Advanced: Session, with the switch "Skip unverified broker certificate" that opens the prompt "only this time / always for this connection", Subscriptions and Decoders as sub-headings. Text fields have fixed widths (80, 160, 240, 320 px) and align on the label column. The folds are closed when the app starts and keep their state while it runs.</p>
 
   <!-- 02e Unencrypted profile, Security disabled -->
   <div class="shot-head" id="s02e"><h3>02e · Connections, unencrypted profile</h3><span class="muted small">With mqtt or ws the Security fold is disabled and says why; the address field carries the prefix</span></div>
@@ -477,20 +479,20 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
         <div class="pane side"><div class="ph"><h5>Connections</h5><span class="btn pri sm">New connection ▾</span></div>
           <div class="pc"><div class="search" style="margin-bottom:10px">Search profiles<span style="flex:1"></span><span class="kbd">⌘K</span></div>
             <div class="list">
-              <div class="card"><div class="t">Plant broker <span class="play">▶</span></div><div class="s"><span class="mono">mqtts://broker.plant.example:8883</span> <span class="chip on">TLS</span></div><div class="s">MQTT 5 · 3 subscriptions · used today</div></div>
-              <div class="card live"><div class="t">Local broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state">connected</span><span class="stop">■</span></span></div><div class="s"><span class="mono">mqtts://localhost:8883</span> <span class="chip">TLS</span></div><div class="s">MQTT Panel broker · MQTT 5 · 2 min</div></div>
-              <div class="card on"><div class="t">Lab Mosquitto <span class="play">▶</span></div><div class="s"><span class="mono">mqtt://10.20.4.17:1883</span> <span class="chip clay">no TLS</span></div><div class="s">MQTT 3.1.1 · 1 subscription · 3 days ago</div></div>
-              <div class="card"><div class="t">Cloud EMQX (WS) <span class="play">▶</span></div><div class="s"><span class="mono">wss://demo.emqx.example:8084/mqtt</span> <span class="chip on">WSS</span></div><div class="s">MQTT 5 · 2 subscriptions · last week</div></div>
+              <div class="card"><div class="t">Plant broker <span class="play">▶</span></div><div class="s"><span class="chip on">mqtts</span></div><div class="s mono">broker.plant.example:8883</div></div>
+              <div class="card live"><div class="t">Local broker <span style="display:inline-flex;align-items:center;gap:6px"><span class="state">connected</span><span class="stop">■</span></span></div><div class="s"><span class="chip">mqtts</span></div><div class="s mono">localhost:8883</div></div>
+              <div class="card on"><div class="t">Lab Mosquitto <span class="play">▶</span></div><div class="s"><span class="chip clay">mqtt</span></div><div class="s mono">10.20.4.17:1883</div></div>
+              <div class="card"><div class="t">Cloud EMQX (WS) <span class="play">▶</span></div><div class="s"><span class="chip on">wss</span><span class="warn" title="Certificate verification is off for this connection: any broker certificate is accepted, so an impostor could not be told apart.">⚠</span></div><div class="s mono">demo.emqx.example:8084</div></div>
             </div></div></div>
         <div class="pane"><div class="ph"><h5>Lab Mosquitto</h5><div style="display:flex;gap:8px"><span class="btn danger out">Delete</span><span style="width:10px"></span><span class="btn">Test</span><span class="btn pri">Connect</span></div></div>
           <div class="pc"><div class="form">
             <div class="sec">Basics</div>
-            <div class="f"><label>Name</label><span class="input">Lab Mosquitto</span></div>
+            <div class="f"><label>Name</label><span class="input" style="width:320px">Lab Mosquitto</span></div>
             <div class="f"><label>Protocol</label><span class="seg"><span class="on">mqtt</span><span>mqtts</span><span>ws</span><span>wss</span></span></div>
             <div class="f"><label>MQTT version</label><span class="seg"><span class="on">3.1.1</span><span>5</span><span>auto</span></span></div>
-            <div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="flex:1">mqtt://10.20.4.17:1883</span><span class="input mono" style="width:80px">1883</span></span></div>
-            <div class="f"><label>Client ID</label><span class="row2"><span class="input mono" style="flex:1">mqttpanel-2c91</span><span class="btn sm">Random</span></span></div>
-            <div class="f"><label>Username</label><span class="input"><span class="ph-text">optional</span></span></div>
+            <div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="width:320px">mqtt://10.20.4.17:1883</span><span class="input mono" style="width:80px">1883</span></span></div>
+            <div class="f"><label>Client ID</label><span class="row2"><span class="input mono" style="width:240px">mqttpanel-2c91</span><span class="btn sm">Generate</span></span></div>
+            <div class="f"><label>Username</label><span class="input" style="width:240px"><span class="ph-text">optional</span></span></div>
             <div class="f"><label>Password</label><span class="input" style="width:220px"><span class="ph-text">optional</span></span></div>
             <div class="fold off"><span class="chev">▸</span>Security <span class="sum">Not encrypted: choose mqtts or wss to use certificates.</span></div>
             <div class="fold"><span class="chev">▸</span>Advanced <span class="sum">keep-alive 60 s · 1 subscription</span></div>
@@ -499,26 +501,32 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       </div></div>
     </div>
   </div></div>
-  <p class="cap">With Protocol mqtt or ws the Security fold is greyed and cannot be opened; the one-line reason replaces its summary. Its values stay in the profile and return when the protocol goes back to mqtts or wss. Choosing ws here would rewrite the field to "ws://10.20.4.17:8083" (the port box held the mqtt default) and add the WebSocket path row.</p>
+  <p class="cap">With Protocol mqtt or ws the Security fold is greyed and cannot be opened; the one-line reason replaces its summary. Its values stay in the profile and return when the protocol goes back to mqtts or wss. The cards show the protocol chip and "host:port" only. Choosing ws here would rewrite the field to "ws://10.20.4.17:8083" (the port box held the mqtt default) and add the WebSocket path row.</p>
 
-  <!-- 02b MQTT Panel broker -->
+  <!-- 02b Built-in broker -->
   
-  <div class="shot-head" id="s03"><h3>03 · Connecting to a self-signed broker</h3><span class="muted small">The certificate is shown; trust it by fingerprint for this profile</span></div>
+  <div class="shot-head" id="s03"><h3>03 · Connecting to a self-signed broker</h3><span class="muted small">The certificate is shown; pin it, skip the check once or always, for this connection only</span></div>
   <div class="shotwrap"><div class="app">
     <div class="tb"></div>
     <div class="body"><nav class="rail" data-open="1" data-on="connect"></nav>
-      <div class="main"><div class="pane"><div class="ph"><h5>Lab Mosquitto</h5><div style="display:flex;gap:8px"><span class="btn">Test</span><span class="btn pri">Connect</span></div></div><div class="pc"><div class="form"><div class="sec">Basics</div><div class="f"><label>Protocol</label><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span></div><div class="f"><label>MQTT version</label><span class="seg"><span>3.1.1</span><span>5</span><span class="on">auto</span></span></div><div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="flex:1">mqtts://10.20.4.17:8883</span><span class="input mono" style="width:80px">8883</span></span></div><div class="sec">Security</div><div class="f"><label>Verify server <span class="chip">ⓘ</span></label><span class="row2"><span class="sw on"></span><span class="muted">On</span></span></div><div class="f"><label>CA certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1"><span class="ph-text">none</span></span><span class="btn sm">Browse…</span></span></div></div></div></div></div>
+      <div class="main"><div class="pane"><div class="ph"><h5>Lab Mosquitto</h5><div style="display:flex;gap:8px"><span class="btn">Test</span><span class="btn pri">Connect</span></div></div><div class="pc"><div class="form"><div class="sec">Basics</div><div class="f"><label>Protocol</label><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span></div><div class="f"><label>MQTT version</label><span class="seg"><span>3.1.1</span><span>5</span><span class="on">auto</span></span></div><div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="width:320px">mqtts://10.20.4.17:8883</span><span class="input mono" style="width:80px">8883</span></span></div><div class="sec">Security</div><div class="f"><label>CA certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px"><span class="ph-text">none</span></span><span class="btn sm">Browse…</span></span></div></div></div></div></div>
     </div>
     <div class="overlay"><div class="modal">
-      <div class="mh">This broker presents a certificate MQTT Panel cannot verify</div>
+      <div class="mh">This broker's certificate cannot be verified</div>
       <div class="mb">
         <div class="warnstrip">Reason: the certificate is self-signed. Nobody vouches for it, so compare the fingerprint with the one shown on the broker before trusting it.</div>
         <dl class="kv"><dt>Subject</dt><dd>CN=mosquitto-lab</dd><dt>Issuer</dt><dd>CN=mosquitto-lab (self-signed)</dd><dt>Names (SAN)</dt><dd>mosquitto-lab, 10.20.4.17</dd><dt>Valid</dt><dd>2026-09-01 → 2027-09-01</dd><dt>SHA-256 fingerprint</dt><dd>3F:9A:12:7C:E0:44:B1:9D:5A:0E:88:C2:17:6B:F3:2A:9C:41:D8:70:1E:55:A2:3B:8F:64:CC:09:D1:7E:B6:C1</dd><dt>Key</dt><dd>ECDSA P-256</dd></dl>
-              </div>
-      <div class="mf" style="flex-direction:column;align-items:stretch;gap:6px"><div style="display:flex;gap:8px;justify-content:flex-end"><span class="btn">Cancel</span><span class="btn pri">Trust this certificate</span></div><div class="muted small" style="text-align:right">This certificate only, for the profile "Lab Mosquitto". If the broker presents a different one, you are asked again.</div></div>
+        <p class="small" style="margin:0;color:var(--clay)">Without verification, anyone between you and the broker could pose as it and read or change your messages.</p>
+        <div class="choice">
+          <div class="card on"><div class="radio"><i class="on"></i><div style="flex:1"><div class="t">Trust this certificate</div><div class="s">This certificate only, for the connection "Lab Mosquitto". If the broker presents a different one, you are asked again.</div></div></div></div>
+          <div class="card"><div class="radio"><i></i><div style="flex:1"><div class="t">Skip verification only this time</div><div class="s">This attempt accepts any certificate. Nothing is saved.</div></div></div></div>
+          <div class="card"><div class="radio"><i></i><div style="flex:1"><div class="t">Skip verification always for this connection</div><div class="s">Saved in the connection: any certificate is accepted whenever it opens. The card shows ⚠.</div></div></div></div>
+        </div>
+      </div>
+      <div class="mf"><span class="btn">Cancel</span><span style="flex:1"></span><span class="btn pri">Connect</span></div>
     </div></div>
   </div></div>
-  <p class="cap">One choice for a self-signed certificate: trust it or not. When the broker presents a chain ending in a private CA instead, a second button "Trust anything this CA signs" appears with its own one-line scope ("future certificates from this CA too"). Both Connect and Test open this prompt the first time. The lab-only "skip certificate verification" toggle lives in Settings, off by default, and shows as an "unverified" chip on the connection's tab and card while active.</p>
+  <p class="cap">One list, one Connect button (change set 6): pin the certificate (preselected, the safest), skip the check for this attempt, or skip it always for this connection; when the broker presents a chain ending in a private CA, a fourth choice "Trust anything this CA signs" fills the profile's CA field. Every choice is for this connection only; there is no app-wide skip setting any more. Both Connect and Test open this prompt the first time. The same two skip choices are offered by the switch "Skip unverified broker certificate" under Advanced (02d). A connection with the check skipped or a pinned fingerprint shows ⚠ with a tooltip on its card and tab.</p>
 
   <!-- 04 Explorer tree -->
   <div class="shot-head" id="s04"><h3>04 · Explorer, tree view, with context menu</h3><span class="muted small">Quick publish row, follow mode, highlight and counts, macOS menu bar sample</span></div>
@@ -1025,7 +1033,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   </div></div>
 
   <!-- 17 Data and privacy -->
-  <div class="shot-head" id="s17"><h3>17 · Settings, data, security, updates and privacy</h3><span class="muted small">Memory budget, lab-only toggle, update feed, the privacy statement</span></div>
+  <div class="shot-head" id="s17"><h3>17 · Settings, data, security, updates and privacy</h3><span class="muted small">Memory budget, trusted fingerprints, update feed, the privacy statement</span></div>
   <div class="shotwrap"><div class="app" style="height:640px">
     <div class="tb" data-tabs="Plant broker|on|1 284 topics · MQTT 5|unverified"></div>
     <div class="body"><nav class="rail" data-on="settings" data-open="1"></nav>
@@ -1034,7 +1042,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
         <div class="pane"><div class="ph"><h5>Data and memory</h5></div><div class="pc">
           <div class="form"><div class="f"><label>Messages per topic</label><span class="row2"><span class="input mono" style="width:80px">200</span><span class="muted">10 to 10 000</span></span></div><div class="f"><label>Points per series</label><span class="row2"><span class="input mono" style="width:80px">5 000</span></span></div><div class="f"><label>Memory budget</label><span class="row2"><span class="input mono" style="width:90px">256 MB</span><span class="muted">12.4 MB in use. Oldest dropped first.</span></span></div><div class="f"><label>Payload render limit</label><span class="row2"><span class="input mono" style="width:90px">256 KB</span><span class="muted">Larger payloads show a raw view.</span></span></div><div class="f"><label>History on disk</label><span class="row2"><span class="chip">Never</span><span class="muted">Export to keep history.</span></span></div><div class="f"><label></label><span class="btn danger">Clear all history…</span></div></div>
           <div class="sec" style="margin-top:20px">Security</div>
-          <div class="form" style="margin-top:8px"><div class="f"><label>Skip verification <span class="chip">ⓘ</span></label><span class="row2"><span class="sw on"></span><span class="small" style="color:var(--clay)">Lab only. Accepts any certificate until next launch.</span></span></div><div class="f"><label>Trusted fingerprints</label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">Lab Mosquitto · 3F:9A:…:C1 ✕</span><span class="chip mono">Roof gateway · B2:07:…:4E ✕</span></span></div></div>
+          <div class="form" style="margin-top:8px"><div class="f"><label>Trusted fingerprints</label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">Lab Mosquitto · 3F:9A:…:C1 ✕</span><span class="chip mono">Roof gateway · B2:07:…:4E ✕</span></span></div></div>
           <div class="sec" style="margin-top:20px">Updates</div>
           <div class="form" style="margin-top:8px"><div class="f"><label>Check automatically</label><span class="row2"><span class="sw on"></span><span class="muted">Daily, from the GitHub release feed.</span></span></div><div class="f"><label>Channel</label><span class="seg"><span class="on">Stable</span><span>Beta</span></span></div><div class="f"><label>Current</label><span class="row2"><span class="muted">1.0.0-beta.3 (unsigned beta build)</span><span class="btn sm">Check now</span></span></div></div>
           <div class="sec" style="margin-top:20px">Privacy</div>
@@ -1043,7 +1051,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       </div></div>
     </div>
   </div></div>
-  <p class="cap">The lab-only skip-verification toggle is shown on here to demonstrate the "unverified" chip on the connection's tab; it is off by default and resets at launch.</p>
+  <p class="cap">There is no app-wide skip-verification switch any more (change set 6): skipping is chosen per connection, in the certificate prompt or under Advanced. The tab of "Plant broker" shows the ⚠ icon of a connection that skips the check.</p>
 
   <!-- 18 Command palette + shortcuts -->
   <div class="shot-head" id="s18"><h3>18 · Command palette over the Explorer</h3><span class="muted small">Keyboard-first: every action reachable without the mouse</span></div>
@@ -1070,21 +1078,20 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
     <div class="tb"></div>
     <div class="body"><nav class="rail" data-on="connect" data-lang="fr"></nav>
       <div class="main"><div class="cols" style="grid-template-columns: 320px 1fr">
-        <div class="pane side"><div class="ph"><h5>Connexions</h5><span class="btn pri sm">Nouvelle connexion ▾</span></div><div class="pc"><div class="search" style="margin-bottom:10px">Rechercher un profil<span style="flex:1"></span><span class="kbd">⌘K</span></div><div class="list"><div class="card on"><div class="t">Broker usine</div><div class="s"><span class="mono">mqtts://broker.plant.example:8883</span> <span class="chip on">TLS</span></div><div class="s">MQTT 5 · 3 abonnements · utilisé aujourd’hui</div></div><div class="card"><div class="t">Broker local</div><div class="s"><span class="mono">mqtts://localhost:8883</span> <span class="chip on">TLS</span></div><div class="s">Broker MQTT Panel · MQTT 5 · utilisé aujourd’hui</div></div></div></div></div>
-        <div class="pane"><div class="ph"><h5>Broker usine</h5><div style="display:flex;gap:8px"><span class="btn danger out">Supprimer</span><span style="width:10px"></span><span class="btn">Tester</span><span class="btn pri">Se connecter</span></div></div>
+        <div class="pane side"><div class="ph"><h5>Connexions</h5><span class="btn pri sm">Nouvelle connexion ▾</span></div><div class="pc"><div class="search" style="margin-bottom:10px">Rechercher un profil<span style="flex:1"></span><span class="kbd">⌘K</span></div><div class="list"><div class="card on"><div class="t">Broker usine <span class="play">▶</span></div><div class="s"><span class="chip on">mqtts</span></div><div class="s mono">broker.plant.example:8883</div></div><div class="card"><div class="t">Broker local <span class="play">▶</span></div><div class="s"><span class="chip on">mqtts</span></div><div class="s mono">localhost:8883</div></div></div></div></div>
+        <div class="pane"><div class="ph"><h5>Broker usine</h5><div style="display:flex;gap:8px"><span class="btn danger out">Supprimer</span><span style="width:10px"></span><span class="btn">Tester</span><span class="btn pri">Connecter</span></div></div>
           <div class="pc"><div class="form">
             <div class="sec">Général</div>
-            <div class="f"><label>Nom</label><span class="input">Broker usine</span></div>
+            <div class="f"><label>Nom</label><span class="input" style="width:320px">Broker usine</span></div>
             
             <div class="f"><label>Protocole</label><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span></div>
             <div class="f"><label>Version MQTT</label><span class="seg"><span>3.1.1</span><span class="on">5</span><span>auto</span></span></div>
-            <div class="f"><label>Hôte et port</label><span class="row2"><span class="input mono" style="flex:1">mqtts://broker.plant.example:8883</span><span class="input mono" style="width:80px">8883</span></span></div>
+            <div class="f"><label>Hôte et port</label><span class="row2"><span class="input mono" style="width:320px">mqtts://broker.plant.example:8883</span><span class="input mono" style="width:80px">8883</span></span></div>
             <div class="f"><label>Mot de passe</label><span class="input" style="width:220px">••••••••••••</span></div>
             <div class="sec">Sécurité</div>
-            <div class="f"><label>Vérifier le serveur <span class="chip">ⓘ</span></label><span class="row2"><span class="sw on"></span><span class="muted">Racines du système et autorité ci-dessous.</span></span></div>
-            <div class="f"><label>Autorité (CA) <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">plant-root-ca.pem</span><span class="btn sm">Parcourir…</span><span class="chip on">jusqu’en 2031-03</span></span></div>
-            <div class="f"><label>Certificat client <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">commissioning-laptop.pem</span><span class="btn sm">Parcourir…</span></span></div>
-            <div class="f"><label>Clé client <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">commissioning-laptop.key</span><span class="btn sm">Parcourir…</span><span class="chip on">Trousseau</span></span></div>
+                        <div class="f"><label>Autorité (CA) <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">plant-root-ca.pem</span><span class="btn sm">Parcourir…</span></span></div>
+            <div class="f"><label>Certificat client <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.pem</span><span class="btn sm">Parcourir…</span></span></div>
+            <div class="f"><label>Clé client <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.key</span><span class="btn sm">Parcourir…</span><span class="chip on">Trousseau</span></span></div>
             <div class="callout" style="padding:6px 12px;margin-top:0"><p class="small" style="margin:0"><strong>Certificat d’autorité.</strong> Le certificat de l’autorité qui a signé celui du broker. Nécessaire quand le broker utilise un certificat privé ou auto-signé ; laissez vide pour un broker avec un certificat public. Choisissez le fichier avec Parcourir ou déposez-le sur le champ.</p></div>
             <div class="sec">Abonnements</div>
             <div class="f"><label>Filtres <span class="chip">ⓘ</span></label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">building/# · QoS 1 ✕</span><span class="btn sm">+ Ajouter</span></span></div>
@@ -1153,7 +1160,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       var bar = document.createElement('div'); bar.className = 'cbar';
       bar.innerHTML = tabs.split(',').map(function (t) {
         var p = t.split('|');
-        return '<span' + (p[1] === 'on' ? ' class="on"' : '') + '><span class="dot' + (p[1] === 'off' ? ' off' : '') + '" style="padding:0"></span>' + p[0] + (p[2] ? '<small>· ' + p[2] + '</small>' : '') + (p[3] === 'unverified' ? '<span class="chip clay" style="padding:1px 7px">unverified</span>' : '') + (p[1] === 'on' ? '<b>✕</b>' : '') + '</span>';
+        return '<span' + (p[1] === 'on' ? ' class="on"' : '') + '><span class="dot' + (p[1] === 'off' ? ' off' : '') + '" style="padding:0"></span>' + p[0] + (p[2] ? '<small>· ' + p[2] + '</small>' : '') + (p[3] === 'unverified' ? '<span class="warn" title="Certificate verification is off for this connection: any broker certificate is accepted, so an impostor could not be told apart.">⚠</span>' : '') + (p[1] === 'on' ? '<b>✕</b>' : '') + '</span>';
       }).join('');
       tb.insertAdjacentElement('afterend', bar);
       tb.parentElement.style.gridTemplateRows = '44px auto 1fr';

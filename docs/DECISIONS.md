@@ -125,7 +125,23 @@
   - Error sites that hard-coded `keychain.unavailable` for secret store errors (profile password, connect, file fields, "Local broker" set-up) now take the key from the error, so a refusal reads `keychain.refused` everywhere.
   - Test C-02 (real OS keychain) now round-trips through the master key under a test service name and removes that item afterwards; the per-secret keychain store it used is gone.
 
-### 14 Oct 2026, owner feedback on the fourth build (change set 5)
+### 14 Oct 2026, owner feedback on the fifth build (change set 6)
+Owner, after the fifth build, in one message: "Another broker…" renamed "New broker…" and "MQTT Panel broker" renamed "Built-in broker"; the connection cards keep the title, then one left-aligned chip with the protocol instead of TLS / no TLS, then host or IP and port only, every other text removed; text fields in the whole app no longer take the full width, smaller but aligned; cards slightly taller; FR « Aléatoire » becomes « Générer » (other languages too); « Se connecter » replaced by « Connecter » everywhere; a new connection takes its name from the host (myhost for wss://myhost.com, IPs too), editable at any time; the global "skip verification" setting leaves Settings and goes to each connection; a warning icon with a tooltip on the cards when an unverified certificate was accepted; when connecting to a broker with an unverified certificate, offer "permanently" or "only this time", always for this connection only, with the risk explained; under Advanced a switch "Skip unverified broker certificate" that opens the same prompt. Spec: `docs/FEATURES.md` (Connections, Settings, Localisation rules, B5), `docs/SPEC.md` (4, 6), `docs/TESTPLAN.md` C-26 to C-30, T-20 and S-05 rewritten, mockups 02, 02b, 02c, 02d, 02e, 03 (new certificate prompt), 17 and 19.
+
+Readings of the owner's words, to confirm:
+- "Connexion pills" are again the cards of the Connections list; the connection-bar tabs get the same ⚠ icon in place of the "unverified" chip, so the two places agree.
+- The protocol chip keeps the tones used before: accent for mqtts and wss, clay for mqtt and ws.
+- "All other text removed" is read literally: the cards lose the MQTT version, the subscription count, the last-used time and the "Built-in broker" meta line.
+- Field widths: four sizes (80, 160, 240, 320 px) and the label column unchanged, applied to every form in the app, not only the connection form; editors and search boxes keep their width.
+- French: « Connecter » on every action; the dialog title becomes « Connexion au broker intégré » because « Connecter au broker intégré » is not grammatical.
+- Auto name: the first label of the host name, the IP as it is, "localhost" as it is; new profiles only; typing a name breaks the link, clearing the name restores it.
+- Certificate prompt: the two skip choices join "Trust this certificate" (pinning, kept and preselected as the safest) and the CA choice in one list with one Connect button, instead of a row of four buttons.
+- The "Verify server" switch under Security is removed, since the new switch under Advanced controls the same thing; in the profile file `verifyServer: false` becomes `skipVerify: true`.
+- "Only this time" from the Advanced switch applies to the next connection attempt of this profile only and is shown as "next connection only" until used; from the certificate prompt it applies to the attempt being retried.
+- The ⚠ icon also covers a pinned fingerprint ("accepted an unverified certificate"), in a muted tone, with its own tooltip; a skipped check shows it in clay.
+- Settings keeps the trusted-fingerprints list; only the app-wide skip switch goes.
+- The CLI keeps `--insecure` per invocation; the embedded broker is unaffected.
+
 Owner, after the fourth build, in one message (English and French): a play icon on idle connection cards, in the place of the stop icon, to start the connection; the transport selector before host and port; a detector and prefiller on the host field (choosing ws writes "ws://" as a required prefix, a typed "mqtt://" selects mqtt, ":port" at the end sets the port box and the port box sets the suffix); the transport split into two labelled rows, protocol and MQTT version; with mqtt or ws the security part disabled with the reason; "This app's broker" renamed "MQTT Panel broker" (FR « Broker MQTT Panel »); the import text and drop field removed, the code kept and documented as a later feature. Spec: `docs/FEATURES.md` (Connections, scope rows X2 and B5), `docs/SPEC.md` (4, 6 table), `docs/TESTPLAN.md` C-21 to C-25, mockups 01, 02, 02b, 02c, 02d, 02e (new: Security disabled), 03 background and 19.
 
 Readings of the owner's words, to confirm:

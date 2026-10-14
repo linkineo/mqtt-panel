@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 5 complete on macOS; change set 5 readings awaiting the owner; Windows and Linux through CI).
+Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 5 complete on macOS; change set 6 specified and in progress; change set 5 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -11,11 +11,27 @@ Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 5 complete on macOS; c
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
+| Change set 6 | owner feedback on the fifth build: "New broker…" and "Built-in broker", three-line cards with a protocol chip and the ⚠ icon, fixed field widths, "Generate", « Connecter », auto name from the host, per-connection skip of certificate verification with the reworked certificate prompt | Specified 14 Oct 2026, implementation in progress. See below. |
 | Change set 5 | owner feedback on the fourth build: play button on idle cards, Protocol and MQTT version rows before the host, address prefiller, Security disabled for mqtt and ws, "MQTT Panel broker", import hidden from the UI | Specified 14 Oct 2026, implementation in progress. See below. |
 | Change set 1 | "New connection" menu, "Connect to this app's broker", restart prompt, shared users only, password reveal, "Test" | Done on macOS (13 Oct 2026). See below. |
 | Change set 4 | owner feedback on the third build: broker starts on Connect, stop button on cards, no parsed chips, no "mTLS", Security and Advanced folds, rail badges instead of the title bar pill, Broker screen reorganised | Done on macOS (13 Oct 2026). See below. |
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
+
+## Change set 6 (14 Oct 2026, owner feedback on the fifth build): in progress
+
+Specified in `docs/FEATURES.md` (Connections, Settings, Localisation rules, B5), `docs/SPEC.md` 4 and 6, mockups 02, 02b, 02c, 02d, 02e, 03, 17 and 19, `docs/TESTPLAN.md` C-26 to C-30, T-20, S-05. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
+
+| Item | Status |
+|---|---|
+| "New broker…", "Built-in broker", "Connect to the built-in broker" in EN, FR, DE | Specified |
+| Cards: name line, protocol chip with the ⚠ icon, "host:port" line, nothing else; taller | Specified |
+| Text fields with four fixed widths in every form; label column unchanged | Specified |
+| "Generate" (FR « Générer », DE „Generieren“); FR « Connecter » everywhere | Specified |
+| New profile named from the host until the user types a name | Specified |
+| Per-connection skip: `tls.skipVerify` replaces `verifyServer` (migration), app-wide setting removed and ignored on load, Advanced switch with the prompt, "only this time" for one attempt, ⚠ with tooltips on cards and tabs | Specified |
+| Certificate prompt reworked: choice list (pin, skip once, skip always, CA) with one Connect button | Specified |
+| Tests C-26 to C-30, T-20, S-05; screenshots re-recorded | Specified |
 
 ## Change set 5 (14 Oct 2026, owner feedback on the fourth build): implemented
 
