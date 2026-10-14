@@ -2,7 +2,8 @@
 
 How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules.
 
-## Status (13 Oct 2026)
+## Status (14 Oct 2026)
+- Change set 6 (owner feedback on the fifth build, 14 Oct 2026) is implemented: three-line cards with the protocol chip and the ⚠ icon, fixed field widths, "New broker…" and "Built-in broker", "Generate", « Connecter », auto name from the host, per-connection skip of certificate verification with the reworked certificate prompt. Model change: `TlsSettings.skipVerify` replaces `verifyServer` (an old `verifyServer: false` loads as `skipVerify: true`), `Settings.skipVerify` is gone, `connect_profile` and `test_profile` take an optional `skipOnce`, `trust_certificate` also takes `skipOnce` and `skipAlways`. Tests: Rust 201, Vitest 107, Playwright 241, all green. See `docs/PROGRESS.md` "Change set 6"; readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
 - Change set 4 (owner feedback on the third build, 13 Oct 2026) is implemented: Connect and Test on "Local broker" start a stopped broker first; a round stop button on open cards; no parsed chips next to file fields or the password; no "mTLS" anywhere; the profile form's "Security" and "Advanced" folds; no title bar pill (play badge on the Broker rail icon, count bubble on Connect, "unverified" chip on tab and card); the Broker screen reorganised (broker-wide reachability in `BrokerConfig.bind`, listener ✕, Users and Client certificates panels, "Advanced security" fold, explanations in ⓘ only, "▸ Log"). See `docs/PROGRESS.md` "Change set 4"; the implementing model's readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
 - Phases 1 to 4 implemented and tested on macOS: engine, TLS kit, client, profiles with keychain, embedded broker, CLI, Tauri shell, and the full React UI for every mockup screen. Details, test counts, the native-feel checklist and the phase 5 task list are in `docs/PROGRESS.md`.
 - Change set 3 (keychain prompts, 13 Oct 2026) is implemented: no migration of per-secret keychain entries, the master key is the only keychain item, a refusal is remembered for the session (`keychain.refused`), and the broker issues a missing server key again on start (B-20). See `docs/DECISIONS.md` "13 Oct 2026, keychain prompts (change set 3)".
@@ -16,7 +17,7 @@ How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules
 - Build exactly what the specs and the validated mockups describe. If something is missing or contradictory, record the question in `docs/DECISIONS.md` under "Open" and ask; do not invent behaviour.
 - Rust engine first (`crates/engine`): pure, no I/O, no threads, Rust API plus C ABI, tested with recorded packet fixtures. The UI never touches sockets, parsing or storage.
 - Native feel is a requirement (feature N1, `docs/SPEC.md` 1.2). Walk the checklist on all three OSes in the spike.
-- UI rules from the mockup review: plain words in every user-facing label (for example "Another broker" / "This app's broker", "Server name (SNI)", "Protocol tag (ALPN)"); form rows never wrap, helper text stays short and the full explanation lives in the ⓘ bubble; every file field is a native picker with drag-and-drop; every security option has an info bubble in EN, FR and DE.
+- UI rules from the mockup review: plain words in every user-facing label (for example "New broker…" / "Built-in broker", "Server name (SNI)", "Protocol tag (ALPN)"); form rows never wrap, helper text stays short and the full explanation lives in the ⓘ bubble; every file field is a native picker with drag-and-drop; every security option has an info bubble in EN, FR and DE.
 - Keep the forbidden-words guard green and never commit secrets.
 
 ## Architecture map

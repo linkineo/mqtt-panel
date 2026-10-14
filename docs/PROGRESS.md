@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 5 complete on macOS; change set 6 specified and in progress; change set 5 readings awaiting the owner; Windows and Linux through CI).
+Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 6 complete on macOS; change set 5 and 6 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -11,27 +11,27 @@ Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 5 complete on macOS; c
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
-| Change set 6 | owner feedback on the fifth build: "New broker…" and "Built-in broker", three-line cards with a protocol chip and the ⚠ icon, fixed field widths, "Generate", « Connecter », auto name from the host, per-connection skip of certificate verification with the reworked certificate prompt | Specified 14 Oct 2026, implementation in progress. See below. |
+| Change set 6 | owner feedback on the fifth build: "New broker…" and "Built-in broker", three-line cards with a protocol chip and the ⚠ icon, fixed field widths, "Generate", « Connecter », auto name from the host, per-connection skip of certificate verification with the reworked certificate prompt | Done 14 Oct 2026. See below. |
 | Change set 5 | owner feedback on the fourth build: play button on idle cards, Protocol and MQTT version rows before the host, address prefiller, Security disabled for mqtt and ws, "MQTT Panel broker", import hidden from the UI | Specified 14 Oct 2026, implementation in progress. See below. |
 | Change set 1 | "New connection" menu, "Connect to this app's broker", restart prompt, shared users only, password reveal, "Test" | Done on macOS (13 Oct 2026). See below. |
 | Change set 4 | owner feedback on the third build: broker starts on Connect, stop button on cards, no parsed chips, no "mTLS", Security and Advanced folds, rail badges instead of the title bar pill, Broker screen reorganised | Done on macOS (13 Oct 2026). See below. |
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
 
-## Change set 6 (14 Oct 2026, owner feedback on the fifth build): in progress
+## Change set 6 (14 Oct 2026, owner feedback on the fifth build): implemented
 
 Specified in `docs/FEATURES.md` (Connections, Settings, Localisation rules, B5), `docs/SPEC.md` 4 and 6, mockups 02, 02b, 02c, 02d, 02e, 03, 17 and 19, `docs/TESTPLAN.md` C-26 to C-30, T-20, S-05. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
 
 | Item | Status |
 |---|---|
-| "New broker…", "Built-in broker", "Connect to the built-in broker" in EN, FR, DE | Specified |
-| Cards: name line, protocol chip with the ⚠ icon, "host:port" line, nothing else; taller | Specified |
-| Text fields with four fixed widths in every form; label column unchanged | Specified |
-| "Generate" (FR « Générer », DE „Generieren“); FR « Connecter » everywhere | Specified |
-| New profile named from the host until the user types a name | Specified |
-| Per-connection skip: `tls.skipVerify` replaces `verifyServer` (migration), app-wide setting removed and ignored on load, Advanced switch with the prompt, "only this time" for one attempt, ⚠ with tooltips on cards and tabs | Specified |
-| Certificate prompt reworked: choice list (pin, skip once, skip always, CA) with one Connect button | Specified |
-| Tests C-26 to C-30, T-20, S-05; screenshots re-recorded | Specified |
+| "New broker…", "Built-in broker", "Connect to the built-in broker" in EN, FR, DE | Done 14 Oct 2026 |
+| Cards: name line, protocol chip with the ⚠ icon, "host:port" line, nothing else; taller | Done 14 Oct 2026. The connection-bar tab shows the same icon |
+| Text fields with four fixed widths in every form; label column unchanged | Done 14 Oct 2026. Connection form, Broker dialogs, Settings, prompts; fields the spec does not list are under "Open" |
+| "Generate" (FR « Générer », DE „Generieren“); FR « Connecter » everywhere | Done 14 Oct 2026. Also the rejected-client-ID error |
+| New profile named from the host until the user types a name | Done 14 Oct 2026. Pure helper `nameFromHost` with unit tests |
+| Per-connection skip: `tls.skipVerify` replaces `verifyServer` (migration), app-wide setting removed and ignored on load, Advanced switch with the prompt, "only this time" for one attempt, ⚠ with tooltips on cards and tabs | Done 14 Oct 2026. The switch label follows the switch (see Open) |
+| Certificate prompt reworked: choice list (pin, skip once, skip always, CA) with one Connect button | Done 14 Oct 2026 |
+| Tests C-26 to C-30, T-20, S-05; screenshots re-recorded | Done 14 Oct 2026. Rust 201, Vitest 107, Playwright 241 (overflow 114 on 38 states × EN, FR, DE; screenshots 76; flows 51), all green; new state 02d-skip-prompt |
 
 ## Change set 5 (14 Oct 2026, owner feedback on the fourth build): implemented
 
@@ -148,7 +148,7 @@ Every screen of `docs/mockups/mqtt-panel-mockups.html` was compared side by side
 | 01 | First launch | Empty profile list, welcome cards ("Create…" opens the New connection menu, "Start and connect" opens 02b, import), ⌘K hint | |
 | 02, 02c, 02d, 19 | Connections (EN, FR) | Profile cards with search and drag reorder, state word and round stop button, chips TLS, WSS, no TLS, "unverified" when verification is skipped; "New connection ▾" menu with the "This app's broker" submenu; form with Basics open and the "Security" and "Advanced" folds (closed at start, summaries, state kept while the app runs); file pickers with Browse and drop, no parsed chips, plain error for a wrong file; every security field has its ⓘ bubble (EN, FR, DE); SNI and ALPN rows; subscription chips with X and the "no subscriptions" notice; "Test" with latency, certificate and version; Connect and Test on "Local broker" start the broker first; the "Local broker" password with eye and copy; import from other tools with a summary | |
 | 02b | Connect to this app's broker | Enabled listeners, most secure first and preselected, chips (client certificate, Encrypted, unencrypted), "Add a listener…" with ⓘ; explainer (Anonymous variant); steps ticking off with the "mqtt-panel" password behind eye and copy; error stops the list | The explainer is one generic text ("if the listener requires one", "if needed") instead of the mockup's listener-specific wording |
-| 03 | Trust prompt | Reason, subject, issuer, SAN, validity, SHA-256 fingerprint, key; one action for self-signed with its scope line; "Trust anything this CA signs" only for a private CA; expired marked unsafe; Connect offers the same prompt | |
+| 03 | Trust prompt | Reason, subject, issuer, SAN, validity, SHA-256 fingerprint, key; risk sentence; one choice list (trust this certificate, preselected; skip once; skip always; "Trust anything this CA signs" only for a private CA) and one Connect button (change set 6); expired marked unsafe; Connect and Test open the same prompt | |
 | 04 | Explorer tree | Virtualised tree, child count, messages since connect, rate, inline value, retained marker, activity dot, sparkline with hover values, highlight on the row and collapsed ancestors (reduced motion: dot only), expand menu, pinned chips, views, follow and pause with missed counter, quick publish row, native context menu (pin, publish here, add to chart, copy topic / payload / CLI, export subtree, delete retained, delete retained in subtree with preview, clear history) | The root row shows the count without the words "since connect" (the tooltip says it) |
 | 05 | Explorer table | Sortable, hideable, reorderable columns; "Value · last 10" sparkline; pinned rows grouped at the top; filters (retained, changed in last n min, payload contains, QoS, has value); footer counts | |
 | 06 | Diff | Current against previous or any history entry, change count, highlight toggle, history with changed keys and Baseline; right-click or hover icon on a field: add to chart, copy path, copy value | |
@@ -161,7 +161,7 @@ Every screen of `docs/mockups/mqtt-panel-mockups.html` was compared side by side
 | 12c | Restart prompt | "Restart the broker to apply the change?" with the pending list, "Later" / "Restart now"; pulsing clay "Restart broker and apply changes" (static highlight under reduced motion or Motion off); "restart pending" on the Listeners line; "pending" on a changed port; Advanced security open, log expanded | |
 | 13, 14 | Add listener | Step 1 setup with ⓘ per preset and explanation; step 2 kind and port only (refuses below 1024 with the exact message); closing note depends on context (asks to restart / starts with the broker / the Connections flow restarts and connects) | |
 | 15 | Issue client certificate | Name, validity, ECDSA or RSA, PEM or PKCS#12, passphrase with Generate, eye, copy and ⓘ bubble, save CA.pem too | |
-| 16, 17, 20 | Settings (EN, DE) | Appearance, language (runtime switch), data and memory with live estimate and Clear all history, security (skip verification, trusted fingerprints), updates, shortcuts (searchable), privacy, about and licences | |
+| 16, 17, 20 | Settings (EN, DE) | Appearance, language (runtime switch), data and memory with live estimate and Clear all history, security (trusted fingerprints; skipping verification is per connection since change set 6), updates, shortcuts (searchable), privacy, about and licences | |
 | 18 | Command palette | Commands, topics and connections, fuzzy match, keyboard only | |
 
 Empty states: "Choose a connection" on Explorer, Publish and Charts without an active connection; Charts without a chart.
