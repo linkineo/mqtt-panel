@@ -77,6 +77,14 @@ export const STATES: UiState[] = [
       await p.waitForSelector('[data-testid=bubble-caCert]');
     },
   },
+  {
+    id: '02e-unencrypted',
+    query: 'mock=demo&connect=local&screen=connect',
+    steps: async (p) => {
+      await p.click('[data-profile=lab]');
+      await p.waitForSelector('.fold.off');
+    },
+  },
   { id: '02b-app-broker', query: 'mock=demo', steps: openAppBrokerDialog },
   {
     id: '02b-app-broker-steps',

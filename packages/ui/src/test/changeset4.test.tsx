@@ -98,7 +98,8 @@ describe('Change set 4: form folds (C-19)', () => {
   it('"verify off" when verification is off; empty summaries at the defaults', async () => {
     await boot('demo');
     const p = await engine().newProfile();
-    const saved = await engine().saveProfile({ ...p, name: 'Defaults' });
+    // mqtts: with mqtt the Security fold is off and carries its reason instead (change set 5)
+    const saved = await engine().saveProfile({ ...p, name: 'Defaults', scheme: 'mqtts', port: 8883 });
     useApp.setState({ profiles: await engine().listProfiles() });
     const { unmount } = render(<ProfileForm profileId={saved.id} />);
     expect(screen.queryByTestId('fold-security-summary')).toBeNull();

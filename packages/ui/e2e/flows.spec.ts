@@ -39,8 +39,8 @@ test.describe('Connections', () => {
   test('C-12 "New connection" is a menu; the first-launch cards route to the same places', async ({ page }) => {
     await open(page, 'mock=demo');
     await page.click('[data-testid=new-profile]');
-    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['Another broker…', "This app's broker"]);
-    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: "This app's broker" }).hover();
+    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['Another broker…', 'MQTT Panel broker']);
+    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'MQTT Panel broker' }).hover();
     await expect(page.locator('[data-testid=context-submenu] .ctx-label')).toHaveText(['Use an existing listener', 'Add a listener…']);
     await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'Another broker…' }).click();
     await expect(page.locator('[data-testid=profile-form] h5')).toHaveText('New connection');
@@ -57,17 +57,17 @@ test.describe('Connections', () => {
     // first launch
     await open(page, 'mock=empty');
     await page.click('[data-testid=welcome-new]');
-    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['Another broker…', "This app's broker"]);
+    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['Another broker…', 'MQTT Panel broker']);
     await page.keyboard.press('Escape');
     await page.click('[data-testid=welcome-broker]');
     await expect(page.locator('[data-testid=app-broker]')).toBeVisible();
     await expect(page.locator('[data-testid=appb-listener]').first()).toHaveAttribute('aria-checked', 'true');
   });
 
-  test('C-13 "This app\'s broker" > "Add a listener…": no login row, then the steps run and the Explorer opens', async ({ page }) => {
+  test('C-13 "MQTT Panel broker" > "Add a listener…": no login row, then the steps run and the Explorer opens', async ({ page }) => {
     await open(page, 'mock=demo');
     await page.click('[data-testid=new-profile]');
-    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: "This app's broker" }).hover();
+    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'MQTT Panel broker' }).hover();
     await page.locator('[data-testid=context-submenu] .ctx-item', { hasText: 'Add a listener…' }).click();
     await page.click('[data-testid=preset-mtls]');
     await page.click('[data-testid=addl-next]');
@@ -436,13 +436,13 @@ test.describe('Broker', () => {
     await expect(page.locator('[data-testid=require-cert-seg] button.on')).toHaveText('Required');
   });
 
-  test('B-12 "This app\'s broker" > "Use an existing listener" keeps one profile and one user after 3 runs', async ({ page }) => {
+  test('B-12 "MQTT Panel broker" > "Use an existing listener" keeps one profile and one user after 3 runs', async ({ page }) => {
     await open(page, 'mock=empty');
     for (let i = 0; i < 3; i++) {
       await page.click('[data-testid=rail-connect]');
       await page.click(i === 0 ? '[data-testid=welcome-broker]' : '[data-testid=new-profile]');
       if (i > 0) {
-        await page.locator('[data-testid=context-menu] .ctx-item', { hasText: "This app's broker" }).hover();
+        await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'MQTT Panel broker' }).hover();
         await page.locator('[data-testid=context-submenu] .ctx-item', { hasText: 'Use an existing listener' }).click();
       }
       await expect(page.locator('[data-testid=appb-listener][aria-checked=true]')).toHaveAttribute('data-listener', 'l-tls');
@@ -713,13 +713,15 @@ test.describe('Change set 4', () => {
     // kept while navigating and across profiles
     await page.click('[data-testid=rail-explore]');
     await page.click('[data-testid=rail-connect]');
-    await page.click('[data-profile=lab]');
+    // (an encrypted profile: with mqtt or ws the Security fold is off, change set 5)
+    await page.click('[data-profile=emqx]');
     await expect(page.locator('[data-testid=fold-security]')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('[data-testid=fold-advanced]')).toHaveAttribute('aria-expanded', 'true');
     // a profile at its defaults has empty summaries
     await page.click('[data-testid=new-profile]');
     await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'Another broker…' }).click();
     await expect(page.locator('[data-testid=fold-advanced-summary]')).toHaveCount(0);
+    await page.click('[data-testid=scheme-mqtts]');
     await expect(page.locator('[data-testid=fold-security-summary]')).toHaveCount(0);
     // closed again after a restart of the app
     await open(page, 'mock=demo&screen=connect');
@@ -862,5 +864,155 @@ test.describe('Change set 4', () => {
     await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveCount(0);
     for (const id of ['plant', 'local']) await mock(page, 'disconnect', id);
     await expect(page.locator('[data-testid=rail-connect-count]')).toHaveCount(0);
+  });
+});
+
+test.describe('Change set 5', () => {
+  const mock = (page: Page, fn: string, ...args: unknown[]) =>
+    page.evaluate(([f, a]) => (window as any).__mqttpanelMock.engine[f as string](...(a as unknown[])), [fn, args] as const);
+  const host = (page: Page) => page.locator('#pf-host');
+  const port = (page: Page) => page.locator('[data-testid=pf-port]');
+  const scheme = (page: Page, s: string) => page.locator(`[data-testid=scheme-${s}]`);
+
+  test('C-21 idle cards carry a play button that connects; play and stop never show together', async ({ page }) => {
+    await open(page, 'mock=demo&connect=local&screen=connect&latency=600');
+    const lab = page.locator('[data-profile=lab]');
+    await expect(page.locator('[data-profile=local] [data-testid=card-stop]')).toBeVisible();
+    await expect(page.locator('[data-profile=local] [data-testid=card-play]')).toHaveCount(0);
+    for (const id of ['plant', 'lab', 'emqx']) {
+      await expect(page.locator(`[data-profile=${id}] [data-testid=card-play]`)).toHaveAttribute('title', 'Connect');
+      await expect(page.locator(`[data-profile=${id}] [data-testid=card-stop]`)).toHaveCount(0);
+    }
+    await expect(page.locator('[data-profile=plant]')).toHaveAttribute('aria-selected', 'true');
+    await lab.locator('[data-testid=card-play]').click();
+    await expect(lab.locator('[data-testid=card-play]')).toHaveCount(0);
+    await expect(lab.locator('[data-testid=card-state]')).toHaveText('connecting');
+    await expect(lab.locator('[data-testid=card-state]')).toHaveText('connected', { timeout: 5000 });
+    await expect(lab.locator('[data-testid=card-stop]')).toBeVisible();
+    await expect(lab.locator('[data-testid=card-play]')).toHaveCount(0);
+    // the click neither selects the card nor leaves the Connections screen
+    await expect(page.locator('[data-profile=plant]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-testid=profile-form]')).toBeVisible();
+    await expect(page.locator('[data-testid=rail-connect-count]')).toHaveText('2');
+    // "Local broker": the broker starts first
+    await page.locator('[data-profile=local] [data-testid=card-stop]').click();
+    await mock(page, 'brokerStop');
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveCount(0);
+    await page.locator('[data-profile=local] [data-testid=card-play]').click();
+    await expect(page.locator('[data-profile=local] [data-testid=card-state]')).toHaveText('starting broker…');
+    await expect(page.locator('[data-profile=local] [data-testid=card-state]')).toHaveText('connected', { timeout: 8000 });
+    await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveAttribute('data-state', 'running');
+  });
+
+  test('C-22 Basics order and the address prefiller', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    await page.click('[data-profile=lab]');
+    const form = page.locator('[data-testid=profile-form]');
+    await expect(form.locator('.f > .lbl, .f > label')).toHaveText(['Name', 'Protocol', 'MQTT version', 'Host and port', 'Client ID', 'Username', 'Password']);
+    await expect(host(page)).toHaveValue('mqtt://10.20.4.17:1883');
+    // choosing ws rewrites the prefix and the default port, and adds the WebSocket path row
+    await scheme(page, 'ws').click();
+    await expect(host(page)).toHaveValue('ws://10.20.4.17:8083');
+    await expect(port(page)).toHaveValue('8083');
+    await expect(form.locator('.f > .lbl, .f > label')).toHaveText(['Name', 'Protocol', 'MQTT version', 'Host and port', 'WebSocket path', 'Client ID', 'Username', 'Password']);
+    // typing "mqtt://" selects mqtt
+    await host(page).fill('mqtt://10.20.4.17');
+    await expect(scheme(page, 'mqtt')).toHaveAttribute('aria-checked', 'true');
+    await expect(port(page)).toHaveValue('1883');
+    // ":1884" at the end sets the port box
+    await host(page).press('End');
+    await page.keyboard.type(':1884');
+    await expect(port(page)).toHaveValue('1884');
+    // the port box rewrites the suffix
+    await port(page).fill('1885');
+    await expect(host(page)).toHaveValue('mqtt://10.20.4.17:1885');
+    // a pasted full address
+    await host(page).fill('wss://demo.emqx.example:8084/mqtt');
+    await host(page).blur();
+    await expect(scheme(page, 'wss')).toHaveAttribute('aria-checked', 'true');
+    await expect(port(page)).toHaveValue('8084');
+    await expect(page.locator('#pf-ws')).toHaveValue('/mqtt');
+    await expect(host(page)).toHaveValue('wss://demo.emqx.example:8084');
+    // IPv6 keeps its brackets
+    await host(page).fill('mqtt://[::1]:1883');
+    await host(page).blur();
+    await expect(host(page)).toHaveValue('mqtt://[::1]:1883');
+    // a deleted prefix comes back on blur; the protocol stays
+    await host(page).fill('10.20.4.17:1883');
+    await expect(scheme(page, 'mqtt')).toHaveAttribute('aria-checked', 'true');
+    await host(page).blur();
+    await expect(host(page)).toHaveValue('mqtt://10.20.4.17:1883');
+    // the saved profile holds the host without scheme or port
+    await expect
+      .poll(async () => (await mock(page, 'listProfiles')).find((p: any) => p.id === 'lab'), { timeout: 3000 })
+      .toMatchObject({ host: '10.20.4.17', port: 1883, scheme: 'mqtt' });
+  });
+
+  test('C-23 Security is off with mqtt and ws, with the reason; values come back with mqtts', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    const fold = page.locator('[data-testid=fold-security]');
+    await fold.click();
+    await expect(page.locator('[data-testid=file-caCert]')).toContainText('plant-root-ca.pem');
+    await scheme(page, 'mqtt').click();
+    await expect(fold).toHaveClass('fold off');
+    await expect(fold).toHaveAttribute('aria-disabled', 'true');
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('[data-testid=fold-security-summary]')).toHaveText('Not encrypted: choose mqtts or wss to use certificates.');
+    await expect(page.locator('[data-testid=file-caCert]')).toHaveCount(0);
+    await fold.click({ force: true });
+    await expect(page.locator('[data-testid=file-caCert]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=profile-form]')).not.toContainText('Certificates are used only');
+    await scheme(page, 'ws').click();
+    await expect(fold).toHaveClass('fold off');
+    await scheme(page, 'mqtts').click();
+    await expect(fold).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('[data-testid=file-caCert]')).toContainText('plant-root-ca.pem');
+    for (const [lang, text] of [
+      ['fr', 'Non chiffré\u202f: choisissez mqtts ou wss pour utiliser des certificats.'],
+      ['de', 'Nicht verschlüsselt: Wähle mqtts oder wss, um Zertifikate zu verwenden.'],
+    ]) {
+      await page.goto(`/?mock=demo&screen=connect&lang=${lang}&theme=light`);
+      await page.waitForSelector('#app-root');
+      await page.click('[data-profile=lab]');
+      await expect(page.locator('[data-testid=fold-security-summary]')).toHaveText(text);
+    }
+  });
+
+  test('C-24 "MQTT Panel broker" in the menu, the dialog title and the card meta line, in EN, FR and DE', async ({ page }) => {
+    for (const [lang, item, title, meta] of [
+      ['en', 'MQTT Panel broker', 'Connect to the MQTT Panel broker', 'MQTT Panel broker'],
+      ['fr', 'Broker MQTT Panel', 'Se connecter au broker MQTT Panel', 'Broker MQTT Panel'],
+      ['de', 'MQTT Panel Broker', 'Mit dem MQTT Panel Broker verbinden', 'MQTT Panel Broker'],
+    ]) {
+      await page.goto(`/?mock=demo&screen=connect&lang=${lang}&theme=light`);
+      await page.waitForSelector('#app-root');
+      await expect(page.locator('[data-profile=local] .s').nth(1)).toContainText(meta);
+      await page.click('[data-testid=new-profile]');
+      await expect(page.locator('[data-testid=context-menu] .ctx-label').nth(1)).toHaveText(item);
+      await page.locator('[data-testid=context-menu] .ctx-item').nth(1).hover();
+      await page.locator('[data-testid=context-submenu] .ctx-item').first().click();
+      await expect(page.locator('[data-testid=app-broker] .mh')).toHaveText(title);
+      const text = await page.locator('body').innerText();
+      expect(text).not.toMatch(/this app's broker|cette app\b|dieser App/i);
+    }
+  });
+
+  test('C-25 no import entry point: no line under the list, no drop zone, no welcome card, no palette entry', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    await expect(page.locator('[data-testid=import]')).toHaveCount(0);
+    await expect(page.locator('.pane.side')).not.toContainText('Import');
+    const before = (await mock(page, 'listProfiles')).length;
+    const box = (await page.locator('.pane.side .list').boundingBox())!;
+    await page.evaluate(([x, y]) => (window as any).__mqttpanelMock.platform.simulateDrop(['/dropped/connections.json'], x, y), [box.x + 20, box.y + 20]);
+    await page.waitForTimeout(300);
+    await expect(page.locator('[data-testid=import-summary]')).toHaveCount(0);
+    expect((await mock(page, 'listProfiles')).length).toBe(before);
+    await page.keyboard.press('ControlOrMeta+K');
+    await page.keyboard.type('import');
+    await expect(page.locator('[data-testid=palette-row]', { hasText: /connection/i })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await open(page, 'mock=empty');
+    await expect(page.locator('[data-testid=welcome] .big > .card')).toHaveCount(2);
+    await expect(page.locator('[data-testid=welcome]')).not.toContainText('Import');
   });
 });

@@ -32,8 +32,8 @@ describe('Change set 1: "This app\'s broker" (02b)', () => {
     render(<ConnectionsScreen />);
     await act(async () => fireEvent.click(screen.getByTestId('new-profile')));
     const menu = await screen.findByTestId('context-menu');
-    expect(Array.from(menu.querySelectorAll('.ctx-label')).map((x) => x.textContent)).toEqual(['Another broker…', "This app's broker"]);
-    const app = within(menu).getByText("This app's broker").closest('.ctx-item') as HTMLElement;
+    expect(Array.from(menu.querySelectorAll('.ctx-label')).map((x) => x.textContent)).toEqual(['Another broker…', 'MQTT Panel broker']);
+    const app = within(menu).getByText('MQTT Panel broker').closest('.ctx-item') as HTMLElement;
     await act(async () => fireEvent.mouseEnter(app));
     const sub = await screen.findByTestId('context-submenu');
     expect(Array.from(sub.querySelectorAll('.ctx-label')).map((x) => x.textContent)).toEqual(['Use an existing listener', 'Add a listener…']);

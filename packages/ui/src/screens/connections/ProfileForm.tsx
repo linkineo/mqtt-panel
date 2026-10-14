@@ -10,8 +10,56 @@ import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { SecretText } from '../../components/Secret';
 import { FoldHeader, useFold } from '../../components/Fold';
 import { fmtAge, fmtBytes } from '../../lib/format';
+import { applyAddressText, applyScheme, formatAddress, isWebSocket, type AddressFields } from '../../lib/address';
 
-const DEFAULT_PORT: Record<Scheme, number> = { mqtt: 1883, mqtts: 8883, ws: 8083, wss: 8084 };
+const fieldsOf = (p: Profile): AddressFields => ({ scheme: p.scheme, host: p.host, port: p.port, wsPath: p.wsPath });
+const sameFields = (a: AddressFields, b: AddressFields) => a.scheme === b.scheme && a.host === b.host && a.port === b.port && a.wsPath === b.wsPath;
+
+/**
+ * "Host and port" with the address prefiller (change set 5): the field shows "<scheme>://<host>:<port>" and is a view
+ * over the profile's scheme, host, port and WebSocket path (parsing and formatting in lib/address.ts). While focused it
+ * keeps the user's text and the profile follows what it reads; on blur, or when the protocol or the port change from
+ * outside, the text is normalised (a deleted prefix comes back).
+ */
+function AddressField({ p, onChange }: { p: Profile; onChange(patch: Partial<Profile>): void }) {
+  const { t } = useTranslation();
+  const [text, setText] = useState<string | null>(null);
+  const cur = fieldsOf(p);
+  // a change that did not come from this text (protocol segment, port box, engine): rewrite the text
+  useEffect(() => {
+    if (text !== null && !sameFields(applyAddressText(cur, text), cur)) setText(formatAddress(p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.scheme, p.host, p.port, p.wsPath]);
+  return (
+    <span className="row2">
+      <input
+        id="pf-host"
+        className="input mono"
+        style={{ flex: 1 }}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        value={text ?? formatAddress(p)}
+        onFocus={() => setText(formatAddress(p))}
+        onBlur={() => setText(null)}
+        onChange={(e) => {
+          setText(e.target.value);
+          const next = applyAddressText(cur, e.target.value);
+          if (!sameFields(next, cur)) onChange(next);
+        }}
+      />
+      <input
+        className="input mono"
+        style={{ width: 80 }}
+        aria-label={t('conn.port')}
+        data-testid="pf-port"
+        inputMode="numeric"
+        value={p.port}
+        onChange={(e) => onChange({ port: Number(e.target.value.replace(/\D/g, '').slice(0, 5)) || 0 })}
+      />
+    </span>
+  );
+}
 
 function SubscriptionAdd({ onAdd }: { onAdd(s: Subscription): void }) {
   const { t } = useTranslation();
@@ -277,33 +325,26 @@ export function ProfileForm({ profileId }: { profileId: string }) {
             <label htmlFor="pf-name">{t('conn.name')}</label>
             <input id="pf-name" className="input" value={p.name} placeholder={t('conn.untitled')} onChange={(e) => update({ name: e.target.value })} />
           </div>
+          {/* change set 5: Protocol and MQTT version on their own rows, before the address */}
           <div className="f">
-            <label htmlFor="pf-host">{t('conn.hostPort')}</label>
+            <span className="lbl">{t('conn.protocol')}</span>
             <span className="row2">
-              <input id="pf-host" className="input mono" style={{ flex: 1 }} value={p.host} onChange={(e) => update({ host: e.target.value.trim() })} />
-              <input
-                className="input mono"
-                style={{ width: 80 }}
-                aria-label={t('conn.port')}
-                inputMode="numeric"
-                value={p.port}
-                onChange={(e) => update({ port: Number(e.target.value.replace(/\D/g, '')) || 0 })}
+              <Seg
+                label={t('conn.protocol')}
+                value={p.scheme}
+                testId="scheme"
+                onChange={(scheme) => update(applyScheme(fieldsOf(draft.current!), scheme))}
+                options={(['mqtt', 'mqtts', 'ws', 'wss'] as Scheme[]).map((s) => ({ value: s, label: s, testId: `scheme-${s}` }))}
               />
             </span>
           </div>
           <div className="f">
-            <span className="lbl">{t('conn.transport')}</span>
+            <span className="lbl">{t('conn.version')}</span>
             <span className="row2">
-              <Seg
-                label={t('conn.transport')}
-                value={p.scheme}
-                testId="scheme"
-                onChange={(scheme) => update({ scheme, port: p.port === DEFAULT_PORT[p.scheme] ? DEFAULT_PORT[scheme] : p.port })}
-                options={(['mqtt', 'mqtts', 'ws', 'wss'] as Scheme[]).map((s) => ({ value: s, label: s, testId: `scheme-${s}` }))}
-              />
               <Seg
                 label={t('conn.version')}
                 value={p.mqttVersion}
+                testId="mqtt-version"
                 onChange={(mqttVersion) => update({ mqttVersion })}
                 options={[
                   { value: '3.1.1', label: '3.1.1' },
@@ -313,7 +354,11 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               />
             </span>
           </div>
-          {(p.scheme === 'ws' || p.scheme === 'wss') && (
+          <div className="f">
+            <label htmlFor="pf-host">{t('conn.hostPort')}</label>
+            <AddressField p={p} onChange={update} />
+          </div>
+          {isWebSocket(p.scheme) && (
             <div className="f">
               <label htmlFor="pf-ws">{t('conn.wsPath')}</label>
               <input id="pf-ws" className="input mono" style={{ width: 160 }} value={p.wsPath} onChange={(e) => update({ wsPath: e.target.value })} />
@@ -370,8 +415,9 @@ export function ProfileForm({ profileId }: { profileId: string }) {
           </div>
 
           {/* change set 4: Security and Advanced are folds, closed at app start; rows carry labels, controls and ⓘ only */}
-          <FoldHeader id="security" title={t('conn.security')} summary={securitySummary()} />
-          {securityOpen && (
+          {/* change set 5: with mqtt or ws the Security fold does not apply; its values stay in the profile */}
+          <FoldHeader id="security" title={t('conn.security')} summary={tls ? securitySummary() : t('conn.securityOff')} off={!tls} />
+          {securityOpen && tls && (
             <>
               <div className="f">
                 <span className="lbl">
@@ -415,7 +461,6 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                   <input className="input mono" style={{ width: 140 }} aria-label={t('conn.alpn')} placeholder={t('common.optional')} value={p.tls.alpn} onChange={(e) => updateTls({ alpn: e.target.value.trim() })} />
                 </span>
               </div>
-              {!tls && (p.tls.caCert || p.tls.clientCert) && <div className="hint warn">{t('conn.tlsUnused')}</div>}
             </>
           )}
 

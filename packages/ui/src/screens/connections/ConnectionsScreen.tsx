@@ -14,7 +14,7 @@ import { isUnverified } from '../../components/ConnectionBar';
 type AppDialog = 'pick' | 'add' | null;
 
 /**
- * "New connection" is a menu (owner, 13 Oct 2026): "Another broker…" opens the empty form; "This app's broker" opens
+ * "New connection" is a menu (owner, 13 Oct 2026): "Another broker…" opens the empty form; "MQTT Panel broker" opens
  * a submenu "Use an existing listener" / "Add a listener…". Shown under the button that opened it.
  */
 export async function newConnectionMenu(anchor: HTMLElement, t: (k: string) => string, openApp: (d: AppDialog) => void): Promise<void> {
@@ -106,6 +106,24 @@ function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; 
     >
       <div className="t">
         <span>{p.name || t('conn.untitled')}</span>
+        {!state && (
+          // change set 5: an idle card connects from here, in the place of the stop button; it stays on this screen
+          // and, for "Local broker", starts the broker first like Connect does
+          <button
+            type="button"
+            className="play"
+            aria-label={t('conn.connect')}
+            title={t('conn.connect')}
+            data-testid="card-play"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              void connectProfile(p.id, false);
+            }}
+          >
+            <span aria-hidden="true">▶</span>
+          </button>
+        )}
         {state && (
           <span className="stw">
             <span className="state" data-testid="card-state">
@@ -147,7 +165,10 @@ function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; 
   );
 }
 
-function ImportSummaryDialog({ summary, onClose }: { summary: ImportSummary; onClose(): void }) {
+// Import from other tools is not offered in the UI since change set 5 (owner, 14 Oct 2026): it returns in a later
+// release with a proper flow. ImportSummaryDialog and doImport are kept for that, with the engine command and the crate
+// tests; nothing renders or calls them today.
+export function ImportSummaryDialog({ summary, onClose }: { summary: ImportSummary; onClose(): void }) {
   const { t } = useTranslation();
   return (
     <Modal title={t('import.title')} width={520} onClose={onClose} testId="import-summary" footer={<button type="button" className="btn pri" onClick={onClose}>{t('common.done')}</button>}>
@@ -167,7 +188,7 @@ function ImportSummaryDialog({ summary, onClose }: { summary: ImportSummary; onC
   );
 }
 
-async function doImport(path: string | null, show: (s: ImportSummary) => void) {
+export async function doImport(path: string | null, show: (s: ImportSummary) => void) {
   const s = await run(engine().importProfiles(path));
   if (s) {
     await useApp.getState().refreshProfiles();
@@ -182,7 +203,7 @@ async function newProfile(name: string) {
   useApp.getState().selectProfile(saved.id);
 }
 
-function EmptyState({ onImport, openApp }: { onImport(s: ImportSummary): void; openApp(d: AppDialog): void }) {
+function EmptyState({ openApp }: { openApp(d: AppDialog): void }) {
   const { t } = useTranslation();
   const info = useApp((s) => s.appInfo);
   return (
@@ -194,7 +215,7 @@ function EmptyState({ onImport, openApp }: { onImport(s: ImportSummary): void; o
             {t('welcome.lead')}
           </p>
         </div>
-        <div className="big">
+        <div className="big two">
           <div className="card">
             <div className="t">{t('welcome.newTitle')}</div>
             <span className="s">{t('welcome.newText')}</span>
@@ -215,13 +236,6 @@ function EmptyState({ onImport, openApp }: { onImport(s: ImportSummary): void; o
               {t('welcome.brokerButton')}
             </button>
           </div>
-          <div className="card">
-            <div className="t">{t('welcome.importTitle')}</div>
-            <span className="s">{t('welcome.importText')}</span>
-            <button type="button" className="btn" style={{ justifySelf: 'start', marginTop: 6 }} onClick={() => void doImport(null, onImport)}>
-              {t('welcome.importButton')}
-            </button>
-          </div>
         </div>
         <div className="muted small">
           {t('welcome.paletteBefore')} <Kbd>{shortcut(info, 'mod+K')}</Kbd> {t('welcome.paletteAfter')}
@@ -237,12 +251,10 @@ export function ConnectionsScreen() {
   const selected = useApp((s) => s.selectedProfileId);
   const info = useApp((s) => s.appInfo);
   const [q, setQ] = useState('');
-  const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [appDialog, setAppDialog] = useState<AppDialog>(null);
   const [drag, setDrag] = useState<{ id: string; over: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<Profile | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const sideRef = useRef<HTMLDivElement>(null);
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -255,17 +267,6 @@ export function ConnectionsScreen() {
     window.addEventListener('mqttpanel:new-connection', onNew);
     return () => window.removeEventListener('mqttpanel:new-connection', onNew);
   }, [t]);
-
-  // a file dropped on the list is an import
-  useEffect(
-    () =>
-      platform().onFileDrop((paths, x, y) => {
-        const r = sideRef.current?.getBoundingClientRect();
-        if (!r || !paths.length || x < r.left || x > r.right || y < r.top || y > r.bottom) return;
-        void doImport(paths[0], setSummary);
-      }),
-    [],
-  );
 
   const reorder = async (id: string, to: number) => {
     const ids = profiles.map((p) => p.id).filter((x) => x !== id);
@@ -362,7 +363,7 @@ export function ConnectionsScreen() {
 
   return (
     <div className="cols" style={{ gridTemplateColumns: '320px 1fr' }}>
-      <div className="pane side" ref={sideRef}>
+      <div className="pane side">
         <div className="ph">
           <h5>{t('conn.title')}</h5>
           <button type="button" className="btn pri sm" data-testid="new-profile" aria-haspopup="menu" onClick={(e) => void newConnectionMenu(e.currentTarget, t, setAppDialog)}>
@@ -388,21 +389,11 @@ export function ConnectionsScreen() {
                   </div>
                 ))}
               </div>
-              <div className="sec" style={{ marginTop: 16 }}>
-                {t('conn.import')}
-              </div>
-              <div className="muted small" style={{ marginTop: 4 }}>
-                {t('conn.importHint')}{' '}
-                <button type="button" className="btn link small" data-testid="import" onClick={() => void doImport(null, setSummary)}>
-                  {t('conn.importLink')}
-                </button>
-              </div>
             </>
           )}
         </div>
       </div>
-      {sel ? <ProfileForm key={sel.id} profileId={sel.id} /> : <EmptyState onImport={setSummary} openApp={setAppDialog} />}
-      {summary && <ImportSummaryDialog summary={summary} onClose={() => setSummary(null)} />}
+      {sel ? <ProfileForm key={sel.id} profileId={sel.id} /> : <EmptyState openApp={setAppDialog} />}
       {appDialog && <AppBrokerDialog start={appDialog} onClose={() => setAppDialog(null)} />}
       {confirmDel && <DeleteProfileDialog profile={confirmDel} onClose={() => setConfirmDel(null)} />}
     </div>

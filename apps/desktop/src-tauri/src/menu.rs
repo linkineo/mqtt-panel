@@ -44,7 +44,7 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>, lang: &str) -> tauri::Result<M
         .build();
     let settings = item(app, "open-settings", &l("settings"), Some("CmdOrCtrl+,"))?;
     let new_conn = item(app, "new-connection", &l("newConnection"), Some("CmdOrCtrl+N"))?;
-    let import = item(app, "import", &l("import"), None)?;
+    // "Import Connections…" is not offered since change set 5 (owner, 14 Oct 2026); import returns in a later release.
     let export = item(app, "export", &l("export"), Some("CmdOrCtrl+E"))?;
     let sep = || PredefinedMenuItem::separator(app);
     let about_text = l("about");
@@ -73,7 +73,7 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>, lang: &str) -> tauri::Result<M
         app,
         &l("file"),
         true,
-        &[&new_conn, &import, &sep()?, &export, &sep()?, &PredefinedMenuItem::close_window(app, Some(&l("closeWindow")))?],
+        &[&new_conn, &sep()?, &export, &sep()?, &PredefinedMenuItem::close_window(app, Some(&l("closeWindow")))?],
     )?;
     #[cfg(not(target_os = "macos"))]
     let file = {
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn menu_labels_exist_in_every_language() {
         let keys = [
-            "about", "settings", "services", "hide", "hideOthers", "showAll", "quit", "file", "newConnection", "import", "export",
+            "about", "settings", "services", "hide", "hideOthers", "showAll", "quit", "file", "newConnection", "export",
             "closeWindow", "edit", "undo", "redo", "cut", "copy", "paste", "selectAll", "find", "view", "connect", "explore",
             "publish", "charts", "broker", "commandPalette", "fullscreen", "connection", "switchConnection", "clearHistory",
             "window", "minimize", "zoom", "help", "shortcuts",
@@ -179,5 +179,7 @@ mod tests {
         assert_eq!(label("fr", "file"), "Fichier");
         assert_eq!(label("de", "file"), "Ablage");
         assert_eq!(label("xx", "quit"), label("en", "quit"));
+        // change set 5: the import item and its label are gone
+        assert_eq!(label("en", "import"), "import");
     }
 }

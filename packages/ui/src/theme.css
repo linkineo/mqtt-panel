@@ -188,6 +188,7 @@ button.chip:hover { filter: brightness(.97) }
 .empty { display: grid; place-items: center; text-align: center; color: var(--ink-2); padding: 40px; gap: 10px; align-content: center }
 .empty h4 { margin: 0; color: var(--ink); font-size: 16px }
 .big { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px }
+.big.two { grid-template-columns: repeat(2, minmax(0,1fr)) }
 .big .card { padding: 16px; display: grid; gap: 6px; align-content: start }
 .big .card .t { font-size: 14px }
 .big .card .s { display: block; white-space: normal }
@@ -409,6 +410,12 @@ button.chip:hover { filter: brightness(.97) }
 .card .stop { width: 18px; height: 18px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,.22); color: inherit; display: inline-grid; place-items: center; font-size: 8px; line-height: 1; margin-left: 4px; flex: none; cursor: default }
 .card:not(.live) .stop { background: var(--clay-soft); color: var(--clay) }
 .card .stop:hover { box-shadow: 0 0 0 1px currentColor }
+/* change set 5: round play button on idle cards, same place as the stop button; Security fold off with mqtt and ws */
+.card .play { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); padding: 0 0 0 1px; background: none; color: var(--ink-2); display: inline-grid; place-items: center; font-size: 8px; line-height: 1; flex: none; cursor: default }
+.card .play:hover { border-color: currentColor; color: var(--ink) }
+.fold.off { color: var(--ink-2); cursor: default }
+.fold.off .chev { visibility: hidden }
+.fold.off .sum { color: var(--clay) }
 .fold { display: flex; align-items: center; gap: 8px; padding: 9px 0; border: 0; border-top: 1px solid var(--line-2); background: none; width: 100%; text-align: left; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink); margin-top: 4px; min-width: 0 }
 .fold .chev { color: var(--ink-2); width: 12px; flex: none }
 .fold .ttl { flex: none; white-space: nowrap }
