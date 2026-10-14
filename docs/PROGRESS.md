@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 13 Oct 2026 (phases 1 to 4, change sets 1 to 4 complete on macOS; Windows and Linux through CI).
+Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 4 complete on macOS; change set 5 specified, implementation in progress; Windows and Linux through CI).
 
 ## Summary
 
@@ -11,10 +11,25 @@ Last update: 13 Oct 2026 (phases 1 to 4, change sets 1 to 4 complete on macOS; W
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
+| Change set 5 | owner feedback on the fourth build: play button on idle cards, Protocol and MQTT version rows before the host, address prefiller, Security disabled for mqtt and ws, "MQTT Panel broker", import hidden from the UI | Specified 14 Oct 2026, implementation in progress. See below. |
 | Change set 1 | "New connection" menu, "Connect to this app's broker", restart prompt, shared users only, password reveal, "Test" | Done on macOS (13 Oct 2026). See below. |
 | Change set 4 | owner feedback on the third build: broker starts on Connect, stop button on cards, no parsed chips, no "mTLS", Security and Advanced folds, rail badges instead of the title bar pill, Broker screen reorganised | Done on macOS (13 Oct 2026). See below. |
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
+
+## Change set 5 (14 Oct 2026, owner feedback on the fourth build): in progress
+
+Specified in `docs/FEATURES.md` (Connections, X2, B5), `docs/SPEC.md` 4 and 6, mockups 01, 02, 02b, 02c, 02d, 02e, 03 and 19, `docs/TESTPLAN.md` C-21 to C-25. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
+
+| Item | Status |
+|---|---|
+| Round play button (▶, "Connect") on idle cards, same place as ■; starts the broker first for "Local broker" | Specified |
+| Basics order: Name, Protocol, MQTT version, Host and port, WebSocket path, Client ID, Username, Password | Specified |
+| Address prefiller: scheme prefix always shown, prefix selects the protocol, ":port" and the port box mirror each other, pasted full address fills everything | Specified |
+| Security fold disabled with mqtt or ws, reason in place of the summary, values kept | Specified |
+| "MQTT Panel broker" (menu, dialog title, card meta line) in EN, FR, DE | Specified |
+| Import hidden from the UI (list line, drop zone, welcome card, native menu, palette); code and crate tests kept | Specified |
+| Tests C-21 to C-25; screenshots re-recorded | Specified |
 
 ## Change set 4 (13 Oct 2026, owner feedback on the third build): implemented
 

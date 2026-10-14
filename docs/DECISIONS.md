@@ -125,7 +125,18 @@
   - Error sites that hard-coded `keychain.unavailable` for secret store errors (profile password, connect, file fields, "Local broker" set-up) now take the key from the error, so a refusal reads `keychain.refused` everywhere.
   - Test C-02 (real OS keychain) now round-trips through the master key under a test service name and removes that item afterwards; the per-secret keychain store it used is gone.
 
-### 13 Oct 2026, owner feedback after the first run (change set 1)
+### 14 Oct 2026, owner feedback on the fourth build (change set 5)
+Owner, after the fourth build, in one message (English and French): a play icon on idle connection cards, in the place of the stop icon, to start the connection; the transport selector before host and port; a detector and prefiller on the host field (choosing ws writes "ws://" as a required prefix, a typed "mqtt://" selects mqtt, ":port" at the end sets the port box and the port box sets the suffix); the transport split into two labelled rows, protocol and MQTT version; with mqtt or ws the security part disabled with the reason; "This app's broker" renamed "MQTT Panel broker" (FR « Broker MQTT Panel »); the import text and drop field removed, the code kept and documented as a later feature. Spec: `docs/FEATURES.md` (Connections, scope rows X2 and B5), `docs/SPEC.md` (4, 6 table), `docs/TESTPLAN.md` C-21 to C-25, mockups 01, 02, 02b, 02c, 02d, 02e (new: Security disabled), 03 background and 19.
+
+Readings of the owner's words, to confirm:
+- The play button is always visible on idle cards (a small outlined circle, muted), not only on hover, so the list stays predictable; on "Local broker" it starts the broker first like Connect does.
+- The host field keeps its label "Host and port" and the port box stays: the field shows "scheme://host:port" and the two mirror each other, as asked ("conversely").
+- A deleted prefix comes back on blur with the protocol unchanged; "tcp://", "ssl://" and "tls://" are accepted as spellings of mqtt and mqtts; a pasted full address also fills the WebSocket path for ws and wss.
+- The protocol segment keeps the scheme names mqtt / mqtts / ws / wss as its labels, since they are what the user types as a prefix.
+- "Disable the security part" is read as the whole Security fold greyed and not openable, with the one-line reason in place of its summary; its values are kept, not cleared.
+- The rename applies everywhere the phrase appeared: the menu, the dialog title ("Connect to the MQTT Panel broker") and the "Local broker" card's meta line; the profile name "Local broker" itself does not change. DE „MQTT Panel Broker“ keeps the product name unhyphenated.
+- "Remove the text and the drag-and-drop field" is read as removing every import entry point in the UI: the line under the list, the drop zone, the welcome card, the native menu item and the palette entry. The code, the engine command and the crate tests stay; the Playwright flows that went through the removed entry points are dropped, their coverage moves to the crate and Vitest.
+
 Owner feedback on the running app, 13 Oct 2026. Specified in `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` section 7, mockups 02, 02b, 12, 12b, 12c, 14, 19, and `docs/TESTPLAN.md` C-12, C-13, B-06, B-10, B-12, B-15.
 - "New connection" becomes a menu: "Another broker…" (the form) or "This app's broker" with "Use an existing listener" and "Add a listener…". The Target row leaves the form.
 - "This app's broker" does everything itself: user "mqtt-panel" with a strong password, client certificate when required, CA trust, broker start or restart, connect; one profile "Local broker".
