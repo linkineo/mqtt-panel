@@ -9,12 +9,13 @@ import { Kbd, Modal, Msg } from '../../components/ui';
 import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { ProfileForm } from './ProfileForm';
 import { AppBrokerDialog } from './AppBrokerDialog';
-import { isUnverified } from '../../components/ConnectionBar';
+import { CertWarning, certWarning } from '../../components/ConnectionBar';
+import { hostPort, nameFromHost } from '../../lib/address';
 
 type AppDialog = 'pick' | 'add' | null;
 
 /**
- * "New connection" is a menu (owner, 13 Oct 2026): "Another broker…" opens the empty form; "MQTT Panel broker" opens
+ * "New connection" is a menu (owner, 13 Oct 2026): "New broker…" opens the empty form; "Built-in broker" opens
  * a submenu "Use an existing listener" / "Add a listener…". Shown under the button that opened it.
  */
 export async function newConnectionMenu(anchor: HTMLElement, t: (k: string) => string, openApp: (d: AppDialog) => void): Promise<void> {
@@ -34,7 +35,7 @@ export async function newConnectionMenu(anchor: HTMLElement, t: (k: string) => s
     r.left,
     r.bottom + 4,
   );
-  if (id === 'other') await newProfile(t('conn.newName'));
+  if (id === 'other') await newProfile();
   else if (id === 'app-existing') openApp('pick');
   else if (id === 'app-add') openApp('add');
 }
@@ -44,23 +45,9 @@ export function profileUrl(p: Profile): string {
   return `${p.scheme}://${p.host}:${p.port}${path}`;
 }
 
-/** The security chip of a card: TLS, WSS or "no TLS" (owner, 13 Oct 2026: no abbreviation for client certificates). */
-export function tlsChip(p: Profile): { label: string; tone: 'on' | 'clay' } {
-  if (p.scheme === 'wss') return { label: 'WSS', tone: 'on' };
-  if (p.scheme === 'mqtts') return { label: 'TLS', tone: 'on' };
-  return { label: 'noTls', tone: 'clay' };
-}
-
-function lastUsedKey(ms: number | null): [string, Record<string, unknown>] {
-  if (!ms) return ['conn.neverUsed', {}];
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const days = Math.ceil((startOfToday.getTime() - ms) / 86_400_000);
-  if (ms >= startOfToday.getTime()) return ['conn.usedToday', {}];
-  if (days <= 1) return ['conn.usedYesterday', {}];
-  if (days < 7) return ['conn.usedDaysAgo', { count: days }];
-  if (days < 14) return ['conn.usedLastWeek', {}];
-  return ['conn.usedWeeksAgo', { count: Math.floor(days / 7) }];
+/** The protocol chip of a card (change set 6): the scheme itself, accent for mqtts and wss, clay for mqtt and ws. */
+export function protocolChip(p: Profile): { label: string; tone: 'on' | 'clay' } {
+  return { label: p.scheme, tone: p.scheme === 'mqtts' || p.scheme === 'wss' ? 'on' : 'clay' };
 }
 
 function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; onSelect(): void; dragProps: React.HTMLAttributes<HTMLDivElement> }) {
@@ -68,15 +55,7 @@ function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; 
   const conn = useApp((s) => s.connections.find((c) => c.id === p.id) ?? null);
   const starting = useBusy((s) => s.startingBroker === p.id);
   const pending = useBusy((s) => s.connecting === p.id);
-  const chip = tlsChip(p);
-  const [lk, lp] = lastUsedKey(p.lastUsed);
-  const version = p.mqttVersion === 'auto' ? t('conn.versionAuto') : `MQTT ${p.mqttVersion}`;
-  const meta = [
-    p.isLocalBroker ? t('conn.newApp') : null,
-    version,
-    p.isLocalBroker ? null : t('conn.subCount', { count: p.subscriptions.length }),
-    t(lk, lp),
-  ].filter(Boolean);
+  const chip = protocolChip(p);
   // change set 2: a connected card is filled with the accent colour and reads "connected"; a reconnecting (or
   // connecting) one is outlined in clay
   // change set 4: "Local broker" starts the embedded broker first ("starting broker…", then "connecting")
@@ -149,18 +128,16 @@ function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; 
           </span>
         )}
       </div>
+      {/* change set 6: three lines; the protocol chip with the ⚠ icon, then "host:port", nothing else */}
       <div className="s">
-        <span className="mono ell">{profileUrl(p)}</span>
         <span className={`chip ${chip.tone}`} data-testid="card-chip">
-          {chip.label === 'noTls' ? t('conn.noTls') : chip.label}
+          {chip.label}
         </span>
-        {isUnverified(conn, p) && (
-          <span className="chip clay" data-testid="card-unverified">
-            {t('conn.unverified')}
-          </span>
-        )}
+        <CertWarning kind={certWarning(conn, p)} testId="card-warn" />
       </div>
-      <div className="s">{meta.join(' · ')}</div>
+      <div className="s mono" data-testid="card-address">
+        <span className="ell">{hostPort(p)}</span>
+      </div>
     </div>
   );
 }
@@ -196,10 +173,12 @@ export async function doImport(path: string | null, show: (s: ImportSummary) => 
   }
 }
 
-async function newProfile(name: string) {
+/** "New broker…": a new profile named after its host until the user types a name (change set 6). */
+async function newProfile() {
   const p = await run(engine().newProfile());
   if (!p) return;
-  const saved = await saveProfile({ ...p, name });
+  useApp.setState({ autoNamed: { ...useApp.getState().autoNamed, [p.id]: true } });
+  const saved = await saveProfile({ ...p, name: nameFromHost(p.host) });
   useApp.getState().selectProfile(saved.id);
 }
 
@@ -263,10 +242,10 @@ export function ConnectionsScreen() {
   const sel = profiles.find((p) => p.id === selected) ?? profiles[0] ?? null;
 
   useEffect(() => {
-    const onNew = () => void newProfile(t('conn.newName'));
+    const onNew = () => void newProfile();
     window.addEventListener('mqttpanel:new-connection', onNew);
     return () => window.removeEventListener('mqttpanel:new-connection', onNew);
-  }, [t]);
+  }, []);
 
   const reorder = async (id: string, to: number) => {
     const ids = profiles.map((p) => p.id).filter((x) => x !== id);

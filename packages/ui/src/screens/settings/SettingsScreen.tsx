@@ -5,7 +5,7 @@ import { engine } from '../../services';
 import { useApp } from '../../store/app';
 import { run, saveProfile } from '../../lib/actions';
 import { shortcut } from '../../lib/keys';
-import { ConfirmDialog, Info, Seg, Switch } from '../../components/ui';
+import { ConfirmDialog, Seg, Switch } from '../../components/ui';
 import { fmtBytes, fmtNum } from '../../lib/format';
 
 const PAGES = ['appearance', 'language', 'data', 'security', 'updates', 'shortcuts', 'privacy', 'about'] as const;
@@ -36,7 +36,8 @@ export const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: 'Esc', label: 'sc.close' },
 ];
 
-function NumField(props: { value: number; min: number; max: number; suffix?: string; width?: number; label: string; onCommit(n: number): void; testId?: string }) {
+/** A number field, width S (change set 6). */
+function NumField(props: { value: number; min: number; max: number; suffix?: string; label: string; onCommit(n: number): void; testId?: string }) {
   const [v, setV] = useState(String(props.value));
   useEffect(() => setV(String(props.value)), [props.value]);
   const commit = () => {
@@ -47,8 +48,7 @@ function NumField(props: { value: number; min: number; max: number; suffix?: str
   return (
     <span className="row" style={{ gap: 4, flex: 'none' }}>
       <input
-        className="input mono"
-        style={{ width: props.width ?? 80 }}
+        className="input mono w-s"
         inputMode="numeric"
         aria-label={props.label}
         value={v}
@@ -191,7 +191,7 @@ export function SettingsScreen() {
               <div className="f">
                 <span className="lbl">{t('settings.monoSize')}</span>
                 <span className="row2">
-                  <NumField value={s.monoSize} min={10} max={16} width={60} suffix="px" label={t('settings.monoSize')} onCommit={(monoSize) => save({ monoSize })} />
+                  <NumField value={s.monoSize} min={10} max={16} suffix="px" label={t('settings.monoSize')} onCommit={(monoSize) => save({ monoSize })} />
                   <span className="hint">{t('settings.monoHint')}</span>
                 </span>
               </div>
@@ -252,14 +252,14 @@ export function SettingsScreen() {
               <div className="f">
                 <span className="lbl">{t('settings.memoryBudget')}</span>
                 <span className="row2">
-                  <NumField value={s.memoryBudgetMb} min={32} max={16384} width={90} suffix="MB" label={t('settings.memoryBudget')} onCommit={(memoryBudgetMb) => save({ memoryBudgetMb })} />
+                  <NumField value={s.memoryBudgetMb} min={32} max={16384} suffix="MB" label={t('settings.memoryBudget')} onCommit={(memoryBudgetMb) => save({ memoryBudgetMb })} />
                   <span className="hint">{t('settings.inUse', { size: fmtBytes(mem?.bytes ?? 0) })}</span>
                 </span>
               </div>
               <div className="f">
                 <span className="lbl">{t('settings.renderLimit')}</span>
                 <span className="row2">
-                  <NumField value={s.payloadRenderLimitKb} min={16} max={65536} width={90} suffix="KB" label={t('settings.renderLimit')} onCommit={(payloadRenderLimitKb) => save({ payloadRenderLimitKb })} />
+                  <NumField value={s.payloadRenderLimitKb} min={16} max={65536} suffix="KB" label={t('settings.renderLimit')} onCommit={(payloadRenderLimitKb) => save({ payloadRenderLimitKb })} />
                   <span className="hint">{t('settings.renderHint')}</span>
                 </span>
               </div>
@@ -283,15 +283,6 @@ export function SettingsScreen() {
           {sec(
             'security',
             <div className="form">
-              <div className="f">
-                <span className="lbl">
-                  {t('settings.skipVerify')} <Info id="skipVerify" title={t('settings.skipVerify')} />
-                </span>
-                <span className="row2">
-                  <Switch on={s.skipVerify} tone="clay" label={t('settings.skipVerify')} testId="skip-verify" onChange={(skipVerify) => save({ skipVerify })} />
-                  <span className="small hint warn">{t('settings.skipHint')}</span>
-                </span>
-              </div>
               <div className="f">
                 <span className="lbl">{t('settings.fingerprints')}</span>
                 <span className="row2 wrap">

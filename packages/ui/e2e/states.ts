@@ -69,6 +69,16 @@ export const STATES: UiState[] = [
     },
   },
   {
+    // change set 6: "Skip unverified broker certificate" under Advanced asks "only this time" or "always"
+    id: '02d-skip-prompt',
+    query: 'mock=demo&connect=local&screen=connect',
+    steps: async (p) => {
+      await p.click('[data-testid=fold-advanced]');
+      await p.click('[data-testid=skip-verify]');
+      await p.waitForSelector('[data-testid=skip-dialog]');
+    },
+  },
+  {
     id: '02-info-bubble',
     query: 'mock=demo',
     steps: async (p) => {
@@ -308,7 +318,15 @@ export const STATES: UiState[] = [
     id: '17-settings-data',
     query: 'mock=demo&connect=plant,local&screen=settings',
     steps: async (p) => {
+      // change set 6: no app-wide switch; "Plant broker" skips the check per connection, so its tab shows ⚠
+      await p.click('[data-testid=rail-connect]');
+      await p.click('[data-profile=plant]');
+      await p.click('[data-testid=fold-advanced]');
       await p.click('[data-testid=skip-verify]');
+      await p.click('[data-testid=skip-always-btn]');
+      await p.click('[data-testid=fold-advanced]');
+      await p.click('[data-testid=rail-settings]');
+      await p.waitForSelector('[data-testid=cbar-tab][data-conn=plant] [data-testid=cbar-warn]');
       await p.click('[data-testid=settings-nav-data]');
     },
   },

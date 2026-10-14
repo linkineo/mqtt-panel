@@ -177,14 +177,14 @@ button.chip:hover { filter: brightness(.97) }
 .list { display: grid; gap: 6px; min-width: 0 }
 .list > * { min-width: 0 }
 .card { min-width: 0 }
-.card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); text-align: left; display: block; width: 100%; font-size: 13px; color: var(--ink) }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 13px 12px; background: var(--surface); text-align: left; display: block; width: 100%; font-size: 13px; color: var(--ink) }
 .card.on { border-color: var(--sage); box-shadow: 0 0 0 1px var(--sage) }
 .card.dragging { opacity: .5 }
 .card.dropbefore { box-shadow: 0 -2px 0 0 var(--sage) }
 
 .card .t:not(.json *) { font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0 }
 .card .t:not(.json *) > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
-.card .s:not(.json *) { color: var(--ink-2); font-size: 12px; margin-top: 2px; display: flex; gap: 8px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.card .s:not(.json *) { color: var(--ink-2); font-size: 12px; margin-top: 4px; display: flex; gap: 8px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .empty { display: grid; place-items: center; text-align: center; color: var(--ink-2); padding: 40px; gap: 10px; align-content: center }
 .empty h4 { margin: 0; color: var(--ink); font-size: 16px }
 .big { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px }
@@ -437,3 +437,17 @@ button.chip:hover { filter: brightness(.97) }
 .lsec .seg { text-transform: none; letter-spacing: 0 }
 .lsec .btn { text-transform: none; letter-spacing: 0 }
 .pane[data-testid=broker] .tbl th { position: static }
+
+/* change set 6 (14 Oct 2026): fixed field widths, the ⚠ icon on cards and tabs, the choice list of the certificate prompt */
+.input.w-s { width: 80px } .input.w-m { width: 160px } .input.w-l { width: 240px } .input.w-xl { width: 320px }
+.input.w-s, .input.w-m, .input.w-l, .input.w-xl { flex: 0 1 auto; max-width: 100%; justify-self: start }
+.secretin { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 100%; justify-self: start }
+.warn-i { color: var(--clay); font-size: 13px; cursor: help; line-height: 1; flex: none }
+.warn-i.pin { color: var(--ink-2) }
+.card.live .warn-i, .card.live .warn-i.pin { color: var(--on-accent) }
+.choice { display: grid; gap: 6px }
+.choice .card { padding: 9px 12px; cursor: default }
+.choice .card .t { font-size: 12px }
+.choice .card .s { margin-top: 2px; white-space: normal; display: block }
+.risk { margin: 0; color: var(--clay); font-size: 12px }
+.btn.clay { color: var(--clay); border-color: var(--clay) }

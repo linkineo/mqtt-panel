@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ConnectOutcome, Profile, SaveOutcome, TrustPrompt, UserMessage } from '@mqttpanel/engine-client';
+import type { ConnectOutcome, Profile, SaveOutcome, TrustMode, TrustPrompt, UserMessage } from '@mqttpanel/engine-client';
 import { engine } from '../services';
 import { toMessage } from '../i18n';
 import { useApp } from '../store/app';
@@ -43,6 +43,23 @@ async function ensureLocalBroker(id: string): Promise<UserMessage | null> {
   }
 }
 
+/** Sets or clears "only this time" for the next attempt of a profile (change set 6). */
+export function setSkipOnce(id: string, on: boolean): void {
+  const cur = useApp.getState().skipOnce;
+  if (!!cur[id] === on) return;
+  const next = { ...cur };
+  if (on) next[id] = true;
+  else delete next[id];
+  useApp.setState({ skipOnce: next });
+}
+
+/** Takes the "only this time" flag of a profile for the attempt about to start (it covers one attempt). */
+function takeSkipOnce(id: string): boolean {
+  const on = !!useApp.getState().skipOnce[id];
+  if (on) setSkipOnce(id, false);
+  return on;
+}
+
 async function refresh(): Promise<void> {
   const [profiles, connections] = await Promise.all([engine().listProfiles(), engine().listConnections()]);
   useApp.setState({ profiles, connections });
@@ -65,7 +82,7 @@ export async function handleConnectOutcome(id: string, out: ConnectOutcome, swit
   return false;
 }
 
-export async function connectProfile(id: string, switchScreen = true): Promise<boolean> {
+export async function connectProfile(id: string, switchScreen = true, skipOnce = false): Promise<boolean> {
   useBusy.setState({ connecting: id });
   try {
     const down = await ensureLocalBroker(id);
@@ -74,7 +91,8 @@ export async function connectProfile(id: string, switchScreen = true): Promise<b
       useApp.getState().toast({ kind: 'err', msg: down });
       return false;
     }
-    const out = await engine().connectProfile(id);
+    const once = takeSkipOnce(id) || skipOnce;
+    const out = await engine().connectProfile(id, once || undefined);
     return await handleConnectOutcome(id, out, switchScreen);
   } catch (e) {
     useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
@@ -84,7 +102,7 @@ export async function connectProfile(id: string, switchScreen = true): Promise<b
   }
 }
 
-export async function testProfile(id: string): Promise<void> {
+export async function testProfile(id: string, skipOnce = false): Promise<void> {
   useBusy.setState({ testing: id });
   try {
     const down = await ensureLocalBroker(id);
@@ -93,7 +111,8 @@ export async function testProfile(id: string): Promise<void> {
       useApp.getState().toast({ kind: 'err', msg: down });
       return;
     }
-    const out = await engine().testProfile(id);
+    const once = takeSkipOnce(id) || skipOnce;
+    const out = await engine().testProfile(id, once || undefined);
     if (out.kind === 'needsTrust') useTrust.getState().set(out.trust, 'test');
     await refresh();
   } catch (e) {
@@ -103,7 +122,11 @@ export async function testProfile(id: string): Promise<void> {
   }
 }
 
-export async function trustAndRetry(mode: 'certificate' | 'ca'): Promise<void> {
+/**
+ * Applies the choice of the certificate prompt (change set 6) and retries: pin the certificate, trust its CA, skip
+ * verification for this attempt only (nothing saved), or always for this connection (saved in the profile).
+ */
+export async function trustAndRetry(mode: TrustMode): Promise<void> {
   const { prompt, action } = useTrust.getState();
   useTrust.getState().set(null, null);
   if (!prompt) return;
@@ -114,8 +137,9 @@ export async function trustAndRetry(mode: 'certificate' | 'ca'): Promise<void> {
     useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
     return;
   }
-  if (action === 'test') await testProfile(prompt.profileId);
-  else await connectProfile(prompt.profileId);
+  const once = mode === 'skipOnce';
+  if (action === 'test') await testProfile(prompt.profileId, once);
+  else await connectProfile(prompt.profileId, true, once);
 }
 
 export async function disconnect(id: string): Promise<void> {

@@ -1,49 +1,59 @@
+import { useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TrustPrompt } from '@mqttpanel/engine-client';
+import type { TrustMode, TrustPrompt } from '@mqttpanel/engine-client';
 import { useTrust, trustAndRetry } from '../lib/actions';
 import { useApp } from '../store/app';
 import { Modal, Msg } from './ui';
 
-/** Mockup 03: a broker certificate that cannot be verified. One action for a self-signed certificate; the CA action only with caOffer. */
+/**
+ * Mockup 03 (change set 6): a broker certificate that cannot be verified. The reason, the certificate, the risk
+ * sentence, then one list of choices for this connection only (pin the certificate, preselected; skip the check this
+ * time; skip it always; trust the CA, only with caOffer) and one Connect button that applies the choice and retries.
+ */
 export function TrustDialogView({ prompt, profileName, onCancel, onTrust }: {
   prompt: TrustPrompt;
   profileName: string;
   onCancel(): void;
-  onTrust(mode: 'certificate' | 'ca'): void;
+  onTrust(mode: TrustMode): void;
 }) {
   const { t } = useTranslation();
+  const [mode, setMode] = useState<TrustMode>('certificate');
   const leaf = prompt.leaf;
+  const choices: { mode: TrustMode; title: string; text: React.ReactNode }[] = [
+    {
+      mode: 'certificate',
+      title: t('trust.trustCert'),
+      text: <Msg msg={{ key: 'tls.trustScopeCert', params: { profile: profileName }, text: `This certificate only, for the connection "${profileName}".` }} />,
+    },
+    { mode: 'skipOnce', title: t('trust.skipOnce'), text: t('trust.skipOnceText') },
+    { mode: 'skipAlways', title: t('trust.skipAlways'), text: t('trust.skipAlwaysText') },
+  ];
+  if (prompt.caOffer) {
+    choices.push({ mode: 'ca', title: t('trust.trustCa'), text: <Msg msg={{ key: 'tls.trustScopeCa', params: {}, text: 'Future certificates from this CA too.' }} /> });
+  }
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const i = choices.findIndex((c) => c.mode === mode);
+    const next = choices[(i + (e.key === 'ArrowDown' ? 1 : choices.length - 1)) % choices.length];
+    setMode(next.mode);
+    (e.currentTarget.querySelector(`[data-mode="${next.mode}"]`) as HTMLElement | null)?.focus();
+  };
   return (
     <Modal
       title={t('trust.title')}
       onClose={onCancel}
       testId="trust-dialog"
-      footerStyle={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}
       footer={
         <>
-          <div className="row" style={{ justifyContent: 'flex-end' }}>
-            {prompt.unsafe && <span className="chip brick">{t('trust.unsafe')}</span>}
-            <span className="grow" />
-            <button type="button" className="btn" onClick={onCancel}>
-              {t('common.cancel')}
-            </button>
-            {prompt.caOffer && (
-              <button type="button" className={`btn${prompt.unsafe ? ' danger' : ''}`} data-testid="trust-ca" onClick={() => onTrust('ca')}>
-                {t('trust.trustCa')}
-              </button>
-            )}
-            <button type="button" className={prompt.unsafe ? 'btn danger solid' : 'btn pri'} data-testid="trust-cert" onClick={() => onTrust('certificate')}>
-              {t('trust.trustCert')}
-            </button>
-          </div>
-          <div className="muted small" style={{ textAlign: 'right' }} data-testid="trust-scope-cert">
-            <Msg msg={{ key: 'tls.trustScopeCert', params: { profile: profileName }, text: `This certificate only, for the profile "${profileName}".` }} />
-          </div>
-          {prompt.caOffer && (
-            <div className="muted small" style={{ textAlign: 'right' }} data-testid="trust-scope-ca">
-              {t('trust.trustCa')}: <Msg msg={{ key: 'tls.trustScopeCa', params: {}, text: 'Future certificates from this CA too.' }} />
-            </div>
-          )}
+          <button type="button" className="btn" onClick={onCancel}>
+            {t('common.cancel')}
+          </button>
+          <span className="grow" />
+          {prompt.unsafe && <span className="chip brick">{t('trust.unsafe')}</span>}
+          <button type="button" className={prompt.unsafe ? 'btn danger solid' : 'btn pri'} data-testid="trust-connect" data-autofocus onClick={() => onTrust(mode)}>
+            {t('conn.connect')}
+          </button>
         </>
       }
     >
@@ -81,6 +91,33 @@ export function TrustDialogView({ prompt, profileName, onCancel, onTrust }: {
           </>
         )}
       </dl>
+      <p className="risk" data-testid="trust-risk">
+        {t('trust.risk')}
+      </p>
+      <div className="choice" role="radiogroup" aria-label={t('trust.choices')} onKeyDown={onKey} data-testid="trust-choices">
+        {choices.map((c) => (
+          <div
+            key={c.mode}
+            className={`card${mode === c.mode ? ' on' : ''}`}
+            role="radio"
+            aria-checked={mode === c.mode}
+            tabIndex={mode === c.mode ? 0 : -1}
+            data-testid={`trust-${c.mode}`}
+            data-mode={c.mode}
+            onClick={() => setMode(c.mode)}
+          >
+            <div className="radio">
+              <i className={mode === c.mode ? 'on' : ''} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="t">
+                  <span>{c.title}</span>
+                </div>
+                <div className="s">{c.text}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </Modal>
   );
 }
@@ -92,6 +129,7 @@ export function TrustDialog() {
   const name = profiles.find((p) => p.id === prompt.profileId)?.name ?? '';
   return (
     <TrustDialogView
+      key={prompt.profileId + prompt.leaf.fingerprint}
       prompt={prompt}
       profileName={name}
       onCancel={() => useTrust.getState().set(null, null)}

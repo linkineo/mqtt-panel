@@ -3,14 +3,14 @@ import { useTranslation } from 'react-i18next';
 import type { Profile, Qos, Scheme, Subscription } from '@mqttpanel/engine-client';
 import { engine } from '../../services';
 import { useApp } from '../../store/app';
-import { connectProfile, testProfile, disconnect, saveProfile, replaceProfile, useBusy, run } from '../../lib/actions';
+import { connectProfile, testProfile, disconnect, saveProfile, replaceProfile, setSkipOnce, useBusy, run } from '../../lib/actions';
 import { Info, Msg, Modal, Popover, Seg, Switch } from '../../components/ui';
 import { FileField } from './FileField';
 import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { SecretText } from '../../components/Secret';
 import { FoldHeader, useFold } from '../../components/Fold';
 import { fmtAge, fmtBytes } from '../../lib/format';
-import { applyAddressText, applyScheme, formatAddress, isWebSocket, type AddressFields } from '../../lib/address';
+import { applyAddressText, applyScheme, formatAddress, isWebSocket, nameFromHost, type AddressFields } from '../../lib/address';
 
 const fieldsOf = (p: Profile): AddressFields => ({ scheme: p.scheme, host: p.host, port: p.port, wsPath: p.wsPath });
 const sameFields = (a: AddressFields, b: AddressFields) => a.scheme === b.scheme && a.host === b.host && a.port === b.port && a.wsPath === b.wsPath;
@@ -34,8 +34,7 @@ function AddressField({ p, onChange }: { p: Profile; onChange(patch: Partial<Pro
     <span className="row2">
       <input
         id="pf-host"
-        className="input mono"
-        style={{ flex: 1 }}
+        className="input mono w-xl"
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
@@ -49,8 +48,7 @@ function AddressField({ p, onChange }: { p: Profile; onChange(patch: Partial<Pro
         }}
       />
       <input
-        className="input mono"
-        style={{ width: 80 }}
+        className="input mono w-s"
         aria-label={t('conn.port')}
         data-testid="pf-port"
         inputMode="numeric"
@@ -137,11 +135,11 @@ function ProtoDialog({ profile, fileName, onClose, onProfile }: { profile: Profi
       <div className="form">
         <div className="f" style={{ gridTemplateColumns: '120px 1fr' }}>
           <label>{t('proto.filter')}</label>
-          <input className="input mono" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input className="input mono w-l" value={filter} onChange={(e) => setFilter(e.target.value)} />
         </div>
         <div className="f" style={{ gridTemplateColumns: '120px 1fr' }}>
           <label>{t('proto.type')}</label>
-          <select className="input mono" value={type} onChange={(e) => setType(e.target.value)}>
+          <select className="input mono w-l" value={type} onChange={(e) => setType(e.target.value)}>
             {schema.messageTypes.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -150,6 +148,41 @@ function ProtoDialog({ profile, fileName, onClose, onProfile }: { profile: Profi
           </select>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+/**
+ * "Skip the broker certificate check?" (change set 6), opened by turning on "Skip unverified broker certificate":
+ * the risk sentence, then Cancel, "Only this time" (the next attempt only, nothing saved) and "Always for this
+ * connection" (saved in the profile).
+ */
+export function SkipVerifyDialog({ onCancel, onOnce, onAlways }: { onCancel(): void; onOnce(): void; onAlways(): void }) {
+  const { t } = useTranslation();
+  return (
+    <Modal
+      title={t('skip.title')}
+      width={520}
+      onClose={onCancel}
+      testId="skip-dialog"
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onCancel}>
+            {t('common.cancel')}
+          </button>
+          <span className="grow" />
+          <button type="button" className="btn" data-testid="skip-once-btn" onClick={onOnce}>
+            {t('skip.once')}
+          </button>
+          <button type="button" className="btn clay" data-testid="skip-always-btn" onClick={onAlways}>
+            {t('skip.always')}
+          </button>
+        </>
+      }
+    >
+      <p className="risk" data-testid="skip-risk">
+        {t('trust.risk')}
+      </p>
     </Modal>
   );
 }
@@ -165,6 +198,9 @@ export function ProfileForm({ profileId }: { profileId: string }) {
   const [pw, setPw] = useState('');
   const [protoEdit, setProtoEdit] = useState<{ fileName: string; path: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [skipPrompt, setSkipPrompt] = useState(false);
+  const skipOnce = useApp((s) => !!s.skipOnce[profileId]);
+  const autoNamed = useApp((s) => !!s.autoNamed[profileId]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draft = useRef<Profile | null>(stored);
 
@@ -198,7 +234,13 @@ export function ProfileForm({ profileId }: { profileId: string }) {
   );
 
   const update = (patch: Partial<Profile>) => {
-    const next = { ...draft.current!, ...patch };
+    const cur = draft.current!;
+    // change set 6: a profile made with "New broker…" takes its name from the host while the name is empty or still
+    // the one derived from the previous host; a typed name breaks the link, clearing it restores the link
+    if (autoNamed && patch.host !== undefined && patch.name === undefined && patch.host !== cur.host && (cur.name === '' || cur.name === nameFromHost(cur.host))) {
+      patch = { ...patch, name: nameFromHost(patch.host) };
+    }
+    const next = { ...cur, ...patch };
     draft.current = next;
     setP(next);
     if (timer.current) clearTimeout(timer.current);
@@ -236,12 +278,9 @@ export function ProfileForm({ profileId }: { profileId: string }) {
 
   const subs = p.subscriptions;
 
-  /** "verify on · CA · client certificate · verified" or "verify off"; empty while everything is at its default. */
+  /** "CA · client certificate · verified"; empty while everything is at its default (change set 6: no verify part). */
   const securitySummary = () => {
     const parts: React.ReactNode[] = [];
-    const set = !!(p.tls.caCert || p.tls.clientCert);
-    if (!p.tls.verifyServer) parts.push(t('conn.sum.verifyOff'));
-    else if (set) parts.push(t('conn.sum.verifyOn'));
     if (p.tls.caCert) parts.push(t('conn.sum.ca'));
     if (p.tls.clientCert) parts.push(t('conn.sum.clientCert'));
     if (lastTest && lastTest.ok && lastTest.verified !== null) {
@@ -254,7 +293,8 @@ export function ProfileForm({ profileId }: { profileId: string }) {
     return parts.length ? parts.flatMap((x, i) => (i ? [' · ', x] : [x])) : null;
   };
 
-  /** "keep-alive 60 s · 3 subscriptions · 1 schema"; empty while everything is at its default. */
+  /** "keep-alive 60 s · 3 subscriptions · 1 schema", plus "skip verification" in clay; empty while everything is at
+   * its default. */
   const advancedSummary = () => {
     const parts: string[] = [];
     const defaultSubs = subs.length === 1 && subs[0].filter === '#' && subs[0].qos === 0;
@@ -265,7 +305,13 @@ export function ProfileForm({ profileId }: { profileId: string }) {
     if (p.lastWill?.topic) parts.push(t('conn.sum.lastWill'));
     // keep-alive leads the line whenever something is shown, or when it differs from the default
     if (parts.length || p.keepAlive !== 60) parts.unshift(t('conn.sum.keepAlive', { n: p.keepAlive }));
-    return parts.join(' · ');
+    if (!p.tls.skipVerify) return parts.join(' · ');
+    const skip = (
+      <span key="skip" className="warn" data-testid="advanced-skip">
+        {t('conn.sum.skipVerify')}
+      </span>
+    );
+    return parts.length ? [parts.join(' · '), ' · ', skip] : [skip];
   };
 
   const testLine = () => {
@@ -323,7 +369,16 @@ export function ProfileForm({ profileId }: { profileId: string }) {
           <div className="sec">{t('conn.basics')}</div>
           <div className="f">
             <label htmlFor="pf-name">{t('conn.name')}</label>
-            <input id="pf-name" className="input" value={p.name} placeholder={t('conn.untitled')} onChange={(e) => update({ name: e.target.value })} />
+            <input
+              id="pf-name"
+              className="input w-xl"
+              value={p.name}
+              placeholder={t('conn.untitled')}
+              onChange={(e) => update({ name: e.target.value })}
+              onBlur={() => {
+                if (autoNamed && !draft.current!.name.trim()) update({ name: nameFromHost(draft.current!.host) });
+              }}
+            />
           </div>
           {/* change set 5: Protocol and MQTT version on their own rows, before the address */}
           <div className="f">
@@ -361,21 +416,21 @@ export function ProfileForm({ profileId }: { profileId: string }) {
           {isWebSocket(p.scheme) && (
             <div className="f">
               <label htmlFor="pf-ws">{t('conn.wsPath')}</label>
-              <input id="pf-ws" className="input mono" style={{ width: 160 }} value={p.wsPath} onChange={(e) => update({ wsPath: e.target.value })} />
+              <input id="pf-ws" className="input mono w-m" value={p.wsPath} onChange={(e) => update({ wsPath: e.target.value })} />
             </div>
           )}
           <div className="f">
             <label htmlFor="pf-cid">{t('conn.clientId')}</label>
             <span className="row2">
-              <input id="pf-cid" className="input mono" style={{ flex: 1 }} value={p.clientId} onChange={(e) => update({ clientId: e.target.value })} />
-              <button type="button" className="btn sm" onClick={() => update({ clientId: 'mqttpanel-' + Math.random().toString(16).slice(2, 6) })}>
-                {t('conn.random')}
+              <input id="pf-cid" className="input mono w-l" value={p.clientId} onChange={(e) => update({ clientId: e.target.value })} />
+              <button type="button" className="btn sm" data-testid="generate-cid" onClick={() => update({ clientId: 'mqttpanel-' + Math.random().toString(16).slice(2, 6) })}>
+                {t('conn.generate')}
               </button>
             </span>
           </div>
           <div className="f">
             <label htmlFor="pf-user">{t('conn.username')}</label>
-            <input id="pf-user" className="input" value={p.username} onChange={(e) => update({ username: e.target.value })} />
+            <input id="pf-user" className="input w-l" value={p.username} onChange={(e) => update({ username: e.target.value })} />
           </div>
           <div className="f">
             <label htmlFor="pf-pw">{t('conn.password')}</label>
@@ -387,8 +442,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               <span className="row2">
                 <input
                   id="pf-pw"
-                  className="input"
-                  style={{ flex: 1 }}
+                  className="input w-l"
                   type="password"
                   autoComplete="off"
                   value={pw}
@@ -421,14 +475,6 @@ export function ProfileForm({ profileId }: { profileId: string }) {
             <>
               <div className="f">
                 <span className="lbl">
-                  {t('conn.verifyServer')} <Info id="verifyServer" title={t('conn.verifyServer')} />
-                </span>
-                <span className="row2">
-                  <Switch on={p.tls.verifyServer} label={t('conn.verifyServer')} onChange={(v) => updateTls({ verifyServer: v })} />
-                </span>
-              </div>
-              <div className="f">
-                <span className="lbl">
                   {t('conn.caCert')} <Info id="caCert" title={t('conn.caCert')} />
                 </span>
                 <FileField field="caCert" profile={p} label={t('conn.caCert')} beforeChange={flush} onProfile={fromEngine} />
@@ -450,7 +496,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                   {t('conn.sni')} <Info id="sni" title={t('conn.sni')} />
                 </span>
                 <span className="row2">
-                  <input className="input mono" style={{ width: 220 }} aria-label={t('conn.sni')} placeholder={t('common.optional')} value={p.tls.sni} onChange={(e) => updateTls({ sni: e.target.value.trim() })} />
+                  <input className="input mono w-l" aria-label={t('conn.sni')} placeholder={t('common.optional')} value={p.tls.sni} onChange={(e) => updateTls({ sni: e.target.value.trim() })} />
                 </span>
               </div>
               <div className="f">
@@ -458,7 +504,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                   {t('conn.alpn')} <Info id="alpn" title={t('conn.alpn')} />
                 </span>
                 <span className="row2">
-                  <input className="input mono" style={{ width: 140 }} aria-label={t('conn.alpn')} placeholder={t('common.optional')} value={p.tls.alpn} onChange={(e) => updateTls({ alpn: e.target.value.trim() })} />
+                  <input className="input mono w-m" aria-label={t('conn.alpn')} placeholder={t('common.optional')} value={p.tls.alpn} onChange={(e) => updateTls({ alpn: e.target.value.trim() })} />
                 </span>
               </div>
             </>
@@ -471,7 +517,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               <div className="f">
                 <label htmlFor="pf-ka">{t('conn.keepAlive')}</label>
                 <span className="row2">
-                  <input id="pf-ka" className="input mono" style={{ width: 80 }} inputMode="numeric" value={p.keepAlive} onChange={(e) => update({ keepAlive: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
+                  <input id="pf-ka" className="input mono w-s" inputMode="numeric" value={p.keepAlive} onChange={(e) => update({ keepAlive: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
                   <span className="hint">s</span>
                   <span className="muted">{t('conn.cleanStart')}</span>
                   <Switch on={p.cleanStart} label={t('conn.cleanStart')} onChange={(cleanStart) => update({ cleanStart })} />
@@ -480,16 +526,42 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               <div className="f">
                 <label htmlFor="pf-se">{t('conn.sessionExpiry')}</label>
                 <span className="row2">
-                  <input id="pf-se" className="input mono" style={{ width: 100 }} inputMode="numeric" value={p.sessionExpiry} onChange={(e) => update({ sessionExpiry: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
+                  <input id="pf-se" className="input mono w-s" inputMode="numeric" value={p.sessionExpiry} onChange={(e) => update({ sessionExpiry: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
                   <span className="hint">{t('conn.sessionExpiryHint')}</span>
+                </span>
+              </div>
+              {/* change set 6: per-connection skip of certificate verification; turning it on asks "only this time" or "always" */}
+              {/* the label is longer than the label column in every language: it follows the switch, like "Clean start" */}
+              <div className="f">
+                <span className="lbl" />
+                <span className="row2">
+                  <Switch
+                    on={p.tls.skipVerify}
+                    tone="clay"
+                    label={t('conn.skipVerify')}
+                    testId="skip-verify"
+                    onChange={(v) => {
+                      if (v) setSkipPrompt(true);
+                      else {
+                        updateTls({ skipVerify: false });
+                        setSkipOnce(p.id, false);
+                      }
+                    }}
+                  />
+                  <span className="muted">{t('conn.skipVerify')}</span>
+                  <Info id="skipVerify" title={t('conn.skipVerify')} />
+                  {skipOnce && !p.tls.skipVerify && (
+                    <span className="muted" data-testid="skip-once">
+                      {t('conn.skipOnceNote')}
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="f">
                 <span className="lbl">{t('conn.lastWill')}</span>
                 <span className="row2">
                   <input
-                    className="input mono"
-                    style={{ flex: 1 }}
+                    className="input mono w-l"
                     aria-label={t('conn.lastWillTopic')}
                     placeholder={t('conn.lastWillTopic')}
                     value={p.lastWill?.topic ?? ''}
@@ -498,8 +570,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                     }
                   />
                   <input
-                    className="input mono"
-                    style={{ flex: 1 }}
+                    className="input mono w-l"
                     aria-label={t('conn.lastWillPayload')}
                     placeholder={t('conn.lastWillPayload')}
                     value={p.lastWill?.payload ?? ''}
@@ -587,6 +658,20 @@ export function ProfileForm({ profileId }: { profileId: string }) {
       </div>
       {protoEdit && (
         <ProtoDialog profile={p} fileName={protoEdit.fileName} onClose={() => setProtoEdit(null)} onProfile={fromEngine} />
+      )}
+      {skipPrompt && (
+        <SkipVerifyDialog
+          onCancel={() => setSkipPrompt(false)}
+          onOnce={() => {
+            setSkipPrompt(false);
+            setSkipOnce(p.id, true);
+          }}
+          onAlways={() => {
+            setSkipPrompt(false);
+            setSkipOnce(p.id, false);
+            updateTls({ skipVerify: true });
+          }}
+        />
       )}
       {confirmDelete && (
         <DeleteProfileDialog

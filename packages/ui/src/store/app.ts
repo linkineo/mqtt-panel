@@ -64,6 +64,12 @@ interface AppState {
   /** Folds (change set 4): profile form "Security" and "Advanced", Broker "Advanced security". Closed when the app
    * starts, kept while it runs (not per profile, not saved). */
   folds: Record<Fold, boolean>;
+  /** "Only this time" chosen under Advanced (change set 6): the next connect or test of this profile skips certificate
+   * verification once, then the flag is cleared. Not saved. */
+  skipOnce: Record<string, boolean>;
+  /** Profiles created with "New broker…" in this run: their Name follows the host until the user types another name
+   * (change set 6). Not saved: an existing profile is never renamed. */
+  autoNamed: Record<string, boolean>;
 
   setScreen(s: Screen): void;
   toggleFold(f: Fold): void;
@@ -95,7 +101,6 @@ export const DEFAULT_SETTINGS: Settings = {
   pointsPerSeries: 5000,
   memoryBudgetMb: 256,
   payloadRenderLimitKb: 256,
-  skipVerify: false,
   updateCheck: true,
   updateChannel: 'stable',
   brokerLogOpen: false,
@@ -127,6 +132,8 @@ export const useApp = create<AppState>((set, get) => ({
   pendingChanges: [],
   restartPrompt: false,
   folds: { security: false, advanced: false, brokerAdvanced: false },
+  skipOnce: {},
+  autoNamed: {},
 
   setScreen: (screen) => set({ screen, paletteOpen: false }),
   toggleFold: (f) => set({ folds: { ...get().folds, [f]: !get().folds[f] } }),

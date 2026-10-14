@@ -27,18 +27,18 @@ describe('Change set 1: "This app\'s broker" (02b)', () => {
     expect(rankedListeners(ls, true).map((l) => l.id)).toEqual(['tls', 'wss', 'tcp', 'ws']);
   });
 
-  it('C-12: "New connection" is a menu; "Another broker…" opens the form without a Target row', async () => {
+  it('C-12: "New connection" is a menu; "New broker…" opens the form without a Target row', async () => {
     const { platform } = await boot('demo');
     render(<ConnectionsScreen />);
     await act(async () => fireEvent.click(screen.getByTestId('new-profile')));
     const menu = await screen.findByTestId('context-menu');
-    expect(Array.from(menu.querySelectorAll('.ctx-label')).map((x) => x.textContent)).toEqual(['Another broker…', 'MQTT Panel broker']);
-    const app = within(menu).getByText('MQTT Panel broker').closest('.ctx-item') as HTMLElement;
+    expect(Array.from(menu.querySelectorAll('.ctx-label')).map((x) => x.textContent)).toEqual(['New broker…', 'Built-in broker']);
+    const app = within(menu).getByText('Built-in broker').closest('.ctx-item') as HTMLElement;
     await act(async () => fireEvent.mouseEnter(app));
     const sub = await screen.findByTestId('context-submenu');
     expect(Array.from(sub.querySelectorAll('.ctx-label')).map((x) => x.textContent)).toEqual(['Use an existing listener', 'Add a listener…']);
     const before = useApp.getState().profiles.length;
-    await act(async () => fireEvent.click(within(menu).getByText('Another broker…')));
+    await act(async () => fireEvent.click(within(menu).getByText('New broker…')));
     await waitFor(() => expect(useApp.getState().profiles.length).toBe(before + 1));
     expect(screen.getByTestId('profile-form')).toBeInTheDocument();
     expect(screen.queryByTestId('target-app')).toBeNull();

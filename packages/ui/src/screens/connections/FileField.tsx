@@ -89,7 +89,7 @@ export function FileField(props: {
   return (
     <>
       <div className="row2" ref={ref} data-testid={`file-${field}`}>
-        <span className={`input mono ro${error ? ' err' : ''}`} style={{ flex: 1 }} aria-label={props.label} title={value?.fileName}>
+        <span className={`input mono ro w-xl${error ? ' err' : ''}`} aria-label={props.label} title={value?.fileName}>
           {value ? value.fileName : <span className="ph-text">{t('file.none')}</span>}
         </span>
         <button type="button" className="btn sm" onClick={() => void browse()} disabled={busy} data-testid={`browse-${field}`}>
@@ -131,7 +131,7 @@ export function FileField(props: {
         >
           <div className="muted small">{t('file.passphraseHelp')}</div>
           <input
-            className={`input${passError ? ' err' : ''}`}
+            className={`input w-l${passError ? ' err' : ''}`}
             type="password"
             value={passphrase}
             aria-label={t('file.passphrase')}

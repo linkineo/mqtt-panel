@@ -197,7 +197,7 @@ export function AddListenerDialog({
         <div className="f">
           <label htmlFor="addl-port">{t('addl.port')}</label>
           <span className="row2">
-            <input id="addl-port" className={`input mono${portError ? ' err' : ''}`} style={{ width: 90 }} inputMode="numeric" value={port} data-testid="addl-port" onChange={(e) => setPort(e.target.value.replace(/\D/g, ''))} />
+            <input id="addl-port" className={`input mono w-s${portError ? ' err' : ''}`} inputMode="numeric" value={port} data-testid="addl-port" onChange={(e) => setPort(e.target.value.replace(/\D/g, ''))} />
             {portError && (
               <span className="hint err" data-testid="addl-port-error">
                 <Msg msg={portError} />
@@ -271,7 +271,7 @@ export function IssueCertDialog({ onClose, onIssued }: { onClose(): void; onIssu
             {t('issue.name')} <Info id="certName" title={t('issue.name')} />
           </span>
           <span className="row2">
-            <input className={`input mono${error ? ' err' : ''}`} style={{ flex: 1 }} value={req.name} placeholder="sensor-r206" aria-label={t('issue.name')} data-autofocus onChange={(e) => upd({ name: e.target.value })} />
+            <input className={`input mono w-m${error ? ' err' : ''}`} value={req.name} placeholder="sensor-r206" aria-label={t('issue.name')} data-autofocus onChange={(e) => upd({ name: e.target.value })} />
             <span className="hint">{t('issue.nameHint')}</span>
           </span>
         </div>
@@ -389,7 +389,7 @@ export function CredentialsDialog(props: {
         {props.withUser && (
           <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
             <label htmlFor="cred-user">{t('addl.username')}</label>
-            <input id="cred-user" className="input mono" value={user} data-autofocus onChange={(e) => setUser(e.target.value)} />
+            <input id="cred-user" className="input mono w-l" value={user} data-autofocus onChange={(e) => setUser(e.target.value)} />
           </div>
         )}
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
@@ -441,7 +441,7 @@ export function RegenerateDialog({ certs, onClose, onCerts }: { certs: BrokerCer
       <div className="form">
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <label htmlFor="regen-sans">{t('certs.sans')}</label>
-          <input id="regen-sans" className="input mono" value={sans} onChange={(e) => setSans(e.target.value)} />
+          <input id="regen-sans" className="input mono w-xl" value={sans} onChange={(e) => setSans(e.target.value)} />
         </div>
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <span className="lbl">{t('issue.key')}</span>

@@ -31,11 +31,10 @@ describe('Change set 2: Connections (C-14)', () => {
     const lab = card('lab');
     expect(lab.className).not.toContain('live');
     expect(within(lab).queryByTestId('card-state')).toBeNull();
-    // the security chip sits on the address line, next to the URL
+    // change set 6: the protocol chip on its own line, "host:port" under it
     const chip = within(local).getByTestId('card-chip');
-    expect(chip.parentElement!.querySelector('.mono')!.textContent).toBe('mqtts://localhost:8883');
-    // change set 4: TLS, WSS or no TLS; never "mTLS"
-    expect(chip.textContent).toBe('TLS');
+    expect(chip.textContent).toBe('mqtts');
+    expect(within(local).getByTestId('card-address').textContent).toBe('localhost:8883');
   });
 
   it('card menu: Connect or Disconnect by state, Test, Duplicate, Delete… with a confirmation naming the profile', async () => {

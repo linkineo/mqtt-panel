@@ -82,7 +82,7 @@ describe('Change set 4: form folds (C-19)', () => {
     render(<ProfileForm profileId="plant" />);
     expect(screen.getByTestId('fold-security').getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByTestId('fold-advanced').getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByTestId('fold-security-summary').textContent).toBe('verify on · CA · client certificate · verified');
+    expect(screen.getByTestId('fold-security-summary').textContent).toBe('CA · client certificate · verified');
     expect(screen.getByTestId('fold-advanced-summary').textContent).toBe('keep-alive 60 s · 3 subscriptions · 1 schema');
     expect(screen.queryByTestId('file-caCert')).toBeNull();
     await act(async () => fireEvent.click(screen.getByTestId('fold-security')));
@@ -92,10 +92,10 @@ describe('Change set 4: form folds (C-19)', () => {
     for (const s of ['System roots plus the CA below.', 'Off. Any certificate is accepted.', 'Only if the broker serves several names.', 'Some cloud brokers require it.']) {
       expect(form.textContent).not.toContain(s);
     }
-    for (const id of ['verifyServer', 'caCert', 'clientCert', 'clientKey', 'sni', 'alpn']) expect(screen.getByTestId(`info-${id}`)).toBeInTheDocument();
+    for (const id of ['caCert', 'clientCert', 'clientKey', 'sni', 'alpn']) expect(screen.getByTestId(`info-${id}`)).toBeInTheDocument();
   });
 
-  it('"verify off" when verification is off; empty summaries at the defaults', async () => {
+  it('"skip verification" (change set 6) when the check is skipped; empty summaries at the defaults', async () => {
     await boot('demo');
     const p = await engine().newProfile();
     // mqtts: with mqtt the Security fold is off and carries its reason instead (change set 5)
@@ -105,11 +105,12 @@ describe('Change set 4: form folds (C-19)', () => {
     expect(screen.queryByTestId('fold-security-summary')).toBeNull();
     expect(screen.queryByTestId('fold-advanced-summary')).toBeNull();
     unmount();
-    const off = await engine().saveProfile({ ...saved, keepAlive: 30, tls: { ...saved.tls, verifyServer: false } });
+    const off = await engine().saveProfile({ ...saved, keepAlive: 30, tls: { ...saved.tls, skipVerify: true } });
     useApp.setState({ profiles: await engine().listProfiles() });
     render(<ProfileForm profileId={off.id} />);
-    expect(screen.getByTestId('fold-security-summary').textContent).toBe('verify off');
-    expect(screen.getByTestId('fold-advanced-summary').textContent).toBe('keep-alive 30 s');
+    expect(screen.queryByTestId('fold-security-summary')).toBeNull();
+    expect(screen.getByTestId('fold-advanced-summary').textContent).toBe('keep-alive 30 s · skip verification');
+    expect(screen.getByTestId('advanced-skip').className).toBe('warn');
   });
 });
 
@@ -144,10 +145,10 @@ describe('Change set 4: no parsed chips, no "mTLS" (C-20)', () => {
     expect((resources.de.ui as Record<string, string>)['preset.mtls']).toBe('Verschlüsselt + Client-Zertifikate');
   });
 
-  it('cards read TLS, WSS or no TLS', async () => {
+  it('cards read the protocol (change set 6), never "mTLS"', async () => {
     await boot('demo');
     render(<ConnectionsScreen />);
-    expect(new Set(screen.getAllByTestId('card-chip').map((c) => c.textContent))).toEqual(new Set(['TLS', 'no TLS', 'WSS']));
+    expect(new Set(screen.getAllByTestId('card-chip').map((c) => c.textContent))).toEqual(new Set(['mqtts', 'mqtt', 'wss']));
   });
 });
 
@@ -164,7 +165,7 @@ describe('Change set 4: broker-wide reachability (B-21, mock engine)', () => {
 });
 
 describe('Change set 4: title bar and rail (V-10)', () => {
-  it('no pill; play badge while the broker runs (clay while starting); count bubble; "unverified" chip', async () => {
+  it('no pill; play badge while the broker runs (clay while starting); count bubble; ⚠ on the tab (change set 6)', async () => {
     await boot('demo');
     await connect('plant');
     await connect('local');
@@ -180,11 +181,16 @@ describe('Change set 4: title bar and rail (V-10)', () => {
     expect(screen.getByTestId('rail-broker-badge').className).toBe('badge starting');
     act(() => useApp.setState({ broker: { ...useApp.getState().broker!, state: 'stopped' } }));
     expect(screen.queryByTestId('rail-broker-badge')).toBeNull();
-    expect(screen.queryAllByTestId('cbar-unverified')).toHaveLength(0);
-    await act(async () => useApp.getState().saveSettings({ skipVerify: true }));
-    await act(async () => sync());
+    expect(screen.queryAllByTestId('cbar-warn')).toHaveLength(0);
+    await act(async () => {
+      const plant = useApp.getState().profiles.find((p) => p.id === 'plant')!;
+      await engine().saveProfile({ ...plant, tls: { ...plant.tls, skipVerify: true } });
+      await sync();
+    });
     const tabs = screen.getAllByTestId('cbar-tab');
-    expect(within(tabs.find((t) => t.getAttribute('data-conn') === 'plant')!).getByTestId('cbar-unverified').textContent).toBe('unverified');
+    const warn = within(tabs.find((t) => t.getAttribute('data-conn') === 'plant')!).getByTestId('cbar-warn');
+    expect(warn.textContent).toBe('⚠');
+    expect(warn.getAttribute('title')).toContain('Certificate verification is off for this connection');
     // the anonymous flag and the pending restart are not in the title bar
     await act(async () => {
       await engine().setAnonymous(true);

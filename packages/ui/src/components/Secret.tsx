@@ -101,8 +101,8 @@ export function SecretInput(props: Omit<React.InputHTMLAttributes<HTMLInputEleme
   const { value, onValue, testId, style, ...rest } = props;
   const [shown, setShown] = useState(false);
   return (
-    <span className="row" style={{ gap: 4, flex: style?.flex ?? 1, minWidth: 0, width: style?.width }}>
-      <input {...rest} className={rest.className ?? 'input'} style={{ flex: 1, minWidth: 0 }} type={shown ? 'text' : 'password'} value={value} data-testid={testId} onChange={(e) => onValue(e.target.value)} />
+    <span className="secretin" style={style}>
+      <input {...rest} className={rest.className ?? 'input w-l'} type={shown ? 'text' : 'password'} value={value} data-testid={testId} onChange={(e) => onValue(e.target.value)} />
       <SecretButtons shown={shown} disabled={!value} testId={testId} onToggle={() => setShown(!shown)} onCopy={() => void copySecret(value)} />
     </span>
   );

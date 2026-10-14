@@ -138,7 +138,7 @@ describe('Change set 5: Security off with mqtt and ws (C-23)', () => {
     await act(async () => fireEvent.click(screen.getByTestId('scheme-mqtts')));
     expect(screen.getByTestId('fold-security').className).toBe('fold');
     expect(screen.getByTestId('file-caCert').textContent).toContain('plant-root-ca.pem');
-    expect(screen.getByTestId('fold-security-summary').textContent).toContain('verify on · CA · client certificate');
+    expect(screen.getByTestId('fold-security-summary').textContent).toContain('CA · client certificate');
   });
 
   it('the reason in French and German', async () => {
@@ -154,15 +154,9 @@ describe('Change set 5: Security off with mqtt and ws (C-23)', () => {
   });
 });
 
-describe('Change set 5: "MQTT Panel broker" (C-24)', () => {
-  it('the new wording in EN, FR and DE; the old phrase appears in no catalog', () => {
+describe('Change set 5: wording (C-24; the name itself superseded by C-26, change set 6)', () => {
+  it('the old phrase appears in no catalog', () => {
     const ui = (l: 'en' | 'fr' | 'de') => resources[l].ui as Record<string, string>;
-    expect([ui('en')['conn.newApp'], ui('fr')['conn.newApp'], ui('de')['conn.newApp']]).toEqual(['MQTT Panel broker', 'Broker MQTT Panel', 'MQTT Panel Broker']);
-    expect([ui('en')['appb.title'], ui('fr')['appb.title'], ui('de')['appb.title']]).toEqual([
-      'Connect to the MQTT Panel broker',
-      'Se connecter au broker MQTT Panel',
-      'Mit dem MQTT Panel Broker verbinden',
-    ]);
     expect([ui('en')['conn.protocol'], ui('fr')['conn.protocol'], ui('de')['conn.protocol']]).toEqual(['Protocol', 'Protocole', 'Protokoll']);
     for (const lang of ['en', 'fr', 'de']) {
       const raw = readFileSync(join(__dirname, '..', 'i18n', lang, 'ui.json'), 'utf8');
@@ -170,10 +164,10 @@ describe('Change set 5: "MQTT Panel broker" (C-24)', () => {
     }
   });
 
-  it('the "Local broker" card meta line reads "MQTT Panel broker"', async () => {
+  it('the "Local broker" card has no meta line any more (change set 6)', async () => {
     await boot('demo');
     render(<ConnectionsScreen />);
-    expect(card('local').textContent).toContain('MQTT Panel broker · MQTT 5');
+    expect(card('local').textContent).not.toMatch(/MQTT 5|broker ·/);
   });
 });
 

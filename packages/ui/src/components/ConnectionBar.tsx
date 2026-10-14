@@ -12,13 +12,27 @@ export function isOpen(c: ConnectionStatus): boolean {
 }
 
 /**
- * Server verification skipped on an encrypted connection: the lab-only "skip certificate verification" setting, or
- * "Verify server" off in the profile. Shown as the clay "unverified" chip on the tab and the card (change set 4).
+ * The ⚠ icon of a card and a tab (change set 6): 'skip' (clay) when this connection accepts any broker certificate,
+ * saved in the profile or "only this time" on the open connection; 'pinned' (muted) when the profile trusts a
+ * certificate by its fingerprint; null otherwise or on an unencrypted protocol.
  */
-export function isUnverified(c: ConnectionStatus | null | undefined, p: Profile | null | undefined): boolean {
-  if (!c || !p || !isOpen(c)) return false;
-  if (p.scheme !== 'mqtts' && p.scheme !== 'wss') return false;
-  return c.skipVerify || !p.tls.verifyServer;
+export function certWarning(c: ConnectionStatus | null | undefined, p: Profile | null | undefined): 'skip' | 'pinned' | null {
+  if (!p || (p.scheme !== 'mqtts' && p.scheme !== 'wss')) return null;
+  if (p.tls.skipVerify || (c && isOpen(c) && c.skipVerify)) return 'skip';
+  if (p.tls.trustedFingerprints.length > 0) return 'pinned';
+  return null;
+}
+
+/** The ⚠ icon with its tooltip (also its accessible name). */
+export function CertWarning({ kind, testId }: { kind: 'skip' | 'pinned' | null; testId: string }) {
+  const { t } = useTranslation();
+  if (!kind) return null;
+  const text = t(kind === 'skip' ? 'conn.warnSkip' : 'conn.warnPinned');
+  return (
+    <span className={`warn-i${kind === 'pinned' ? ' pin' : ''}`} role="img" title={text} aria-label={text} data-testid={testId} data-kind={kind}>
+      ⚠
+    </span>
+  );
 }
 
 /** Makes a connection the active one and opens the Explorer on it (connection bar, ⌘⇧L, command palette). */
@@ -114,11 +128,7 @@ export function ConnectionBar({ tabs: open }: { tabs: ConnectionStatus[] }) {
             <span className={`dot${dot}`} />
             <span className="nm">{c.name}</span>
             <small>· {figures(c, t, startingId === c.id)}</small>
-            {isUnverified(c, profiles.find((p) => p.id === c.id)) && (
-              <span className="chip clay" data-testid="cbar-unverified">
-                {t('conn.unverified')}
-              </span>
-            )}
+            <CertWarning kind={certWarning(c, profiles.find((p) => p.id === c.id))} testId="cbar-warn" />
             <button
               type="button"
               className="x"

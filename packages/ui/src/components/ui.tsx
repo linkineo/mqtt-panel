@@ -343,12 +343,12 @@ export function PromptDialog(props: {
       <div className="form">
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <label htmlFor="prompt-v">{props.label}</label>
-          <input id="prompt-v" className="input" value={v} data-autofocus onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
+          <input id="prompt-v" className="input w-l" value={v} data-autofocus onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
         </div>
         {props.extra && (
           <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
             <label htmlFor="prompt-x">{props.extra.label}</label>
-            <input id="prompt-x" className="input" value={x} list="prompt-x-list" onChange={(e) => setX(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
+            <input id="prompt-x" className="input w-l" value={x} list="prompt-x-list" onChange={(e) => setX(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
             <datalist id="prompt-x-list">
               {props.extra.suggestions?.map((s) => <option key={s} value={s} />)}
             </datalist>

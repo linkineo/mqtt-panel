@@ -111,3 +111,21 @@ export function applyAddressText(cur: AddressFields, text: string): AddressField
 export function applyScheme(cur: AddressFields, scheme: Scheme): AddressFields {
   return { ...cur, scheme, port: cur.port === DEFAULT_PORT[cur.scheme] ? DEFAULT_PORT[scheme] : cur.port };
 }
+
+/** "host:port" for the card's third line (change set 6): no scheme, no path, IPv6 in brackets. */
+export function hostPort(a: { host: string; port: number }): string {
+  return `${hostForDisplay(a.host)}:${a.port}`;
+}
+
+/**
+ * The name a new profile takes from its host (change set 6): the first label of a host name ("broker" for
+ * broker.plant.example, "myhost" for myhost.com), an IPv4 or IPv6 address as it is, "localhost" as it is. Empty for an
+ * empty host.
+ */
+export function nameFromHost(host: string): string {
+  const h = host.trim().replace(/^\[(.*)\]$/, '$1');
+  if (!h) return '';
+  if (h.includes(':')) return h; // IPv6
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return h; // IPv4
+  return h.split('.').find((x) => x !== '') ?? h;
+}

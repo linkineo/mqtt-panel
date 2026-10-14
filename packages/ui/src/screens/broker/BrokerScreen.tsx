@@ -961,7 +961,7 @@ function CsrDialog({ onClose, onDone }: { onClose(): void; onDone(): void }) {
       <div className="form">
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <label htmlFor="csr-name">{t('issue.name')}</label>
-          <input id="csr-name" className="input mono" value={name} placeholder={t('csr.fromCsr')} onChange={(e) => setName(e.target.value)} />
+          <input id="csr-name" className="input mono w-l" value={name} placeholder={t('csr.fromCsr')} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <span className="lbl">{t('issue.validFor')}</span>
