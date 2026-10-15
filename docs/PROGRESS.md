@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 15 Oct 2026 (change set 8 specified and in progress; previously 14 Oct 2026 (phases 1 to 4, change sets 1 to 7 complete on macOS; change set 5, 6 and 7 readings awaiting the owner; Windows and Linux through CI).)
+Last update: 15 Oct 2026 (phases 1 to 4, change sets 1 to 8 complete on macOS; change set 5, 6, 7 and 8 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -20,22 +20,22 @@ Last update: 15 Oct 2026 (change set 8 specified and in progress; previously 14 
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
 
-## Change set 8 (15 Oct 2026, owner feedback on the seventh build): in progress
+## Change set 8 (15 Oct 2026, owner feedback on the seventh build): implemented
 
 Specified in `docs/FEATURES.md` (Connections bar, Explorer, Message inspection, History and charts, Localisation rules), `docs/SPEC.md` 1 and 4, mockups 04, 06, 07, 10, 10b and the bar on every screen, `docs/TESTPLAN.md` X-15 to X-22, D-24, V-11. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
 
 | Item | Status |
 |---|---|
-| No auto-capitalisation, auto-correct or spell-check in any input or textarea | Specified |
-| Connection bar always shown, first row of the main column; rail from the title bar down; empty strip "Choose a connection" with + | Specified |
-| Tree rows: name, payload on the available width, R marker, sparkline, messages, throughput, subtopics with tooltips; no age text | Specified |
-| Sparkline rule: bare number by itself, JSON value picked with "Use as sparkline", one per topic, saved per topic | Specified |
-| Payload click menu (sparkline, chart, copy path, copy value); no hover icon, no trailing menu | Specified |
-| Tabs Payload and Properties; "Show diff to previous" switch on by default; History section with selection and buffer size | Specified |
-| Topic chart under the payload with chips, "+ Add field…" and the picker's "Also add to" dropdown; saved per topic | Specified |
-| Charts screen: in-place series editing without edit mode; chart title renamed in place | Specified |
-| Detail header icon buttons (star, Publish icon, ⋯); boxed quick publish row with separators | Specified |
-| Tests X-15 to X-22, D-24, V-11; screenshots re-recorded | Specified |
+| No auto-capitalisation, auto-correct or spell-check in any input or textarea | Done 15 Oct 2026. Shared `NO_AUTO` spread, enforced by a Vitest source scan; the payload editor too |
+| Connection bar always shown, first row of the main column; rail from the title bar down; empty strip "Choose a connection" with + | Done 15 Oct 2026. The + opens the same New connection menu |
+| Tree rows: name, payload on the available width, R marker, sparkline, messages, throughput, subtopics with tooltips; no age text | Done 15 Oct 2026. Activity dot removed too (see Open) |
+| Sparkline rule: bare number by itself, JSON value picked with "Use as sparkline", one per topic, saved per topic | Done 15 Oct 2026. Profile `topics`, engine `set_sparkline_paths` |
+| Payload click menu (sparkline, chart, copy path, copy value); no hover icon, no trailing menu | Done 15 Oct 2026. In-page menu, also on right-click |
+| Tabs Payload and Properties; "Show diff to previous" switch on by default; History section with selection and buffer size | Done 15 Oct 2026 |
+| Topic chart under the payload with chips, "+ Add field…" and the picker's "Also add to" dropdown; saved per topic | Done 15 Oct 2026 |
+| Charts screen: in-place series editing without edit mode; chart title renamed in place | Done 15 Oct 2026. Series pane 400 px as in mockup 10 |
+| Detail header icon buttons (star, Publish icon, ⋯); boxed quick publish row with separators | Done 15 Oct 2026 |
+| Tests X-15 to X-22, D-24, V-11; screenshots re-recorded | Done 15 Oct 2026. Rust 205, Vitest 134, Playwright 266 (overflow 123 on 41 states × EN, FR, DE; screenshots 82; flows 61), all green; new states 10c-chart-rename, 19b-empty-bar-menu |
 
 ## Change set 7 (14 Oct 2026, live apply, no restart): implemented
 
