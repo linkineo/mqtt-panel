@@ -157,6 +157,61 @@ export const STATES: UiState[] = [
     },
   },
   {
+    // change set 9 (mockup 06): "Show supply.temp in History" active, the chip, a History row expanded
+    id: '06b-history-filter',
+    query: 'mock=demo&connect=plant,local&screen=explore',
+    steps: async (p) => {
+      await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
+      await p.click('[data-testid=follow]');
+      await p.locator('[data-testid=payload-json] .k[data-path="$.supply.temp"]').click();
+      await p.click('[data-testid=json-menu] .ctx-item[data-id=history]');
+      await p.waitForSelector('[data-testid=history-filter-chip]');
+      await p.locator('[data-testid=history-expand]').nth(2).click();
+      await p.waitForSelector('[data-testid=history-payload] .json');
+      await p.locator('[data-testid=history-payload]').scrollIntoViewIfNeeded();
+    },
+  },
+  {
+    // change set 9: the filter button's field list
+    id: '06c-history-filter-list',
+    query: 'mock=demo&connect=plant,local&screen=explore',
+    steps: async (p) => {
+      await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
+      await p.click('[data-testid=follow]');
+      await p.locator('[data-testid=history-filter]').scrollIntoViewIfNeeded();
+      await p.click('[data-testid=history-filter]');
+      await p.waitForSelector('[data-testid=history-filter-pop]');
+    },
+  },
+  {
+    // change set 9 (mockup 06): the Tree form with the diff colours and the click menu on a tree row; History rows
+    // expanded in the same form
+    id: '06d-payload-tree',
+    query: 'mock=demo&connect=plant,local&screen=explore',
+    steps: async (p) => {
+      await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
+      await p.click('[data-testid=follow]');
+      await p.click('[data-testid=payload-form-tree]');
+      await p.waitForSelector('[data-testid=payload-tree]');
+      await p.locator('[data-testid=history-expand]').nth(1).click();
+      await p.waitForSelector('[data-testid=history-tree]');
+      await p.locator('[data-testid=payload-tree] [data-path="$.supply.temp"]').click();
+      await p.waitForSelector('[data-testid=json-menu]');
+    },
+  },
+  {
+    // change set 9: right-click on a sparkline, the one-entry menu
+    id: '04b-sparkline-menu',
+    query: 'mock=demo&connect=plant,local&screen=explore',
+    steps: async (p) => {
+      await p.fill('[data-testid=search]', 'building/f2/r205');
+      const spark = p.locator('[data-testid=tree-row][data-path="building/f2/r205/humidity"] [data-testid=tree-spark]');
+      await spark.waitFor();
+      await spark.click({ button: 'right' });
+      await p.waitForSelector('[data-testid=context-menu]');
+    },
+  },
+  {
     id: '07-properties',
     query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
@@ -360,15 +415,6 @@ export const STATES: UiState[] = [
     },
   },
   { id: '19-no-connection', query: 'mock=demo&screen=explore' },
-  {
-    // change set 8: the empty connection bar's + opens the New connection menu
-    id: '19b-empty-bar-menu',
-    query: 'mock=demo&screen=explore',
-    steps: async (p) => {
-      await p.click('[data-testid=cbar-new]');
-      await p.waitForSelector('[data-testid=context-menu]');
-    },
-  },
   {
     // change set 8: the chart title renamed in place
     id: '10c-chart-rename',

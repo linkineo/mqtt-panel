@@ -205,9 +205,14 @@ button.chip:hover { filter: brightness(.97) }
 .tree .n .p em { font-style: normal; overflow: hidden; text-overflow: ellipsis; min-width: 0 }
 .tree .n .p .chip { flex: none }
 .tree .n .p .hintfmt { color: var(--ink-2); font-family: var(--sans); font-size: 11px; overflow: hidden; text-overflow: ellipsis }
-.tree .n .v { color: var(--ink-2); font-size: calc(var(--mono-size) - 1px); display: flex; gap: 10px; align-items: center; justify-content: flex-end }
+.tree .n .v { color: var(--ink-2); font-size: calc(var(--mono-size) - 1px); display: grid; grid-template-columns: 42px 56px 72px 44px; gap: 8px; align-items: center; justify-items: end }
+/* change set 9: four fixed right-aligned columns shared by every row; an empty cell keeps its column */
+.tree .n .v > * { min-width: 0; text-align: right }
+.tree .n .v .c-spark { grid-column: 1; display: flex; justify-content: flex-end; width: 42px; height: 12px }
+.tree .n .v .spark-hit { display: inline-flex; cursor: context-menu }
+.tree .n .v .msgs { grid-column: 2 } .tree .n .v .rate { grid-column: 3 } .tree .n .v .c-cnt { grid-column: 4; display: flex; justify-content: flex-end }
 .tree .n .rate, .tree .n .msgs, .tree .n .cnt { cursor: help }
-.tree .n .rate { font-family: var(--sans); font-size: 11px; min-width: 3ch; text-align: right }
+.tree .n .rate { font-family: var(--sans); font-size: 11px; text-align: right }
 .tree .n .cnt { background: var(--line-2); border-radius: 8px; padding: 0 6px; font-size: 10px; color: var(--ink-2); font-family: var(--sans) }
 .tree .n .tw { color: var(--ink-2); width: 10px; display: inline-block; flex: none; text-align: center }
 .tree .msgs { font-size: 10px; color: var(--ink-2); font-family: var(--sans) }
@@ -475,3 +480,19 @@ button.chip:hover { filter: brightness(.97) }
 .iconbtn.chev { font-size: 12px; width: 18px }
 .btn.link.titlebtn { font-size: 13px; max-width: 100%; min-width: 0 }
 .input.titlein { width: 280px; font-weight: 600 }
+
+/* change set 9: History rows with a chevron and an expanded payload; the Tree form of a JSON payload */
+.tbl td.hchev { padding-left: 4px; padding-right: 0; color: var(--ink-2); text-align: center }
+.tbl td.hchev button { border: 0; background: none; color: inherit; padding: 0 4px; font-size: 11px; line-height: 1.2; border-radius: 4px }
+.tbl td.hchev button:hover { color: var(--ink); background: var(--line-2) }
+.tbl tr.hexp td { padding: 0 10px 8px 28px; white-space: normal; max-width: none; background: none }
+.tbl tr.hexp .json { padding: 6px 10px; max-height: 320px }
+.json.jtree { white-space: nowrap }
+.json.jtree .trow { display: block; white-space: pre }
+.json.jtree .tchev { display: inline-block; width: 14px; color: var(--ink-2); text-align: center; flex: none }
+.hfilter-pop { width: 320px; max-height: 360px; overflow: auto; padding: 6px }
+.hfilter-pop .hf-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 120px); gap: 10px; width: 100%; padding: 5px 8px; border: 0; background: none; border-radius: 5px; text-align: left; font-size: 12px; color: var(--ink) }
+.hfilter-pop .hf-row:hover, .hfilter-pop .hf-row:focus-visible, .hfilter-pop .hf-row.on { background: var(--sel); outline: none }
+.hfilter-pop .hf-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.hfilter-pop .hf-row .muted { text-align: right }
+.hfilter-pop .hf-other { display: flex; gap: 6px; align-items: center; padding: 8px 8px 4px; border-top: 1px solid var(--line-2); margin-top: 4px }

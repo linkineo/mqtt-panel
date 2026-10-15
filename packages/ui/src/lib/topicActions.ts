@@ -5,6 +5,7 @@ import { useApp } from '../store/app';
 import { useCharts } from '../store/charts';
 import { useExplorer } from '../store/explorer';
 import { run } from './actions';
+import { setSparklineOff, topicPrefsOf } from './topicPrefs';
 
 /** Quotes a string for a POSIX shell: 'it'\''s'. */
 export function shq(s: string): string {
@@ -94,11 +95,14 @@ export async function topicMenu(
 ): Promise<void> {
   const t = i18next.t.bind(i18next);
   const pinned = useExplorer.getState().get(connId).pinned.includes(topic);
+  const sparkOff = isTopic && !!topicPrefsOf(connId, topic).sparklineOff;
   const id = await platform().showContextMenu(
     [
       { id: 'pin', label: pinned ? t('menu.unpin') : t('menu.pin'), accelerator: 'P' },
       { id: 'publish', label: t('menu.publishHere'), accelerator: '⇧P' },
       { id: 'chart', label: t('menu.addToChart'), accelerator: 'C', enabled: isTopic },
+      // change set 9: a hidden sparkline cannot be right-clicked, so it comes back from here
+      ...(sparkOff ? [{ id: 'showSpark', label: t('menu.showSparkline') }] : []),
       { id: 's1', label: '', separator: true },
       { id: 'copyTopic', label: t('menu.copyTopic'), accelerator: mac ? '⌘C' : 'Ctrl+C' },
       { id: 'copyPayload', label: t('menu.copyPayload'), enabled: isTopic },
@@ -119,6 +123,8 @@ export async function topicMenu(
       return publishHere(connId, topic);
     case 'chart':
       return addToChart(connId, topic);
+    case 'showSpark':
+      return setSparklineOff(connId, topic, false);
     case 'copyTopic':
       return copyTopic(topic);
     case 'copyPayload':

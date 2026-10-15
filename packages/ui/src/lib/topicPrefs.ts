@@ -25,14 +25,20 @@ async function update(connId: string, topic: string, f: (prefs: TopicPrefs) => T
   const next = f({ ...(topics[topic] ?? {}) });
   if (!next.sparklinePath) delete next.sparklinePath;
   if (!next.chartFields?.length) delete next.chartFields;
+  if (!next.sparklineOff) delete next.sparklineOff;
   if (Object.keys(next).length) topics[topic] = next;
   else delete topics[topic];
   await saveProfile({ ...p, topics });
 }
 
-/** "Use as sparkline": one per topic, a new pick replaces the previous one. */
+/** "Use as sparkline": one per topic, a new pick replaces the previous one and shows a hidden sparkline again. */
 export function setSparklinePath(connId: string, topic: string, path: string | null): Promise<void> {
-  return update(connId, topic, (x) => ({ ...x, sparklinePath: path ?? undefined }));
+  return update(connId, topic, (x) => ({ ...x, sparklinePath: path ?? undefined, sparklineOff: false }));
+}
+
+/** Change set 9: "Hide sparkline" (right-click on a sparkline) and "Show sparkline" (topic context menu). */
+export function setSparklineOff(connId: string, topic: string, off: boolean): Promise<void> {
+  return update(connId, topic, (x) => ({ ...x, sparklineOff: off }));
 }
 
 export function setChartFields(connId: string, topic: string, fields: ChartField[]): Promise<void> {

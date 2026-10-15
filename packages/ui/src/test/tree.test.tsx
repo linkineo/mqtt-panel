@@ -67,12 +67,12 @@ describe('Tree row highlight (X-04)', () => {
     expect(r.textContent).toContain('r203');
     expect(screen.getByTestId('tree-msgs').textContent!.replace(/\s/g, ' ')).toBe('1 012');
     expect(screen.getByTestId('tree-msgs')).toHaveAttribute('title', 'Messages since the connection opened');
-    expect(screen.getByTestId('tree-rate')).toHaveTextContent('4/s');
+    expect(screen.getByTestId('tree-rate')).toHaveTextContent('4 msg/s');
     expect(screen.getByTestId('tree-rate')).toHaveAttribute('title', 'Messages per second');
     expect(screen.getByTestId('tree-subtopics')).toHaveTextContent('12');
     expect(screen.getByTestId('tree-subtopics')).toHaveAttribute('title', 'Subtopics below this one');
     // the subtopics counter is the last thing on the row, after the throughput
-    expect(r.querySelector('.v')!.lastElementChild).toBe(screen.getByTestId('tree-subtopics'));
+    expect(r.querySelector('.v')!.lastElementChild!.firstElementChild).toBe(screen.getByTestId('tree-subtopics'));
   });
 });
 

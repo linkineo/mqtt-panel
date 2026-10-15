@@ -25,8 +25,14 @@ export interface ExplorerConn {
   viewSeq: number | null;
   /** "Show diff to previous" above the payload (change set 8), on by default. */
   diff: boolean;
+  /** Change set 9: the payload view's "JSON / Tree" segment, also used by the rows expanded in History. */
+  payloadForm: PayloadForm;
+  /** Change set 9: the History field filter per topic (a field path), kept while the app runs. */
+  historyFilter: Record<string, string>;
   initialised: boolean;
 }
+
+export type PayloadForm = 'json' | 'tree';
 
 export type ExplorerCommand = 'focusSearch' | 'nextChanged' | 'togglePause' | 'pinSelected' | 'publishSelected' | 'chartSelected' | 'exportSelected' | 'clearHistory';
 
@@ -42,6 +48,7 @@ interface ExplorerState {
   saveView(connId: string, name: string, replace?: string): Promise<void>;
   deleteView(connId: string, name: string): Promise<void>;
   run(name: ExplorerCommand): void;
+  setHistoryFilter(connId: string, topic: string, path: string | null): void;
 }
 
 export function defaultConn(): ExplorerConn {
@@ -58,6 +65,8 @@ export function defaultConn(): ExplorerConn {
     tab: 'payload',
     viewSeq: null,
     diff: true,
+    payloadForm: 'json',
+    historyFilter: {},
     initialised: false,
   };
 }
@@ -152,4 +161,10 @@ export const useExplorer = create<ExplorerState>((set, get) => ({
     if (def) await get().applyView(connId, def);
   },
   run: (name) => set({ command: { name, nonce: Date.now() + Math.random() } }),
+  setHistoryFilter: (connId, topic, path) => {
+    const historyFilter = { ...get().get(connId).historyFilter };
+    if (path) historyFilter[topic] = path;
+    else delete historyFilter[topic];
+    get().patch(connId, { historyFilter });
+  },
 }));

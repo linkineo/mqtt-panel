@@ -245,14 +245,8 @@ export function ConnectionsScreen() {
 
   useEffect(() => {
     const onNew = () => void newProfile();
-    // the "+" of the empty connection bar (change set 8) opens the built-in broker dialog here
-    const onApp = (e: Event) => setAppDialog((e as CustomEvent<AppDialog>).detail);
     window.addEventListener('mqttpanel:new-connection', onNew);
-    window.addEventListener('mqttpanel:app-broker', onApp);
-    return () => {
-      window.removeEventListener('mqttpanel:new-connection', onNew);
-      window.removeEventListener('mqttpanel:app-broker', onApp);
-    };
+    return () => window.removeEventListener('mqttpanel:new-connection', onNew);
   }, []);
 
   const reorder = async (id: string, to: number) => {

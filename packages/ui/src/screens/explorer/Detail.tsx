@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type {
   DiffResult,
+  FieldInfo,
   HistoryEntry,
   MessageView,
   NegotiatedVersion,
@@ -16,10 +18,10 @@ import type {
 import { engine, platform } from '../../services';
 import { useApp } from '../../store/app';
 import { rangeMs } from '../../store/charts';
-import { useExplorer, type DetailTab } from '../../store/explorer';
+import { useExplorer, type DetailTab, type PayloadForm } from '../../store/explorer';
 import { run } from '../../lib/actions';
 import { addToChart, copyCli, copyPayload, copyTopic, clearHistory, payloadFormat, payloadText, publishHere, type TopicDialog } from '../../lib/topicActions';
-import { JsonView, DiffView, FieldMenu, copyField, pathLabel, type FieldActions, type FieldClick } from '../../components/JsonView';
+import { JsonView, DiffView, FieldMenu, JsonTree, copyField, filterCell, pathLabel, treeOfDiff, treeOfJson, valueAt, type FieldActions, type FieldClick, type TNode } from '../../components/JsonView';
 import { RailIcon } from '../../components/icons';
 import { setChartFields, setSparklinePath, useTopicPrefs } from '../../lib/topicPrefs';
 import { UChart } from '../../components/UChart';
@@ -229,6 +231,122 @@ function PayloadBody({ m, onFormatAnyway, actions }: { m: MessageView; onFormatA
   );
 }
 
+const JSON_FORMATS = ['json', 'cbor', 'msgpack', 'sparkplug', 'protobuf'];
+
+/** A payload the "JSON / Tree" segment applies to (change set 9): decoded to a JSON object or array. */
+export function isJsonPayload(m: MessageView | null | undefined): boolean {
+  const d = m?.decoded;
+  return !!d && !d.paged && d.json !== null && typeof d.json === 'object' && JSON_FORMATS.includes(d.format);
+}
+
+/** The value of a tree row for the click menu: from the message, else the removed value of a diff row. */
+function treeValue(json: unknown, path: string, n: TNode): unknown {
+  const v = valueAt(json, path);
+  if (v !== undefined) return v;
+  try {
+    return n.oldText !== null ? JSON.parse(n.oldText) : null;
+  } catch {
+    return n.oldText;
+  }
+}
+
+/**
+ * The full payload of one History row, expanded in place (change set 9): the same component as the payload view in
+ * the chosen JSON or Tree form, without the diff colours.
+ */
+function HistoryPayload({ m, form, actions }: { m: MessageView; form: PayloadForm; actions: FieldActions }) {
+  const d = m.decoded;
+  if (isJsonPayload(m)) {
+    return form === 'tree' ? (
+      <JsonTree root={treeOfJson(d.json)} actions={actions} small valueOf={(path, n) => treeValue(d.json, path, n)} testId="history-tree" />
+    ) : (
+      <JsonView value={d.json} actions={actions} small testId="history-json" />
+    );
+  }
+  return (
+    <div className="json wrap" style={{ fontSize: 11 }} data-testid="history-text">
+      {d.text ?? d.hex ?? ''}
+    </div>
+  );
+}
+
+/** The value a History row shows for the filter path (change set 9). */
+function filterValueOf(m: MessageView | null, path: string): unknown {
+  if (!m) return undefined;
+  if (m.decoded.json !== null && m.decoded.json !== undefined) return valueAt(m.decoded.json, path);
+  return path === '$' ? (m.decoded.text ?? undefined) : undefined;
+}
+
+/**
+ * The filter button's popover (change set 9): the fields of the last message, as in the field picker, one choice,
+ * plus a typed path.
+ */
+function HistoryFilterPop(props: { anchor: DOMRect; fields: FieldInfo[]; current: string | null; onPick(path: string): void; onClose(): void }) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLDivElement>(null);
+  const [other, setOther] = useState('');
+  const [pos, setPos] = useState({ left: props.anchor.left, top: props.anchor.bottom + 4 });
+  const { onClose } = props;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setPos({ left: Math.max(8, Math.min(props.anchor.left, window.innerWidth - el.offsetWidth - 8)), top: Math.max(8, Math.min(props.anchor.bottom + 4, window.innerHeight - el.offsetHeight - 8)) });
+    el.querySelector<HTMLElement>('button')?.focus();
+  }, [props.anchor]);
+  useEffect(() => {
+    const down = (e: globalThis.MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', down, true);
+    document.addEventListener('keydown', key, true);
+    return () => {
+      document.removeEventListener('mousedown', down, true);
+      document.removeEventListener('keydown', key, true);
+    };
+  }, [onClose]);
+  const leaves = props.fields.filter((f) => f.cast !== 'object' && f.cast !== 'array');
+  const pickOther = () => {
+    let p = other.trim();
+    if (!p) return;
+    if (!p.startsWith('$')) p = '$.' + p.replace(/^\./, '');
+    props.onPick(p);
+  };
+  return createPortal(
+    <div ref={ref} className="popover hfilter-pop" role="dialog" aria-label={t('history.filter')} data-testid="history-filter-pop" style={{ left: pos.left, top: pos.top }}>
+      {leaves.map((f) => (
+        <button key={f.path} type="button" className={`hf-row${props.current === f.path ? ' on' : ''}`} data-testid="history-filter-field" data-path={f.path} onClick={() => props.onPick(f.path)}>
+          <span className="mono">{f.label}</span>
+          <span className="mono muted">{f.lastValue}</span>
+        </button>
+      ))}
+      <div className="hf-other">
+        <span className="muted small nowrap">{t('picker.otherPath')}</span>
+        <input
+          {...NO_AUTO}
+          className="input mono"
+          style={{ flex: 1, minWidth: 0 }}
+          value={other}
+          aria-label={t('picker.otherPath')}
+          data-testid="history-filter-path"
+          placeholder="supply.temp"
+          onChange={(e) => setOther(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && pickOther()}
+        />
+        <button type="button" className="btn sm" data-testid="history-filter-apply" onClick={pickOther}>
+          {t('history.filterApply')}
+        </button>
+      </div>
+    </div>,
+    document.getElementById('app-root') ?? document.body,
+  );
+}
+
 /** A JSON-ish payload: the diff is drawn key by key; anything else falls back to the line diff or the plain view. */
 function diffable(m: MessageView, format: PayloadFormat): boolean {
   return format === 'auto' && !m.decoded.paged && !m.decoded.error && (m.decoded.json !== null || m.decoded.text !== null) && m.decoded.format !== 'image';
@@ -259,11 +377,19 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   const [qp, setQp] = useState<{ payload: string; format: PayloadEncoding; qos: Qos; retain: boolean }>({ payload: '', format: 'text', qos: 0, retain: false });
   const [raising, setRaising] = useState(false);
   const [menu, setMenu] = useState<FieldClick | null>(null);
+  // change set 9: History rows expanded in place, their messages, and the filter popover
+  const [expanded, setExpanded] = useState<number[]>([]);
+  const [expMsgs, setExpMsgs] = useState<Record<number, MessageView>>({});
+  const [filterPop, setFilterPop] = useState<DOMRect | null>(null);
+  const [, setValsVer] = useState(0);
+  const valCache = useRef<{ key: string; vals: Map<number, unknown>; pending: Set<number> }>({ key: '', vals: new Map(), pending: new Set() });
 
   const tab = st.tab;
   const follow = st.follow;
   const viewSeq = st.viewSeq;
   const diffOn = st.diff;
+  const form = st.payloadForm;
+  const hpath = st.historyFilter[topic] ?? null;
   const fields = prefs.chartFields ?? [];
 
   // latest detail
@@ -287,6 +413,9 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     setDiff(null);
     setChartData({});
     setMenu(null);
+    setExpanded([]);
+    setExpMsgs({});
+    setFilterPop(null);
   }, [connId, topic]);
 
   // quick publish follows the last message's format
@@ -336,6 +465,48 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connId, topic, follow ? tseq : 0]);
+
+  // change set 9: the messages of the History rows expanded in place
+  const expandedKey = expanded.join(',');
+  useEffect(() => {
+    const missing = expanded.filter((q) => !expMsgs[q]);
+    if (!missing.length) return;
+    let live = true;
+    void Promise.all(missing.map((q) => engine().message(connId, topic, q, 'auto', false).catch(() => null))).then((list) => {
+      if (!live) return;
+      setExpMsgs((cur) => {
+        const next = { ...cur };
+        list.forEach((m, i) => m && (next[missing[i]] = m));
+        return next;
+      });
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connId, topic, expandedKey]);
+
+  // change set 9: the History filter column, each message's value at the path (messages do not change: cached by seq)
+  useEffect(() => {
+    if (!hpath) return;
+    const key = `${connId}|${topic}|${hpath}`;
+    if (valCache.current.key !== key) valCache.current = { key, vals: new Map(), pending: new Set() };
+    const c = valCache.current;
+    const missing = history.map((h) => h.seq).filter((q) => !c.vals.has(q) && !c.pending.has(q));
+    if (!missing.length) return;
+    missing.forEach((q) => c.pending.add(q));
+    void (async () => {
+      for (let i = 0; i < missing.length; i += 25) {
+        const chunk = missing.slice(i, i + 25);
+        const list = await Promise.all(chunk.map((q) => engine().message(connId, topic, q, 'auto', false).catch(() => null)));
+        chunk.forEach((q, j) => {
+          c.vals.set(q, filterValueOf(list[j], hpath));
+          c.pending.delete(q);
+        });
+        if (valCache.current === c) setValsVer((v) => v + 1);
+      }
+    })();
+  }, [connId, topic, hpath, history]);
 
   // "Show diff to previous" (change set 8): the message shown against the one received just before it
   const diffB = shownSeq;
@@ -448,6 +619,9 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     : null;
 
   const structured = message?.decoded.json !== null && typeof message?.decoded.json === 'object';
+  const jsonPayload = isJsonPayload(message);
+  const toggleExpanded = (q: number) => setExpanded((cur) => (cur.includes(q) ? cur.filter((x) => x !== q) : [...cur, q]));
+  const vals = hpath && valCache.current.key === `${connId}|${topic}|${hpath}` ? valCache.current.vals : null;
   const showDiff = diffOn && canDiff && diff !== null && diffA !== null;
 
   return (
@@ -569,8 +743,28 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                   <button type="button" className="btn sm" onClick={() => void copyPayload(connId, topic)}>
                     {t('payload.copy')}
                   </button>
+                  {jsonPayload && (
+                    <Seg<PayloadForm>
+                      label={t('payload.form')}
+                      value={form}
+                      testId="payload-form"
+                      onChange={(payloadForm) => patch(connId, { payloadForm })}
+                      options={[
+                        { value: 'json', label: t('payload.formJson'), testId: 'payload-form-json' },
+                        { value: 'tree', label: t('payload.formTree'), testId: 'payload-form-tree' },
+                      ]}
+                    />
+                  )}
                 </div>
-                {showDiff && diff.mode === 'json' ? (
+                {jsonPayload && form === 'tree' ? (
+                  <JsonTree
+                    root={(showDiff && diff.mode === 'json' ? treeOfDiff(diff.lines) : null) ?? treeOfJson(message.decoded.json)}
+                    highlight={showDiff && diff.mode === 'json'}
+                    actions={actions}
+                    valueOf={(path, n) => treeValue(message.decoded.json, path, n)}
+                    testId="payload-tree"
+                  />
+                ) : showDiff && diff.mode === 'json' ? (
                   <DiffView
                     lines={diff.lines}
                     highlight
@@ -646,11 +840,43 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                     </div>
                   </>
                 )}
-                <div className="sec" style={{ marginTop: 14 }}>
+                <div className="sec" style={{ marginTop: 14 }} data-testid="history-head">
                   {t('payload.history', { n: fmtNum(history.length) })}
+                  <button
+                    type="button"
+                    className={`btn sm ico${hpath ? ' on' : ''}`}
+                    data-testid="history-filter"
+                    aria-pressed={!!hpath}
+                    aria-label={t('history.filter')}
+                    title={t('history.filter')}
+                    onClick={(e) => {
+                      if (hpath) useExplorer.getState().setHistoryFilter(connId, topic, null);
+                      else setFilterPop(filterPop ? null : (e.currentTarget as HTMLElement).getBoundingClientRect());
+                    }}
+                  >
+                    <svg viewBox="0 0 14 14" aria-hidden="true">
+                      <path d="M2 3h10L8.2 7.6V11.5L5.8 10.3V7.6Z" />
+                    </svg>
+                  </button>
+                  {hpath && (
+                    <span className="chip on mono" data-testid="history-filter-chip" data-path={hpath}>
+                      {pathLabel(hpath)}
+                      <button
+                        type="button"
+                        className="x"
+                        aria-label={t('field.stopInHistory', { field: pathLabel(hpath) })}
+                        title={t('field.stopInHistory', { field: pathLabel(hpath) })}
+                        data-testid="history-filter-clear"
+                        onClick={() => useExplorer.getState().setHistoryFilter(connId, topic, null)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
                 </div>
                 <table className="tbl fixed" data-testid="history">
                   <colgroup>
+                    <col style={{ width: 24 }} />
                     <col style={{ width: 112 }} />
                     <col />
                     <col style={{ width: 48 }} />
@@ -658,24 +884,55 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                   </colgroup>
                   <thead>
                     <tr>
+                      <th aria-label={t('history.expandCol')} />
                       <th>{t('col.time')}</th>
-                      <th>{structured ? t('diff.changedKeys') : t('col.value')}</th>
+                      {hpath ? (
+                        <th className="mono" style={{ textTransform: 'none', letterSpacing: 0 }} data-testid="history-col" title={hpath}>
+                          {pathLabel(hpath)}
+                        </th>
+                      ) : (
+                        <th data-testid="history-col">{structured ? t('diff.changedKeys') : t('col.value')}</th>
+                      )}
                       <th>QoS</th>
                       <th>{t('col.size')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {history.map((h) => {
-                      const v = structured ? h.changedKeys.join(', ') : h.preview;
+                      const v = hpath ? filterCell(vals?.get(h.seq)) : structured ? h.changedKeys.join(', ') : h.preview;
+                      const isOpen = expanded.includes(h.seq);
+                      const m = expMsgs[h.seq];
                       return (
-                        <tr key={h.seq} className={`click${h.seq === shownSeq ? ' sel' : ''}`} data-testid="history-row" data-seq={h.seq} onClick={() => patch(connId, { viewSeq: h.seq === shown.last?.seq && follow ? null : h.seq })}>
-                          <td className="mono">{fmtTime(h.receivedAt, true)}</td>
-                          <td className="mono ell" title={v}>
-                            {v}
-                          </td>
-                          <td>{h.qos}</td>
-                          <td>{fmtBytes(h.size)}</td>
-                        </tr>
+                        <Fragment key={h.seq}>
+                          <tr className={`click${h.seq === shownSeq ? ' sel' : ''}`} data-testid="history-row" data-seq={h.seq} onClick={() => patch(connId, { viewSeq: h.seq === shown.last?.seq && follow ? null : h.seq })}>
+                            <td className="hchev">
+                              <button
+                                type="button"
+                                data-testid="history-expand"
+                                aria-expanded={isOpen}
+                                aria-label={isOpen ? t('history.collapse') : t('history.expand')}
+                                title={isOpen ? t('history.collapse') : t('history.expand')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpanded(h.seq);
+                                }}
+                              >
+                                {isOpen ? '▾' : '▸'}
+                              </button>
+                            </td>
+                            <td className="mono">{fmtTime(h.receivedAt, true)}</td>
+                            <td className="mono ell" title={v} data-testid="history-value">
+                              {v}
+                            </td>
+                            <td>{h.qos}</td>
+                            <td>{fmtBytes(h.size)}</td>
+                          </tr>
+                          {isOpen && (
+                            <tr className="hexp" data-testid="history-payload" data-seq={h.seq}>
+                              <td colSpan={5}>{m ? <HistoryPayload m={m} form={form} actions={actions} /> : null}</td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -701,7 +958,21 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
           onClose={() => setMenu(null)}
           onSparkline={(p) => void useSparkline(p)}
           onChart={(p) => openPicker(p)}
+          historyPath={hpath}
+          onHistory={(p) => useExplorer.getState().setHistoryFilter(connId, topic, p)}
           onCopy={copyField}
+        />
+      )}
+      {filterPop && (
+        <HistoryFilterPop
+          anchor={filterPop}
+          fields={shown.fields ?? []}
+          current={hpath}
+          onClose={() => setFilterPop(null)}
+          onPick={(p) => {
+            setFilterPop(null);
+            useExplorer.getState().setHistoryFilter(connId, topic, p);
+          }}
         />
       )}
       {raising && (

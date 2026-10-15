@@ -5,7 +5,7 @@ import type { TableColumn, TableQuery, TableRow, TableSort } from '@mqttpanel/en
 import { engine } from '../../services';
 import { useApp } from '../../store/app';
 import { useSlice } from '../../lib/useSlice';
-import { Sparkline } from '../../components/ui';
+import { Sparkline, useSecondTick } from '../../components/ui';
 import { displayValue, fmtAge, fmtBytes, fmtNum, fmtRate } from '../../lib/format';
 
 export const COL_WIDTH: Record<TableColumn, string> = {
@@ -14,7 +14,7 @@ export const COL_WIDTH: Record<TableColumn, string> = {
   value: 'minmax(90px, 1fr)',
   spark: '132px',
   updated: '104px',
-  rate: '68px',
+  rate: '88px',
   messages: '140px',
   qos: '48px',
   retained: '48px',
@@ -25,7 +25,7 @@ export function colLabel(c: TableColumn, t: (k: string) => string): string {
   return c === 'pin' ? '⌖' : t(`col.${c}`);
 }
 
-function cell(c: TableColumn, r: TableRow, now: number) {
+function cell(c: TableColumn, r: TableRow, now: number, t: (k: string, o?: Record<string, unknown>) => string, sparkOff: boolean) {
   switch (c) {
     case 'pin':
       return <div key={c}>{r.pinned ? '★' : ''}</div>;
@@ -42,7 +42,7 @@ function cell(c: TableColumn, r: TableRow, now: number) {
         </div>
       );
     case 'spark':
-      return <div key={c}>{r.spark.length > 1 && <Sparkline values={r.spark} times={r.sparkTimes} />}</div>;
+      return <div key={c}>{!sparkOff && r.spark.length > 1 && <Sparkline values={r.spark} times={r.sparkTimes} />}</div>;
     case 'updated':
       return (
         <div key={c} className="mono">
@@ -52,7 +52,8 @@ function cell(c: TableColumn, r: TableRow, now: number) {
     case 'rate':
       return (
         <div key={c} className="mono">
-          {r.rate > 0 ? `${fmtRate(r.rate)}/s` : '—'}
+          {/* change set 9: the same one-second figure as the tree, "n msg/s" */}
+          {t('tree.rate', { rate: fmtRate(r.rate) })}
         </div>
       );
     case 'messages':
@@ -84,17 +85,14 @@ export function Table(props: {
   const { t } = useTranslation();
   const seq = useApp((s) => s.seqs[props.connId] ?? 0);
   const compact = useApp((s) => s.settings.density === 'compact');
+  const topicPrefs = useApp((s) => s.profiles.find((p) => p.id === props.connId)?.topics);
   const rowH = compact ? 24 : 28;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState(0);
   const [range, setRange] = useState({ start: 0, end: 60 });
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const h = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(h);
-  }, []);
+  const now = useSecondTick();
   const qkey = props.connId + '|' + JSON.stringify(props.query);
-  const slice = useSlice<TableRow>((s, c) => engine().tableSlice(props.connId, props.query, s, c) as never, qkey, range.start, range.end, seq);
+  const slice = useSlice<TableRow>((s, c) => engine().tableSlice(props.connId, props.query, s, c) as never, qkey, range.start, range.end, `${seq}|${now}`);
   const virt = useVirtualizer({ count: slice.total, getScrollElement: () => scrollRef.current, estimateSize: () => rowH, overscan: 12 });
   const items = virt.getVirtualItems();
   const vStart = items[0]?.index ?? 0;
@@ -167,7 +165,7 @@ export function Table(props: {
                   if (r) props.onMenu(r, e.clientX, e.clientY);
                 }}
               >
-                {r && props.columns.map((c) => cell(c, r, now))}
+                {r && props.columns.map((c) => cell(c, r, now, t, !!topicPrefs?.[r.path]?.sparklineOff))}
               </div>
             );
           })}

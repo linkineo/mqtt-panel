@@ -2,10 +2,11 @@ import { memo, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent 
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useTranslation } from 'react-i18next';
 import type { TreeQuery, TreeRow } from '@mqttpanel/engine-client';
-import { engine } from '../../services';
+import { engine, platform } from '../../services';
+import { setSparklineOff } from '../../lib/topicPrefs';
 import { useApp } from '../../store/app';
 import { useSlice } from '../../lib/useSlice';
-import { Sparkline } from '../../components/ui';
+import { Sparkline, useSecondTick } from '../../components/ui';
 import { fmtNum, fmtRate } from '../../lib/format';
 
 export const FLASH_MS = 1200;
@@ -21,8 +22,11 @@ export const TreeRowView = memo(function TreeRowView(props: {
   cursor: boolean;
   reducedMotion: boolean;
   valuesInTree: boolean;
+  /** Change set 9: the user hid this topic's sparkline (profile `sparklineOff`). */
+  sparkOff?: boolean;
   now: number;
   onClick?(e: MouseEvent): void;
+  onSparkMenu?(e: MouseEvent): void;
   onTwisty?(): void;
   onContextMenu?(e: MouseEvent): void;
 }) {
@@ -87,19 +91,36 @@ export const TreeRowView = memo(function TreeRowView(props: {
         {row.isTopic && row.retained && <span className="chip">R</span>}
         {!row.isTopic && row.formatHint && <span className="hintfmt">{row.formatHint}</span>}
       </span>
+      {/* change set 9: four fixed columns shared by every row (sparkline, messages, rate, subtopics); empty cells stay */}
       <span className="v">
-        {props.valuesInTree && row.isTopic && row.spark.length > 1 && <Sparkline values={row.spark} times={row.sparkTimes} />}
+        <span className="c-spark" data-testid="tree-spark-cell">
+          {props.valuesInTree && row.isTopic && !props.sparkOff && row.spark.length > 1 && (
+            <span
+              className="spark-hit"
+              data-testid="tree-spark"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                props.onSparkMenu?.(e);
+              }}
+            >
+              <Sparkline values={row.spark} times={row.sparkTimes} />
+            </span>
+          )}
+        </span>
         <span className="msgs" title={t('tree.messagesTip')} data-testid="tree-msgs">
           {fmtNum(row.messages)}
         </span>
         <span className="rate" title={t('tree.rateTip')} data-testid="tree-rate">
           {t('tree.rate', { rate: fmtRate(row.rate) })}
         </span>
-        {row.hasChildren && (
-          <span className="cnt" title={t('tree.subtopicsTip')} data-testid="tree-subtopics">
-            {fmtNum(subtopics)}
-          </span>
-        )}
+        <span className="c-cnt">
+          {row.hasChildren && (
+            <span className="cnt" title={t('tree.subtopicsTip')} data-testid="tree-subtopics">
+              {fmtNum(subtopics)}
+            </span>
+          )}
+        </span>
       </span>
     </div>
   );
@@ -119,20 +140,18 @@ export function Tree(props: {
   const seq = useApp((s) => s.seqs[props.connId] ?? 0);
   const reducedMotion = useApp((s) => s.reducedMotion);
   const valuesInTree = useApp((s) => s.settings.valuesInTree);
+  const topicPrefs = useApp((s) => s.profiles.find((p) => p.id === props.connId)?.topics);
   const compact = useApp((s) => s.settings.density === 'compact');
   const rowH = compact ? 22 : 26;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState(0);
   const [bump, setBump] = useState(0);
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const h = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(h);
-  }, []);
+  const now = useSecondTick();
 
   const qkey = props.connId + '|' + JSON.stringify(props.query);
   const [range, setRange] = useState({ start: 0, end: 60 });
-  const slice = useSlice<TreeRow>((s, c) => engine().treeSlice(props.connId, props.query, s, c) as never, qkey, range.start, range.end, seq + (bump + props.version) * 1e9);
+  // change set 9: the rates are one-second figures, so the slice is also read again once a second without traffic
+  const slice = useSlice<TreeRow>((s, c) => engine().treeSlice(props.connId, props.query, s, c) as never, qkey, range.start, range.end, `${seq}|${bump}|${props.version}|${now}`);
   const virt = useVirtualizer({ count: slice.total, getScrollElement: () => scrollRef.current, estimateSize: () => rowH, overscan: 12 });
   const items = virt.getVirtualItems();
   const vStart = items[0]?.index ?? 0;
@@ -154,6 +173,12 @@ export function Tree(props: {
           setTimeout(() => virt.scrollToIndex(i, { align: 'auto' }), 50);
         }
       });
+  };
+
+  // change set 9: right-click on a sparkline, a one-entry menu "Hide sparkline" (saved with the profile)
+  const sparkMenu = async (topic: string, x: number, y: number) => {
+    const id = await platform().showContextMenu([{ id: 'hide', label: t('spark.hide') }], x, y);
+    if (id === 'hide') await setSparklineOff(props.connId, topic, true);
   };
 
   const toggle = async (row: TreeRow) => {
@@ -236,7 +261,9 @@ export function Tree(props: {
                     cursor={cursor === it.index}
                     reducedMotion={reducedMotion}
                     valuesInTree={valuesInTree}
+                    sparkOff={!!topicPrefs?.[row.path]?.sparklineOff}
                     now={now}
+                    onSparkMenu={(e) => void sparkMenu(row.path, e.clientX, e.clientY)}
                     onClick={() => {
                       setCursor(it.index);
                       props.onSelect(row.path, row.isTopic);

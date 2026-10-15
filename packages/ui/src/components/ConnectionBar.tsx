@@ -5,7 +5,6 @@ import { useApp } from '../store/app';
 import { platform } from '../services';
 import { fmtNum, fmtRate } from '../lib/format';
 import { disconnect, useBusy } from '../lib/actions';
-import { newConnectionMenu } from '../screens/connections/ConnectionsScreen';
 
 /** Open connections: connected, connecting or reconnecting (the connection bar lists these). */
 export function isOpen(c: ConnectionStatus): boolean {
@@ -86,45 +85,19 @@ export function useOpenTabs(): ConnectionStatus[] {
   return open;
 }
 
-/** Opens the built-in broker dialog of the Connections screen ("+" of the empty bar). */
-function openAppBroker(d: 'pick' | 'add' | null): void {
-  if (!d) return;
-  useApp.getState().setScreen('connect');
-  setTimeout(() => window.dispatchEvent(new CustomEvent('mqttpanel:app-broker', { detail: d })), 0);
-}
-
 /**
  * Connection bar (owner, 13 Oct 2026, change set 2): a tab per open connection, with name, status dot, short live
  * figures and ✕ (disconnect). A click opens the Explorer on that connection. A connection still being set up (before
  * the engine reports it) shows as "connecting". Change set 8: always shown, as the first row of the main column to
- * the right of the rail; with nothing open it reads "Choose a connection" and ends with a "+" that opens the New
- * connection menu.
+ * the right of the rail. Change set 9: with nothing open the strip is empty (no text, no button) and keeps its
+ * height; the rate on a tab is the engine's one-second figure, refreshed once a second.
  */
 export function ConnectionBar({ tabs: open }: { tabs: ConnectionStatus[] }) {
   const { t } = useTranslation();
   const activeId = useApp((s) => s.activeConnId);
   const startingId = useBusy((s) => s.startingBroker);
   const profiles = useApp((s) => s.profiles);
-  if (!open.length) {
-    return (
-      <div className="cbar empty" data-testid="cbar" data-empty="true">
-        <span className="hint" data-testid="cbar-hint">
-          {t('cbar.empty')}
-        </span>
-        <button
-          type="button"
-          className="plus"
-          aria-label={t('conn.new')}
-          title={t('conn.new')}
-          aria-haspopup="menu"
-          data-testid="cbar-new"
-          onClick={(e) => void newConnectionMenu(e.currentTarget, t, openAppBroker)}
-        >
-          +
-        </button>
-      </div>
-    );
-  }
+  if (!open.length) return <div className="cbar empty" data-testid="cbar" data-empty="true" />;
   return (
     <div className="cbar" role="tablist" aria-label={t('cbar.label')} data-testid="cbar">
       {open.map((c) => {

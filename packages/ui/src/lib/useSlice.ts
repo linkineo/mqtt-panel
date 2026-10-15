@@ -15,7 +15,7 @@ export function useSlice<T>(
   key: string,
   start: number,
   end: number,
-  seq: number,
+  seq: number | string,
 ): Slice<T> & { extra: Record<string, unknown> } {
   const [slice, setSlice] = useState<Slice<T> & { extra: Record<string, unknown> }>({ total: 0, start: 0, rows: [], extra: {} });
   const fetchRef = useRef(fetch);

@@ -56,7 +56,7 @@ function clickHandler(a: FieldActions | undefined, path: string, value: () => un
 
 /**
  * The click menu of the payload view (change set 8, mockup 06): "Use as sparkline", "Add <field> to chart…",
- * "Copy path", "Copy value". Text fields show the first two disabled with "text, not plottable". Rendered in the page
+ * "Show <field> in History" (change set 9; "Stop showing…" while it is the History filter), "Copy path", "Copy value". Text fields show the first two disabled with "text, not plottable". Rendered in the page
  * (not native) so it sits next to the value that was clicked.
  */
 export function FieldMenu(props: {
@@ -64,6 +64,9 @@ export function FieldMenu(props: {
   sparklinePath: string | null;
   onSparkline(path: string): void;
   onChart(path: string): void;
+  /** Change set 9: "Show <field> in History" / "Stop showing <field> in History". */
+  historyPath?: string | null;
+  onHistory?(path: string | null): void;
   onCopy(text: string): void;
   onClose(): void;
 }) {
@@ -105,6 +108,9 @@ export function FieldMenu(props: {
   const items: { id: string; label: string; enabled: boolean; on?: boolean; kbd?: string; sep?: boolean }[] = [
     { id: 'spark', label: isText ? t('field.useSparklineText') : t('field.useSparkline'), enabled: canPlot, on: canPlot && props.sparklinePath === path },
     { id: 'chart', label: isText ? t('field.addToChartText', { field }) : t('field.addToChart', { field }), enabled: canPlot, kbd: 'C' },
+    ...(props.onHistory
+      ? [{ id: 'history', label: props.historyPath === path ? t('field.stopInHistory', { field }) : t('field.showInHistory', { field }), enabled: true }]
+      : []),
     { id: 'path', label: t('field.copyPath', { path }), enabled: true, sep: true },
     { id: 'value', label: t('field.copyValue', { value: valueText.length > 40 ? valueText.slice(0, 40) + '…' : valueText }), enabled: true },
   ];
@@ -112,6 +118,7 @@ export function FieldMenu(props: {
     onClose();
     if (id === 'spark') props.onSparkline(path);
     else if (id === 'chart') props.onChart(path);
+    else if (id === 'history') props.onHistory?.(props.historyPath === path ? null : path);
     else if (id === 'path') props.onCopy(path);
     else if (id === 'value') props.onCopy(valueText);
   };
@@ -327,4 +334,192 @@ export function DiffView(props: { lines: DiffLine[]; highlight: boolean; actions
 export function copyField(text: string): void {
   void platform().copyText(text);
   useApp.getState().toast({ kind: 'info', text: i18next.t('common.copied') });
+}
+
+/* ---------------------------------------------------------------- change set 9: paths, JSON / Tree */
+
+/**
+ * The value at a field path ("$", "$.supply.temp", "$.list[2]", '$["a b"]') of a decoded JSON payload; undefined
+ * when the path does not exist in it.
+ */
+export function valueAt(json: unknown, path: string): unknown {
+  if (!path.startsWith('$')) return undefined;
+  let cur: unknown = json;
+  let i = 1;
+  while (i < path.length) {
+    if (cur === null || typeof cur !== 'object') return undefined;
+    let key: string | number;
+    if (path[i] === '.') {
+      let j = i + 1;
+      while (j < path.length && path[j] !== '.' && path[j] !== '[') j++;
+      key = path.slice(i + 1, j);
+      i = j;
+    } else if (path[i] === '[') {
+      if (path[i + 1] === '"') {
+        const j = path.indexOf('"]', i + 2);
+        if (j < 0) return undefined;
+        key = path.slice(i + 2, j);
+        i = j + 2;
+      } else {
+        const j = path.indexOf(']', i);
+        if (j < 0) return undefined;
+        const n = Number(path.slice(i + 1, j));
+        if (!Number.isInteger(n)) return undefined;
+        key = n;
+        i = j + 1;
+      }
+    } else return undefined;
+    if (Array.isArray(cur)) {
+      const n = typeof key === 'number' ? key : Number(key);
+      if (!Number.isInteger(n) || n < 0 || n >= cur.length) return undefined;
+      cur = cur[n];
+    } else {
+      const o = cur as Record<string, unknown>;
+      if (!Object.prototype.hasOwnProperty.call(o, String(key))) return undefined;
+      cur = o[String(key)];
+    }
+  }
+  return cur;
+}
+
+/** One cell of the History filter column: strings bare, other values as JSON, blank when absent. */
+export function filterCell(v: unknown): string {
+  if (v === undefined) return '';
+  if (typeof v === 'string') return v;
+  return JSON.stringify(v);
+}
+
+/** A row of the Tree form: an object or array (with children) or a scalar, with its diff kind. */
+export interface TNode {
+  key: string | number | null;
+  path: string;
+  kind: DiffLine['kind'];
+  /** '{' or '[' for a container. */
+  open: string | null;
+  children: TNode[];
+  /** JSON text of the value (new side), null when removed. */
+  text: string | null;
+  /** JSON text of the old value (changed, removed). */
+  oldText: string | null;
+}
+
+/** The Tree model of a JSON value (no diff). */
+export function treeOfJson(v: unknown, path = '$', key: string | number | null = null): TNode {
+  if (v !== null && typeof v === 'object') {
+    const isArr = Array.isArray(v);
+    const entries: [string | number, unknown][] = isArr ? (v as unknown[]).map((x, i) => [i, x]) : Object.entries(v as Record<string, unknown>);
+    return { key, path, kind: 'same', open: isArr ? '[' : '{', children: entries.map(([k, x]) => treeOfJson(x, childPath(path, k), k)), text: null, oldText: null };
+  }
+  return { key, path, kind: 'same', open: null, children: [], text: JSON.stringify(v === undefined ? null : v), oldText: null };
+}
+
+/** The Tree model of a key-by-key diff (the engine's diff lines), so the diff colours apply per row. */
+export function treeOfDiff(lines: DiffLine[]): TNode | null {
+  const root: TNode = { key: null, path: '$', kind: 'same', open: '{', children: [], text: null, oldText: null };
+  const stack: TNode[] = [];
+  let top: TNode | null = null;
+  for (const l of lines) {
+    const parent = stack[stack.length - 1] ?? null;
+    const key: string | number | null = l.key !== null ? l.key : parent && parent.open === '[' ? parent.children.length : null;
+    const path = l.path ?? (parent ? childPath(parent.path, key ?? parent.children.length) : '$');
+    if (l.close !== null) {
+      stack.pop();
+      continue;
+    }
+    const node: TNode = { key, path, kind: l.kind, open: l.open, children: [], text: l.newValue, oldText: l.oldValue };
+    if (parent) parent.children.push(node);
+    else top = node;
+    if (l.open !== null) stack.push(node);
+  }
+  return top ?? (lines.length ? root : null);
+}
+
+function scalarClass(text: string | null): string {
+  if (text === null) return '';
+  if (text.startsWith('"')) return 's';
+  if (text === 'null') return 'nl';
+  if (text === 'true' || text === 'false') return 'b';
+  return 'num';
+}
+
+/**
+ * The Tree form of a JSON payload (change set 9, mockup 06): one row per key, objects and arrays fold with a
+ * chevron, keys in the key colour, scalar values with their JSON colouring after the key, array items indexed. With
+ * `highlight` the diff colours apply per row (added on sage, removed struck through in brick, changed old → new).
+ * A click or right-click on a row opens the click menu, as on a text token.
+ */
+export function JsonTree(props: {
+  root: TNode;
+  highlight?: boolean;
+  actions?: FieldActions;
+  valueOf(path: string, node: TNode): unknown;
+  small?: boolean;
+  testId?: string;
+}) {
+  const [folded, setFolded] = useState<Set<string>>(() => new Set());
+  const rows: ReactNode[] = [];
+  const hl = !!props.highlight;
+  const walk = (n: TNode, depth: number) => {
+    const isOpen = n.open !== null && !folded.has(n.path);
+    const onMenu = clickHandler(props.actions, n.path, () => props.valueOf(n.path, n));
+    const keyText = typeof n.key === 'number' ? `[${n.key}]` : n.key;
+    const chg = hl && n.kind === 'changed';
+    rows.push(
+      <div
+        key={n.path}
+        className={`trow line pick${chg ? ' chg' : ''}`}
+        style={{ paddingLeft: depth * 14 }}
+        data-testid="jtree-row"
+        data-path={n.path}
+        data-kind={n.kind}
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-expanded={n.open !== null ? isOpen : undefined}
+        onClick={onMenu}
+        onContextMenu={onMenu}
+      >
+        <span
+          className="tchev"
+          aria-hidden="true"
+          onClick={(e) => {
+            if (n.open === null) return;
+            e.stopPropagation();
+            const next = new Set(folded);
+            if (next.has(n.path)) next.delete(n.path);
+            else next.add(n.path);
+            setFolded(next);
+          }}
+        >
+          {n.open === null ? '' : isOpen ? '▾' : '▸'}
+        </span>
+        {keyText !== null && <span className={`k${hl && n.kind === 'removed' ? ' del' : ''}${hl && n.kind === 'added' ? ' add' : ''}`}>{keyText}</span>}
+        {n.open !== null ? (
+          !isOpen && <span className="nl"> {n.open === '[' ? `[${n.children.length}]` : '{…}'}</span>
+        ) : (
+          <>
+            {keyText !== null && ': '}
+            {n.kind === 'changed' && (
+              <>
+                <span className={`${scalarClass(n.oldText)}${hl ? ' del' : ''}`}>{n.oldText}</span>{' '}
+              </>
+            )}
+            {n.kind === 'removed' ? (
+              <span className={`${scalarClass(n.oldText)}${hl ? ' del' : ''}`}>{n.oldText}</span>
+            ) : (
+              <span className={`${scalarClass(n.text)}${hl && (n.kind === 'added' || n.kind === 'changed') ? ' add' : ''}`}>{n.text}</span>
+            )}
+          </>
+        )}
+      </div>,
+    );
+    if (isOpen) n.children.forEach((c) => walk(c, depth + 1));
+  };
+  // the root object itself has no row: its keys start at the left edge
+  if (props.root.open !== null) props.root.children.forEach((c) => walk(c, 0));
+  else walk(props.root, 0);
+  return (
+    <div className="json jtree" role="tree" style={props.small ? { fontSize: 11, lineHeight: 1.6 } : undefined} data-testid={props.testId}>
+      {rows}
+    </div>
+  );
 }

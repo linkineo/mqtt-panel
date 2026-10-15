@@ -428,6 +428,26 @@ export function useNow(intervalMs = 1000): number {
   return now;
 }
 
+/**
+ * Change set 9: a clock that ticks just after every whole second, so the one-second rates (the engine's count of the
+ * last completed second) are read again as soon as they change, and not in between.
+ */
+export function useSecondTick(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    let h: ReturnType<typeof setTimeout>;
+    const next = () => {
+      h = setTimeout(() => {
+        setNow(Date.now());
+        next();
+      }, 1000 - (Date.now() % 1000) + 30);
+    };
+    next();
+    return () => clearTimeout(h);
+  }, []);
+  return now;
+}
+
 export function Kbd({ children }: { children: ReactNode }) {
   return <span className="kbd">{children}</span>;
 }

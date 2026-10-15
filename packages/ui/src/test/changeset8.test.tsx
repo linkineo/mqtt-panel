@@ -83,34 +83,16 @@ describe('Change set 8: no auto-capitalisation (V-11)', () => {
 });
 
 describe('Change set 8: connection bar always shown (X-22)', () => {
-  it('with nothing open: one strip in the main column, "Choose a connection" and a + with the New connection menu', async () => {
-    const { platform } = await boot('demo');
-    void platform;
+  it('with nothing open: one strip in the main column, empty since change set 9 (X-23)', async () => {
+    await boot('demo');
     useApp.setState({ screen: 'explore' });
     render(<App />);
     const bar = screen.getByTestId('cbar');
     expect(bar.closest('.main-col')).not.toBeNull();
     expect(document.querySelector('.body > .rail')).not.toBeNull();
-    expect(screen.getByTestId('cbar-hint')).toHaveTextContent('Choose a connection');
-    const plus = screen.getByTestId('cbar-new');
-    expect(plus).toHaveAttribute('aria-label', 'New connection');
-    await act(async () => fireEvent.click(plus));
-    const menu = await screen.findByTestId('context-menu');
-    expect(Array.from(menu.querySelectorAll('.ctx-label')).map((x) => x.textContent)).toEqual(['New broker…', 'Built-in broker']);
-    await act(async () => fireEvent.click(within(menu).getByText('New broker…')));
-    await waitFor(() => expect(useApp.getState().screen).toBe('connect'));
-  });
-
-  it('French and German hints', async () => {
-    for (const [lang, text] of [
-      ['fr', 'Choisissez une connexion'],
-      ['de', 'Wähle eine Verbindung'],
-    ] as const) {
-      await boot('demo', lang);
-      const { unmount } = render(<App />);
-      expect(screen.getByTestId('cbar-hint')).toHaveTextContent(text);
-      unmount();
-    }
+    expect(bar).toHaveAttribute('data-empty', 'true');
+    expect(bar.textContent).toBe('');
+    expect(bar.children).toHaveLength(0);
   });
 });
 
@@ -146,7 +128,10 @@ describe('Change set 8: tree rows (X-15)', () => {
     expect(p.querySelector('em')!.textContent).toBe('{"value":21.5}');
     expect(p.lastElementChild!.textContent).toBe('R');
     const v = row.querySelector('.v')!;
-    expect(Array.from(v.children).map((c) => c.getAttribute('data-testid') ?? c.tagName.toLowerCase())).toEqual(['svg', 'tree-msgs', 'tree-rate']);
+    // change set 9: four fixed cells, the subtopics cell empty on a leaf
+    expect(Array.from(v.children).map((c) => c.getAttribute('data-testid') ?? c.className)).toEqual(['tree-spark-cell', 'tree-msgs', 'tree-rate', 'c-cnt']);
+    expect(v.querySelector('[data-testid=tree-spark-cell] svg')).not.toBeNull();
+    expect(v.lastElementChild!.textContent).toBe('');
     expect(row.textContent).not.toMatch(/\d+ (s|min)\b/);
     expect(row.querySelector('[data-testid=activity-dot]')).toBeNull();
   });
@@ -200,7 +185,7 @@ describe('Change set 8: payload click menu (X-17)', () => {
     expect(document.querySelector('.charticon')).toBeNull();
     const json = screen.getByTestId('payload-json');
     await act(async () => fireEvent.click(json.querySelector('[data-path="$.supply.fan"]:not(.k)') ?? json.querySelectorAll('[data-path="$.supply.fan"]')[1]));
-    expect(menuLabels()).toEqual(['Use as sparkline', 'Add supply.fan to chart…', 'Copy path · $.supply.fan', expect.stringMatching(/^Copy value · \d+/)]);
+    expect(menuLabels()).toEqual(['Use as sparkline', 'Add supply.fan to chart…', 'Show supply.fan in History', 'Copy path · $.supply.fan', expect.stringMatching(/^Copy value · \d+/)]);
     await act(async () => fireEvent.click(within(screen.getByTestId('json-menu')).getByText('Use as sparkline')));
     expect(screen.queryByTestId('json-menu')).toBeNull();
     await waitFor(() => expect(useApp.getState().profiles.find((p) => p.id === 'plant')!.topics[STATE].sparklinePath).toBe('$.supply.fan'));
@@ -215,6 +200,7 @@ describe('Change set 8: payload click menu (X-17)', () => {
     expect(items[0].textContent).toBe('Use as sparkline · text, not plottable');
     expect(items[1]).toHaveAttribute('aria-disabled', 'true');
     expect(items[2]).not.toHaveAttribute('aria-disabled');
+    expect(items[2].textContent).toBe('Show mode in History');
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByTestId('json-menu')).toBeNull());
     await act(async () => fireEvent.contextMenu(json.querySelector('.k[data-path="$.supply.temp"]')!));

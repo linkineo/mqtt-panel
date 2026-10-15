@@ -257,7 +257,7 @@ test.describe('Explorer', () => {
     await expect(page.locator('[data-testid=diff-baseline]')).toHaveText(/^vs \d\d:\d\d:\d\d$/);
     await page.click('[data-testid=follow]');
     const rows = page.locator('[data-testid=history-row]');
-    const pred = (await rows.nth(3).locator('td').first().textContent())!.slice(0, 8);
+    const pred = (await rows.nth(3).locator('td').nth(1).textContent())!.slice(0, 8); // change set 9: the chevron cell comes first
     await rows.nth(2).click();
     await expect(page.locator('[data-testid=detail] .callout')).toContainText('Showing the message from');
     await expect(page.locator('[data-testid=diff-baseline]')).toHaveText(`vs ${pred}`);
@@ -1285,11 +1285,11 @@ test.describe('Change set 8', () => {
     await expect(folder.locator('[data-testid=tree-subtopics]')).toHaveAttribute('title', 'Subtopics below this one');
     await expect(folder.locator('[data-testid=tree-msgs]')).toHaveAttribute('title', 'Messages since the connection opened');
     await expect(folder.locator('[data-testid=tree-rate]')).toHaveAttribute('title', 'Messages per second');
-    await expect(folder.locator('[data-testid=tree-rate]')).toHaveText(/^[\d.,]+\/s$/);
+    await expect(folder.locator('[data-testid=tree-rate]')).toHaveText(/^[\d.,\u202f]+ msg\/s$/);
     const temp = page.locator('[data-testid=tree-row][data-path="building/f2/r204/temperature"]');
     await expect(temp.locator('[data-testid=tree-payload] em')).toContainText('{"value":');
     await expect(temp.locator('[data-testid=tree-payload] .chip')).toHaveText('R');
-    await expect(temp.locator('.v > *')).toHaveCount(3); // sparkline, messages, throughput
+    await expect(temp.locator('.v > *')).toHaveCount(4); // sparkline, messages, throughput, (empty) subtopics: change set 9
     await expect(page.locator('[data-testid=activity-dot]')).toHaveCount(0);
     // every row is one line: its height is the row height and the payload is cut with an ellipsis
     const heights = await page.locator('[data-testid=tree-row]').evaluateAll((els) => els.map((e) => (e as HTMLElement).scrollHeight - (e as HTMLElement).clientHeight));
@@ -1308,7 +1308,7 @@ test.describe('Change set 8', () => {
     await page.click('[data-testid=diff-toggle]');
     await page.locator('[data-testid=payload-json] .num[data-path="$.value"]').click();
     const menu = page.locator('[data-testid=json-menu]');
-    await expect(menu.locator('.ctx-label')).toHaveText(['Use as sparkline', 'Add value to chart…', 'Copy path · $.value', /^Copy value · [\d.]+$/]);
+    await expect(menu.locator('.ctx-label')).toHaveText(['Use as sparkline', 'Add value to chart…', 'Show value in History', 'Copy path · $.value', /^Copy value · [\d.]+$/]);
     await menu.locator('.ctx-item', { hasText: 'Use as sparkline' }).click();
     await expect(row.locator('svg.spark')).toHaveCount(1);
     // a text value: the plot items are disabled
@@ -1379,20 +1379,14 @@ test.describe('Change set 8', () => {
     await expect(page.locator('[data-testid=pub-topic]')).toHaveValue('building/f2/r204/humidity');
   });
 
-  test('X-22 the bar is always there, right of the rail; empty it offers + with the New connection menu', async ({ page }) => {
+  test('X-22 the bar is always there, right of the rail (empty since change set 9, see X-23)', async ({ page }) => {
     await open(page, 'mock=demo&screen=explore');
     const bar = page.locator('[data-testid=cbar]');
     await expect(bar).toHaveAttribute('data-empty', 'true');
-    await expect(bar).toContainText('Choose a connection');
     const railBox = (await page.locator('.rail').boundingBox())!;
     const barBox = (await bar.boundingBox())!;
     expect(barBox.x).toBeGreaterThanOrEqual(railBox.x + railBox.width - 1);
     expect(railBox.y).toBeLessThanOrEqual(barBox.y);
-    await page.click('[data-testid=cbar-new]');
-    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['New broker…', 'Built-in broker']);
-    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'Built-in broker' }).hover();
-    await page.locator('[data-testid=context-submenu] .ctx-item').first().click();
-    await expect(page.locator('[data-testid=app-broker]')).toBeVisible();
   });
 
   test('D-24 series edited in place; the chart title renamed in place', async ({ page }) => {
@@ -1435,5 +1429,162 @@ test.describe('Change set 8', () => {
     await page.locator('#pf-cid').fill('');
     await page.locator('#pf-cid').pressSequentially('myclient');
     await expect(page.locator('#pf-cid')).toHaveValue('myclient');
+  });
+});
+
+test.describe('Change set 9', () => {
+  const now = (page: Page) => page.evaluate(() => Date.now());
+
+  test('X-23 empty connection bar: no text, no button; the strip keeps its height', async ({ page }) => {
+    for (const lang of ['en', 'fr', 'de']) {
+      await page.goto(`/?mock=demo&screen=explore&lang=${lang}&theme=light`);
+      await page.waitForSelector('#app-root');
+      const bar = page.locator('[data-testid=cbar]');
+      await expect(bar).toHaveAttribute('data-empty', 'true');
+      expect((await bar.innerText()).trim()).toBe('');
+      await expect(bar.locator('button, [role=button], span')).toHaveCount(0);
+      expect((await bar.boundingBox())!.height).toBeGreaterThanOrEqual(33);
+    }
+    // a connection fills it, closing it empties it again
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await expect(page.locator('[data-testid=cbar-tab]')).toHaveCount(1);
+    await page.click('[data-testid=cbar-close]');
+    await expect(page.locator('[data-testid=cbar]')).toHaveAttribute('data-empty', 'true');
+  });
+
+  test('X-24 rates are one-second figures written "n msg/s", changing only when a second completes', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await expect(page.locator('[data-testid=cbar-tab] small')).toHaveText(/[\d.,\u202f]+ msg\/s/);
+    await page.fill('[data-testid=search]', 'rate/probe');
+    // 50 messages inside one second
+    await page.evaluate(() => {
+      const m = (window as any).__mqttpanelMock.engine;
+      const s = Math.floor(Date.now() / 1000) * 1000;
+      for (let i = 0; i < 50; i++) m.inject('plant', 'rate/probe/x', String(i), { at: s + i * 10 });
+    });
+    const rate = page.locator('[data-testid=tree-row][data-path="rate/probe/x"] [data-testid=tree-rate]');
+    await expect(rate).toHaveText('50 msg/s', { timeout: 3000 });
+    // sample the figure: it changes only right after a whole second, never in between
+    const seen: { t: number; v: string }[] = [];
+    const end = (await now(page)) + 2500;
+    while ((await now(page)) < end) {
+      seen.push({ t: await now(page), v: (await rate.textContent()) ?? '' });
+      await page.waitForTimeout(40);
+    }
+    const changes = seen.filter((x, i) => i > 0 && x.v !== seen[i - 1].v);
+    expect(changes.length).toBeGreaterThanOrEqual(1); // 50 → 0
+    for (const c of changes) expect(c.t % 1000).toBeLessThan(300);
+    expect(seen[seen.length - 1].v).toBe('0 msg/s');
+  });
+
+  test('X-25 right-click on a sparkline hides it (saved); "Show sparkline" and a new pick bring it back', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await page.fill('[data-testid=search]', 'building/f2/r205');
+    const hum = page.locator('[data-testid=tree-row][data-path="building/f2/r205/humidity"]');
+    await hum.locator('[data-testid=tree-spark]').click({ button: 'right' });
+    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['Hide sparkline']);
+    await menuItem(page, 'Hide sparkline');
+    await expect(hum.locator('[data-testid=tree-spark]')).toHaveCount(0);
+    let p = ((await page.evaluate(() => (window as any).__mqttpanelMock.engine.listProfiles())) as any[]).find((x) => x.id === 'plant');
+    expect(p.topics['building/f2/r205/humidity'].sparklineOff).toBe(true);
+    await hum.click({ button: 'right' });
+    await menuItem(page, 'Show sparkline');
+    await expect(hum.locator('[data-testid=tree-spark]')).toHaveCount(1);
+    // hide again, then a new "Use as sparkline" pick shows it
+    const temp = page.locator('[data-testid=tree-row][data-path="building/f2/r205/temperature"]');
+    await temp.click();
+    await page.locator('[data-testid=payload-json] .k[data-path="$.value"]').click();
+    await page.click('[data-testid=json-menu] .ctx-item[data-id=spark]');
+    await temp.locator('[data-testid=tree-spark]').click({ button: 'right' });
+    await menuItem(page, 'Hide sparkline');
+    await expect(temp.locator('[data-testid=tree-spark]')).toHaveCount(0);
+    await page.locator('[data-testid=payload-json] .k[data-path="$.value"]').click();
+    await page.click('[data-testid=json-menu] .ctx-item[data-id=spark]');
+    await expect(temp.locator('[data-testid=tree-spark]')).toHaveCount(1);
+    p = ((await page.evaluate(() => (window as any).__mqttpanelMock.engine.listProfiles())) as any[]).find((x) => x.id === 'plant');
+    expect(p.topics['building/f2/r205/temperature'].sparklineOff).toBeUndefined();
+  });
+
+  test('X-26 History rows expand; the field filter from the click menu or the button, with the chip; each cancels', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
+    await page.click('[data-testid=follow]');
+    const exp = page.locator('[data-testid=history-expand]');
+    await exp.nth(0).click();
+    await exp.nth(2).click();
+    await expect(page.locator('[data-testid=history-payload]')).toHaveCount(2);
+    await expect(page.locator('[data-testid=history-payload] [data-testid=history-json]')).toHaveCount(2);
+    await expect(page.locator('[data-testid=history-payload] .add, [data-testid=history-payload] .del')).toHaveCount(0);
+    await expect(page.locator('[data-testid=detail] .callout')).toHaveCount(0); // the chevron does not select
+    // the click menu entry
+    await page.locator('[data-testid=payload-json] .k[data-path="$.supply.temp"]').click();
+    await page.click('[data-testid=json-menu] .ctx-item[data-id=history]');
+    await expect(page.locator('[data-testid=history-col]')).toHaveText('supply.temp');
+    await expect(page.locator('[data-testid=history-filter-chip]')).toContainText('supply.temp');
+    await expect(page.locator('[data-testid=history-filter]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-testid=history-value]').first()).toHaveText(/^-?[\d.]+$/);
+    await page.locator('[data-testid=payload-json] .k[data-path="$.supply.temp"]').click();
+    await expect(page.locator('[data-testid=json-menu] .ctx-item[data-id=history]')).toHaveText('Stop showing supply.temp in History');
+    await page.click('[data-testid=json-menu] .ctx-item[data-id=history]');
+    await expect(page.locator('[data-testid=history-filter-chip]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=history-col]')).toHaveText(/changed keys/i);
+    // the filter button and its field list; the chip's ✕ cancels
+    await page.click('[data-testid=history-filter]');
+    await page.locator('[data-testid=history-filter-pop] [data-path="$.mode"]').click();
+    await expect(page.locator('[data-testid=history-col]')).toHaveText('mode');
+    await expect(page.locator('[data-testid=history-value]').first()).toHaveText(/\S/);
+    await page.click('[data-testid=history-filter-clear]');
+    await expect(page.locator('[data-testid=history-filter-chip]')).toHaveCount(0);
+    // the button itself cancels an active filter; the filter is kept per topic while the app runs
+    await page.click('[data-testid=history-filter]');
+    await page.locator('[data-testid=history-filter-pop] [data-path="$.supply.fan"]').click();
+    await selectTopic(page, 'building/f2/r204', 'building/f2/r204/temperature');
+    await expect(page.locator('[data-testid=history-filter-chip]')).toHaveCount(0);
+    await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
+    await expect(page.locator('[data-testid=history-filter-chip]')).toContainText('supply.fan');
+    await page.click('[data-testid=history-filter]');
+    await expect(page.locator('[data-testid=history-filter-chip]')).toHaveCount(0);
+  });
+
+  test('X-27 JSON / Tree: folding rows with diff colours, the click menu on a row, History in the same form, kept per connection', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant,local&screen=explore');
+    await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
+    await page.click('[data-testid=follow]');
+    await page.click('[data-testid=payload-form-tree]');
+    const tree = page.locator('[data-testid=payload-tree]');
+    await expect(tree.locator('[data-testid=jtree-row][data-path="$.supply.temp"] .k')).toHaveText('temp');
+    await expect(tree.locator('[data-testid=jtree-row][data-kind=changed]').first()).toBeVisible();
+    await expect(tree.locator('.add').first()).toBeVisible();
+    await tree.locator('[data-testid=jtree-row][data-path="$.supply"] .tchev').click();
+    await expect(tree.locator('[data-testid=jtree-row][data-path="$.supply.temp"]')).toHaveCount(0);
+    await tree.locator('[data-testid=jtree-row][data-path="$.supply"] .tchev').click();
+    await tree.locator('[data-testid=jtree-row][data-path="$.supply.temp"]').click();
+    await expect(page.locator('[data-testid=json-menu] .ctx-item[data-id=spark]')).toHaveText('Use as sparkline');
+    await page.keyboard.press('Escape');
+    await page.locator('[data-testid=history-expand]').first().click();
+    await expect(page.locator('[data-testid=history-payload] [data-testid=history-tree]')).toHaveCount(1);
+    // kept for this connection, not for the other one
+    await selectTopic(page, 'building/f2/r204', 'building/f2/r204/temperature');
+    await expect(page.locator('[data-testid=payload-tree]')).toHaveCount(1);
+    await page.locator('[data-testid=cbar-tab][data-conn=local]').click();
+    await page.fill('[data-testid=search]', '');
+    await expect(page.locator('[data-testid=payload-form-tree]')).toHaveCount(0);
+  });
+
+  test('X-28 tree row columns line up across rows in EN, FR and DE', async ({ page }) => {
+    for (const lang of ['en', 'fr', 'de']) {
+      await page.goto(`/?mock=demo&connect=plant&screen=explore&lang=${lang}&theme=light`);
+      await page.waitForSelector('#app-root');
+      await page.fill('[data-testid=search]', 'building/f2/r204');
+      await page.waitForSelector('[data-testid=tree-row][data-path="building/f2/r204/temperature"] [data-testid=tree-spark]');
+      const cols = await page.locator('[data-testid=tree-row]').evaluateAll((rows) =>
+        rows.map((r) => Array.from(r.querySelectorAll(':scope > .v > *')).map((c) => Math.round((c as HTMLElement).getBoundingClientRect().right))),
+      );
+      expect(cols.length).toBeGreaterThan(3);
+      for (const c of cols) expect(c).toEqual(cols[0]);
+      // the figures fit their columns
+      const clipped = await page.locator('[data-testid=tree-row] .v > *').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length);
+      expect(clipped).toBe(0);
+    }
   });
 });
