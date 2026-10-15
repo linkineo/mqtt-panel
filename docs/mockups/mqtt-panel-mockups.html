@@ -159,7 +159,9 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
 
 /* tree */
 .tree { font-family: var(--mono); font-size: 12px; line-height: 1.2 }
-.tree .n { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 6px; white-space: nowrap }
+.tree .n { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 6px; white-space: nowrap }
+.tree .n .p { color: var(--sage); overflow: hidden; text-overflow: ellipsis; min-width: 0; display: flex; align-items: center; gap: 6px } .tree .n .p .chip { flex: none }
+.tree .n .rate, .tree .n .msgs { cursor: help }
 .tree .n.sel { background: var(--sel) }
 .tree .n .k { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden }
 .tree .n .v { color: var(--ink-2); font-size: 11px; display: flex; gap: 10px; align-items: center }
@@ -226,6 +228,9 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
 .card.live .chip { background: rgba(255,255,255,.18); color: #fff }
 .card .state { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em }
 .cbar { display: flex; align-items: flex-end; gap: 4px; padding: 0 12px; background: var(--paper); border-bottom: 1px solid var(--line); min-height: 34px }
+.cbar .hint { align-self: center; font-weight: 500; color: var(--ink-2); padding: 0 4px } .cbar .plus { align-self: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); display: inline-grid; place-items: center; color: var(--ink-2); font-weight: 600; padding: 0 }
+.qp { display: flex; gap: 8px; align-items: center; padding: 6px 10px; margin: 0 14px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper) } .qp .sep { width: 1px; height: 18px; background: var(--line); flex: none }
+.ico { width: 26px; height: 24px; display: inline-grid; place-items: center; font-size: 13px }
 .cbar span { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 8px 8px 0 0; font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap }
 .cbar span.on { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); border-bottom: 1px solid var(--surface); margin-bottom: -1px }
 .cbar span small { font-weight: 500; color: var(--ink-2) }
@@ -529,54 +534,56 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   <p class="cap">One list, one Connect button (change set 6): pin the certificate (preselected, the safest), skip the check for this attempt, or skip it always for this connection; when the broker presents a chain ending in a private CA, a fourth choice "Trust anything this CA signs" fills the profile's CA field. Every choice is for this connection only; there is no app-wide skip setting any more. Both Connect and Test open this prompt the first time. The same two skip choices are offered by the switch "Skip unverified broker certificate" under Advanced (02d). A connection with the check skipped or a pinned fingerprint shows ⚠ with a tooltip on its card and tab.</p>
 
   <!-- 04 Explorer tree -->
-  <div class="shot-head" id="s04"><h3>04 · Explorer, tree view, with context menu</h3><span class="muted small">Quick publish row, follow mode, highlight and counts, macOS menu bar sample</span></div>
+  <div class="shot-head" id="s04"><h3>04 · Explorer, tree view, with context menu</h3><span class="muted small">Payload after the name, sparkline, messages, throughput and subtopics on the right; boxed quick publish; Payload and Properties tabs; chart and History under the payload</span></div>
   <div class="shotwrap"><div class="osbar mac"><span class="lights"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span><b style="margin-left:10px">MQTT Panel</b><span>File</span><span>Edit</span><span>View</span><span>Connection</span><span>Window</span><span>Help</span></div><div class="app under">
     <div class="tb" data-tabs="Plant broker|on|1 284 topics · 312 msg/s · MQTT 5,Local broker||TLS"></div>
     <div class="body"><nav class="rail" data-open="2" data-on="explore"></nav>
-      <div class="main"><div class="cols" style="grid-template-columns: 1fr 440px">
+      <div class="main"><div class="cols" style="grid-template-columns: 1fr 520px">
         <div class="pane" style="position:relative">
           <div class="ph"><div class="search">building/+/+/temp<span style="flex:1"></span><span class="kbd">/</span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span><span class="seg"><span class="on">Default view</span><span>▾</span></span><span class="btn sm">Filters · 1</span><span class="btn sm">Expand ▾</span></div>
           <div style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center"><span class="muted small">Pinned</span><span class="chip on mono">…/r204/temperature 22.4</span><span class="chip on mono">…/r204/setpoint 21.5</span><span class="chip on mono">…/ahu01/status running</span><span class="chip mono">+ pin</span></div>
           <div class="pc tree">
-            <div class="n"><span class="k"><span class="tw">▾</span>building <span class="cnt">1 102</span></span><span class="v"><span class="msgs">48 213 since connect</span><span class="act"></span>188 msg/s</span></div>
-            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f1 <span class="cnt">320</span></span><span class="v"><span class="msgs">15 902</span><span class="act"></span>61 msg/s</span></div>
-            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▾</span>f2 <span class="cnt">296</span></span><span class="v"><span class="msgs">14 870</span><span class="act"></span>58 msg/s</span></div>
-            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r201 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 004</span><span class="act idle"></span>4 msg/s</span></div>
-            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r202 <span class="cnt">12</span></span><span class="v"><span class="msgs">998</span><span class="act idle"></span>4 msg/s</span></div>
-            <div class="n new" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r203 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 012</span><span class="act"></span>4 msg/s</span></div>
-            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▾</span>r204 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 318</span><span class="act"></span>5 msg/s</span></div>
-            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>temperature</span><span class="v"><span class="msgs">1 843</span><svg class="spark" viewBox="0 0 42 12"><polyline points="0,8 5,7 10,6 15,5 20,3 25,2 30,3 35,4 42,4"/></svg><em>{"value":22.4,"unit":"°C"}</em><span class="chip">R</span>2 s</span></div>
-            <div class="n sel" style="padding-left:56px"><span class="k"><span class="tw"></span>setpoint</span><span class="v"><span class="msgs">4</span><svg class="spark" viewBox="0 0 42 12"><polyline points="0,5 20,5 20,8 42,8"/></svg><em>{"value":21.5}</em><span class="chip">R</span>14 min</span></div>
-            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>humidity</span><span class="v"><span class="msgs">1 840</span><svg class="spark" viewBox="0 0 42 12"><polyline points="0,6 7,6 14,5 21,7 28,6 35,5 42,6"/></svg><em>41.8</em>2 s</span></div>
-            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>co2</span><span class="v"><span class="msgs">1 840</span><svg class="spark" viewBox="0 0 42 12"><polyline points="0,9 7,8 14,7 21,5 28,4 35,3 42,2"/></svg><em>612</em>2 s</span></div>
-            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>occupancy</span><span class="v"><span class="msgs">6</span><em>true</em><span class="chip">R</span>9 min</span></div>
-            <div class="n" style="padding-left:56px"><span class="k"><span class="tw">▸</span>valve <span class="cnt">3</span></span><span class="v"><span class="msgs">312</span><span class="act idle"></span>1 msg/s</span></div>
-            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r205 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 001</span><span class="act"></span>4 msg/s</span></div>
-            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>ahu01 <span class="cnt">38</span></span><span class="v"><span class="msgs">4 310</span><span class="act"></span>17 msg/s</span></div>
-            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f3 <span class="cnt">302</span></span><span class="v"><span class="msgs">14 112</span><span class="act"></span>55 msg/s</span></div>
-            <div class="n"><span class="k"><span class="tw">▸</span>spBv1.0 <span class="cnt">96</span></span><span class="v"><span class="msgs">25 400</span><span class="act"></span>Sparkplug B · 98 msg/s</span></div>
-            <div class="n"><span class="k"><span class="tw">▸</span>$SYS <span class="cnt">86</span></span><span class="v"><span class="msgs">6 700</span><span class="act idle"></span>26 msg/s</span></div>
+            <div class="n"><span class="k"><span class="tw">▾</span>building</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">48 213</span><span class="rate" title="Messages per second">188/s</span><span class="cnt" title="Subtopics below this one">1 102</span></span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f1</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">15 902</span><span class="rate" title="Messages per second">61/s</span><span class="cnt" title="Subtopics below this one">320</span></span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▾</span>f2</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">14 870</span><span class="rate" title="Messages per second">58/s</span><span class="cnt" title="Subtopics below this one">296</span></span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r201</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">1 004</span><span class="rate" title="Messages per second">4/s</span><span class="cnt" title="Subtopics below this one">12</span></span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r202</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">998</span><span class="rate" title="Messages per second">4/s</span><span class="cnt" title="Subtopics below this one">12</span></span></div>
+            <div class="n new" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r203</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">1 012</span><span class="rate" title="Messages per second">4/s</span><span class="cnt" title="Subtopics below this one">12</span></span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▾</span>r204</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">1 318</span><span class="rate" title="Messages per second">5/s</span><span class="cnt" title="Subtopics below this one">12</span></span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>temperature</span><span class="p"><em>{"value":22.4,"unit":"°C"}</em><span class="chip">R</span></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,8 5,7 10,6 15,5 20,3 25,2 30,3 35,4 42,4"/></svg><span class="msgs" title="Messages since the connection opened">1 843</span><span class="rate" title="Messages per second">0.5/s</span></span></div>
+            <div class="n sel" style="padding-left:56px"><span class="k"><span class="tw"></span>setpoint</span><span class="p"><em>{"value":21.5}</em><span class="chip">R</span></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,5 20,5 20,8 42,8"/></svg><span class="msgs" title="Messages since the connection opened">4</span><span class="rate" title="Messages per second">0/s</span></span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>humidity</span><span class="p"><em>41.8</em></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,6 7,6 14,5 21,7 28,6 35,5 42,6"/></svg><span class="msgs" title="Messages since the connection opened">1 840</span><span class="rate" title="Messages per second">0.5/s</span></span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>co2</span><span class="p"><em>612</em></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,9 7,8 14,7 21,5 28,4 35,3 42,2"/></svg><span class="msgs" title="Messages since the connection opened">1 840</span><span class="rate" title="Messages per second">0.5/s</span></span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw"></span>occupancy</span><span class="p"><em>true</em><span class="chip">R</span></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,10 14,10 14,3 30,3 30,10 42,10"/></svg><span class="msgs" title="Messages since the connection opened">6</span><span class="rate" title="Messages per second">0/s</span></span></div>
+            <div class="n" style="padding-left:56px"><span class="k"><span class="tw">▸</span>valve</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">312</span><span class="rate" title="Messages per second">1/s</span><span class="cnt" title="Subtopics below this one">3</span></span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>r205</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">1 001</span><span class="rate" title="Messages per second">4/s</span><span class="cnt" title="Subtopics below this one">12</span></span></div>
+            <div class="n" style="padding-left:40px"><span class="k"><span class="tw">▸</span>ahu01</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">4 310</span><span class="rate" title="Messages per second">17/s</span><span class="cnt" title="Subtopics below this one">38</span></span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>f3</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">14 112</span><span class="rate" title="Messages per second">55/s</span><span class="cnt" title="Subtopics below this one">302</span></span></div>
+            <div class="n"><span class="k"><span class="tw">▸</span>spBv1.0</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">25 400</span><span class="rate" title="Messages per second">98/s</span><span class="cnt" title="Subtopics below this one">96</span></span></div>
+            <div class="n"><span class="k"><span class="tw">▸</span>$SYS</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">6 700</span><span class="rate" title="Messages per second">26/s</span><span class="cnt" title="Subtopics below this one">86</span></span></div>
           </div>
           <div class="ctx" style="left:360px;top:330px"><div>Pin<span class="kbd">P</span></div><div>Publish here<span class="kbd">⇧P</span></div><div>Add to chart<span class="kbd">C</span></div><hr><div>Copy topic<span class="kbd">⌘C</span></div><div>Copy payload</div><div>Copy as CLI command</div><div>Export subtree…</div><hr><div class="danger">Delete retained…</div><div class="danger">Delete retained in subtree…</div><div>Clear history</div></div>
         </div>
         <div class="pane right">
-          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/r204/setpoint</h5><div style="display:flex;gap:6px"><span class="btn sm">Pinned ★</span><span class="btn sm">Publish here</span><span class="btn sm">⋯</span></div></div>
+          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/r204/setpoint</h5><div style="display:flex;gap:6px"><span class="btn sm ico" title="Pinned">★</span><span class="btn sm ico" title="Publish here">➤</span><span class="btn sm ico">⋯</span></div></div>
           <div style="padding:8px 14px" class="meta"><span>Received <b>10:44:12.004</b></span><span>QoS <b>1</b></span><span><b>Retained</b></span><span>Size <b>15 B</b></span><span>Follow <span class="sw on" style="vertical-align:middle"></span></span></div>
-          <div style="display:flex;gap:6px;padding:0 14px 8px;align-items:center;flex-wrap:wrap"><span class="muted small">Quick publish</span><span class="input mono" style="flex:1;min-width:120px">{"value":22}</span><span class="seg"><span>0</span><span class="on">1</span><span>2</span></span><span class="muted small">Retain</span><span class="sw on"></span><span class="btn pri sm">Send</span></div>
-          <div class="dtabs"><span class="on">Payload</span><span>Diff</span><span>History · 4</span><span>Chart</span><span>Properties · 2</span></div>
-          <div class="pc"><div class="json">{
-  <span class="k">"value"</span>: <span class="num">21.5</span>
+          <div class="qp" title="Quick publish"><span class="input mono" style="flex:1;min-width:100px">{"value":22}</span><i class="sep"></i><span class="chip">JSON</span><i class="sep"></i><span class="seg"><span>0</span><span class="on">1</span><span>2</span></span><i class="sep"></i><span class="muted small">Retain</span><span class="sw on"></span><i class="sep"></i><span class="btn pri sm">Send</span></div>
+          <div class="dtabs"><span class="on">Payload</span><span>Properties · 2</span></div>
+          <div class="pc"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="muted small">Show diff to previous</span><span class="sw on"></span><span class="muted small">vs 10:20:03</span></div>
+            <div class="json">{
+  <span class="k">"value"</span>: <span class="num del">22.0</span> <span class="num add">21.5</span>
 }</div>
-            <div class="sec" style="margin-top:14px">Chart · value</div>
-            <svg class="chart" viewBox="0 0 400 120" aria-label="Setpoint over the last hour" style="margin-top:6px"><g class="grid"><line x1="30" y1="20" x2="390" y2="20"/><line x1="30" y1="55" x2="390" y2="55"/><line x1="30" y1="90" x2="390" y2="90"/></g><g class="axis"><text x="26" y="24" text-anchor="end">23</text><text x="26" y="59" text-anchor="end">22</text><text x="26" y="94" text-anchor="end">21</text><text x="30" y="112">09:59</text><text x="390" y="112" text-anchor="end">10:59</text></g><polyline class="s1" points="30,55 250,55 250,72 390,72"/><circle class="pt" cx="390" cy="72" r="3"/></svg>
-            <div class="sec" style="margin-top:14px">Recent</div>
+            <div class="sec" style="margin-top:14px;display:flex;gap:8px;align-items:center">Chart <span class="chip on mono" style="text-transform:none;letter-spacing:0">value ✕</span><span class="btn sm" style="text-transform:none;letter-spacing:0">+ Add field…</span></div>
+            <svg class="chart" viewBox="0 0 400 120" aria-label="Setpoint over the last 15 minutes" style="margin-top:6px"><g class="grid"><line x1="30" y1="20" x2="390" y2="20"/><line x1="30" y1="55" x2="390" y2="55"/><line x1="30" y1="90" x2="390" y2="90"/></g><g class="axis"><text x="26" y="24" text-anchor="end">23</text><text x="26" y="59" text-anchor="end">22</text><text x="26" y="94" text-anchor="end">21</text><text x="30" y="112">09:59</text><text x="390" y="112" text-anchor="end">10:59</text></g><polyline class="s1" points="30,55 250,55 250,72 390,72"/><circle class="pt" cx="390" cy="72" r="3"/></svg>
+            <div class="sec" style="margin-top:14px">History · 4</div>
             <table class="tbl"><tr><th>Time</th><th>Value</th><th>QoS</th><th>Size</th></tr><tr class="sel"><td class="mono">10:44:12.004</td><td class="mono">21.5</td><td>1</td><td>15 B</td></tr><tr><td class="mono">10:20:03.110</td><td class="mono">22.0</td><td>1</td><td>15 B</td></tr><tr><td class="mono">09:58:41.200</td><td class="mono">22.0</td><td>1</td><td>15 B</td></tr><tr><td class="mono">08:48:12.000</td><td class="mono">21.0</td><td>1</td><td>15 B</td></tr></table>
+            <div class="muted small" style="margin-top:6px">Buffer 200 messages for this topic · <span style="text-decoration:underline">Raise…</span></div>
           </div>
         </div>
       </div></div>
     </div>
   </div></div>
-  <p class="cap">Right-click on a topic opens the native context menu shown here. Room r203 is highlighted because a message just arrived under it; the discreet grey numbers are messages since connection. The quick publish row sends to the selected topic without leaving the Explorer.</p>
+  <p class="cap">Rows (change set 8): name, then the payload on the width available with the small R marker, then on the right the sparkline, the messages since the connection opened, the throughput and the number of subtopics, each figure with a tooltip. A bare number drives the sparkline by itself; a JSON value is chosen with "Use as sparkline" (06). Room r203 is highlighted because a message just arrived under it. The detail header has the star (Pin), the Publish icon (Publish here) and ⋯; the quick publish row is a boxed strip with separators. The Payload tab stacks the payload with its "Show diff to previous" switch (on by default), this topic's chart with "+ Add field…", and the full History with a selectable row; Properties is the only other tab. Right-click on a topic opens the native context menu shown here.</p>
 
   <!-- 05 Explorer table -->
   <div class="shot-head" id="s05"><h3>05 · Explorer, table view</h3><span class="muted small">Windows menu bar sample; flat, sortable, exportable</span></div>
@@ -606,24 +613,24 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   </div></div>
   <p class="cap">"Value · last 10" is a sparkline of the cast value, the same series the chart draws (occupancy shows its boolean as a 0/1 step). Rate and "Since connect" are separate columns. Clicking a row opens the same detail pane as the tree.</p>
   <!-- 06 Diff -->
-  <div class="shot-head" id="s06"><h3>06 · Message inspection, Diff tab</h3><span class="muted small">Any history entry can be the baseline</span></div>
+  <div class="shot-head" id="s06"><h3>06 · Payload view, diff to previous and the click menu</h3><span class="muted small">A click on a key or value offers "Use as sparkline" and "Add to chart…"; nothing else sits in the JSON</span></div>
   <div class="shotwrap"><div class="app" style="height:600px">
     <div class="tb" data-tabs="Plant broker|on|1 284 topics · 312 msg/s · MQTT 5,Local broker||TLS"></div>
     <div class="body"><nav class="rail" data-open="2" data-on="explore"></nav>
       <div class="main"><div class="cols" style="grid-template-columns: 1fr 520px">
         <div class="pane"><div class="ph"><div class="search">ahu01<span style="flex:1"></span><span class="kbd">/</span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div>
-          <div class="pc tree"><div class="n"><span class="k"><span class="tw">▾</span>building / f2 / ahu01 <span class="cnt">38</span></span><span class="v"><span class="act"></span>17 msg/s</span></div>
-            <div class="n sel" style="padding-left:24px"><span class="k"><span class="tw"></span>state</span><span class="v"><em>{"mode":"cooling",…}</em><span class="chip">R</span>3 s</span></div>
-            <div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>supply_temp</span><span class="v"><em>18.2</em>1 s</span></div>
-            <div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>return_temp</span><span class="v"><em>22.9</em>1 s</span></div>
-            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>fan <span class="cnt">4</span></span><span class="v"><span class="act"></span>4 msg/s</span></div>
-            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>alarms <span class="cnt">6</span></span><span class="v"><span class="act idle"></span>0 msg/s</span></div></div></div>
+          <div class="pc tree"><div class="n"><span class="k"><span class="tw">▾</span>building / f2 / ahu01</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">4 310</span><span class="rate" title="Messages per second">17/s</span><span class="cnt" title="Subtopics below this one">38</span></span></div>
+            <div class="n sel" style="padding-left:24px"><span class="k"><span class="tw"></span>state</span><span class="p"><em>{"mode":"cooling","setpoint":21.0,"supply":{"temp":18.2,…}}</em><span class="chip">R</span></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,4 7,4 14,5 21,6 28,8 35,9 42,10"/></svg><span class="msgs" title="Messages since the connection opened">1 212</span><span class="rate" title="Messages per second">0.3/s</span></span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>supply_temp</span><span class="p"><em>18.2</em></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,4 7,4 14,5 21,6 28,8 35,9 42,10"/></svg><span class="msgs" title="Messages since the connection opened">3 620</span><span class="rate" title="Messages per second">1/s</span></span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>return_temp</span><span class="p"><em>22.9</em></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,6 7,6 14,6 21,5 28,5 35,6 42,6"/></svg><span class="msgs" title="Messages since the connection opened">3 618</span><span class="rate" title="Messages per second">1/s</span></span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>fan</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">2 410</span><span class="rate" title="Messages per second">4/s</span><span class="cnt" title="Subtopics below this one">4</span></span></div>
+            <div class="n" style="padding-left:24px"><span class="k"><span class="tw">▸</span>alarms</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">14</span><span class="rate" title="Messages per second">0/s</span><span class="cnt" title="Subtopics below this one">6</span></span></div></div></div>
         <div class="pane right">
-          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/ahu01/state</h5><div style="display:flex;gap:6px"><span class="btn sm">Pin</span><span class="btn sm">Publish here</span><span class="btn sm">⋯</span></div></div>
-          <div class="ctx" style="left:1000px;top:238px;min-width:240px"><div class="on">Add supply.temp to chart<span class="kbd">C</span></div><div>Copy path · $.supply.temp</div><div>Copy value · 18.2</div><hr><div>Show only this field in history</div></div>
-          <div class="dtabs"><span>Payload</span><span class="on">Diff</span><span>History · 200</span><span>Chart</span><span>Properties · 4</span></div>
+          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/ahu01/state</h5><div style="display:flex;gap:6px"><span class="btn sm ico" title="Pin">☆</span><span class="btn sm ico" title="Publish here">➤</span><span class="btn sm ico">⋯</span></div></div>
+          <div class="ctx" style="left:1000px;top:258px;min-width:240px"><div class="on">Use as sparkline</div><div>Add supply.temp to chart…<span class="kbd">C</span></div><hr><div>Copy path · $.supply.temp</div><div>Copy value · 18.2</div></div>
+          <div class="dtabs"><span class="on">Payload</span><span>Properties · 4</span></div>
           <div class="pc">
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted small">Compare</span><span class="seg"><span class="on">current 11:02:14</span></span><span class="muted small">with</span><span class="seg"><span class="on">previous 11:02:11</span><span>pick from history ▾</span></span><span style="flex:1"></span><span class="chip">3 changes</span><span class="btn sm">Highlight off</span></div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted small">Show diff to previous</span><span class="sw on"></span><span class="muted small">vs 11:02:11</span><span style="flex:1"></span><span class="chip">3 changes</span></div>
             <div class="json" style="margin-top:10px">{
   <span class="k">"mode"</span>: <span class="s del">"heating"</span> <span class="s add">"cooling"</span>,
   <span class="k">"setpoint"</span>: <span class="num">21.0</span>,
@@ -634,18 +641,21 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   <span class="k">"alarm"</span>: <span class="s">null</span>,
   <span class="k">"ts"</span>: <span class="s del">"…:02:11Z"</span> <span class="s add">"…:02:14Z"</span>
 }</div>
-            <div class="sec" style="margin-top:14px">History</div>
-            <table class="tbl"><tr><th>Time</th><th>Changed keys</th><th>Size</th><th></th></tr>
-              <tr class="sel"><td class="mono">11:02:14.021</td><td class="mono">mode, supply.temp, ts</td><td>118 B</td><td><span class="btn sm">Baseline</span></td></tr>
-              <tr><td class="mono">11:02:11.018</td><td class="mono">ts</td><td>118 B</td><td><span class="btn sm">Baseline</span></td></tr>
-              <tr><td class="mono">11:02:08.020</td><td class="mono">supply.fan, ts</td><td>118 B</td><td><span class="btn sm">Baseline</span></td></tr>
-              <tr><td class="mono">11:02:05.019</td><td class="mono">ts</td><td>118 B</td><td><span class="btn sm">Baseline</span></td></tr></table>
+            <div class="sec" style="margin-top:14px;display:flex;gap:8px;align-items:center">Chart <span class="chip on mono" style="text-transform:none;letter-spacing:0">supply.temp ✕</span><span class="chip on mono" style="text-transform:none;letter-spacing:0">supply.fan ✕</span><span class="btn sm" style="text-transform:none;letter-spacing:0">+ Add field…</span></div>
+            <svg class="chart" viewBox="0 0 480 120" aria-label="supply.temp and supply.fan over the last 15 minutes" style="margin-top:6px"><g class="grid"><line x1="30" y1="16" x2="450" y2="16"/><line x1="30" y1="52" x2="450" y2="52"/><line x1="30" y1="88" x2="450" y2="88"/></g><g class="axis"><text x="26" y="20" text-anchor="end">22</text><text x="26" y="56" text-anchor="end">20</text><text x="26" y="92" text-anchor="end">18</text><text x="460" y="20">100</text><text x="460" y="92">50</text><text x="30" y="112">10:50</text><text x="450" y="112" text-anchor="end">11:05</text></g><polyline class="s1" points="30,48 90,46 150,50 210,56 270,70 330,78 390,84 450,86"/><polyline class="s2" points="30,64 90,64 150,60 210,54 270,48 330,46 390,45 450,45"/></svg>
+            <div class="sec" style="margin-top:14px">History · 200</div>
+            <table class="tbl"><tr><th>Time</th><th>Changed keys</th><th>QoS</th><th>Size</th></tr>
+              <tr class="sel"><td class="mono">11:02:14.021</td><td class="mono">mode, supply.temp, ts</td><td>1</td><td>118 B</td></tr>
+              <tr><td class="mono">11:02:11.018</td><td class="mono">ts</td><td>1</td><td>118 B</td></tr>
+              <tr><td class="mono">11:02:08.020</td><td class="mono">supply.fan, ts</td><td>1</td><td>118 B</td></tr>
+              <tr><td class="mono">11:02:05.019</td><td class="mono">ts</td><td>1</td><td>118 B</td></tr></table>
+            <div class="muted small" style="margin-top:6px">Buffer 200 messages for this topic · <span style="text-decoration:underline">Raise…</span></div>
           </div>
         </div>
       </div></div>
     </div>
   </div></div>
-  <p class="cap">Removed values are struck through in brick, added ones carry a sage background. Right-click on any key or value in the Payload or Diff view (here supply.temp) offers "Add to chart", which opens the field picker with that field already checked; numeric and boolean fields go straight into a series, text fields such as mode show the item disabled with "text, not plottable". Copy path and Copy value sit in the same menu. Text payloads get a line diff. The History tab lists which keys changed per message.</p>
+  <p class="cap">"Show diff to previous" is on by default: removed values are struck through in brick, added ones carry a sage background, the baseline time is written next to the switch; selecting a row in History shows that message and diffs it against its predecessor. A plain click on any key or value (here supply.temp) opens the click menu: "Use as sparkline" (one per topic, saved with the profile), "Add to chart…" (the field picker with that field checked), Copy path, Copy value; nothing else sits inside the JSON, no hover icon, no trailing menu. Text fields such as mode show the two items disabled with "text, not plottable". The topic's chart and the full History sit under the payload.</p>
 
   <!-- 07 Properties -->
   <div class="shot-head" id="s07"><h3>07 · Message inspection, Properties tab (MQTT 5)</h3><span class="muted small">Negotiated protocol version always first</span></div>
@@ -653,10 +663,10 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
     <div class="tb" data-tabs="Plant broker|on|1 284 topics · 312 msg/s · MQTT 5,Local broker||TLS"></div>
     <div class="body"><nav class="rail" data-open="2" data-on="explore"></nav>
       <div class="main"><div class="cols" style="grid-template-columns: 1fr 520px">
-        <div class="pane"><div class="ph"><div class="search">ahu01/cmd<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw"></span>building / f2 / ahu01 / cmd</span><span class="v"><em>{"cmd":"restart","delay":5}</em>9 min</span></div><div class="n"><span class="k"><span class="tw"></span>building / f2 / ahu01 / cmd / ack</span><span class="v"><em>{"ok":true,"id":"c-1041"}</em>9 min</span></div></div></div>
+        <div class="pane"><div class="ph"><div class="search">ahu01/cmd<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw"></span>building / f2 / ahu01 / cmd</span><span class="p"><em>{"cmd":"restart","delay":5}</em></span><span class="v"><span class="msgs" title="Messages since the connection opened">12</span><span class="rate" title="Messages per second">0/s</span></span></div><div class="n"><span class="k"><span class="tw"></span>building / f2 / ahu01 / cmd / ack</span><span class="p"><em>{"ok":true,"id":"c-1041"}</em></span><span class="v"><span class="msgs" title="Messages since the connection opened">12</span><span class="rate" title="Messages per second">0/s</span></span></div></div></div>
         <div class="pane right">
-          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/ahu01/cmd</h5><div style="display:flex;gap:6px"><span class="btn sm">Pin</span><span class="btn sm">Publish here</span><span class="btn sm">⋯</span></div></div>
-          <div class="dtabs"><span>Payload</span><span>Diff</span><span>History · 12</span><span>Chart</span><span class="on">Properties · 4</span></div>
+          <div class="ph"><h5 class="mono" style="font-weight:600">building/f2/ahu01/cmd</h5><div style="display:flex;gap:6px"><span class="btn sm ico" title="Pin">☆</span><span class="btn sm ico" title="Publish here">➤</span><span class="btn sm ico">⋯</span></div></div>
+          <div class="dtabs"><span>Payload</span><span class="on">Properties · 4</span></div>
           <div class="pc">
             <dl class="kv" style="grid-template-columns:170px 1fr">
               <dt>Protocol</dt><dd>MQTT 5 <span class="muted" style="font-family:var(--sans)">negotiated; profile asked "auto"</span></dd>
@@ -739,12 +749,12 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   <p class="cap">Deleting a retained message is never behind Send. Subtree deletion from the Explorer shows the list of affected topics before confirming.</p>
 
   <!-- 10 Charts -->
-  <div class="shot-head" id="s10"><h3>10 · Charts</h3><span class="muted small">Several series, two axes, boolean as step, pause, hover readout</span></div>
+  <div class="shot-head" id="s10"><h3>10 · Charts</h3><span class="muted small">Series edited in place, no edit mode; the title renamed in place; two axes, boolean as step, pause, hover readout</span></div>
   <div class="shotwrap"><div class="app" style="height:640px">
     <div class="tb" data-tabs="Plant broker|on|1 284 topics · 312 msg/s · MQTT 5,Local broker||TLS"></div>
     <div class="body"><nav class="rail" data-open="2" data-on="charts"></nav>
-      <div class="main"><div class="cols" style="grid-template-columns: 1fr 300px">
-        <div class="pane"><div class="ph"><h5>Room 204 · comfort</h5><div style="display:flex;gap:6px;align-items:center"><span class="seg"><span>5 min</span><span>15 min</span><span class="on">1 h</span><span>Session</span><span>Custom</span></span><span class="btn sm">Pause</span><span class="btn sm">Export…</span></div></div>
+      <div class="main"><div class="cols" style="grid-template-columns: 1fr 400px">
+        <div class="pane"><div class="ph"><h5 title="Click to rename">Room 204 · comfort <span class="muted" style="font-weight:400">✎</span></h5><div style="display:flex;gap:6px;align-items:center"><span class="seg"><span>5 min</span><span>15 min</span><span class="on">1 h</span><span>Session</span><span>Custom</span></span><span class="btn sm">Pause</span><span class="btn sm">Export…</span></div></div>
           <div class="pc"><svg class="chart" viewBox="0 0 820 300" aria-label="Temperature, setpoint, humidity and occupancy over the last hour">
             <g class="grid"><line x1="50" y1="20" x2="790" y2="20"/><line x1="50" y1="60" x2="790" y2="60"/><line x1="50" y1="100" x2="790" y2="100"/><line x1="50" y1="140" x2="790" y2="140"/><line x1="50" y1="180" x2="790" y2="180"/><line x1="50" y1="220" x2="790" y2="220"/><line x1="50" y1="260" x2="790" y2="260"/></g>
             <g class="axis"><line x1="50" y1="260" x2="790" y2="260"/><text x="44" y="24" text-anchor="end">25</text><text x="44" y="64" text-anchor="end">24</text><text x="44" y="104" text-anchor="end">23</text><text x="44" y="144" text-anchor="end">22</text><text x="44" y="184" text-anchor="end">21</text><text x="44" y="224" text-anchor="end">20</text><text x="44" y="264" text-anchor="end">19</text><text x="800" y="24">100</text><text x="800" y="104">75</text><text x="800" y="184">50</text><text x="800" y="264">25</text><text x="50" y="282">10:20</text><text x="173" y="282" text-anchor="middle">10:30</text><text x="297" y="282" text-anchor="middle">10:40</text><text x="420" y="282" text-anchor="middle">10:50</text><text x="543" y="282" text-anchor="middle">11:00</text><text x="667" y="282" text-anchor="middle">11:10</text><text x="790" y="282" text-anchor="end">11:20</text><text x="14" y="140" transform="rotate(-90 14 140)" text-anchor="middle">°C</text><text x="812" y="140" transform="rotate(90 812 140)" text-anchor="middle">% rh</text></g>
@@ -759,11 +769,10 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
           <div class="legend" style="margin-top:8px"><span><i style="background:var(--sage)"></i>temperature · $.value</span><span><i style="background:var(--clay)"></i>setpoint · $.value (step)</span><span><i style="background:var(--slate)"></i>humidity · right axis</span><span><i style="background:var(--ink-2)"></i>occupancy · boolean as 0/1 step</span></div>
           <div class="sec" style="margin-top:18px">Other charts in this session</div><div class="list" style="margin-top:6px;grid-template-columns:1fr 1fr;display:grid;gap:8px"><div class="card"><div class="t">AHU 01 · supply and return</div><div class="s">2 series · 1 h</div></div><div class="card"><div class="t">CO₂ floor 2</div><div class="s">5 series · session</div></div></div></div></div>
         <div class="pane right"><div class="ph"><h5>Series</h5><span class="btn sm">+ Add</span></div><div class="pc"><div class="list">
-          <div class="card on"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--sage);display:inline-block"></i>Editing series</span><span class="btn sm">Done</span></div>
+          <div class="card on"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--sage);display:inline-block"></i><span class="input" style="width:150px;font-weight:600">temperature</span></span><span style="display:flex;gap:6px;align-items:center"><span class="sw on"></span><span class="muted">▾</span></span></div>
+            <div class="s mono">building/f2/r204/temperature</div>
             <div class="form" style="margin-top:8px;gap:6px">
-              <div class="f" style="grid-template-columns:60px 1fr"><label>Name</label><span class="input" style="display:block">temperature</span></div>
-              <div class="f" style="grid-template-columns:60px 1fr"><label>Topic</label><span class="input mono" style="display:block">building/f2/r204/temperature</span></div>
-              <div class="f" style="grid-template-columns:60px 1fr"><label>Field</label><span class="row2"><span class="input mono" style="flex:1">$.value</span><span class="chip">number</span></span></div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Field</label><span class="row2"><span class="input mono" style="width:110px">$.value</span><span class="seg"><span class="on">number</span><span>parsed</span><span>bool</span></span></span></div>
               <div class="f" style="grid-template-columns:60px 1fr"><label></label><span class="muted small">or pick from the last message (click a field):</span></div>
               <div class="json" style="font-size:11px;line-height:1.6;margin-left:70px">{
   <span class="k" style="text-decoration:underline;text-decoration-style:dotted;cursor:pointer;background:var(--sel);border-radius:3px">"value"</span>: <span class="num">22.4</span>,
@@ -772,37 +781,41 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   <span class="k" style="text-decoration:underline;text-decoration-style:dotted;cursor:pointer">"online"</span>: <span class="num">true</span>  <span class="muted">boolean → 0/1</span>
 }</div>
               <div class="f" style="grid-template-columns:60px 1fr"><label>Colour</label><span class="row2"><i style="width:16px;height:16px;border-radius:50%;background:var(--sage);display:inline-block;box-shadow:0 0 0 2px var(--surface),0 0 0 3px var(--sage)"></i><i style="width:16px;height:16px;border-radius:50%;background:var(--clay);display:inline-block"></i><i style="width:16px;height:16px;border-radius:50%;background:var(--slate);display:inline-block"></i><i style="width:16px;height:16px;border-radius:50%;background:var(--brick);display:inline-block"></i><i style="width:16px;height:16px;border-radius:50%;background:var(--ink-2);display:inline-block"></i></span></div>
-              <div class="f" style="grid-template-columns:60px 1fr"><label>Style</label><span class="row2"><span class="seg"><span class="on">Line</span><span>Step</span><span>Points</span></span><span class="seg"><span class="on">Left axis</span><span>Right axis</span></span></span></div>
-              <div class="f" style="grid-template-columns:60px 1fr"><label>Unit</label><span class="row2"><span class="input mono" style="width:60px">°C</span><span class="muted small">shown on the axis and in the readout</span></span></div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Style</label><span class="row2"><span class="seg"><span class="on">Line</span><span>Step</span><span>Points</span></span><span class="seg"><span class="on">Left</span><span>Right</span></span></span></div>
+              <div class="f" style="grid-template-columns:60px 1fr"><label>Unit</label><span class="row2"><span class="input mono" style="width:60px">°C</span><span class="muted small">on the axis and in the readout</span></span></div>
             </div>
-            <div style="display:flex;justify-content:space-between;margin-top:8px"><span class="muted small">1 843 points · 0 skipped</span><span class="btn sm danger">Remove series</span></div></div>
-          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--clay);display:inline-block"></i>setpoint</span><span class="sw on"></span></div><div class="s mono">building/f2/r204/setpoint</div><div class="s">path <span class="mono">$.value</span> · number · step · left · 4 points</div></div>
-          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--slate);display:inline-block"></i>humidity</span><span class="sw on"></span></div><div class="s mono">building/f2/r204/humidity</div><div class="s">raw · parsed number · line · right · 1 840 points · 2 skipped</div></div>
-          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--ink-2);display:inline-block"></i>occupancy</span><span class="sw on"></span></div><div class="s mono">building/f2/r204/occupancy</div><div class="s">raw · boolean → 0/1 · step · left · 6 points</div></div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px"><span class="muted small">1 843 points · 0 skipped</span><span class="btn sm danger">Remove</span></div></div>
+          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--clay);display:inline-block"></i><span class="input" style="width:150px;font-weight:600">setpoint</span></span><span style="display:flex;gap:6px;align-items:center"><span class="sw on"></span><span class="muted">▸</span></span></div><div class="s mono">building/f2/r204/setpoint</div><div class="s" style="gap:6px"><span class="input mono" style="width:110px">$.value</span><span class="seg"><span class="on">number</span><span>parsed</span><span>bool</span></span></div></div>
+          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--slate);display:inline-block"></i><span class="input" style="width:150px;font-weight:600">humidity</span></span><span style="display:flex;gap:6px;align-items:center"><span class="sw on"></span><span class="muted">▸</span></span></div><div class="s mono">building/f2/r204/humidity</div><div class="s" style="gap:6px"><span class="input mono" style="width:110px">raw</span><span class="seg"><span>number</span><span class="on">parsed</span><span>bool</span></span></div></div>
+          <div class="card"><div class="t"><span style="display:flex;align-items:center;gap:8px"><i style="width:10px;height:10px;border-radius:50%;background:var(--ink-2);display:inline-block"></i><span class="input" style="width:150px;font-weight:600">occupancy</span></span><span style="display:flex;gap:6px;align-items:center"><span class="sw on"></span><span class="muted">▸</span></span></div><div class="s mono">building/f2/r204/occupancy</div><div class="s" style="gap:6px"><span class="input mono" style="width:110px">raw</span><span class="seg"><span>number</span><span>parsed</span><span class="on">bool</span></span></div></div></div>
           <div class="sec" style="margin-top:16px">Memory</div><div class="muted small" style="margin-top:4px">This chart holds 3 693 points (≈ 60 KB). Session total 12.4 MB of 256 MB. History is not saved to disk; export what you need before closing.</div></div></div>
       </div></div>
     </div>
   </div></div>
-  <p class="cap">Each series card states its cast rule (number, parsed number, boolean to 0/1) and how many values could not be cast. Pause freezes the view while data keeps arriving.</p>
+  <p class="cap">Series are edited in place (change set 8): every card shows the switch, the colour dot (click opens the palette), the name field, the field path and its cast rule as a segment; the chevron opens style, axis, unit and Remove. There is no Edit / Done mode. The chart title is renamed by clicking it; Enter or focus loss saves. Pause freezes the view while data keeps arriving.</p>
   <!-- 10b Add to chart field picker -->
-  <div class="shot-head" id="s10b"><h3>10b · Add to chart: pick the fields</h3><span class="muted small">A series is one topic plus one field; you choose which, never all</span></div>
+  <div class="shot-head" id="s10b"><h3>10b · Fields on this topic's chart, and "Also add to"</h3><span class="muted small">A series is one topic plus one field; you choose which, never all</span></div>
   <div class="shotwrap"><div class="app" style="height:600px">
     <div class="tb" data-tabs="Plant broker|on|1 284 topics · 312 msg/s · MQTT 5,Local broker||TLS"></div>
     <div class="body"><nav class="rail" data-open="2" data-on="explore"></nav>
       <div class="main"><div class="cols" style="grid-template-columns: 1fr 520px">
-        <div class="pane"><div class="ph"><div class="search">ahu01<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw"></span>building / f2 / ahu01 / state</span><span class="v"><em>{"mode":"cooling",…}</em><span class="chip">R</span>3 s</span></div></div></div>
+        <div class="pane"><div class="ph"><div class="search">ahu01<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw"></span>building / f2 / ahu01 / state</span><span class="p"><em>{"mode":"cooling","setpoint":21.0,…}</em><span class="chip">R</span></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,4 7,4 14,5 21,6 28,8 35,9 42,10"/></svg><span class="msgs" title="Messages since the connection opened">1 212</span><span class="rate" title="Messages per second">0.3/s</span></span></div></div></div>
         <div class="pane right"><div class="ph"><h5 class="mono" style="font-weight:600">building/f2/ahu01/state</h5></div>
-          <div class="dtabs"><span>Payload</span><span>Diff</span><span>History · 200</span><span class="on">Chart</span><span>Properties · 4</span></div>
-          <div class="pc"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="muted small">Charted fields</span><span class="chip on mono">supply.temp ✕</span><span class="chip on mono">supply.fan ✕</span><span class="btn sm">+ Field…</span></div>
+          <div class="dtabs"><span class="on">Payload</span><span>Properties · 4</span></div>
+          <div class="pc"><div class="json" style="max-height:70px;overflow:hidden">{
+  <span class="k">"mode"</span>: <span class="s">"cooling"</span>,
+  <span class="k">"setpoint"</span>: <span class="num">21.0</span>,
+  <span class="k">"supply"</span>: { <span class="k">"temp"</span>: <span class="num">18.2</span>, <span class="k">"fan"</span>: <span class="num">72</span> }, …</div>
+            <div class="sec" style="margin-top:12px;display:flex;gap:8px;align-items:center">Chart <span class="chip on mono" style="text-transform:none;letter-spacing:0">supply.temp ✕</span><span class="chip on mono" style="text-transform:none;letter-spacing:0">supply.fan ✕</span><span class="btn sm" style="text-transform:none;letter-spacing:0">+ Add field…</span></div>
             <svg class="chart" viewBox="0 0 480 150" aria-label="supply.temp and supply.fan over the last 15 minutes" style="margin-top:10px"><g class="grid"><line x1="30" y1="20" x2="450" y2="20"/><line x1="30" y1="65" x2="450" y2="65"/><line x1="30" y1="110" x2="450" y2="110"/></g><g class="axis"><text x="26" y="24" text-anchor="end">22</text><text x="26" y="69" text-anchor="end">20</text><text x="26" y="114" text-anchor="end">18</text><text x="460" y="24">100</text><text x="460" y="114">50</text><text x="30" y="140">10:50</text><text x="450" y="140" text-anchor="end">11:05</text></g><polyline class="s1" points="30,60 90,58 150,62 210,70 270,86 330,96 390,104 450,106"/><polyline class="s2" points="30,80 90,80 150,74 210,66 270,60 330,58 390,56 450,56"/></svg>
             <div class="legend" style="margin-top:6px"><span><i style="background:var(--sage)"></i>supply.temp · °C · left</span><span><i style="background:var(--clay)"></i>supply.fan · % · right</span></div>
           </div></div>
       </div></div>
     </div>
     <div class="overlay"><div class="modal" style="width:520px">
-      <div class="mh">Add to chart <span class="muted" style="font-weight:500">· building/f2/ahu01/state</span></div>
+      <div class="mh">Fields on this chart <span class="muted" style="font-weight:500">· building/f2/ahu01/state</span></div>
       <div class="mb">
-        <div class="muted small">Fields found in the last message. Only numbers and booleans can be charted; each checked field becomes its own series.</div>
+        <div class="muted small">Fields found in the last message. Only numbers and booleans can be charted; each checked field is one series on this topic's chart.</div>
         <table class="tbl"><tr><th></th><th>Field</th><th>Last value</th><th>Cast</th></tr>
           <tr><td><span class="chk on"></span></td><td class="mono">supply.temp</td><td class="mono">18.2</td><td>number</td></tr>
           <tr><td><span class="chk on"></span></td><td class="mono">supply.fan</td><td class="mono">72</td><td>number</td></tr>
@@ -811,19 +824,19 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
           <tr style="color:var(--ink-2)"><td></td><td class="mono">mode</td><td class="mono">"cooling"</td><td>text, not plottable</td></tr>
           <tr style="color:var(--ink-2)"><td></td><td class="mono">ts</td><td class="mono">"2026-10-12T09:02:14Z"</td><td>text, not plottable</td></tr></table>
         <div style="display:flex;gap:8px;align-items:center"><span class="muted small">Other path</span><span class="input mono" style="flex:1"><span class="ph-text">$.supply.pressure</span></span><span class="btn sm">Add</span></div>
-        <div style="display:flex;gap:8px;align-items:center"><span class="muted small">Add to</span><span class="seg"><span class="on">Room 204 · comfort</span><span>AHU 01</span><span>New chart</span></span></div>
+        <div style="display:flex;gap:8px;align-items:center;border-top:1px solid var(--line-2);padding-top:10px"><span class="muted small" style="white-space:nowrap">Also add to</span><span class="input" style="width:220px">None ▾</span></div>
       </div>
-      <div class="mf"><span class="btn">Cancel</span><span class="btn pri">Add 2 series</span></div>
+      <div class="mf"><span class="btn">Cancel</span><span class="btn pri">Apply</span></div>
     </div></div>
   </div></div>
-  <p class="cap">"Add to chart" from the context menu, the Chart tab or the Charts screen opens this picker. Nothing is preselected; strings are listed greyed so you can see why they cannot be charted. The engine keeps history for every numeric and boolean field anyway, so a field picked later already has its past values.</p>
+  <p class="cap">"+ Add field…" under the payload, "Add to chart…" in the click menu, the topic context menu and the Charts screen open this picker. From the Explorer it edits the fields of this topic's chart, so the two charted fields come checked; the dropdown "Also add to" at the bottom (None, each dashboard chart, New chart) sends the checked fields to a dashboard chart as well (change set 8). Strings are listed greyed so you can see why they cannot be charted. The engine keeps history for every numeric and boolean field anyway, so a field picked later already has its past values.</p>
 
   <!-- 11 Export -->
   <div class="shot-head" id="s11"><h3>11 · Export selected data</h3><span class="muted small">Scope, time range, format, size estimate, native save dialog</span></div>
   <div class="shotwrap"><div class="app" style="height:560px">
     <div class="tb" data-tabs="Plant broker|on|1 284 topics · 312 msg/s · MQTT 5,Local broker||TLS"></div>
     <div class="body"><nav class="rail" data-open="2" data-on="explore"></nav>
-      <div class="main"><div class="pane"><div class="ph"><div class="search">building/f2/r204<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw">▾</span>building / f2 / r204 <span class="cnt">12</span></span><span class="v"><span class="msgs">1 318</span><span class="act"></span>5 msg/s</span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>temperature</span><span class="v"><em>22.4</em>2 s</span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>setpoint</span><span class="v"><em>21.5</em>14 min</span></div></div></div></div>
+      <div class="main"><div class="pane"><div class="ph"><div class="search">building/f2/r204<span style="flex:1"></span></div><span class="seg"><span class="on">Tree</span><span>Table</span></span></div><div class="pc tree"><div class="n sel"><span class="k"><span class="tw">▾</span>building / f2 / r204</span><span class="p"></span><span class="v"><span class="msgs" title="Messages since the connection opened">1 318</span><span class="rate" title="Messages per second">5/s</span><span class="cnt" title="Subtopics below this one">12</span></span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>temperature</span><span class="p"><em>{"value":22.4,"unit":"°C"}</em><span class="chip">R</span></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,8 5,7 10,6 15,5 20,3 25,2 30,3 35,4 42,4"/></svg><span class="msgs" title="Messages since the connection opened">1 843</span><span class="rate" title="Messages per second">0.5/s</span></span></div><div class="n" style="padding-left:24px"><span class="k"><span class="tw"></span>setpoint</span><span class="p"><em>{"value":21.5}</em><span class="chip">R</span></span><span class="v"><svg class="spark" viewBox="0 0 42 12"><polyline points="0,5 20,5 20,8 42,8"/></svg><span class="msgs" title="Messages since the connection opened">4</span><span class="rate" title="Messages per second">0/s</span></span></div></div></div></div>
     </div>
     <div class="overlay"><div class="modal" style="width:600px">
       <div class="mh">Export data</div>
@@ -1149,15 +1162,19 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   document.querySelectorAll('.tb').forEach(function (tb) {
     // Change set 4: the title bar holds the name and the mark only; state lives on the rail badges and in the connection bar.
     tb.innerHTML = '<span class="name">MQTT Panel</span><span></span><span class="mark"><svg viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true"><use href="#mark"/></svg></span>';
+    // Change set 8: the bar is always there, in the main column to the right of the rail (the rail reaches the title bar).
     var tabs = tb.getAttribute('data-tabs');
-    if (tabs) {
-      var bar = document.createElement('div'); bar.className = 'cbar';
+    var bar = document.createElement('div'); bar.className = 'cbar';
+    var main = tb.parentElement.querySelector('.body > .main');
+    if (!tabs) {
+      bar.innerHTML = '<span class="hint">Choose a connection</span><span class="plus">+</span>';
+      if (main) { main.insertAdjacentElement('afterbegin', bar); main.style.gridTemplateRows = 'auto 1fr'; }
+    } else {
       bar.innerHTML = tabs.split(',').map(function (t) {
         var p = t.split('|');
         return '<span' + (p[1] === 'on' ? ' class="on"' : '') + '><span class="dot' + (p[1] === 'off' ? ' off' : '') + '" style="padding:0"></span>' + p[0] + (p[2] ? '<small>· ' + p[2] + '</small>' : '') + (p[3] === 'unverified' ? '<span class="warn" title="Certificate verification is off for this connection: any broker certificate is accepted, so an impostor could not be told apart.">⚠</span>' : '') + (p[1] === 'on' ? '<b>✕</b>' : '') + '</span>';
       }).join('');
-      tb.insertAdjacentElement('afterend', bar);
-      tb.parentElement.style.gridTemplateRows = '44px auto 1fr';
+      if (main) { main.insertAdjacentElement('afterbegin', bar); main.style.gridTemplateRows = 'auto 1fr'; }
     }
   });
   document.querySelectorAll('[data-theme-choice]').forEach(function (b) {

@@ -125,7 +125,21 @@
   - Error sites that hard-coded `keychain.unavailable` for secret store errors (profile password, connect, file fields, "Local broker" set-up) now take the key from the error, so a refusal reads `keychain.refused` everywhere.
   - Test C-02 (real OS keychain) now round-trips through the master key under a test service name and removes that item afterwards; the per-secret keychain store it used is gone.
 
-### 14 Oct 2026, live apply instead of restarts (change set 7)
+### 15 Oct 2026, owner feedback on the seventh build (change set 8)
+Owner, 15 Oct 2026, in one message plus four answers: no automatic upper case in text fields (answer: the first letter typed was being capitalised); the tab bar always open, not full width: the rail reaches the title bar and the bar takes the width after it (clarified: the title bar with the traffic lights and the name stays); with nothing open the bar is an empty strip with a hint (answer); tree rows: name, then the payload on the available width, then sparkline, messages, throughput and the number of subtopics at the end with hover explanations; a bare number drives the sparkline by itself, a value in a JSON is chosen by clicking it ("Use as sparkline"), one sparkline per topic; no menu at the end of each JSON value; Diff and History tabs removed; "Show diff to previous" switch on by default; "Recent" becomes "History" with the full list and selection; the Chart tab removed, its content moves under the JSON with a "+ Add field…" button that opens the existing picker, editing this panel's chart by default and offering, at the bottom, a dropdown to add to an existing dashboard chart (answers: one chart per topic, saved; the click menu offers both "Use as sparkline" and "Add to chart…"); dashboard series edited directly (answer: field, label, colour, cast) and charts renamed in the chart view; the quick publish row more distinct with separators; Pin as a star icon; "Publish here" as the Publish icon. Spec: `docs/FEATURES.md` (Connections bar, Explorer, Message inspection, History and charts, Localisation rules), `docs/SPEC.md` (1, 4), `docs/TESTPLAN.md` X-15 to X-22, D-24, V-11, mockups 04, 06, 07, 10, 10b and the bar on every screen.
+
+Readings to confirm:
+- The age text at the end of the tree rows ("2 s", "14 min") goes, since the owner listed what stays on the right (sparkline, messages, throughput, subtopics); the "R" retained marker stays, small, after the payload.
+- The sparkline for a JSON payload stays empty until a value is picked; no guess is made from the first numeric field.
+- The sparkline pick and the topic chart fields are saved in the profile per topic, so they survive a restart.
+- "Show diff to previous" compares with the message received just before the one shown; selecting a History row shows that message and diffs it against its predecessor. The old "pick a baseline" control is gone.
+- The topic chart defaults to the last 15 minutes and uses the dashboard chart look; it has no own time-range control (the dashboard has).
+- The field picker opened from the Explorer edits this topic's chart (already charted fields come checked); "Also add to" is a dropdown with "None", the dashboard charts and "New chart".
+- In-place series editing has no edit mode: a compact card shows the switch, colour, name, field and cast; a chevron opens style, axis, unit and Remove.
+- The quick publish row keeps its controls and gains a box and separators; nothing else changes in it.
+- The empty connection bar's "+" opens the same New connection menu as the Connections screen.
+- Auto-capitalisation is turned off by attributes on every input and textarea (autocapitalize, autocorrect, spellcheck), not by a global setting.
+
 Owner, 14 Oct 2026, asked whether the broker really needs a restart, wanting live reload and connections that are not affected by a change to stay open; after the assessment: "do it, no restart button". Spec: `docs/FEATURES.md` (Connections "Local broker follows", Built-in broker dialog, Broker: live apply, reachability, revoke), `docs/SPEC.md` (6 table: Live apply), `docs/TESTPLAN.md` B-15 rewritten, B-25, B-26, C-06, C-13, C-16, B-12, B-22, mockups 02b, 12, 12b, 12c (now "a listener change applied live"), 14. Same day, same change set: the PEM and PKCS#12 pills on the client-certificate rows become one small ↓ download button whose menu offers both formats (FEATURES Broker, TESTPLAN B-26, mockups 12 and 12b).
 
 Readings to confirm:

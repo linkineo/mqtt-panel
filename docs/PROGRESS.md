@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 7 complete on macOS; change set 5, 6 and 7 readings awaiting the owner; Windows and Linux through CI).
+Last update: 15 Oct 2026 (change set 8 specified and in progress; previously 14 Oct 2026 (phases 1 to 4, change sets 1 to 7 complete on macOS; change set 5, 6 and 7 readings awaiting the owner; Windows and Linux through CI).)
 
 ## Summary
 
@@ -11,6 +11,7 @@ Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 7 complete on macOS; c
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
+| Change set 8 | owner feedback on the seventh build: permanent connection bar beside the rail, tree rows with payload, sparkline, messages, throughput and subtopics, sparkline pick and click menu in the payload, Payload and Properties tabs only with "Show diff to previous", topic chart under the payload with "+ Add field…" and "Also add to", History section, in-place series editing and chart rename, icon buttons and boxed quick publish, no auto-capitalisation | Specified 15 Oct 2026, implementation in progress. See below. |
 | Change set 7 | live apply of broker changes, no restart: listeners start, stop and rebind one by one, TLS material swapped live, only invalidated sessions dropped, Restart button, prompt and pending state removed | Specified 14 Oct 2026, implementation in progress. See below. |
 | Change set 6 | owner feedback on the fifth build: "New broker…" and "Built-in broker", three-line cards with a protocol chip and the ⚠ icon, fixed field widths, "Generate", « Connecter », auto name from the host, per-connection skip of certificate verification with the reworked certificate prompt | Done 14 Oct 2026. See below. |
 | Change set 5 | owner feedback on the fourth build: play button on idle cards, Protocol and MQTT version rows before the host, address prefiller, Security disabled for mqtt and ws, "MQTT Panel broker", import hidden from the UI | Specified 14 Oct 2026, implementation in progress. See below. |
@@ -18,6 +19,23 @@ Last update: 14 Oct 2026 (phases 1 to 4, change sets 1 to 7 complete on macOS; c
 | Change set 4 | owner feedback on the third build: broker starts on Connect, stop button on cards, no parsed chips, no "mTLS", Security and Advanced folds, rail badges instead of the title bar pill, Broker screen reorganised | Done on macOS (13 Oct 2026). See below. |
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
+
+## Change set 8 (15 Oct 2026, owner feedback on the seventh build): in progress
+
+Specified in `docs/FEATURES.md` (Connections bar, Explorer, Message inspection, History and charts, Localisation rules), `docs/SPEC.md` 1 and 4, mockups 04, 06, 07, 10, 10b and the bar on every screen, `docs/TESTPLAN.md` X-15 to X-22, D-24, V-11. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
+
+| Item | Status |
+|---|---|
+| No auto-capitalisation, auto-correct or spell-check in any input or textarea | Specified |
+| Connection bar always shown, first row of the main column; rail from the title bar down; empty strip "Choose a connection" with + | Specified |
+| Tree rows: name, payload on the available width, R marker, sparkline, messages, throughput, subtopics with tooltips; no age text | Specified |
+| Sparkline rule: bare number by itself, JSON value picked with "Use as sparkline", one per topic, saved per topic | Specified |
+| Payload click menu (sparkline, chart, copy path, copy value); no hover icon, no trailing menu | Specified |
+| Tabs Payload and Properties; "Show diff to previous" switch on by default; History section with selection and buffer size | Specified |
+| Topic chart under the payload with chips, "+ Add field…" and the picker's "Also add to" dropdown; saved per topic | Specified |
+| Charts screen: in-place series editing without edit mode; chart title renamed in place | Specified |
+| Detail header icon buttons (star, Publish icon, ⋯); boxed quick publish row with separators | Specified |
+| Tests X-15 to X-22, D-24, V-11; screenshots re-recorded | Specified |
 
 ## Change set 7 (14 Oct 2026, live apply, no restart): implemented
 

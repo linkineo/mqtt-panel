@@ -120,6 +120,7 @@ Replayed from `datapoints.json` into the engine (U) and verified on screen (E) f
 | D-20 | E | auto | Pause and resume | No points lost while paused; view frozen. |
 | D-21 | E | auto | Export chart CSV and PNG | CSV has `time` plus one column per series, empty cells for gaps; PNG renders in the current theme. |
 | D-22 | E | auto | Sparkline in tree and table equals the last 10 cast values of the chart series | Pixel comparison of the sparkline path against the chart's last 10 points. |
+| D-24 | E | auto | Charts screen (change set 8): series edited in place without an edit mode (switch, colour, name, field and cast, style, axis, unit, Remove); the chart title renamed in place with Enter and with focus loss; a renamed chart keeps its series | As specified. |
 | D-23 | I | nightly, P | Subscribe to a public broker's `$SYS/#` where offered (test.mosquitto.org) and chart `$SYS/broker/load/messages/received/1min` | Parsed number series grows over 2 minutes. |
 
 ## 4. Explorer: tree, table, inspection
@@ -139,6 +140,14 @@ Replayed from `datapoints.json` into the engine (U) and verified on screen (E) f
 | X-11 | U/E | auto | Diff: added, removed, changed keys; nested; arrays; baseline from history | Highlights correct; line diff for text. |
 | X-12 | U | auto | Decoders: JSON (incl. BOM, comments rejected), UTF-8 text, binary → hex, base64, image/png preview, CBOR (`cbor.json`), MessagePack, Sparkplug B NBIRTH/NDATA with metrics and aliases, Protobuf with a user `.proto` incl. imports and a wrong message type | Each decodes or reports "Cannot decode as Protobuf plant.Telemetry: field 3 wire type mismatch" style errors with raw bytes shown. |
 | X-13 | E | auto | Properties tab: negotiated version first; MQTT 5 properties; 3.1.1 shows no MQTT 5 block | As specified. |
+| X-15 | E | auto | Tree row (change set 8): name, payload on the available width with the R marker, then sparkline, messages, throughput, subtopics at the end; the three figures carry their tooltips; no age text; the row never wraps in EN, FR, DE | As specified. |
+| X-16 | E | auto | Sparkline rule: a bare number payload draws the sparkline by itself; a JSON payload draws nothing until "Use as sparkline" is chosen on a value; picking a second value replaces the first; the pick survives a profile reload; a text value shows the item disabled | As specified. |
+| X-17 | E | auto | Payload click menu: a click on a key or value opens "Use as sparkline", "Add … to chart…", "Copy path", "Copy value"; no hover icon and no trailing menu in the JSON; the context menu on the topic is unchanged | As specified. |
+| X-18 | E | auto | Detail tabs are Payload and Properties only; "Show diff to previous" is on by default, highlights changes against the previous message with the baseline time shown, off shows the plain payload; selecting a History row shows that message and diffs it against its predecessor | As specified. |
+| X-19 | E | auto | Topic chart under the payload: empty until a field is added; "+ Add field…" opens the picker with this topic's fields checked; adding and removing chips updates the chart; the fields survive a profile reload; "Also add to" sends the checked fields to a dashboard chart or a new chart | As specified. |
+| X-20 | E | auto | History section replaces Recent: every buffered message listed, selectable, buffer size shown and raisable for this topic | As specified. |
+| X-21 | E | auto | Detail header: star button toggles Pin (☆ / ★, tooltips), the Publish icon button opens the composer on the topic, ⋯ holds the rest; the quick publish row is a boxed strip with separators | As specified. |
+| X-22 | E | auto | Connection bar always shown inside the main column, right of the rail; the rail reaches the title bar; with nothing open the strip reads "Choose a connection" with a + that opens the New connection menu; screenshots light and dark, EN, FR, DE | As specified. |
 | X-14 | E | auto | Payload above 256 KB switches to the paged raw view; "format anyway" works | No freeze longer than 100 ms. |
 
 ## 5. Publish
@@ -236,6 +245,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | V-08 | M | manual | macOS: the app name and pill sit on the centre line of the traffic lights; nothing under the lights; Windows and Linux unchanged | By eye on each OS. |
 | V-09 | M | manual | macOS unsigned build: no keychain prompt at start-up; one prompt at the first secret use of a session (for example the first broker start), "Always allow" accepted; quit and start the same build again: no prompt at all; Deny instead: no second prompt in that session, the sentence `keychain.refused` where a secret is needed; the old per-secret items in Keychain Access are never read (no prompt names them) | As specified. |
 | V-10 | E | auto | Title bar holds the name and the mark only; the Broker rail icon shows the play badge while the broker runs (clay while starting, nothing when stopped); the Connect icon shows the count bubble with the number of open connections and nothing at zero; "unverified" chip on the tab and card of a connection with verification skipped | Screenshots light and dark. |
+| V-11 | E | auto | No auto-capitalisation: typing "myhost" into the host field, a topic or a client ID keeps the lower case; every input and textarea declares autocapitalize, autocorrect and spellcheck off | DOM check over all inputs plus a typed value. |
 | V-07 | E | auto | Accessibility: tab order through every screen, screen-reader labels on icon buttons, contrast AA in both themes, reduced motion | axe-core clean; manual VoiceOver/NVDA spot check before release. |
 
 ## 10. CLI
