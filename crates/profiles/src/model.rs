@@ -3,6 +3,7 @@
 
 use mqttpanel_tls::CertSummary;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 fn yes() -> bool {
     true
@@ -118,6 +119,46 @@ impl Default for Reconnect {
 /// A saved view (filters, layout, pinned set); kept opaque for the Rust side.
 pub type SavedView = serde_json::Value;
 
+/// One field on a topic's own chart, under the payload in the Explorer (change set 8).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChartField {
+    /// JSON path, "$" for the whole payload.
+    pub path: String,
+    /// sage | clay | slate | brick | ink2
+    #[serde(default = "sage")]
+    pub colour: String,
+    /// line | step | points
+    #[serde(default = "line")]
+    pub style: String,
+    /// left | right
+    #[serde(default = "left")]
+    pub axis: String,
+    #[serde(default)]
+    pub unit: String,
+}
+
+fn sage() -> String {
+    "sage".into()
+}
+fn line() -> String {
+    "line".into()
+}
+fn left() -> String {
+    "left".into()
+}
+
+/// What the profile remembers for one topic (change set 8): the value picked with "Use as sparkline" and the fields
+/// of the topic's chart.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopicPrefs {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sparkline_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chart_fields: Option<Vec<ChartField>>,
+}
+
 /// A connection profile as the UI sees it (no secrets).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -158,6 +199,9 @@ pub struct Profile {
     pub proto_schemas: Vec<ProtoSchema>,
     #[serde(default)]
     pub views: Vec<SavedView>,
+    /// Per topic: the picked sparkline value and the topic chart (change set 8).
+    #[serde(default)]
+    pub topics: BTreeMap<String, TopicPrefs>,
     #[serde(default)]
     pub last_used: Option<i64>,
     #[serde(default)]
@@ -180,6 +224,11 @@ fn keep_alive() -> u16 {
 }
 
 impl Profile {
+    /// The values picked with "Use as sparkline", per topic.
+    pub fn sparkline_paths(&self) -> std::collections::HashMap<String, String> {
+        self.topics.iter().filter_map(|(t, p)| p.sparkline_path.clone().map(|s| (t.clone(), s))).collect()
+    }
+
     /// A new profile with defaults: subscribed to everything ("#", QoS 0), random client id, plain MQTT on localhost.
     pub fn new_default() -> Profile {
         Profile {
@@ -204,6 +253,7 @@ impl Profile {
             reconnect: Reconnect::default(),
             proto_schemas: vec![],
             views: vec![],
+            topics: BTreeMap::new(),
             last_used: None,
             last_test: None,
             is_local_broker: false,

@@ -128,6 +128,23 @@ export interface SavedView {
   sort: TableSort;
 }
 
+/** One field on a topic's own chart, under the payload in the Explorer (change set 8). */
+export interface ChartField {
+  path: string; // "$.supply.temp"; "$" for the whole payload
+  colour: 'sage' | 'clay' | 'slate' | 'brick' | 'ink2';
+  style: 'line' | 'step' | 'points';
+  axis: 'left' | 'right';
+  unit: string;
+}
+
+/** What a profile remembers for one topic (change set 8). */
+export interface TopicPrefs {
+  /** The value picked with "Use as sparkline"; a bare number or boolean-like payload needs none. */
+  sparklinePath?: string;
+  /** The fields of the topic's chart under the payload. */
+  chartFields?: ChartField[];
+}
+
 export interface Profile {
   id: string;
   name: string;
@@ -150,6 +167,8 @@ export interface Profile {
   reconnect: { enabled: boolean; minDelayS: number; maxDelayS: number };
   protoSchemas: ProtoSchema[];
   views: SavedView[];
+  /** Per topic: the picked sparkline value and the topic chart (change set 8). Absent in older files. */
+  topics: Record<string, TopicPrefs>;
   lastUsed: number | null;
   lastTest: TestResult | null;
   isLocalBroker: boolean; // the single profile "Local broker" made by "Connect to this app's broker"
@@ -251,7 +270,7 @@ export interface TreeRow {
   lastReceivedAt: number | null; // own or subtree, drives the highlight
   active: boolean; // changed in the last 10 s (own or subtree)
   rate: number; // msg/s, subtree, 10 s window
-  spark: number[]; // last 10 cast values of the default series, oldest first; empty when none
+  spark: number[]; // last 10 values of the tracked value (bare payload or picked value), oldest first; empty when none
   sparkTimes: number[]; // receive times for spark values
   formatHint: string | null; // "Sparkplug B" on spBv1.0 roots, etc.
   pinned: boolean;
@@ -363,7 +382,9 @@ export interface TopicDetail {
   messages: number; // since connect
   pinned: boolean;
   fields: FieldInfo[];
-  defaultField: string | null; // path of the series used for sparklines
+  /** Path of the sparkline series: "$" for a bare number or boolean-like payload, else the value picked with "Use as
+   * sparkline" (change set 8); null when the payload is structured and nothing was picked. */
+  defaultField: string | null;
   seq: number;
 }
 

@@ -121,6 +121,8 @@ pub struct Engine {
     pub(crate) rank: Option<(u64, Vec<u32>)>,
     pub(crate) aliases: HashMap<String, AliasMap>,
     pub(crate) proto: Option<ProtoRegistry>,
+    /// Per topic, the value picked with "Use as sparkline" (change set 8).
+    pub(crate) sparkline_paths: HashMap<String, String>,
 }
 
 impl Default for Engine {
@@ -153,6 +155,7 @@ impl Engine {
             rank: None,
             aliases: HashMap::new(),
             proto: None,
+            sparkline_paths: HashMap::new(),
         }
     }
 
@@ -335,6 +338,7 @@ impl Engine {
 
         let cap_points = self.cfg.points_per_series;
         let cap_buf = self.cfg.buffer_per_topic;
+        let picked = self.sparkline_paths.get(&*msg.topic).cloned();
         let max_kept = self.cfg.max_kept_payload;
         let node = &mut self.nodes[id as usize];
         node.own_messages += 1;
@@ -349,7 +353,7 @@ impl Engine {
         td.last_qos = msg.qos;
         td.last_size = msg.payload.len() as u64;
         td.last_at = t;
-        update_series(td, analysis.doc.as_ref(), t, cap_points);
+        update_series(td, analysis.doc.as_ref(), t, cap_points, picked.as_deref());
 
         let size = msg.payload.len();
         let mut payload = msg.payload;
@@ -453,6 +457,27 @@ impl Engine {
     }
 
     /// Ring buffer capacity of a topic.
+    /// The values picked with "Use as sparkline", per topic (change set 8); replaces the previous set and applies at
+    /// once to the topics already known.
+    pub fn set_sparkline_paths(&mut self, paths: HashMap<String, String>) {
+        self.sparkline_paths = paths;
+        for n in &mut self.nodes {
+            let Some(td) = n.topic.as_mut() else { continue };
+            let picked = self.sparkline_paths.get(&*n.path).map(String::as_str);
+            if let Some(p) = picked {
+                if !td.series.iter().any(|s| &*s.path == p) {
+                    td.series.push(Series::new(p));
+                }
+            }
+            set_default_series(td, picked);
+            td.value_num = td
+                .default_series
+                .and_then(|i| td.series[i as usize].points.back().map(|p| p.1));
+        }
+        self.table_cache = None;
+        self.bump();
+    }
+
     pub(crate) fn buffer_cap(&self, td: &TopicData) -> usize {
         td.buffer_cap
             .map_or(self.cfg.buffer_per_topic, |c| c as usize)
@@ -586,15 +611,17 @@ fn hash_buckets(cap: usize) -> usize {
 }
 
 /// Records the series of one message: every castable leaf (bounded), plus the existing series.
-fn update_series(td: &mut TopicData, doc: Option<&Value>, t: i64, cap: usize) {
+fn update_series(
+    td: &mut TopicData,
+    doc: Option<&Value>,
+    t: i64,
+    cap: usize,
+    picked: Option<&str>,
+) {
     let mut touched: u64 = 0;
-    let mut first_plain: Option<String> = None;
     let series = &mut td.series;
     if let Some(doc) = doc {
         path::walk_leaves(doc, MAX_AUTO_DEPTH, MAX_LEAVES, &mut |p, v| {
-            if first_plain.is_none() && matches!(v, Value::Number(_) | Value::Bool(_)) {
-                first_plain = Some(p.to_string());
-            }
             let idx = series.iter().position(|s| &*s.path == p);
             match idx {
                 Some(i) => {
@@ -631,26 +658,29 @@ fn update_series(td: &mut TopicData, doc: Option<&Value>, t: i64, cap: usize) {
             }
         }
     }
-    // Default series: "$" when it casts, else "$.value", else the first number or boolean.
-    let default_path: Option<String> = doc.and_then(|d| {
-        if matches!(cast_value(d), Cast::Value { .. }) {
-            return Some("$".to_string());
-        }
-        if let Value::Object(m) = d {
-            if m.get("value")
-                .is_some_and(|v| matches!(cast_value(v), Cast::Value { .. }))
-            {
-                return Some("$.value".to_string());
+    // The picked value is followed even beyond the automatic series cap.
+    if let (Some(p), Some(d)) = (picked, doc) {
+        if !td.series.iter().any(|s| &*s.path == p) {
+            if let Some(c) = path::parse(p).and_then(|st| path::resolve(d, &st).map(cast_value)) {
+                if matches!(c, Cast::Value { .. }) {
+                    let mut s = Series::new(p);
+                    s.record(t, &c, cap);
+                    td.series.push(s);
+                }
             }
         }
-        first_plain.clone()
-    });
-    td.default_series = default_path
-        .as_deref()
-        .and_then(|p| td.series.iter().position(|s| &*s.path == p))
-        .map(|i| i as u16);
+    }
+    set_default_series(td, picked);
     td.value_num = td.default_series.and_then(|i| {
         let s = &td.series[i as usize];
         s.points.back().filter(|p| p.0 == t).map(|p| p.1)
     });
+}
+
+/// Sparkline series (change set 8): the whole payload when it casts to a number or boolean (a "$" series exists only
+/// then), else the value picked with "Use as sparkline"; nothing is guessed from a structured payload.
+fn set_default_series(td: &mut TopicData, picked: Option<&str>) {
+    let root = td.series.iter().position(|s| &*s.path == "$");
+    let pick = picked.and_then(|p| td.series.iter().position(|s| &*s.path == p));
+    td.default_series = root.or(pick).map(|i| i as u16);
 }

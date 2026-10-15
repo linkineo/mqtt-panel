@@ -198,3 +198,34 @@ fn c02_os_keychain_round_trip() {
 fn uuid_like() -> String {
     format!("{:x}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos())
 }
+
+/// Change set 8: the per-topic sparkline pick and topic chart survive a save and reload; old files load with none.
+#[test]
+fn c01_topics_round_trip() {
+    let (_d, s, _secrets) = store();
+    let mut p = Profile::new_default();
+    p.topics.insert(
+        "building/f2/ahu01/state".into(),
+        TopicPrefs {
+            sparkline_path: Some("$.supply.temp".into()),
+            chart_fields: Some(vec![ChartField { path: "$.supply.fan".into(), colour: "clay".into(), style: "line".into(), axis: "right".into(), unit: "%".into() }]),
+        },
+    );
+    p.topics.insert("building/f2/r204/setpoint".into(), TopicPrefs { sparkline_path: Some("$.value".into()), chart_fields: None });
+    let p = s.save(p).unwrap();
+    let reloaded = s.get(&p.id).unwrap().profile;
+    assert_eq!(reloaded, p);
+    assert_eq!(reloaded.sparkline_paths().get("building/f2/r204/setpoint").map(String::as_str), Some("$.value"));
+    let json = serde_json::to_value(&reloaded).unwrap();
+    assert_eq!(json["topics"]["building/f2/ahu01/state"]["sparklinePath"], "$.supply.temp");
+    assert_eq!(json["topics"]["building/f2/ahu01/state"]["chartFields"][0]["colour"], "clay");
+    assert!(json["topics"]["building/f2/r204/setpoint"].get("chartFields").is_none());
+    // A profile saved before change set 8 has no `topics`.
+    let mut old = json.clone();
+    old.as_object_mut().unwrap().remove("topics");
+    let back: Profile = serde_json::from_value(old).unwrap();
+    assert!(back.topics.is_empty());
+    // A chart field written with only its path takes the defaults.
+    let f: ChartField = serde_json::from_str(r#"{"path":"$.value"}"#).unwrap();
+    assert_eq!((f.colour.as_str(), f.style.as_str(), f.axis.as_str()), ("sage", "line", "left"));
+}

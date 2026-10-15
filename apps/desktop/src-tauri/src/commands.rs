@@ -65,6 +65,8 @@ pub fn save_profile(state: State<'_, AppState>, profile: Profile) -> R<Profile> 
     let saved = state.store.save(profile)?;
     if let Some(c) = lock(&state.conns).get(&saved.id) {
         *lock(&c.name) = saved.name.clone();
+        // "Use as sparkline" applies to the open connection at once (change set 8).
+        lock(&c.engine).set_sparkline_paths(saved.sparkline_paths());
     }
     Ok(saved)
 }

@@ -177,7 +177,21 @@ fn x12_sparkplug_birth_data_and_aliases() {
         temp.points.iter().map(|p| p.1).collect::<Vec<_>>(),
         vec![22.5, 23.0]
     );
-    assert_eq!(nd.default_field.as_deref(), Some("$.Temperature"));
+    // Change set 8: a structured payload has no sparkline until a value is picked.
+    assert_eq!(nd.default_field, None);
+    e.set_sparkline_paths(
+        [(
+            "spBv1.0/plant/NDATA/edge1".to_string(),
+            "$.Temperature".to_string(),
+        )]
+        .into(),
+    );
+    assert_eq!(
+        e.topic_detail("spBv1.0/plant/NDATA/edge1")
+            .default_field
+            .as_deref(),
+        Some("$.Temperature")
+    );
     let birth = e.fields("spBv1.0/plant/NBIRTH/edge1");
     let labels: Vec<&str> = birth.iter().map(|f| f.label.as_str()).collect();
     assert_eq!(

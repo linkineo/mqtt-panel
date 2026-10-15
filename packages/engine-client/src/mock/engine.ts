@@ -250,6 +250,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       pointsPerSeries: () => settings.pointsPerSeries,
       renderLimitBytes: () => settings.payloadRenderLimitKb * 1024,
       protoSchemas: () => profileById(id)?.protoSchemas ?? [],
+      sparklinePath: (topic) => profileById(id)?.topics?.[topic]?.sparklinePath ?? null,
     });
     return { id, state: 'connecting', negotiated: '5', store, sent: [], repeat: null, backfilled: false, defs: [], gen: { values: new Map(), seq: 0 }, skipVerify: false };
   };

@@ -336,7 +336,8 @@ fn tree_search_filters_and_values() {
     assert!(e.expanded().is_empty(), "stored expansion unchanged");
     let temp = &s.rows[3];
     assert_eq!(temp.value.as_deref(), Some("{\"value\":21.5}"));
-    assert_eq!(temp.spark, vec![21.5]);
+    // Change set 8: a JSON payload draws no sparkline until a value is picked.
+    assert!(temp.spark.is_empty());
     assert!(temp.retained);
     // Filters.
     let retained = TreeQuery {
@@ -518,7 +519,10 @@ fn json_shapes_match_the_contract() {
     let d = serde_json::to_value(e.topic_detail("j/t")).unwrap();
     assert_eq!(d["last"]["decoded"]["format"], "json");
     assert_eq!(d["fields"][0]["cast"], "number");
-    assert_eq!(d["defaultField"], "$.value");
+    assert!(
+        d["defaultField"].is_null(),
+        "no guess on a JSON payload (change set 8)"
+    );
     let s = serde_json::to_value(e.series("j/t", "$.value", None)).unwrap();
     assert_eq!(s["castRule"], "number");
     assert_eq!(s["points"][0][1], 1.0);
@@ -749,4 +753,75 @@ fn odd_input_never_panics() {
     e.expand_changed(i64::MAX, i64::MIN);
     e.known_topics("", 0);
     e.memory();
+}
+
+/// X-16 (change set 8): a bare number drives the sparkline by itself; a JSON payload only after "Use as sparkline";
+/// a second pick replaces the first; the pick applies to topics already known and to new messages.
+#[test]
+fn x16_sparkline_rule() {
+    let mut e = Engine::default();
+    e.ingest(msg("r/humidity", "41.8", T0));
+    e.ingest(msg("r/humidity", "42.0", T0 + 1000));
+    e.ingest(msg(
+        "r/state",
+        r#"{"mode":"cooling","supply":{"temp":18.2,"fan":72}}"#,
+        T0,
+    ));
+    e.ingest(msg(
+        "r/state",
+        r#"{"mode":"cooling","supply":{"temp":18.4,"fan":70}}"#,
+        T0 + 1000,
+    ));
+    let rows = |e: &mut Engine| {
+        e.expand_to_depth(9);
+        e.tree_slice(&q(""), 0, 50, T0 + 2000).rows
+    };
+    let r = rows(&mut e);
+    let hum = r.iter().find(|x| x.path == "r/humidity").unwrap();
+    assert_eq!(hum.spark, vec![41.8, 42.0]);
+    let st = r.iter().find(|x| x.path == "r/state").unwrap();
+    assert!(st.spark.is_empty(), "JSON: nothing until picked");
+    assert_eq!(e.topic_detail("r/state").default_field, None);
+
+    let mut picks = std::collections::HashMap::new();
+    picks.insert("r/state".to_string(), "$.supply.temp".to_string());
+    e.set_sparkline_paths(picks.clone());
+    let r = rows(&mut e);
+    let st = r.iter().find(|x| x.path == "r/state").unwrap();
+    assert_eq!(
+        st.spark,
+        vec![18.2, 18.4],
+        "history recorded before the pick is used"
+    );
+    assert_eq!(
+        e.topic_detail("r/state").default_field.as_deref(),
+        Some("$.supply.temp")
+    );
+
+    picks.insert("r/state".to_string(), "$.supply.fan".to_string());
+    e.set_sparkline_paths(picks);
+    e.ingest(msg(
+        "r/state",
+        r#"{"mode":"cooling","supply":{"temp":18.5,"fan":68}}"#,
+        T0 + 1500,
+    ));
+    let r = rows(&mut e);
+    let st = r.iter().find(|x| x.path == "r/state").unwrap();
+    assert_eq!(
+        st.spark,
+        vec![72.0, 70.0, 68.0],
+        "one sparkline per topic: the second pick replaces the first"
+    );
+
+    // A text value never drives a sparkline.
+    let mut picks = std::collections::HashMap::new();
+    picks.insert("r/state".to_string(), "$.mode".to_string());
+    e.set_sparkline_paths(picks);
+    let r = rows(&mut e);
+    assert!(r
+        .iter()
+        .find(|x| x.path == "r/state")
+        .unwrap()
+        .spark
+        .is_empty());
 }

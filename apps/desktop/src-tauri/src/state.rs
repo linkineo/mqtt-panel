@@ -82,6 +82,7 @@ impl Conn {
     pub fn new(p: &StoredProfile, settings: &Settings) -> Conn {
         let mut engine = Engine::new(engine_config(settings));
         apply_proto(&mut engine, p);
+        engine.set_sparkline_paths(p.profile.sparkline_paths());
         Conn {
             id: p.profile.id.clone(),
             name: Mutex::new(p.profile.name.clone()),

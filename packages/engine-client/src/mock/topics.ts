@@ -55,7 +55,6 @@ export interface TopicRec {
   retained: boolean;
   recent: number[];
   series: Map<string, SeriesRec>;
-  defaultField: string | null;
 }
 
 interface Node {
@@ -81,6 +80,8 @@ export interface StoreEnv {
   pointsPerSeries: () => number;
   renderLimitBytes: () => number;
   protoSchemas: () => ProtoSchema[];
+  /** The value picked with "Use as sparkline" for a topic (profile `topics`, change set 8). */
+  sparklinePath?: (topic: string) => string | null;
 }
 
 const FIELD_SIZE_LIMIT = 64 * 1024;
@@ -277,7 +278,7 @@ export class TopicStore {
   private topicRec(topic: string): TopicRec {
     let rec = this.topics.get(topic);
     if (rec) return rec;
-    rec = { path: topic, buffer: [], cap: null, messages: 0, lastAt: null, retained: false, recent: [], series: new Map(), defaultField: null };
+    rec = { path: topic, buffer: [], cap: null, messages: 0, lastAt: null, retained: false, recent: [], series: new Map() };
     this.topics.set(topic, rec);
     const segs = topic.split('/');
     let node = this.root;
@@ -301,15 +302,9 @@ export class TopicStore {
     if (ls.length === 0 && m.bytes.length > FIELD_SIZE_LIMIT) return;
     const seen = new Set<string>();
     const max = this.env.pointsPerSeries();
-    let firstPlottable: string | null = null;
-    let hasValue = false;
-    let rootPlottable = false;
     for (const l of ls) {
       const c = castValue(l.value);
       if (c.num === null) continue;
-      if (firstPlottable === null) firstPlottable = l.path;
-      if (l.path === '$.value') hasValue = true;
-      if (l.path === '$') rootPlottable = true;
       seen.add(l.path);
       let s = rec.series.get(l.path);
       if (!s) {
@@ -329,7 +324,6 @@ export class TopicStore {
         s.firstSkipReason = v === undefined ? `${path} missing` : `${JSON.stringify(v)} is not a number`;
       }
     }
-    rec.defaultField = hasValue ? '$.value' : rootPlottable ? '$' : firstPlottable ?? rec.defaultField;
   }
 
   // ---------------------------------------------------------------- aggregates
@@ -472,9 +466,20 @@ export class TopicStore {
     };
   }
 
+  /**
+   * The tracked value of a topic (change set 8): the whole payload when it casts to a number or boolean (a "$" series
+   * exists only then), else the value picked with "Use as sparkline"; nothing is guessed from a structured payload.
+   */
+  trackedField(rec: TopicRec): string | null {
+    if (rec.series.has('$')) return '$';
+    const p = this.env.sparklinePath?.(rec.path) ?? null;
+    return p && rec.series.has(p) ? p : null;
+  }
+
   spark(rec: TopicRec): { values: number[]; times: number[] } {
-    if (!rec.defaultField) return { values: [], times: [] };
-    const s = rec.series.get(rec.defaultField);
+    const f = this.trackedField(rec);
+    if (!f) return { values: [], times: [] };
+    const s = rec.series.get(f);
     if (!s) return { values: [], times: [] };
     const pts = s.points.slice(-10);
     return { values: pts.map((p) => p[1]), times: pts.map((p) => p[0]) };
@@ -730,7 +735,7 @@ export class TopicStore {
       messages: rec?.messages ?? 0,
       pinned: this.pinned.has(topic),
       fields: last ? fieldsOf(last) : [],
-      defaultField: rec?.defaultField ?? null,
+      defaultField: rec ? this.trackedField(rec) : null,
       seq: this.seq,
     };
   }
@@ -832,7 +837,6 @@ export class TopicStore {
       r.series.clear();
       r.recent = [];
       r.lastAt = null;
-      r.defaultField = null;
     }
     if (prefix === null) this.recentAll = [];
     this.seq++;

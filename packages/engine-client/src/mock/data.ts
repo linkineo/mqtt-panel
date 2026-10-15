@@ -149,6 +149,7 @@ function blankProfile(): Profile {
     reconnect: { enabled: true, minDelayS: 1, maxDelayS: 30 },
     protoSchemas: [],
     views: [defaultView()],
+    topics: {},
     lastUsed: null,
     lastTest: null,
     isLocalBroker: false,
@@ -213,6 +214,18 @@ export function demoProfiles(lang: Lang, now: number): Profile[] {
       defaultView(pins),
       { ...defaultView(pins), name: w.commissioningView, layout: 'table', search: 'building/f2/#' },
     ],
+    // Change set 8: values picked with "Use as sparkline" and the topic charts (mockups 04 and 06).
+    topics: {
+      'building/f2/r204/temperature': { sparklinePath: '$.value' },
+      'building/f2/r204/setpoint': { sparklinePath: '$.value', chartFields: [{ path: '$.value', colour: 'sage', style: 'step', axis: 'left', unit: '°C' }] },
+      'building/f2/ahu01/state': {
+        sparklinePath: '$.supply.temp',
+        chartFields: [
+          { path: '$.supply.temp', colour: 'sage', style: 'line', axis: 'left', unit: '°C' },
+          { path: '$.supply.fan', colour: 'clay', style: 'line', axis: 'right', unit: '%' },
+        ],
+      },
+    },
     lastUsed: now - 60 * 60_000,
     lastTest,
   };
