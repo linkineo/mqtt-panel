@@ -163,15 +163,27 @@ def make_client(a, client_id: str, ctx: ssl.SSLContext | None):
     return c
 
 
-def connect(c, a, name: str) -> None:
+def connect(c, a, name: str, subscribe: str | None = None) -> None:
+    """Connects and waits for the CONNACK. With `subscribe`, the filter is (re)subscribed inside on_connect,
+    so a subscriber comes back with its subscription after a broker outage (fixed 15 Oct 2026: before, the
+    subscription was made once after connect and a reconnect left the subscriber silent)."""
     done = threading.Event()
     result = {}
 
     def on_connect(client, userdata, flags, rc, properties=None):
         result["rc"] = rc
+        if subscribe and (rc == 0 or str(rc) in ("Success", "0")):
+            client.subscribe(subscribe, qos=1)
+            if done.is_set():
+                print(f"{name}: reconnected, subscribed again to {subscribe}", flush=True)
         done.set()
 
+    def on_disconnect(client, userdata, flags, rc, properties=None):
+        if done.is_set():
+            print(f"{name}: disconnected ({rc}); retrying", flush=True)
+
     c.on_connect = on_connect
+    c.on_disconnect = on_disconnect
     try:
         c.connect(a.host, a.port, keepalive=30)
     except (OSError, ssl.SSLError) as e:
@@ -271,8 +283,7 @@ def main() -> int:
                     except ValueError:
                         pass
         sub.on_message = on_message
-        connect(sub, a, "subscriber")
-        sub.subscribe(f"{a.prefix}/#", qos=1)
+        connect(sub, a, "subscriber", subscribe=f"{a.prefix}/#")
         time.sleep(0.3)
 
     # ---- publisher --------------------------------------------------------
