@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 15 Oct 2026 (phases 1 to 4, change sets 1 to 8 complete on macOS; change set 5, 6, 7 and 8 readings awaiting the owner; Windows and Linux through CI).
+Last update: 15 Oct 2026 (phases 1 to 4, change sets 1 to 8 complete on macOS; change set 9 specified and in progress; change set 5, 6, 7 and 8 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -11,6 +11,7 @@ Last update: 15 Oct 2026 (phases 1 to 4, change sets 1 to 8 complete on macOS; c
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
+| Change set 9 | owner feedback on the eighth build: empty bar without text, one-second smoothed msg/s on tabs and tree rows, sparkline hidden by right-click, expandable History rows with a one-field filter, JSON / Tree toggle | Specified 15 Oct 2026, implementation in progress. See below. |
 | Change set 8 | owner feedback on the seventh build: permanent connection bar beside the rail, tree rows with payload, sparkline, messages, throughput and subtopics, sparkline pick and click menu in the payload, Payload and Properties tabs only with "Show diff to previous", topic chart under the payload with "+ Add field…" and "Also add to", History section, in-place series editing and chart rename, icon buttons and boxed quick publish, no auto-capitalisation | Specified 15 Oct 2026, implementation in progress. See below. |
 | Change set 7 | live apply of broker changes, no restart: listeners start, stop and rebind one by one, TLS material swapped live, only invalidated sessions dropped, Restart button, prompt and pending state removed | Specified 14 Oct 2026, implementation in progress. See below. |
 | Change set 6 | owner feedback on the fifth build: "New broker…" and "Built-in broker", three-line cards with a protocol chip and the ⚠ icon, fixed field widths, "Generate", « Connecter », auto name from the host, per-connection skip of certificate verification with the reworked certificate prompt | Done 14 Oct 2026. See below. |
@@ -19,6 +20,20 @@ Last update: 15 Oct 2026 (phases 1 to 4, change sets 1 to 8 complete on macOS; c
 | Change set 4 | owner feedback on the third build: broker starts on Connect, stop button on cards, no parsed chips, no "mTLS", Security and Advanced folds, rail badges instead of the title bar pill, Broker screen reorganised | Done on macOS (13 Oct 2026). See below. |
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
+
+## Change set 9 (15 Oct 2026, owner feedback on the eighth build): in progress
+
+Specified in `docs/FEATURES.md` (Connections bar, Explorer, Message inspection), `docs/SPEC.md` 4, mockups 01, 04, 06, `docs/TESTPLAN.md` X-23 to X-28. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
+
+| Item | Status |
+|---|---|
+| Empty connection bar: no text, no button | Specified |
+| Rates on tabs and tree rows: one-second average refreshed once a second, unit "msg/s" | Specified |
+| Right-click on a sparkline hides it (`sparklineOff` saved); "Show sparkline" in the topic menu; a new pick shows it | Specified |
+| History rows expand to the full payload; one-field filter from the click menu or the filter button, chip with ✕ | Specified |
+| JSON / Tree segment for payloads, also for expanded History rows | Specified |
+| Tree rows: sparkline, messages, rate and subtopics in fixed right-aligned columns shared by every row | Specified |
+| Tests X-23 to X-27; screenshots re-recorded | Specified |
 
 ## Change set 8 (15 Oct 2026, owner feedback on the seventh build): implemented
 
