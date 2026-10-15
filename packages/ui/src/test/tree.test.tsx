@@ -47,25 +47,32 @@ describe('Tree row highlight (X-04)', () => {
     expect(FLASH_MS).toBe(1200);
   });
 
-  it('shows the activity dot only, without the flash, under reduced motion', async () => {
+  it('under reduced motion the highlight switches on and off without a fade; no activity dot (change set 8)', async () => {
     await boot('empty');
     vi.useFakeTimers();
     const props = { selected: false, cursor: false, reducedMotion: true, valuesInTree: true, now: 5000 };
     const leaf = row({ path: 'a/b', name: 'b', hasChildren: false, isTopic: true, value: '1' });
     const { rerender } = render(<TreeRowView row={leaf} {...props} />);
     rerender(<TreeRowView row={{ ...leaf, lastReceivedAt: 3000 }} {...props} />);
+    expect(screen.getByTestId('tree-row').className).toContain('new still');
+    expect(screen.queryByTestId('activity-dot')).toBeNull();
+    act(() => vi.advanceTimersByTime(FLASH_MS + 10));
     expect(screen.getByTestId('tree-row').className).not.toContain('new');
-    expect(screen.getByTestId('activity-dot').className).toBe('act');
   });
 
-  it('shows count, messages since connect and rate on folders', async () => {
+  it('shows messages since connect, throughput and subtopics on folders, with tooltips (X-15)', async () => {
     await boot('empty');
     render(<TreeRowView row={row()} selected={false} cursor={false} reducedMotion={false} valuesInTree now={5000} />);
-    const t = screen.getByTestId('tree-row').textContent!;
-    expect(t).toContain('r203');
-    expect(t).toContain('12');
-    expect(t).toContain('1 012');
-    expect(t).toContain('4 msg/s');
+    const r = screen.getByTestId('tree-row');
+    expect(r.textContent).toContain('r203');
+    expect(screen.getByTestId('tree-msgs').textContent!.replace(/\s/g, ' ')).toBe('1 012');
+    expect(screen.getByTestId('tree-msgs')).toHaveAttribute('title', 'Messages since the connection opened');
+    expect(screen.getByTestId('tree-rate')).toHaveTextContent('4/s');
+    expect(screen.getByTestId('tree-rate')).toHaveAttribute('title', 'Messages per second');
+    expect(screen.getByTestId('tree-subtopics')).toHaveTextContent('12');
+    expect(screen.getByTestId('tree-subtopics')).toHaveAttribute('title', 'Subtopics below this one');
+    // the subtopics counter is the last thing on the row, after the throughput
+    expect(r.querySelector('.v')!.lastElementChild).toBe(screen.getByTestId('tree-subtopics'));
   });
 });
 

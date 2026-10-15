@@ -84,7 +84,9 @@ describe('Change set 2: connection bar (C-15)', () => {
     await boot('demo');
     useApp.setState({ broker: await engine().brokerStatus(), screen: 'connect' });
     render(<App />);
-    expect(screen.queryByTestId('cbar')).toBeNull();
+    // change set 8: the bar stays, empty, with its hint
+    expect(screen.getByTestId('cbar')).toHaveAttribute('data-empty', 'true');
+    expect(screen.queryAllByTestId('cbar-tab')).toHaveLength(0);
     expect(screen.queryByTestId('pill')).toBeNull();
     expect(screen.queryByTestId('rail-connect-count')).toBeNull();
     await act(async () => {
@@ -107,7 +109,9 @@ describe('Change set 2: connection bar (C-15)', () => {
     expect(useApp.getState().activeConnId).toBe('local');
     await act(async () => fireEvent.click(screen.getByTestId('cbar-close')));
     await act(async () => sync());
-    expect(screen.queryByTestId('cbar')).toBeNull();
+    // change set 8: the bar stays, empty, with its hint
+    expect(screen.getByTestId('cbar')).toHaveAttribute('data-empty', 'true');
+    expect(screen.queryAllByTestId('cbar-tab')).toHaveLength(0);
     expect(screen.queryByTestId('rail-connect-count')).toBeNull();
   });
 

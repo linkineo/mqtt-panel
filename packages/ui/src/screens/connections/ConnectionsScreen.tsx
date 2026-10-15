@@ -5,7 +5,7 @@ import { engine, platform } from '../../services';
 import { useApp } from '../../store/app';
 import { connectProfile, disconnect, duplicateProfile, run, saveProfile, testProfile, useBusy } from '../../lib/actions';
 import { shortcut } from '../../lib/keys';
-import { Kbd, Modal, Msg } from '../../components/ui';
+import { Kbd, Modal, Msg, NO_AUTO } from '../../components/ui';
 import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { ProfileForm } from './ProfileForm';
 import { AppBrokerDialog } from './AppBrokerDialog';
@@ -35,8 +35,10 @@ export async function newConnectionMenu(anchor: HTMLElement, t: (k: string) => s
     r.left,
     r.bottom + 4,
   );
-  if (id === 'other') await newProfile();
-  else if (id === 'app-existing') openApp('pick');
+  if (id === 'other') {
+    useApp.getState().setScreen('connect');
+    await newProfile();
+  } else if (id === 'app-existing') openApp('pick');
   else if (id === 'app-add') openApp('add');
 }
 
@@ -243,8 +245,14 @@ export function ConnectionsScreen() {
 
   useEffect(() => {
     const onNew = () => void newProfile();
+    // the "+" of the empty connection bar (change set 8) opens the built-in broker dialog here
+    const onApp = (e: Event) => setAppDialog((e as CustomEvent<AppDialog>).detail);
     window.addEventListener('mqttpanel:new-connection', onNew);
-    return () => window.removeEventListener('mqttpanel:new-connection', onNew);
+    window.addEventListener('mqttpanel:app-broker', onApp);
+    return () => {
+      window.removeEventListener('mqttpanel:new-connection', onNew);
+      window.removeEventListener('mqttpanel:app-broker', onApp);
+    };
   }, []);
 
   const reorder = async (id: string, to: number) => {
@@ -358,7 +366,7 @@ export function ConnectionsScreen() {
           ) : (
             <>
               <div className="search" style={{ marginBottom: 10 }}>
-                <input value={q} placeholder={t('conn.search')} aria-label={t('conn.search')} onChange={(e) => setQ(e.target.value)} />
+                <input {...NO_AUTO} value={q} placeholder={t('conn.search')} aria-label={t('conn.search')} onChange={(e) => setQ(e.target.value)} />
                 <Kbd>{shortcut(info, 'mod+K')}</Kbd>
               </div>
               <div className="list" role="listbox" aria-label={t('conn.title')} ref={listRef}>

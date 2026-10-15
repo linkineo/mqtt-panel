@@ -4,9 +4,10 @@ import type { FieldInfo } from '@mqttpanel/engine-client';
 import { engine } from '../../services';
 import { useCharts, type PickerRequest } from '../../store/charts';
 import { useApp } from '../../store/app';
-import { Check, Modal, Seg } from '../../components/ui';
+import { Check, Modal, Seg, NO_AUTO } from '../../components/ui';
 import { pathLabel } from '../../components/JsonView';
 import { shortTopic } from '../../lib/format';
+import { setChartFields, topicPrefsOf, withFields } from '../../lib/topicPrefs';
 
 export function castLabel(f: Pick<FieldInfo, 'cast' | 'plottable'>, t: (k: string) => string): string {
   if (f.cast === 'number') return t('cast.number');
@@ -16,30 +17,47 @@ export function castLabel(f: Pick<FieldInfo, 'cast' | 'plottable'>, t: (k: strin
   return t('field.notPlottable');
 }
 
-/** Mockup 10b: pick which fields of a topic become series. Nothing preselected unless opened from a field (D-16). */
+export interface PickedField {
+  path: string;
+  label: string;
+  step: boolean;
+}
+
+/**
+ * Mockup 10b: pick which fields of a topic become series. Opened from the Explorer (change set 8) it edits the
+ * topic's own chart: its fields come checked, unchecking removes, and "Also add to" sends the checked fields to a
+ * dashboard chart as well. Opened from the Charts screen, the checked fields go to that chart; nothing is preselected
+ * unless opened from a field (D-16, D-17).
+ */
 export function FieldPickerView(props: {
   req: PickerRequest;
   fields: FieldInfo[];
   charts: { id: string; name: string }[];
-  onAdd(chartId: string | 'new', items: { path: string; label: string; step: boolean }[]): void;
+  /** Topic mode: the fields already on the topic's chart. */
+  current?: string[];
+  onAdd(chartId: string | 'new', items: PickedField[]): void;
+  /** Topic mode: the new field list of the topic chart, and the dashboard chart to add them to ('' = none). */
+  onApply?(items: PickedField[], also: string | 'new' | ''): void;
   onClose(): void;
 }) {
   const { t } = useTranslation();
+  const topicMode = props.req.mode === 'topic';
   // plottable fields first, text fields greyed at the bottom (mockup 10b); payload order kept within each group
   const leaves = props.fields
     .filter((f) => f.cast !== 'object' && f.cast !== 'array')
     .map((f, i) => ({ f, i }))
     .sort((a, b) => Number(b.f.plottable) - Number(a.f.plottable) || a.i - b.i)
     .map((x) => x.f);
-  const [checked, setChecked] = useState<Set<string>>(() => {
-    const pre = props.req.preselect;
-    return new Set(pre && leaves.some((f) => f.path === pre && f.plottable) ? [pre] : pre && !leaves.some((f) => f.path === pre) ? [pre] : []);
-  });
-  const [extra, setExtra] = useState<string[]>(() => (props.req.preselect && !leaves.some((f) => f.path === props.req.preselect) ? [props.req.preselect] : []));
+  const initial = [...(topicMode ? (props.current ?? []) : []), ...(props.req.preselect ? [props.req.preselect] : [])].filter(
+    (p, i, all) => all.indexOf(p) === i && (!leaves.some((f) => f.path === p) || leaves.some((f) => f.path === p && f.plottable)),
+  );
+  const [checked, setChecked] = useState<Set<string>>(() => new Set(initial));
+  const [extra, setExtra] = useState<string[]>(() => initial.filter((p) => !leaves.some((f) => f.path === p)));
   const [other, setOther] = useState('');
   const [target, setTarget] = useState<string>(
     props.req.chartId && props.charts.some((c) => c.id === props.req.chartId) ? props.req.chartId : (props.charts[0]?.id ?? 'new'),
   );
+  const [also, setAlso] = useState<string>('');
   const toggle = (p: string) => {
     const n = new Set(checked);
     if (n.has(p)) n.delete(p);
@@ -55,11 +73,19 @@ export function FieldPickerView(props: {
     setOther('');
   };
   const n = checked.size;
+  // keep the order of the rows: listed fields first, then typed paths
+  const picked = (): PickedField[] =>
+    [...leaves.map((f) => f.path), ...extra]
+      .filter((p) => checked.has(p))
+      .map((p) => {
+        const f = leaves.find((x) => x.path === p);
+        return { path: p, label: pathLabel(p), step: f?.cast === 'boolean' };
+      });
   return (
     <Modal
       title={
         <>
-          {t('picker.title')} <span className="muted">· {props.req.topic}</span>
+          {topicMode ? t('picker.topicTitle') : t('picker.title')} <span className="muted">· {props.req.topic}</span>
         </>
       }
       width={560}
@@ -70,26 +96,36 @@ export function FieldPickerView(props: {
           <button type="button" className="btn" onClick={props.onClose}>
             {t('common.cancel')}
           </button>
-          <button
-            type="button"
-            className="btn pri"
-            disabled={n === 0}
-            data-testid="picker-add"
-            onClick={() => {
-              const items = Array.from(checked).map((p) => {
-                const f = leaves.find((x) => x.path === p);
-                return { path: p, label: pathLabel(p), step: f?.cast === 'boolean' };
-              });
-              props.onAdd(target, items);
-              props.onClose();
-            }}
-          >
-            {t('picker.addN', { count: n })}
-          </button>
+          {topicMode ? (
+            <button
+              type="button"
+              className="btn pri"
+              data-testid="picker-add"
+              onClick={() => {
+                props.onApply?.(picked(), also as string | 'new' | '');
+                props.onClose();
+              }}
+            >
+              {t('picker.apply')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn pri"
+              disabled={n === 0}
+              data-testid="picker-add"
+              onClick={() => {
+                props.onAdd(target, picked());
+                props.onClose();
+              }}
+            >
+              {t('picker.addN', { count: n })}
+            </button>
+          )}
         </>
       }
     >
-      <div className="muted small">{t('picker.help')}</div>
+      <div className="muted small">{topicMode ? t('picker.topicHelp') : t('picker.help')}</div>
       <table className="tbl">
         <thead>
           <tr>
@@ -115,7 +151,7 @@ export function FieldPickerView(props: {
           {extra.map((p) => (
             <tr key={p} className="click" onClick={() => toggle(p)}>
               <td>
-                <Check on={checked.has(p)} label="" ariaLabel={pathLabel(p)} onChange={() => undefined} />
+                <Check on={checked.has(p)} label="" ariaLabel={pathLabel(p)} testId={`picker-check-${pathLabel(p)}`} onChange={() => undefined} />
               </td>
               <td className="mono">{pathLabel(p)}</td>
               <td className="muted">—</td>
@@ -126,7 +162,7 @@ export function FieldPickerView(props: {
       </table>
       <div className="row">
         <span className="muted small nowrap">{t('picker.otherPath')}</span>
-        <input
+        <input {...NO_AUTO}
           className="input mono"
           style={{ flex: 1 }}
           placeholder="$.supply.pressure"
@@ -140,19 +176,48 @@ export function FieldPickerView(props: {
           {t('common.add')}
         </button>
       </div>
-      <div className="row" style={{ minWidth: 0 }}>
-        <span className="muted small nowrap">{t('picker.addTo')}</span>
-        <div style={{ overflow: 'auto', minWidth: 0 }}>
-          <Seg
-            label={t('picker.addTo')}
-            value={target}
-            onChange={setTarget}
-            options={[...props.charts.map((c) => ({ value: c.id, label: c.name })), { value: 'new', label: t('picker.newChart'), testId: 'picker-new-chart' }]}
-          />
+      {topicMode ? (
+        <div className="row" style={{ borderTop: '1px solid var(--line-2)', paddingTop: 10 }}>
+          <label className="muted small nowrap" htmlFor="picker-also">
+            {t('picker.alsoAddTo')}
+          </label>
+          <select id="picker-also" className="input" style={{ width: 220 }} value={also} data-testid="picker-also" onChange={(e) => setAlso(e.target.value)}>
+            <option value="">{t('picker.none')}</option>
+            {props.charts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value="new">{t('picker.newChart')}</option>
+          </select>
         </div>
-      </div>
+      ) : (
+        <div className="row" style={{ minWidth: 0 }}>
+          <span className="muted small nowrap">{t('picker.addTo')}</span>
+          <div style={{ overflow: 'auto', minWidth: 0 }}>
+            <Seg
+              label={t('picker.addTo')}
+              value={target}
+              onChange={setTarget}
+              options={[...props.charts.map((c) => ({ value: c.id, label: c.name })), { value: 'new', label: t('picker.newChart'), testId: 'picker-new-chart' }]}
+            />
+          </div>
+        </div>
+      )}
     </Modal>
   );
+}
+
+/** Adds fields of a topic to a dashboard chart ('new' creates one named after the topic) and makes it active. */
+function addToDashboard(connId: string, topic: string, chartId: string | 'new', items: PickedField[]): string {
+  const st = useCharts.getState();
+  const id = chartId === 'new' ? st.createChart(connId, shortTopic(topic, 2).replace(/^…\//, '').replace('/', ' · ')) : chartId;
+  st.addSeries(
+    id,
+    items.map((i) => ({ topic, path: i.path, name: i.label === 'value' ? topic.split('/').pop()! : i.label, step: i.step })),
+  );
+  st.setActive(id);
+  return id;
 }
 
 export function FieldPicker() {
@@ -169,21 +234,24 @@ export function FieldPicker() {
       .catch(() => setFields([]));
   }, [req]);
   if (!req || !fields) return null;
+  const current = topicPrefsOf(req.connId, req.topic).chartFields ?? [];
   return (
     <FieldPickerView
       req={req}
       fields={fields}
+      current={current.map((f) => f.path)}
       charts={charts.filter((c) => c.connId === req.connId).map((c) => ({ id: c.id, name: c.name }))}
       onClose={() => useCharts.getState().closePicker()}
       onAdd={(chartId, items) => {
-        const st = useCharts.getState();
-        const id = chartId === 'new' ? st.createChart(req.connId, shortTopic(req.topic, 2).replace(/^…\//, '').replace('/', ' · ')) : chartId;
-        st.addSeries(
-          id,
-          items.map((i) => ({ topic: req.topic, path: i.path, name: i.label === 'value' ? req.topic.split('/').pop()! : i.label, step: i.step })),
-        );
-        st.setActive(id);
+        addToDashboard(req.connId, req.topic, chartId, items);
         useApp.getState().toast({ kind: 'info', text: t('picker.added', { count: items.length }) });
+      }}
+      onApply={(items, also) => {
+        void setChartFields(req.connId, req.topic, withFields(current, items));
+        if (also && items.length) {
+          addToDashboard(req.connId, req.topic, also, items);
+          useApp.getState().toast({ kind: 'info', text: t('picker.added', { count: items.length }) });
+        }
       }}
     />
   );

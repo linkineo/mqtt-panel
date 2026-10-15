@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
   DiffResult,
@@ -15,13 +15,15 @@ import type {
 } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
 import { useApp } from '../../store/app';
-import { useCharts, rangeMs } from '../../store/charts';
+import { rangeMs } from '../../store/charts';
 import { useExplorer, type DetailTab } from '../../store/explorer';
 import { run } from '../../lib/actions';
 import { addToChart, copyCli, copyPayload, copyTopic, clearHistory, payloadFormat, payloadText, publishHere, type TopicDialog } from '../../lib/topicActions';
-import { JsonView, DiffView, fieldActions, pathLabel } from '../../components/JsonView';
-import { UChart, type UChartSeries } from '../../components/UChart';
-import { Msg, Seg, Switch } from '../../components/ui';
+import { JsonView, DiffView, FieldMenu, copyField, pathLabel, type FieldActions, type FieldClick } from '../../components/JsonView';
+import { RailIcon } from '../../components/icons';
+import { setChartFields, setSparklinePath, useTopicPrefs } from '../../lib/topicPrefs';
+import { UChart } from '../../components/UChart';
+import { Msg, PromptDialog, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { fmtBytes, fmtNum, fmtTime } from '../../lib/format';
 
 const FORMATS: PayloadFormat[] = ['auto', 'json', 'text', 'hex', 'base64', 'image', 'cbor', 'msgpack', 'sparkplug', 'protobuf'];
@@ -171,7 +173,7 @@ export function PropertiesView(props: {
   );
 }
 
-function PayloadBody({ m, onFormatAnyway, actions }: { m: MessageView; onFormatAnyway(): void; actions: ReturnType<typeof fieldActions> }) {
+function PayloadBody({ m, onFormatAnyway, actions }: { m: MessageView; onFormatAnyway(): void; actions: FieldActions }) {
   const { t } = useTranslation();
   const d = m.decoded;
   const [page, setPage] = useState(0);
@@ -227,6 +229,11 @@ function PayloadBody({ m, onFormatAnyway, actions }: { m: MessageView; onFormatA
   );
 }
 
+/** A JSON-ish payload: the diff is drawn key by key; anything else falls back to the line diff or the plain view. */
+function diffable(m: MessageView, format: PayloadFormat): boolean {
+  return format === 'auto' && !m.decoded.paged && !m.decoded.error && (m.decoded.json !== null || m.decoded.text !== null) && m.decoded.format !== 'image';
+}
+
 export function Detail(props: { connId: string; topic: string; openDialog(d: TopicDialog): void }) {
   const { t } = useTranslation();
   const { connId, topic } = props;
@@ -236,7 +243,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   const mac = useApp((s) => s.appInfo.platform === 'macos' || (s.appInfo.platform === 'web' && /Mac/.test(navigator.platform)));
   const st = useExplorer((s) => s.get(connId));
   const patch = useExplorer((s) => s.patch);
-  const charts = useCharts((s) => s.charts);
+  const prefs = useTopicPrefs(connId, topic);
   const tseq = useThrottled(seq, 250);
   const slowSeq = useThrottled(seq, 1000);
 
@@ -246,18 +253,18 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   const [forced, setForced] = useState<MessageView | null>(null);
   const [anyway, setAnyway] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [baseline, setBaseline] = useState<number | null>(null);
   const [diff, setDiff] = useState<DiffResult | null>(null);
-  const [highlight, setHighlight] = useState(true);
-  const [mini, setMini] = useState<SeriesData | null>(null);
   const [chartData, setChartData] = useState<Record<string, SeriesData>>({});
   const [sent, setSent] = useState<SentEntry[]>([]);
   const [qp, setQp] = useState<{ payload: string; format: PayloadEncoding; qos: Qos; retain: boolean }>({ payload: '', format: 'text', qos: 0, retain: false });
-  const [bufferInput, setBufferInput] = useState('');
+  const [raising, setRaising] = useState(false);
+  const [menu, setMenu] = useState<FieldClick | null>(null);
 
   const tab = st.tab;
   const follow = st.follow;
   const viewSeq = st.viewSeq;
+  const diffOn = st.diff;
+  const fields = prefs.chartFields ?? [];
 
   // latest detail
   useEffect(() => {
@@ -277,11 +284,9 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     setFormat('auto');
     setForced(null);
     setAnyway(false);
-    setBaseline(null);
     setDiff(null);
-    setMini(null);
     setChartData({});
-    setBufferInput('');
+    setMenu(null);
   }, [connId, topic]);
 
   // quick publish follows the last message's format
@@ -318,7 +323,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   }, [connId, topic, shownSeq, format, anyway, viewSeq]);
   const message = forced ?? shown?.last ?? null;
 
-  // history (payload Recent, diff, history tabs)
+  // history (the History section under the payload, and the diff baseline)
   useEffect(() => {
     if (!follow && history.length) return;
     let live = true;
@@ -332,11 +337,13 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connId, topic, follow ? tseq : 0]);
 
-  // diff
+  // "Show diff to previous" (change set 8): the message shown against the one received just before it
   const diffB = shownSeq;
-  const diffA = baseline ?? history.find((h) => diffB !== null && h.seq < diffB)?.seq ?? null;
+  const baseEntry = diffB === null ? null : (history.find((h) => h.seq < diffB) ?? null);
+  const diffA = baseEntry?.seq ?? null;
+  const canDiff = !!message && diffable(message, format);
   useEffect(() => {
-    if (tab !== 'diff' || diffA === null || diffB === null) {
+    if (tab !== 'payload' || !diffOn || !canDiff || diffA === null || diffB === null) {
       setDiff(null);
       return;
     }
@@ -348,48 +355,24 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     return () => {
       live = false;
     };
-  }, [tab, connId, topic, diffA, diffB]);
+  }, [tab, diffOn, canDiff, connId, topic, diffA, diffB]);
 
-  // mini chart of the default field
-  const defaultField = shown?.defaultField ?? null;
+  // the topic's own chart (change set 8): the fields saved in the profile, last 15 minutes
+  const fieldsKey = fields.map((f) => f.path).join('|');
   useEffect(() => {
-    if (tab !== 'payload' || !defaultField) {
-      setMini(null);
-      return;
-    }
+    if (tab !== 'payload' || !fields.length) return;
     let live = true;
-    void engine()
-      .series(connId, topic, defaultField, Date.now() - 3600_000)
-      .then((s) => live && setMini(s))
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [tab, connId, topic, defaultField, slowSeq]);
-
-  // charted fields for this topic (Chart tab)
-  const charted = useMemo(() => {
-    const seen = new Map<string, { path: string; color: UChartSeries['color']; unit: string; axis: 'left' | 'right'; style: UChartSeries['style'] }>();
-    charts
-      .filter((c) => c.connId === connId)
-      .forEach((c) => c.series.filter((s) => s.topic === topic).forEach((s) => !seen.has(s.path) && seen.set(s.path, s)));
-    return Array.from(seen.values());
-  }, [charts, connId, topic]);
-  const chartedKey = charted.map((c) => c.path).join('|');
-  useEffect(() => {
-    if (tab !== 'chart' || !charted.length) return;
-    let live = true;
-    void Promise.all(charted.map((c) => engine().series(connId, topic, c.path, Date.now() - 15 * 60_000))).then((list) => {
+    void Promise.all(fields.map((f) => engine().series(connId, topic, f.path, Date.now() - (rangeMs('15m') ?? 0)).catch(() => null))).then((list) => {
       if (!live) return;
       const out: Record<string, SeriesData> = {};
-      list.forEach((s, i) => (out[charted[i].path] = s));
+      list.forEach((d, i) => d && (out[fields[i].path] = d));
       setChartData(out);
     });
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, connId, topic, chartedKey, slowSeq]);
+  }, [tab, connId, topic, fieldsKey, slowSeq]);
 
   // sent log, for the reply box in Properties
   useEffect(() => {
@@ -401,7 +384,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   }, [tab, connId, slowSeq]);
 
   const openPicker = (path: string | null) => addToChart(connId, topic, path);
-  const actions = fieldActions((path) => openPicker(path));
+  const actions: FieldActions = { open: setMenu };
   const pinned = st.pinned.includes(topic);
   const nProps = countProps(message);
   const negotiated = conn?.negotiatedVersion ?? null;
@@ -411,9 +394,6 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   const setTab = (tab: DetailTab) => patch(connId, { tab });
   const tabs: { id: DetailTab; label: string }[] = [
     { id: 'payload', label: t('detail.payload') },
-    { id: 'diff', label: t('detail.diff') },
-    { id: 'history', label: t('detail.history', { n: fmtNum(shown.historyCount) }) },
-    { id: 'chart', label: t('detail.chart') },
     { id: 'properties', label: negotiated === '5' ? t('detail.propertiesN', { n: nProps }) : t('detail.properties') },
   ];
 
@@ -458,13 +438,17 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     else if (e) useApp.getState().toast({ kind: 'info', text: t('detail.sent', { topic }) });
   };
 
-  const miniSeries: UChartSeries[] = mini && mini.points.length
-    ? [{ label: pathLabel(mini.path), color: 'sage', points: mini.points, style: mini.step ? 'step' : 'line', axis: 'left', unit: '', boolean: mini.castRule === 'boolean' }]
-    : [];
+  const useSparkline = async (path: string) => {
+    await setSparklinePath(connId, topic, path);
+    useApp.getState().toast({ kind: 'info', text: t('field.sparklineSet', { field: pathLabel(path) }) });
+  };
 
   const replyFor = message?.properties?.correlationData
     ? (sent.find((s) => s.reply && (s.request?.correlationData === message.properties!.correlationData || s.reply.correlationData === message.properties!.correlationData)) ?? null)
     : null;
+
+  const structured = message?.decoded.json !== null && typeof message?.decoded.json === 'object';
+  const showDiff = diffOn && canDiff && diff !== null && diffA !== null;
 
   return (
     <div className="pane right" style={{ flex: 1 }} data-testid="detail">
@@ -473,13 +457,21 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
           {topic}
         </h5>
         <div className="row" style={{ gap: 6 }}>
-          <button type="button" className="btn sm" data-testid="pin-btn" aria-pressed={pinned} onClick={() => void useExplorer.getState().togglePin(connId, topic)}>
-            {pinned ? t('detail.pinned') : t('detail.pin')}
+          <button
+            type="button"
+            className={`btn sm ico${pinned ? ' on' : ''}`}
+            data-testid="pin-btn"
+            aria-pressed={pinned}
+            aria-label={pinned ? t('detail.pinnedTip') : t('detail.pin')}
+            title={pinned ? t('detail.pinnedTip') : t('detail.pin')}
+            onClick={() => void useExplorer.getState().togglePin(connId, topic)}
+          >
+            {pinned ? '★' : '☆'}
           </button>
-          <button type="button" className="btn sm" onClick={() => void publishHere(connId, topic)}>
-            {t('menu.publishHere')}
+          <button type="button" className="btn sm ico" data-testid="publish-here" aria-label={t('menu.publishHere')} title={t('menu.publishHere')} onClick={() => void publishHere(connId, topic)}>
+            <RailIcon name="publish" />
           </button>
-          <button type="button" className="btn sm" aria-label={t('detail.more')} onClick={(e) => void moreMenu(e)}>
+          <button type="button" className="btn sm ico" aria-label={t('detail.more')} title={t('detail.more')} onClick={(e) => void moreMenu(e)}>
             ⋯
           </button>
         </div>
@@ -509,9 +501,9 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
             </span>
             {!follow && <span className="chip clay" data-testid="missed">{t('detail.missed', { count: missed, n: fmtNum(missed) })}</span>}
           </div>
-          <div className="row" style={{ gap: 6, padding: '0 14px 8px' }}>
-            <span className="muted small nowrap">{t('detail.quickPublish')}</span>
-            <input
+          {/* change set 8: one boxed tool with thin separators; no text label */}
+          <div className="qp" role="group" aria-label={t('detail.quickPublish')} title={t('detail.quickPublish')} data-testid="quick-publish">
+            <input {...NO_AUTO}
               className="input mono"
               style={{ flex: 1, minWidth: 60 }}
               value={qp.payload}
@@ -520,18 +512,22 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
               onChange={(e) => setQp({ ...qp, payload: e.target.value })}
               onKeyDown={(e) => e.key === 'Enter' && void send()}
             />
+            <i className="sep" aria-hidden="true" />
             <button
               type="button"
-              className="btn sm"
+              className="chip"
               title={t('detail.quickFormat')}
               data-testid="qp-format"
               onClick={() => setQp({ ...qp, format: qp.format === 'json' ? 'text' : qp.format === 'text' ? 'hex' : qp.format === 'hex' ? 'base64' : 'json' })}
             >
               {t(`encoding.${qp.format}`)}
             </button>
+            <i className="sep" aria-hidden="true" />
             <Seg<Qos> label="QoS" value={qp.qos} testId="qp-qos" onChange={(qos) => setQp({ ...qp, qos })} options={([0, 1, 2] as Qos[]).map((q) => ({ value: q, label: String(q), testId: `qp-qos-${q}` }))} />
+            <i className="sep" aria-hidden="true" />
             <span className="muted small">{t('detail.retain')}</span>
             <Switch on={qp.retain} label={t('detail.retain')} testId="qp-retain" onChange={(retain) => setQp({ ...qp, retain })} />
+            <i className="sep" aria-hidden="true" />
             <button type="button" className="btn pri sm" data-testid="qp-send" onClick={() => void send()}>
               {t('detail.send')}
             </button>
@@ -557,265 +553,139 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
             )}
             {tab === 'payload' && message && (
               <>
-                <div className="row" style={{ marginBottom: 8 }}>
-                  <span className="muted small">{t('payload.format')}</span>
-                  <button type="button" className="btn sm" data-testid="format-menu" onClick={(e) => void formatMenu(e)}>
+                <div className="row" style={{ marginBottom: 8, flexWrap: 'wrap', rowGap: 6 }} data-testid="diff-row">
+                  <span className="muted small nowrap">{t('payload.diffToggle')}</span>
+                  <Switch on={diffOn} label={t('payload.diffToggle')} testId="diff-toggle" onChange={(v) => patch(connId, { diff: v })} />
+                  {diffOn && baseEntry && canDiff && (
+                    <span className="muted small nowrap" data-testid="diff-baseline">
+                      {t('payload.vs', { time: fmtTime(baseEntry.receivedAt) })}
+                    </span>
+                  )}
+                  <span className="grow" />
+                  {showDiff && diff.changes > 0 && <span className="chip" data-testid="diff-changes">{t('diff.changes', { count: diff.changes })}</span>}
+                  <button type="button" className="btn sm" data-testid="format-menu" title={t('detail.quickFormat')} onClick={(e) => void formatMenu(e)}>
                     {format === 'auto' ? t('payload.auto', { detected: t(`format.${message.decoded.detected}`) }) : t(`format.${format}`)} ▾
                   </button>
-                  <span className="grow" />
                   <button type="button" className="btn sm" onClick={() => void copyPayload(connId, topic)}>
                     {t('payload.copy')}
                   </button>
                 </div>
-                <PayloadBody m={message} actions={actions} onFormatAnyway={() => setAnyway(true)} />
-                {miniSeries.length > 0 && (
-                  <>
-                    <div className="sec" style={{ marginTop: 14 }}>
-                      {t('payload.chartOf', { field: pathLabel(defaultField ?? '$') })}
-                    </div>
-                    <div style={{ marginTop: 6 }}>
-                      <UChart series={miniSeries} height={120} compact testId="mini-chart" />
-                    </div>
-                  </>
-                )}
-                {history.length > 0 && (
-                  <>
-                    <div className="sec" style={{ marginTop: 14 }}>
-                      {t('payload.recent')}
-                    </div>
-                    <table className="tbl">
-                      <thead>
-                        <tr>
-                          <th>{t('col.time')}</th>
-                          <th>{t('col.value')}</th>
-                          <th>QoS</th>
-                          <th>{t('col.size')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {history.slice(0, 4).map((h) => (
-                          <tr key={h.seq} className={`click${h.seq === shownSeq ? ' sel' : ''}`} onClick={() => patch(connId, { viewSeq: h.seq })}>
-                            <td className="mono">{fmtTime(h.receivedAt, true)}</td>
-                            <td className="mono" title={h.preview}>{h.preview}</td>
-                            <td>{h.qos}</td>
-                            <td>{fmtBytes(h.size)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                )}
-              </>
-            )}
-            {tab === 'diff' && (
-              <>
-                <div className="row" style={{ flexWrap: 'wrap', rowGap: 6 }} data-testid="diff-compare">
-                  <span className="muted small">{t('diff.compare')}</span>
-                  <span className="seg">
-                    <span className="on">{t('diff.current', { time: message ? fmtTime(message.receivedAt) : '' })}</span>
-                  </span>
-                  <span className="muted small">{t('diff.with')}</span>
-                  <span className="seg">
-                    <button type="button" className={baseline === null ? 'on' : undefined} onClick={() => setBaseline(null)}>
-                      {t('diff.previous', { time: fmtTime(history.find((h) => h.seq === (diffA ?? -1))?.receivedAt ?? Date.now()) })}
-                    </button>
-                    <button
-                      type="button"
-                      className={baseline !== null ? 'on' : undefined}
-                      data-testid="diff-pick"
-                      onClick={async (e) => {
-                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        const id = await platform().showContextMenu(
-                          history.slice(0, 30).map((h) => ({ id: String(h.seq), label: `${fmtTime(h.receivedAt, true)} · ${h.preview.slice(0, 30)}` })),
-                          r.left,
-                          r.bottom + 4,
-                        );
-                        if (id) setBaseline(Number(id));
-                      }}
-                    >
-                      {t('diff.pick')}
-                    </button>
-                  </span>
-                </div>
-                <div className="row" style={{ justifyContent: 'flex-end', marginTop: 6 }}>
-                  {diff && <span className="chip" data-testid="diff-changes">{t('diff.changes', { count: diff.changes })}</span>}
-                  <button type="button" className="btn sm" onClick={() => setHighlight(!highlight)}>
-                    {highlight ? t('diff.highlightOff') : t('diff.highlightOn')}
-                  </button>
-                </div>
-                <div style={{ marginTop: 10 }}>
-                  {!diff ? (
-                    <div className="hint">{t('diff.nothing')}</div>
-                  ) : diff.mode === 'json' ? (
-                    <DiffView
-                      lines={diff.lines}
-                      highlight={highlight}
-                      actions={actions}
-                      leafValue={(path) => {
-                        const l = diff.lines.find((x) => x.path === path);
-                        try {
-                          return l?.newValue ? JSON.parse(l.newValue) : null;
-                        } catch {
-                          return l?.newValue;
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="json" data-testid="diff">
-                      {diff.textLines.map((l, i) => (
-                        <span key={i} className={`line${highlight && l.kind === 'added' ? ' add' : ''}${highlight && l.kind === 'removed' ? ' del' : ''}`}>
-                          {l.kind === 'added' ? '+ ' : l.kind === 'removed' ? '- ' : '  '}
-                          {l.text}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="sec" style={{ marginTop: 14 }}>
-                  {t('detail.historyHead')}
-                </div>
-                <table className="tbl fixed">
-                  <colgroup>
-                    <col style={{ width: 112 }} />
-                    <col />
-                    <col style={{ width: 64 }} />
-                    <col style={{ width: 96 }} />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>{t('col.time')}</th>
-                      <th>{t('diff.changedKeys')}</th>
-                      <th>{t('col.size')}</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.slice(0, 50).map((h) => (
-                      <tr key={h.seq} className={h.seq === diffB ? 'sel' : undefined}>
-                        <td className="mono">{fmtTime(h.receivedAt, true)}</td>
-                        <td className="mono" title={h.changedKeys.join(', ')}>{h.changedKeys.join(', ')}</td>
-                        <td>{fmtBytes(h.size)}</td>
-                        <td>
-                          <button type="button" className={`btn sm${baseline === h.seq ? ' pri' : ''}`} onClick={() => setBaseline(h.seq)}>
-                            {t('diff.baseline')}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-            {tab === 'history' && (
-              <>
-                <div className="row" style={{ marginBottom: 8 }}>
-                  <span className="hint">{t('history.buffer', { count: shown.bufferSize, n: fmtNum(shown.bufferSize) })}</span>
-                  <span className="grow" />
-                  <input
-                    className="input mono"
-                    style={{ width: 80 }}
-                    inputMode="numeric"
-                    placeholder={String(shown.bufferSize * 5 > 10000 ? 10000 : shown.bufferSize * 5)}
-                    value={bufferInput}
-                    aria-label={t('history.raiseTo')}
-                    onChange={(e) => setBufferInput(e.target.value.replace(/\D/g, ''))}
-                  />
-                  <button
-                    type="button"
-                    className="btn sm"
-                    onClick={async () => {
-                      const n = Math.min(10000, Math.max(10, Number(bufferInput) || Math.min(10000, shown.bufferSize * 5)));
-                      await run(engine().setTopicBuffer(connId, topic, n));
-                      setBufferInput('');
-                      setDetail(await engine().topicDetail(connId, topic));
+                {showDiff && diff.mode === 'json' ? (
+                  <DiffView
+                    lines={diff.lines}
+                    highlight
+                    actions={actions}
+                    testId="payload-json"
+                    leafValue={(path) => {
+                      const l = diff.lines.find((x) => x.path === path);
+                      try {
+                        return l?.newValue ? JSON.parse(l.newValue) : null;
+                      } catch {
+                        return l?.newValue;
+                      }
                     }}
-                  >
-                    {t('history.raise')}
-                  </button>
-                </div>
-                <table className="tbl fixed" data-testid="history">
-                  <colgroup>
-                    <col style={{ width: 112 }} />
-                    <col style={{ width: 64 }} />
-                    <col style={{ width: 48 }} />
-                    <col style={{ width: 52 }} />
-                    <col />
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>{t('col.time')}</th>
-                      <th>{t('col.size')}</th>
-                      <th>QoS</th>
-                      <th>{t('col.retained')}</th>
-                      <th>{t('col.value')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((h) => (
-                      <tr
-                        key={h.seq}
-                        className={`click${h.seq === shownSeq ? ' sel' : ''}`}
-                        onClick={() => patch(connId, { viewSeq: h.seq, tab: 'payload' })}
-                      >
-                        <td className="mono">{fmtTime(h.receivedAt, true)}</td>
-                        <td>{fmtBytes(h.size)}</td>
-                        <td>{h.qos}</td>
-                        <td>{h.retain ? 'R' : ''}</td>
-                        <td className="mono">{h.preview}</td>
-                      </tr>
+                  />
+                ) : showDiff && diff.mode === 'text' ? (
+                  <div className="json wrap" data-testid="payload-text">
+                    {diff.textLines.map((l, i) => (
+                      <span key={i} className={`line${l.kind === 'added' ? ' add' : ''}${l.kind === 'removed' ? ' del' : ''}`} data-kind={l.kind}>
+                        {l.text}
+                      </span>
                     ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-            {tab === 'chart' && (
-              <>
-                <div className="row" style={{ flexWrap: 'wrap' }}>
-                  <span className="muted small">{t('chartTab.fields')}</span>
-                  {charted.map((c) => (
-                    <span key={c.path} className="chip on mono">
-                      {pathLabel(c.path)}
-                      <button type="button" className="x" aria-label={t('chartTab.remove', { field: pathLabel(c.path) })} onClick={() => useCharts.getState().removeTopicField(connId, topic, c.path)}>
+                  </div>
+                ) : (
+                  <PayloadBody m={message} actions={actions} onFormatAnyway={() => setAnyway(true)} />
+                )}
+                <div className="sec" style={{ marginTop: 14, flexWrap: 'wrap', rowGap: 4 }} data-testid="topic-chart-head">
+                  {t('payload.chart')}
+                  {fields.map((f) => (
+                    <span key={f.path} className="chip on mono" data-testid="chart-field" data-path={f.path}>
+                      {pathLabel(f.path)}
+                      <button
+                        type="button"
+                        className="x"
+                        aria-label={t('payload.removeField', { field: pathLabel(f.path) })}
+                        title={t('payload.removeField', { field: pathLabel(f.path) })}
+                        onClick={() => void setChartFields(connId, topic, fields.filter((x) => x.path !== f.path))}
+                      >
                         ✕
                       </button>
                     </span>
                   ))}
-                  <button type="button" className="btn sm" data-testid="add-field" onClick={() => openPicker(null)}>
-                    {t('chartTab.addField')}
+                  <button type="button" className="btn sm lower" data-testid="add-field" onClick={() => openPicker(null)}>
+                    {t('payload.addField')}
                   </button>
                 </div>
-                {charted.length === 0 ? (
-                  <div className="hint" style={{ marginTop: 10 }}>
-                    {t('chartTab.empty')}
-                  </div>
-                ) : (
+                {fields.length > 0 && (
                   <>
-                    <div style={{ marginTop: 10 }}>
+                    <div style={{ marginTop: 6 }}>
                       <UChart
-                        height={150}
+                        height={130}
                         compact
-                        series={charted.map((c) => ({
-                          label: pathLabel(c.path),
-                          color: c.color,
-                          points: chartData[c.path]?.points ?? [],
-                          style: c.style,
-                          axis: c.axis,
-                          unit: c.unit,
-                          boolean: chartData[c.path]?.castRule === 'boolean',
+                        testId="topic-chart"
+                        label={t('payload.chartLabel', { fields: fields.map((f) => pathLabel(f.path)).join(', ') })}
+                        series={fields.map((f) => ({
+                          label: pathLabel(f.path),
+                          color: f.colour,
+                          points: chartData[f.path]?.points ?? [],
+                          style: f.style,
+                          axis: f.axis,
+                          unit: f.unit,
+                          boolean: chartData[f.path]?.castRule === 'boolean',
                         }))}
                         xRange={[Date.now() - (rangeMs('15m') ?? 0), Date.now()]}
                       />
                     </div>
                     <div className="legend" style={{ marginTop: 6 }}>
-                      {charted.map((c) => (
-                        <span key={c.path}>
-                          <i style={{ background: `var(--c-${c.color})` }} />
-                          {[pathLabel(c.path), c.unit, c.axis === 'left' ? t('series.left') : t('series.right')].filter(Boolean).join(' · ')}
+                      {fields.map((f) => (
+                        <span key={f.path}>
+                          <i style={{ background: `var(--c-${f.colour})` }} />
+                          {[pathLabel(f.path), f.unit, f.axis === 'left' ? t('series.left') : t('series.right')].filter(Boolean).join(' · ')}
                         </span>
                       ))}
                     </div>
                   </>
                 )}
+                <div className="sec" style={{ marginTop: 14 }}>
+                  {t('payload.history', { n: fmtNum(history.length) })}
+                </div>
+                <table className="tbl fixed" data-testid="history">
+                  <colgroup>
+                    <col style={{ width: 112 }} />
+                    <col />
+                    <col style={{ width: 48 }} />
+                    <col style={{ width: 72 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>{t('col.time')}</th>
+                      <th>{structured ? t('diff.changedKeys') : t('col.value')}</th>
+                      <th>QoS</th>
+                      <th>{t('col.size')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((h) => {
+                      const v = structured ? h.changedKeys.join(', ') : h.preview;
+                      return (
+                        <tr key={h.seq} className={`click${h.seq === shownSeq ? ' sel' : ''}`} data-testid="history-row" data-seq={h.seq} onClick={() => patch(connId, { viewSeq: h.seq === shown.last?.seq && follow ? null : h.seq })}>
+                          <td className="mono">{fmtTime(h.receivedAt, true)}</td>
+                          <td className="mono ell" title={v}>
+                            {v}
+                          </td>
+                          <td>{h.qos}</td>
+                          <td>{fmtBytes(h.size)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="muted small" style={{ marginTop: 6 }} data-testid="buffer-line">
+                  {t('history.buffer', { count: shown.bufferSize, n: fmtNum(shown.bufferSize) })} ·{' '}
+                  <button type="button" className="ulink" data-testid="buffer-raise" onClick={() => setRaising(true)}>
+                    {t('history.raiseMore')}
+                  </button>
+                </div>
               </>
             )}
             {tab === 'properties' && message && (
@@ -823,6 +693,32 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
             )}
           </div>
         </>
+      )}
+      {menu && (
+        <FieldMenu
+          at={menu}
+          sparklinePath={prefs.sparklinePath ?? null}
+          onClose={() => setMenu(null)}
+          onSparkline={(p) => void useSparkline(p)}
+          onChart={(p) => openPicker(p)}
+          onCopy={copyField}
+        />
+      )}
+      {raising && (
+        <PromptDialog
+          title={t('history.raiseTitle')}
+          label={t('history.raiseTo')}
+          initial={String(Math.min(10000, shown.bufferSize * 5))}
+          confirmLabel={t('common.save')}
+          onClose={() => setRaising(false)}
+          onConfirm={async (v) => {
+            const n = Math.min(10000, Math.max(10, Number(v.replace(/\D/g, '')) || Math.min(10000, shown.bufferSize * 5)));
+            await run(engine().setTopicBuffer(connId, topic, n));
+            const d = await engine().topicDetail(connId, topic);
+            setDetail(d);
+            setFrozen((f) => (f ? { ...f, bufferSize: d.bufferSize } : f));
+          }}
+        />
       )}
     </div>
   );

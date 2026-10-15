@@ -5,7 +5,7 @@ import { engine } from '../../services';
 import { useApp } from '../../store/app';
 import { run, saveProfile } from '../../lib/actions';
 import { shortcut } from '../../lib/keys';
-import { ConfirmDialog, Seg, Switch } from '../../components/ui';
+import { ConfirmDialog, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { fmtBytes, fmtNum } from '../../lib/format';
 
 const PAGES = ['appearance', 'language', 'data', 'security', 'updates', 'shortcuts', 'privacy', 'about'] as const;
@@ -47,7 +47,7 @@ function NumField(props: { value: number; min: number; max: number; suffix?: str
   };
   return (
     <span className="row" style={{ gap: 4, flex: 'none' }}>
-      <input
+      <input {...NO_AUTO}
         className="input mono w-s"
         inputMode="numeric"
         aria-label={props.label}
@@ -341,7 +341,7 @@ export function SettingsScreen() {
             'shortcuts',
             <>
               <div className="search" style={{ maxWidth: 360 }}>
-                <input value={scq} placeholder={t('settings.searchShortcuts')} aria-label={t('settings.searchShortcuts')} onChange={(e) => setScq(e.target.value)} />
+                <input {...NO_AUTO} value={scq} placeholder={t('settings.searchShortcuts')} aria-label={t('settings.searchShortcuts')} onChange={(e) => setScq(e.target.value)} />
               </div>
               <table className="tbl" style={{ marginTop: 8, maxWidth: 560 }}>
                 <tbody>

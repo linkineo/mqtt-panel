@@ -48,7 +48,7 @@ export function PayloadEditor(props: { value: string; format: PayloadEncoding; o
           syntaxHighlighting(style),
           EditorView.lineWrapping,
           cmPlaceholder(props.placeholder ?? ''),
-          EditorView.contentAttributes.of({ 'aria-label': props.label, 'data-testid': 'payload-editor' }),
+          EditorView.contentAttributes.of({ 'aria-label': props.label, 'data-testid': 'payload-editor', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) cb.current.onChange(u.state.doc.toString());
           }),

@@ -181,7 +181,6 @@ export function App() {
   const palette = useApp((s) => s.paletteOpen);
   const info = useApp((s) => s.appInfo);
   const tabs = useOpenTabs();
-  const withBar = tabs.length > 0;
   useGlobalShortcuts();
   useMenuEvents();
   useEffect(() => {
@@ -194,14 +193,17 @@ export function App() {
   }, []);
   if (!ready) return null;
   return (
-    <div className={`app${withBar ? ' with-bar' : ''}`} id="app-root" data-mac={isMac(info) ? 'true' : 'false'}>
+    <div className="app" id="app-root" data-mac={isMac(info) ? 'true' : 'false'}>
       <TitleBar />
-      <ConnectionBar tabs={tabs} />
       <div className="body">
         <Rail />
-        <main className="main">
-          <CurrentScreen />
-        </main>
+        {/* change set 8: the connection bar is the first row of the main column, right of the rail, always shown */}
+        <div className="main-col">
+          <ConnectionBar tabs={tabs} />
+          <main className="main">
+            <CurrentScreen />
+          </main>
+        </div>
       </div>
       <TrustDialog />
       <FieldPicker />

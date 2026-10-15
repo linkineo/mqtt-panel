@@ -7,7 +7,7 @@ import { usePublish, buildRequest, composerFromRequest, findPlaceholders, fillPl
 import { reportSave, run } from '../../lib/actions';
 import { cliCommand } from '../../lib/topicActions';
 import { shortcut } from '../../lib/keys';
-import { Info, Kbd, Modal, Msg, PromptDialog, ConfirmDialog, Seg, Switch } from '../../components/ui';
+import { Info, Kbd, Modal, Msg, PromptDialog, ConfirmDialog, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { PayloadEditor } from '../../components/PayloadEditor';
 import { NoConnection } from '../../components/NoConnection';
 import { DeleteRetainedDialog } from '../../components/DeleteRetainedDialog';
@@ -39,7 +39,7 @@ export function TopicInput({ connId, value, onChange }: { connId: string; value:
   }, [connId, value, open]);
   return (
     <div style={{ position: 'relative', minWidth: 0 }}>
-      <input
+      <input {...NO_AUTO}
         className="input mono"
         style={{ width: '100%' }}
         value={value}
@@ -380,16 +380,16 @@ function Publish({ connId }: { connId: string }) {
                 <div className="f">
                   <label htmlFor="pub-resp">{t('publish.responseTopic')}</label>
                   <span className="row2">
-                    <input id="pub-resp" className="input mono" style={{ flex: 1 }} value={c.responseTopic} placeholder={t('common.optional')} onChange={(e) => set({ responseTopic: e.target.value })} />
+                    <input {...NO_AUTO} id="pub-resp" className="input mono" style={{ flex: 1 }} value={c.responseTopic} placeholder={t('common.optional')} onChange={(e) => set({ responseTopic: e.target.value })} />
                     <span className="hint">{t('publish.subscribedAuto')}</span>
                   </span>
                 </div>
                 <div className="f">
                   <label htmlFor="pub-corr">{t('publish.correlation')}</label>
                   <span className="row2">
-                    <input id="pub-corr" className="input mono" style={{ width: 140 }} value={c.correlation} placeholder={t('publish.auto')} onChange={(e) => set({ correlation: e.target.value })} />
+                    <input {...NO_AUTO} id="pub-corr" className="input mono" style={{ width: 140 }} value={c.correlation} placeholder={t('publish.auto')} onChange={(e) => set({ correlation: e.target.value })} />
                     <span className="hint">{t('publish.waitUpTo')}</span>
-                    <input className="input mono" style={{ width: 60 }} inputMode="numeric" aria-label={t('publish.waitUpTo')} value={c.waitS} onChange={(e) => set({ waitS: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
+                    <input {...NO_AUTO} className="input mono" style={{ width: 60 }} inputMode="numeric" aria-label={t('publish.waitUpTo')} value={c.waitS} onChange={(e) => set({ waitS: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
                     <span className="hint">s</span>
                   </span>
                 </div>
@@ -401,7 +401,7 @@ function Publish({ connId }: { connId: string }) {
                 <div className="form narrow pub" style={{ marginTop: 8 }}>
                   <div className="f">
                     <label htmlFor="pub-ct">{t('props.contentType')}</label>
-                    <input id="pub-ct" className="input mono" value={c.contentType} placeholder="application/json" onChange={(e) => set({ contentType: e.target.value })} />
+                    <input {...NO_AUTO} id="pub-ct" className="input mono" value={c.contentType} placeholder="application/json" onChange={(e) => set({ contentType: e.target.value })} />
                   </div>
                   <div className="f">
                     <span className="lbl">{t('props.payloadFormat')}</span>
@@ -421,7 +421,7 @@ function Publish({ connId }: { connId: string }) {
                     <span style={{ display: 'grid', gap: 6 }}>
                       {[...c.userProps, ['', ''] as [string, string]].map(([k, v], i) => (
                         <span key={i} className="row2">
-                          <input
+                          <input {...NO_AUTO}
                             className="input mono"
                             style={{ width: 120 }}
                             value={k}
@@ -433,7 +433,7 @@ function Publish({ connId }: { connId: string }) {
                               set({ userProps: n.filter(([a, b], j) => a || b || j < n.length - 1) });
                             }}
                           />
-                          <input
+                          <input {...NO_AUTO}
                             className="input mono"
                             style={{ flex: 1 }}
                             value={v}
@@ -461,7 +461,7 @@ function Publish({ connId }: { connId: string }) {
                   <div className="f">
                     <label htmlFor="pub-exp">{t('publish.expiry')}</label>
                     <span className="row2">
-                      <input id="pub-exp" className="input mono" style={{ width: 100 }} inputMode="numeric" value={c.expiry} placeholder={t('publish.never')} onChange={(e) => set({ expiry: e.target.value.replace(/\D/g, '') })} />
+                      <input {...NO_AUTO} id="pub-exp" className="input mono" style={{ width: 100 }} inputMode="numeric" value={c.expiry} placeholder={t('publish.never')} onChange={(e) => set({ expiry: e.target.value.replace(/\D/g, '') })} />
                       <span className="hint">s</span>
                     </span>
                   </div>
@@ -479,11 +479,11 @@ function Publish({ connId }: { connId: string }) {
               {t('publish.sendClear')}
             </button>
             <span className="muted nowrap">{t('publish.repeatEvery')}</span>
-            <input className="input mono" style={{ width: 52 }} inputMode="numeric" placeholder="—" aria-label={t('publish.repeatEvery')} value={c.repeatS} onChange={(e) => set({ repeatS: e.target.value.replace(/[^\d.]/g, '') })} data-testid="repeat-s" />
+            <input {...NO_AUTO} className="input mono" style={{ width: 52 }} inputMode="numeric" placeholder="—" aria-label={t('publish.repeatEvery')} value={c.repeatS} onChange={(e) => set({ repeatS: e.target.value.replace(/[^\d.]/g, '') })} data-testid="repeat-s" />
             <span className="muted">s</span>
             {c.repeatS && !repeatRunning && (
               <>
-                <input className="input mono" style={{ width: 52 }} inputMode="numeric" placeholder="∞" aria-label={t('publish.repeatCount')} title={t('publish.repeatCount')} value={c.repeatCount} onChange={(e) => set({ repeatCount: e.target.value.replace(/\D/g, '') })} />
+                <input {...NO_AUTO} className="input mono" style={{ width: 52 }} inputMode="numeric" placeholder="∞" aria-label={t('publish.repeatCount')} title={t('publish.repeatCount')} value={c.repeatCount} onChange={(e) => set({ repeatCount: e.target.value.replace(/\D/g, '') })} />
                 <span className="muted">×</span>
                 <button type="button" className="btn sm" data-testid="repeat-start" onClick={startRepeat}>
                   {t('publish.start')}
@@ -715,7 +715,7 @@ function Publish({ connId }: { connId: string }) {
             {placeholders.names.map((n, i) => (
               <div key={n} className="f" style={{ gridTemplateColumns: '120px 1fr' }}>
                 <label htmlFor={`ph-${n}`} className="mono">{`{${n}}`}</label>
-                <input
+                <input {...NO_AUTO}
                   id={`ph-${n}`}
                   className="input mono"
                   data-autofocus={i === 0 ? true : undefined}

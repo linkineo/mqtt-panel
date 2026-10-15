@@ -6,11 +6,15 @@ import { engine } from '../../services';
 import { useApp } from '../../store/app';
 import { useSlice } from '../../lib/useSlice';
 import { Sparkline } from '../../components/ui';
-import { fmtAge, fmtNum, fmtRate } from '../../lib/format';
+import { fmtNum, fmtRate } from '../../lib/format';
 
 export const FLASH_MS = 1200;
 
-/** One tree row (mockup 04). Flashes with `.new` for 1.2 s when lastReceivedAt changes; reduced motion keeps the dot only (X-04). */
+/**
+ * One tree row (mockup 04, change set 8): [twisty + name] [payload on the available width, with the R marker]
+ * [sparkline of the tracked value, messages since connect, throughput, subtopics]. The row flashes `.new` for 1.2 s
+ * when lastReceivedAt changes (X-04); under reduced motion the highlight switches on and off without any fade.
+ */
 export const TreeRowView = memo(function TreeRowView(props: {
   row: TreeRow;
   selected: boolean;
@@ -33,18 +37,19 @@ export const TreeRowView = memo(function TreeRowView(props: {
       prev.current = row.lastReceivedAt;
       return;
     }
-    if (row.lastReceivedAt !== null && prev.current !== null && row.lastReceivedAt !== prev.current && !props.reducedMotion) {
+    if (row.lastReceivedAt !== null && prev.current !== null && row.lastReceivedAt !== prev.current) {
       setFlash(true);
       const h = setTimeout(() => setFlash(false), FLASH_MS);
       prev.current = row.lastReceivedAt;
       return () => clearTimeout(h);
     }
     prev.current = row.lastReceivedAt;
-  }, [row.lastReceivedAt, row.path, props.reducedMotion]);
+  }, [row.lastReceivedAt, row.path]);
 
-  const leaf = !row.hasChildren;
-  const cls = ['n', props.selected ? 'sel' : '', flash ? 'new' : '', props.cursor ? 'cursor' : ''].filter(Boolean).join(' ');
-  const age = row.lastReceivedAt ? fmtAge(props.now - row.lastReceivedAt) : null;
+  const cls = ['n', props.selected ? 'sel' : '', flash ? 'new' : '', flash && props.reducedMotion ? 'still' : '', props.cursor ? 'cursor' : ''].filter(Boolean).join(' ');
+  // topics below this one (the node itself is not counted)
+  const subtopics = row.topicCount - (row.isTopic ? 1 : 0);
+  const showValue = props.valuesInTree && row.isTopic && row.value !== null;
   return (
     <div
       className={cls}
@@ -71,23 +76,28 @@ export const TreeRowView = memo(function TreeRowView(props: {
           {row.hasChildren ? (row.expanded ? '▾' : '▸') : ''}
         </span>
         <span className="name ell">{row.name}</span>
-        {row.hasChildren && <span className="cnt">{fmtNum(row.topicCount)}</span>}
         {row.pinned && <span className="muted" aria-label={t('explore.pinned')}>★</span>}
       </span>
+      <span className="p" data-testid="tree-payload">
+        {showValue && (
+          <em className="selectable" title={row.value ?? undefined}>
+            {row.value}
+          </em>
+        )}
+        {row.isTopic && row.retained && <span className="chip">R</span>}
+        {!row.isTopic && row.formatHint && <span className="hintfmt">{row.formatHint}</span>}
+      </span>
       <span className="v">
-        <span className="msgs" title={t('explore.sinceConnect')}>
+        {props.valuesInTree && row.isTopic && row.spark.length > 1 && <Sparkline values={row.spark} times={row.sparkTimes} />}
+        <span className="msgs" title={t('tree.messagesTip')} data-testid="tree-msgs">
           {fmtNum(row.messages)}
         </span>
-        {(row.hasChildren || !row.isTopic) && <span className={`act${row.active ? '' : ' idle'}`} data-testid="activity-dot" />}
-        {leaf && row.isTopic && props.reducedMotion && row.active && <span className="act" data-testid="activity-dot" />}
-        {props.valuesInTree && row.isTopic && row.spark.length > 1 && <Sparkline values={row.spark} times={row.sparkTimes} />}
-        {props.valuesInTree && row.isTopic && row.value !== null && <em className="selectable">{row.value}</em>}
-        {row.isTopic && row.retained && <span className="chip">R</span>}
-        {row.isTopic && age && !row.hasChildren ? <span>{age}</span> : null}
-        {(row.hasChildren || !row.isTopic) && (
-          <span>
-            {row.formatHint ? `${row.formatHint} · ` : ''}
-            {t('explore.rate', { rate: fmtRate(row.rate) })}
+        <span className="rate" title={t('tree.rateTip')} data-testid="tree-rate">
+          {t('tree.rate', { rate: fmtRate(row.rate) })}
+        </span>
+        {row.hasChildren && (
+          <span className="cnt" title={t('tree.subtopicsTip')} data-testid="tree-subtopics">
+            {fmtNum(subtopics)}
           </span>
         )}
       </span>

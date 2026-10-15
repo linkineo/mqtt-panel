@@ -7,7 +7,8 @@ import { saveProfile } from '../lib/actions';
 export const ALL_COLUMNS: TableColumn[] = ['pin', 'topic', 'value', 'spark', 'updated', 'rate', 'messages', 'qos', 'retained', 'size'];
 export const EMPTY_FILTERS: Filters = { retainedOnly: false, changedWithinMin: null, payloadContains: '', qos: null, hasValue: false };
 
-export type DetailTab = 'payload' | 'diff' | 'history' | 'chart' | 'properties';
+/** Detail pane tabs (change set 8): Payload (with the diff switch, the topic chart and History) and Properties. */
+export type DetailTab = 'payload' | 'properties';
 
 export interface ExplorerConn {
   layout: 'tree' | 'table';
@@ -22,6 +23,8 @@ export interface ExplorerConn {
   tab: DetailTab;
   /** Message seq shown instead of the latest one (picked from History). */
   viewSeq: number | null;
+  /** "Show diff to previous" above the payload (change set 8), on by default. */
+  diff: boolean;
   initialised: boolean;
 }
 
@@ -54,6 +57,7 @@ export function defaultConn(): ExplorerConn {
     follow: true,
     tab: 'payload',
     viewSeq: null,
+    diff: true,
     initialised: false,
   };
 }

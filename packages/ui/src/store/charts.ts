@@ -14,6 +14,8 @@ export interface ChartSeries {
   axis: 'left' | 'right';
   unit: string;
   enabled: boolean;
+  /** Cast rule chosen on the card (change set 8); absent = the rule the engine detected. "boolean" draws 0/1. */
+  cast?: 'number' | 'parsedNumber' | 'boolean';
 }
 
 export interface Chart {
@@ -32,8 +34,13 @@ export interface PickerRequest {
   connId: string;
   topic: string;
   preselect: string | null;
-  /** Chart the picker adds to by default. */
+  /** Chart the picker adds to by default (Charts screen). */
   chartId: string | null;
+  /**
+   * 'topic' (change set 8, opened from the Explorer): the checkboxes edit this topic's own chart, and "Also add to"
+   * can send the checked fields to a dashboard chart. 'chart' (Charts screen): the checked fields go to that chart.
+   */
+  mode?: 'topic' | 'chart';
 }
 
 interface ChartsState {
@@ -48,7 +55,6 @@ interface ChartsState {
   updateChart(id: string, p: Partial<Chart>): void;
   updateSeries(chartId: string, seriesId: string, p: Partial<ChartSeries>): void;
   removeSeries(chartId: string, seriesId: string): void;
-  removeTopicField(connId: string, topic: string, path: string): void;
   duplicateChart(id: string, copySuffix: string): void;
   removeChart(id: string): void;
 }
@@ -110,12 +116,6 @@ export const useCharts = create<ChartsState>((set, get) => ({
     }),
   removeSeries: (chartId, seriesId) =>
     set({ charts: get().charts.map((c) => (c.id === chartId ? { ...c, series: c.series.filter((s) => s.id !== seriesId) } : c)) }),
-  removeTopicField: (connId, topic, path) =>
-    set({
-      charts: get().charts.map((c) =>
-        c.connId === connId ? { ...c, series: c.series.filter((s) => !(s.topic === topic && s.path === path)) } : c,
-      ),
-    }),
   duplicateChart: (id, copySuffix) => {
     const c = get().charts.find((x) => x.id === id);
     if (!c) return;

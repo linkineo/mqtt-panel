@@ -28,6 +28,10 @@ const SELECTORS = [
   '.card .state',
   '.lerr',
   '[data-testid=listener-row] td',
+  // change set 8: tree rows never wrap (the payload is cut with an ellipsis), the quick publish strip, the empty bar
+  '.tree .n',
+  '.qp',
+  '.cbar .hint',
 ].join(',');
 
 async function violations(page: Page): Promise<string[]> {

@@ -146,12 +146,14 @@ export const STATES: UiState[] = [
     },
   },
   {
+    // mockup 06 (change set 8): diff to previous on by default, the click menu on supply.temp
     id: '06-diff',
     query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
-      await p.click('[data-testid=tab-diff]');
-      await p.waitForSelector('[data-testid=diff]');
+      await p.waitForSelector('[data-testid=diff-changes]');
+      await p.locator('[data-testid=payload-json] .k[data-path="$.supply.temp"]').click();
+      await p.waitForSelector('[data-testid=json-menu]');
     },
   },
   {
@@ -164,12 +166,15 @@ export const STATES: UiState[] = [
     },
   },
   {
+    // change set 8: a History row selected, shown and diffed against its predecessor
     id: '07b-history',
     query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/r204', 'building/f2/r204/temperature');
-      await p.click('[data-testid=tab-history]');
-      await p.waitForSelector('[data-testid=history]');
+      await p.click('[data-testid=follow]');
+      await p.locator('[data-testid=history-row]').nth(2).click();
+      await p.waitForSelector('[data-testid=detail] .callout');
+      await p.locator('[data-testid=history-row]').nth(2).scrollIntoViewIfNeeded();
     },
   },
   {
@@ -204,16 +209,15 @@ export const STATES: UiState[] = [
     id: '10-charts',
     query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
+      // change set 8: the topic chart's fields also go to a new dashboard chart; the first card opened in place
       await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
-      await p.click('[data-testid=tab-chart]');
       await p.click('[data-testid=add-field]');
-      await p.click('[data-testid="picker-check-supply.temp"]');
-      await p.click('[data-testid="picker-check-supply.fan"]');
+      await p.selectOption('[data-testid=picker-also]', 'new');
       await p.click('[data-testid=picker-add]');
       await p.click('[data-testid=rail-charts]');
       await p.waitForSelector('[data-testid=series-card]');
-      await p.locator('[data-testid=series-card] .t button').first().click();
-      await p.waitForSelector('[data-testid=series-editor]');
+      await p.locator('[data-testid=series-more]').first().click();
+      await p.waitForSelector('[data-testid=series-details]');
       await p.waitForTimeout(1200);
     },
   },
@@ -222,7 +226,6 @@ export const STATES: UiState[] = [
     query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
       await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
-      await p.click('[data-testid=tab-chart]');
       await p.click('[data-testid=add-field]');
       await p.waitForSelector('[data-testid=field-picker]');
     },
@@ -357,5 +360,28 @@ export const STATES: UiState[] = [
     },
   },
   { id: '19-no-connection', query: 'mock=demo&screen=explore' },
+  {
+    // change set 8: the empty connection bar's + opens the New connection menu
+    id: '19b-empty-bar-menu',
+    query: 'mock=demo&screen=explore',
+    steps: async (p) => {
+      await p.click('[data-testid=cbar-new]');
+      await p.waitForSelector('[data-testid=context-menu]');
+    },
+  },
+  {
+    // change set 8: the chart title renamed in place
+    id: '10c-chart-rename',
+    query: 'mock=demo&connect=plant,local&screen=explore',
+    steps: async (p) => {
+      await selectTopic(p, 'building/f2/ahu01', 'building/f2/ahu01/state');
+      await p.click('[data-testid=add-field]');
+      await p.selectOption('[data-testid=picker-also]', 'new');
+      await p.click('[data-testid=picker-add]');
+      await p.click('[data-testid=rail-charts]');
+      await p.click('[data-testid=chart-title]');
+      await p.waitForSelector('input[data-testid=chart-title]');
+    },
+  },
   { id: '20-charts-empty', query: 'mock=demo&connect=plant,local&screen=charts' },
 ];

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ExportEstimate, ExportOptions } from '@mqttpanel/engine-client';
 import { engine } from '../../services';
 import { reportSave, run } from '../../lib/actions';
-import { Check, Modal, Seg } from '../../components/ui';
+import { Check, Modal, Seg, NO_AUTO } from '../../components/ui';
 import { fmtBytes, fmtHm, fmtNum } from '../../lib/format';
 
 type Range = '15m' | '1h' | 'session' | 'custom';
@@ -138,8 +138,8 @@ export function ExportDialog(props: {
         />
         {range === 'custom' ? (
           <>
-            <input className="input" type="datetime-local" value={from} aria-label={t('export.from')} onChange={(e) => setFrom(e.target.value)} style={{ width: 170 }} />
-            <input className="input" type="datetime-local" value={to} aria-label={t('export.to')} onChange={(e) => setTo(e.target.value)} style={{ width: 170 }} />
+            <input {...NO_AUTO} className="input" type="datetime-local" value={from} aria-label={t('export.from')} onChange={(e) => setFrom(e.target.value)} style={{ width: 170 }} />
+            <input {...NO_AUTO} className="input" type="datetime-local" value={to} aria-label={t('export.to')} onChange={(e) => setTo(e.target.value)} style={{ width: 170 }} />
           </>
         ) : (
           <span className="hint">

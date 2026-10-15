@@ -67,8 +67,9 @@ export async function publishHere(connId: string, topic: string) {
   useApp.getState().prefillPublish(topic, payloadText(d?.last ?? null), payloadFormat(d?.last ?? null));
 }
 
+/** "Add to chart" from the Explorer (context menu, click menu, "+ Add field…"): edits the topic's own chart. */
 export function addToChart(connId: string, topic: string, preselect: string | null = null) {
-  useCharts.getState().openPicker({ connId, topic, preselect, chartId: useCharts.getState().activeId });
+  useCharts.getState().openPicker({ connId, topic, preselect, chartId: null, mode: 'topic' });
 }
 
 export async function clearHistory(connId: string, prefix: string | null) {

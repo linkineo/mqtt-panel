@@ -7,6 +7,7 @@ import { useExplorer } from '../store/explorer';
 import { connectProfile, newConnection } from '../lib/actions';
 import { shortcut } from '../lib/keys';
 import { addToChart, publishHere } from '../lib/topicActions';
+import { NO_AUTO } from './ui';
 
 interface Item {
   id: string;
@@ -141,7 +142,7 @@ export function CommandPalette() {
       <div className="palette" role="dialog" aria-label={t('palette.label')} data-testid="palette">
         <div className="in">
           <span className="muted">›</span>
-          <input
+          <input {...NO_AUTO}
             ref={input}
             value={q}
             placeholder={t('palette.placeholder')}

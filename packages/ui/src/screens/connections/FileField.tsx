@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { FileInspection, Profile, UserMessage } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
 import { toMessage } from '../../i18n';
-import { Modal, Msg } from '../../components/ui';
+import { Modal, Msg, NO_AUTO } from '../../components/ui';
 
 type Field = 'caCert' | 'clientCert' | 'clientKey';
 
@@ -130,7 +130,7 @@ export function FileField(props: {
           }
         >
           <div className="muted small">{t('file.passphraseHelp')}</div>
-          <input
+          <input {...NO_AUTO}
             className={`input w-l${passError ? ' err' : ''}`}
             type="password"
             value={passphrase}

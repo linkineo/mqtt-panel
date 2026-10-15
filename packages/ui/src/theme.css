@@ -195,14 +195,20 @@ button.chip:hover { filter: brightness(.97) }
 
 /* ---------- tree ---------- */
 .tree { font-family: var(--mono); font-size: var(--mono-size); line-height: 1.2 }
-.tree .n { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: var(--row-pad) 8px; border-radius: 6px; white-space: nowrap; height: 100%; position: relative }
+.tree .n { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: var(--row-pad) 8px; border-radius: 6px; white-space: nowrap; height: 100%; position: relative }
 .tree .n:hover { background: var(--line-2) }
 .tree .n.sel { background: var(--sel) }
 .tree .n.new { box-shadow: inset 2px 0 0 var(--sage); background: var(--sage-soft) }
 .tree .n .k { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden }
-.tree .n .v { color: var(--ink-2); font-size: calc(var(--mono-size) - 1px); display: flex; gap: 10px; align-items: center; min-width: 0; overflow: hidden }
-.tree .n .v em { font-style: normal; color: var(--sage); max-width: 260px; overflow: hidden; text-overflow: ellipsis }
-.tree .n .cnt { background: var(--line-2); border-radius: 8px; padding: 0 6px; font-size: 10px; color: var(--ink-2) }
+/* change set 8: the payload takes the width between the name and the figures, one line, ellipsis */
+.tree .n .p { color: var(--sage); overflow: hidden; min-width: 0; display: flex; align-items: center; gap: 6px }
+.tree .n .p em { font-style: normal; overflow: hidden; text-overflow: ellipsis; min-width: 0 }
+.tree .n .p .chip { flex: none }
+.tree .n .p .hintfmt { color: var(--ink-2); font-family: var(--sans); font-size: 11px; overflow: hidden; text-overflow: ellipsis }
+.tree .n .v { color: var(--ink-2); font-size: calc(var(--mono-size) - 1px); display: flex; gap: 10px; align-items: center; justify-content: flex-end }
+.tree .n .rate, .tree .n .msgs, .tree .n .cnt { cursor: help }
+.tree .n .rate { font-family: var(--sans); font-size: 11px; min-width: 3ch; text-align: right }
+.tree .n .cnt { background: var(--line-2); border-radius: 8px; padding: 0 6px; font-size: 10px; color: var(--ink-2); font-family: var(--sans) }
 .tree .n .tw { color: var(--ink-2); width: 10px; display: inline-block; flex: none; text-align: center }
 .tree .msgs { font-size: 10px; color: var(--ink-2); font-family: var(--sans) }
 .tree .n .chip { font-size: 10px; padding: 0 6px }
@@ -249,8 +255,6 @@ button.chip:hover { filter: brightness(.97) }
 .json .pick:hover { background: var(--sel) }
 .json .pick.plot { text-decoration: underline; text-decoration-style: dotted }
 .json .pick.dim { opacity: .5 }
-.json .charticon { visibility: hidden; border: 0; background: none; color: var(--ink-2); padding: 0 4px; font-size: 11px; font-family: var(--sans) }
-.json .line:hover .charticon { visibility: visible }
 .json.wrap { white-space: pre-wrap; word-break: break-all }
 .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 12px; margin: 0 }
 .kv dt { color: var(--ink-2); white-space: nowrap }
@@ -393,7 +397,12 @@ button.chip:hover { filter: brightness(.97) }
 /* ✕ on the active tab; on the others when hovered or focused, like native tab bars (spec: every tab has one) */
 .cbar .tab:not(.on) .x { visibility: hidden }
 .cbar .tab:not(.on):hover .x, .cbar .tab:not(.on):focus-within .x { visibility: visible }
-.app.with-bar { grid-template-rows: 44px auto 1fr }
+/* change set 8: the bar is the first row of the main column (right of the rail), always shown */
+.main-col { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0 }
+.cbar.empty { align-items: center }
+.cbar .hint { font-weight: 500; color: var(--ink-2); padding: 0 4px; font-size: 12px; white-space: nowrap }
+.cbar .plus { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); display: inline-grid; place-items: center; color: var(--ink-2); font-weight: 600; padding: 0; background: none; line-height: 1; flex: none }
+.cbar .plus:hover { color: var(--ink); background: var(--line-2) }
 .form.wide-label .f { grid-template-columns: 212px minmax(0, 1fr) }
 
 /* change set 4 (13 Oct 2026): rail badges instead of the title bar pill, stop button on cards, form folds, broker panels */
@@ -448,3 +457,21 @@ button.chip:hover { filter: brightness(.97) }
 .choice .card .s { margin-top: 2px; white-space: normal; display: block }
 .risk { margin: 0; color: var(--clay); font-size: 12px }
 .btn.clay { color: var(--clay); border-color: var(--clay) }
+/* change set 8: detail header icon buttons and the boxed quick publish strip (mockup 04) */
+.btn.ico { width: 26px; height: 24px; padding: 0; justify-content: center; font-size: 13px; color: var(--ink-2) }
+.btn.ico:hover { color: var(--ink) }
+.btn.ico.on { color: var(--clay) }
+.btn.ico svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round }
+.qp { display: flex; gap: 8px; align-items: center; padding: 6px 10px; margin: 0 14px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); min-width: 0; white-space: nowrap; flex: none }
+.qp .sep { width: 1px; height: 18px; background: var(--line); flex: none }
+.qp .input { background: var(--surface) }
+.qp .chip { cursor: pointer }
+.json .line.add, .json .line.del { display: block }
+.ulink { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer }
+/* change set 8: series cards edited in place, chart title renamed in place (mockup 10) */
+.cdot.btnless { border: 0; padding: 0; cursor: pointer; width: 12px; height: 12px }
+.card.series .input.sname { width: 150px; min-width: 0; font-weight: 600; flex: 0 1 auto }
+.card.series .s .seg { flex: none }
+.iconbtn.chev { font-size: 12px; width: 18px }
+.btn.link.titlebtn { font-size: 13px; max-width: 100%; min-width: 0 }
+.input.titlein { width: 280px; font-weight: 600 }

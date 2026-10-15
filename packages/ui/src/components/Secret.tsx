@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { platform } from '../services';
 import { useApp } from '../store/app';
+import { NO_AUTO } from './ui';
 
 const MASK = '••••••••••••';
 
@@ -102,7 +103,7 @@ export function SecretInput(props: Omit<React.InputHTMLAttributes<HTMLInputEleme
   const [shown, setShown] = useState(false);
   return (
     <span className="secretin" style={style}>
-      <input {...rest} className={rest.className ?? 'input w-l'} type={shown ? 'text' : 'password'} value={value} data-testid={testId} onChange={(e) => onValue(e.target.value)} />
+      <input {...NO_AUTO} {...rest} className={rest.className ?? 'input w-l'} type={shown ? 'text' : 'password'} value={value} data-testid={testId} onChange={(e) => onValue(e.target.value)} />
       <SecretButtons shown={shown} disabled={!value} testId={testId} onToggle={() => setShown(!shown)} onCopy={() => void copySecret(value)} />
     </span>
   );

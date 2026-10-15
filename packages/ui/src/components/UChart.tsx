@@ -58,6 +58,8 @@ export function UChart(props: {
   compact?: boolean;
   onReady?(u: uPlot | null): void;
   testId?: string;
+  /** Accessible name of the chart. */
+  label?: string;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
@@ -187,7 +189,7 @@ export function UChart(props: {
   }, [props.series, props.xRange]);
 
   return (
-    <div className="chartbox" ref={box} style={{ height: props.height }} data-testid={props.testId} onMouseLeave={() => setReadout(null)}>
+    <div className="chartbox" ref={box} style={{ height: props.height }} data-testid={props.testId} role={props.label ? 'img' : undefined} aria-label={props.label} onMouseLeave={() => setReadout(null)}>
       {readout && (
         <div className="readout" style={{ left: readout.left, top: readout.top }} data-testid="chart-readout">
           <div className="t">{fmtTime(readout.time)}</div>

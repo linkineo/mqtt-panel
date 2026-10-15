@@ -1,4 +1,5 @@
-import type { MouseEvent, ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import type { DiffLine } from '@mqttpanel/engine-client';
@@ -32,35 +33,122 @@ export function pathLabel(path: string): string {
   return path === '$' ? 'value' : path.replace(/^\$\.?/, '');
 }
 
-export interface FieldActions {
-  onChart(path: string): void;
-  onCopy(text: string): void;
+/** A click (or right-click) on a key or a value of the payload view (change set 8). */
+export interface FieldClick {
+  path: string;
+  value: unknown;
+  x: number;
+  y: number;
 }
 
-/** Context menu on a key or value (D-17): Add to chart, Copy path, Copy value. */
-export async function fieldMenu(path: string, value: unknown, e: MouseEvent, a: FieldActions) {
-  e.preventDefault();
-  e.stopPropagation();
-  const t = i18next.t.bind(i18next);
+export interface FieldActions {
+  open(c: FieldClick): void;
+}
+
+function clickHandler(a: FieldActions | undefined, path: string, value: () => unknown) {
+  if (!a) return undefined;
+  return (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    a.open({ path, value: value(), x: e.clientX, y: e.clientY });
+  };
+}
+
+/**
+ * The click menu of the payload view (change set 8, mockup 06): "Use as sparkline", "Add <field> to chart…",
+ * "Copy path", "Copy value". Text fields show the first two disabled with "text, not plottable". Rendered in the page
+ * (not native) so it sits next to the value that was clicked.
+ */
+export function FieldMenu(props: {
+  at: FieldClick;
+  sparklinePath: string | null;
+  onSparkline(path: string): void;
+  onChart(path: string): void;
+  onCopy(text: string): void;
+  onClose(): void;
+}) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number }>({ left: props.at.x, top: props.at.y });
+  const { path, value } = props.at;
+  const leaf = value === null || typeof value !== 'object';
   const canPlot = plottable(value);
+  const isText = leaf && castOf(value) === 'text';
   const valueText = typeof value === 'string' ? value : JSON.stringify(value);
-  const id = await platform().showContextMenu(
-    [
-      {
-        id: 'chart',
-        label: canPlot ? t('field.addToChart', { field: pathLabel(path) }) : t('field.addToChartText', { field: pathLabel(path) }),
-        accelerator: 'C',
-        enabled: canPlot,
-      },
-      { id: 'path', label: t('field.copyPath', { path }) },
-      { id: 'value', label: t('field.copyValue', { value: valueText.length > 40 ? valueText.slice(0, 40) + '…' : valueText }) },
-    ],
-    e.clientX,
-    e.clientY,
+  const field = pathLabel(path);
+  const { onClose } = props;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    setPos({ left: Math.max(8, Math.min(props.at.x, window.innerWidth - w - 8)), top: Math.max(8, Math.min(props.at.y + 4, window.innerHeight - h - 8)) });
+    el.querySelector<HTMLElement>('[role=menuitem]:not([aria-disabled=true])')?.focus();
+  }, [props.at]);
+  useEffect(() => {
+    const down = (e: globalThis.MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', down, true);
+    document.addEventListener('keydown', key, true);
+    return () => {
+      document.removeEventListener('mousedown', down, true);
+      document.removeEventListener('keydown', key, true);
+    };
+  }, [onClose]);
+  const items: { id: string; label: string; enabled: boolean; on?: boolean; kbd?: string; sep?: boolean }[] = [
+    { id: 'spark', label: isText ? t('field.useSparklineText') : t('field.useSparkline'), enabled: canPlot, on: canPlot && props.sparklinePath === path },
+    { id: 'chart', label: isText ? t('field.addToChartText', { field }) : t('field.addToChart', { field }), enabled: canPlot, kbd: 'C' },
+    { id: 'path', label: t('field.copyPath', { path }), enabled: true, sep: true },
+    { id: 'value', label: t('field.copyValue', { value: valueText.length > 40 ? valueText.slice(0, 40) + '…' : valueText }), enabled: true },
+  ];
+  const act = (id: string) => {
+    onClose();
+    if (id === 'spark') props.onSparkline(path);
+    else if (id === 'chart') props.onChart(path);
+    else if (id === 'path') props.onCopy(path);
+    else if (id === 'value') props.onCopy(valueText);
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const list = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role=menuitem]:not([aria-disabled=true])') ?? []);
+    const i = list.indexOf(document.activeElement as HTMLElement);
+    list[(i + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length]?.focus();
+  };
+  return createPortal(
+    <div ref={ref} className="ctx" role="menu" aria-label={t('field.menu', { field })} data-testid="json-menu" data-path={path} style={{ left: pos.left, top: pos.top, minWidth: 240 }} onKeyDown={onKey}>
+      {items.map((it) => (
+        <Fragment key={it.id}>
+          {it.sep && <hr />}
+          <div
+            role="menuitem"
+            tabIndex={-1}
+            aria-disabled={!it.enabled || undefined}
+            data-id={it.id}
+            className={`ctx-item${it.enabled ? '' : ' disabled'}${it.on ? ' on' : ''}`}
+            onClick={() => it.enabled && act(it.id)}
+            onKeyDown={(e) => {
+              if ((e.key === 'Enter' || e.key === ' ') && it.enabled) {
+                e.preventDefault();
+                act(it.id);
+              }
+            }}
+          >
+            <span className="ctx-label">{it.label}</span>
+            {it.kbd && <span className="kbd">{it.kbd}</span>}
+          </div>
+        </Fragment>
+      ))}
+    </div>,
+    document.getElementById('app-root') ?? document.body,
   );
-  if (id === 'chart') a.onChart(path);
-  else if (id === 'path') a.onCopy(path);
-  else if (id === 'value') a.onCopy(valueText);
 }
 
 function valueClass(v: unknown): string {
@@ -70,17 +158,10 @@ function valueClass(v: unknown): string {
   return 'nl';
 }
 
-function ChartIcon({ onClick, label }: { onClick(): void; label: string }) {
-  return (
-    <button type="button" className="charticon" aria-label={label} title={label} onClick={onClick}>
-      ⌁
-    </button>
-  );
-}
-
 /**
- * Pretty JSON with the mockup colouring. Leaves are pickable: right-click (or the hover chart icon) offers the
- * field actions; in pick mode a click on a plottable key or value calls onPick and text fields are greyed (D-18).
+ * Pretty JSON with the mockup colouring. With `actions`, a click or right-click on any key or value opens the click
+ * menu (change set 8: nothing else sits inside the JSON); in pick mode a click on a plottable key or value calls onPick
+ * and text fields are greyed (D-18).
  */
 export function JsonView(props: {
   value: unknown;
@@ -102,8 +183,8 @@ export function JsonView(props: {
           <span
             className={`k pick${pick && canPlot ? ' plot' : ''}${dim ? ' dim' : ''}${props.pickedPath === path ? ' on' : ''}`}
             data-path={path}
-            onClick={pick && canPlot ? () => props.onPick!(path) : undefined}
-            onContextMenu={props.actions ? (e) => void fieldMenu(path, v, e, props.actions!) : undefined}
+            onClick={pick ? (canPlot ? () => props.onPick!(path) : undefined) : clickHandler(props.actions, path, () => v)}
+            onContextMenu={pick ? undefined : clickHandler(props.actions, path, () => v)}
           >
             "{key}"
           </span>
@@ -142,15 +223,14 @@ export function JsonView(props: {
         <span
           className={`${valueClass(v)} pick${pick && canPlot ? ' plot' : ''}${dim ? ' dim' : ''}`}
           data-path={path}
-          onClick={pick && canPlot ? () => props.onPick!(path) : undefined}
-          onContextMenu={props.actions ? (e) => void fieldMenu(path, v, e, props.actions!) : undefined}
+          onClick={pick ? (canPlot ? () => props.onPick!(path) : undefined) : clickHandler(props.actions, path, () => v)}
+          onContextMenu={pick ? undefined : clickHandler(props.actions, path, () => v)}
         >
           {JSON.stringify(v)}
         </span>
         {comma}
         {pick && !canPlot && cast === 'text' && <span className="muted"> {t('field.notPlottable')}</span>}
         {pick && cast === 'boolean' && <span className="muted"> {t('field.boolean01')}</span>}
-        {!pick && props.actions && canPlot && <ChartIcon label={t('field.addToChart', { field: pathLabel(path) })} onClick={() => props.actions!.onChart(path)} />}
       </span>,
     );
   };
@@ -163,11 +243,10 @@ export function JsonView(props: {
 }
 
 /** Diff rendering (mockup 06): removed struck through in brick, added on sage. */
-export function DiffView(props: { lines: DiffLine[]; highlight: boolean; actions?: FieldActions; leafValue(path: string): unknown }) {
-  const { t } = useTranslation();
+export function DiffView(props: { lines: DiffLine[]; highlight: boolean; actions?: FieldActions; leafValue(path: string): unknown; testId?: string }) {
   const lines = props.lines;
   return (
-    <div className="json" data-testid="diff">
+    <div className="json" data-testid={props.testId ?? 'diff'}>
       {lines.map((l, i) => {
         const next = lines[i + 1];
         const comma = l.open === null && next && next.close === null && next.indent === l.indent ? ',' : '';
@@ -176,7 +255,9 @@ export function DiffView(props: { lines: DiffLine[]; highlight: boolean; actions
           <>
             <span
               className="k pick"
-              onContextMenu={props.actions && l.path ? (e) => void fieldMenu(l.path!, props.leafValue(l.path!), e, props.actions!) : undefined}
+              data-path={l.path ?? undefined}
+              onClick={l.path ? clickHandler(props.actions, l.path, () => props.leafValue(l.path!)) : undefined}
+              onContextMenu={l.path ? clickHandler(props.actions, l.path, () => props.leafValue(l.path!)) : undefined}
             >
               "{l.key}"
             </span>
@@ -214,7 +295,9 @@ export function DiffView(props: { lines: DiffLine[]; highlight: boolean; actions
                 <span className={`${cls(vOld)}${hl ? ' del' : ''}`}>{vOld}</span>{' '}
                 <span
                   className={`${cls(vNew)} pick${hl ? ' add' : ''}`}
-                  onContextMenu={props.actions && l.path ? (e) => void fieldMenu(l.path!, props.leafValue(l.path!), e, props.actions!) : undefined}
+                  data-path={l.path ?? undefined}
+                  onClick={l.path ? clickHandler(props.actions, l.path, () => props.leafValue(l.path!)) : undefined}
+                  onContextMenu={l.path ? clickHandler(props.actions, l.path, () => props.leafValue(l.path!)) : undefined}
                 >
                   {vNew}
                 </span>
@@ -225,17 +308,14 @@ export function DiffView(props: { lines: DiffLine[]; highlight: boolean; actions
             {l.kind === 'same' && (
               <span
                 className={`${cls(vNew)} pick`}
-                onContextMenu={props.actions && l.path ? (e) => void fieldMenu(l.path!, props.leafValue(l.path!), e, props.actions!) : undefined}
+                data-path={l.path ?? undefined}
+                onClick={l.path ? clickHandler(props.actions, l.path, () => props.leafValue(l.path!)) : undefined}
+                onContextMenu={l.path ? clickHandler(props.actions, l.path, () => props.leafValue(l.path!)) : undefined}
               >
                 {vNew}
               </span>
             )}
             {comma}
-            {props.actions && l.plottable && l.path && (
-              <button type="button" className="charticon" aria-label={t('field.addToChart', { field: pathLabel(l.path) })} onClick={() => props.actions!.onChart(l.path!)}>
-                ⌁
-              </button>
-            )}
           </span>
         );
       })}
@@ -243,12 +323,8 @@ export function DiffView(props: { lines: DiffLine[]; highlight: boolean; actions
   );
 }
 
-export function fieldActions(openPicker: (path: string) => void): FieldActions {
-  return {
-    onChart: openPicker,
-    onCopy: (text) => {
-      void platform().copyText(text);
-      useApp.getState().toast({ kind: 'info', text: i18next.t('common.copied') });
-    },
-  };
+/** Copies a path or a value and says so. */
+export function copyField(text: string): void {
+  void platform().copyText(text);
+  useApp.getState().toast({ kind: 'info', text: i18next.t('common.copied') });
 }

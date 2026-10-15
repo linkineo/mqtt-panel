@@ -8,6 +8,13 @@ import { fmtTime } from '../lib/format';
 
 /* ---------------------------------------------------------------- segmented control */
 
+/**
+ * Spread on every text input and textarea (change set 8, V-11): no automatic capitalisation, correction or spell-check
+ * (macOS WebKit capitalised the first letter typed into host names, topics and client IDs). A Vitest checks that every
+ * `<input` and `<textarea` in the sources carries it.
+ */
+export const NO_AUTO = { autoCapitalize: 'off', autoCorrect: 'off', spellCheck: false } as const;
+
 export interface SegOption<T extends string | number> {
   value: T;
   label: ReactNode;
@@ -343,12 +350,12 @@ export function PromptDialog(props: {
       <div className="form">
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <label htmlFor="prompt-v">{props.label}</label>
-          <input id="prompt-v" className="input w-l" value={v} data-autofocus onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
+          <input {...NO_AUTO} id="prompt-v" className="input w-l" value={v} data-autofocus onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
         </div>
         {props.extra && (
           <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
             <label htmlFor="prompt-x">{props.extra.label}</label>
-            <input id="prompt-x" className="input w-l" value={x} list="prompt-x-list" onChange={(e) => setX(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
+            <input {...NO_AUTO} id="prompt-x" className="input w-l" value={x} list="prompt-x-list" onChange={(e) => setX(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
             <datalist id="prompt-x-list">
               {props.extra.suggestions?.map((s) => <option key={s} value={s} />)}
             </datalist>

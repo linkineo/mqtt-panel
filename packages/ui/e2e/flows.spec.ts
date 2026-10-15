@@ -126,12 +126,12 @@ test.describe('Connections', () => {
     await menuItem(page, /Cloud EMQX/);
     await expect(page.locator('[data-testid=explorer]')).toBeVisible();
     await expect(page.locator('[data-testid=cbar-tab][aria-selected=true]')).toContainText('Cloud EMQX');
-    // ✕ disconnects; the bar disappears with the last open connection
+    // ✕ disconnects; with the last open connection gone the bar stays, empty (change set 8)
     await page.locator('[data-testid=cbar-tab][aria-selected=true] [data-testid=cbar-close]').click();
     await expect(tabs).toHaveCount(1);
     await expect(page.locator('[data-testid=cbar-tab][aria-selected=true]')).toContainText('Plant broker');
     await page.locator('[data-testid=cbar-close]').click();
-    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=cbar]')).toHaveAttribute('data-empty', 'true');
     await expect(page.locator('[data-testid=rail-connect-count]')).toHaveCount(0);
   });
 
@@ -168,7 +168,7 @@ test.describe('Connections', () => {
     await expect(page.locator('[data-testid=delete-profile] .mh')).toHaveText('Delete the connection "Local broker"?');
     await page.click('[data-testid=confirm-ok]');
     await expect(page.locator('[data-profile=local]')).toHaveCount(0);
-    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=cbar]')).toHaveAttribute('data-empty', 'true');
   });
 });
 
@@ -248,15 +248,22 @@ test.describe('Explorer', () => {
     await expect(dlg).not.toContainText('humidity'); // not retained in the demo data
   });
 
-  test('X-11 diff shows the changes and takes any history entry as baseline', async ({ page }) => {
+  test('X-11 / X-18 "Show diff to previous" is on by default; a History row is diffed against its predecessor', async ({ page }) => {
     await open(page, 'mock=demo&connect=plant&screen=explore');
     await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
-    await page.click('[data-testid=tab-diff]');
+    await expect(page.locator('[data-testid=diff-toggle]')).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator('[data-testid=diff-changes]')).toBeVisible();
-    await expect(page.locator('[data-testid=diff] .add, [data-testid=diff] .chg, [data-testid=diff] .del').first()).toBeVisible();
-    const base = page.locator('[data-testid=detail] table.tbl tbody tr').nth(2).locator('button');
-    await base.click();
-    await expect(base).toHaveClass(/pri/);
+    await expect(page.locator('[data-testid=payload-json] .add, [data-testid=payload-json] .chg, [data-testid=payload-json] .del').first()).toBeVisible();
+    await expect(page.locator('[data-testid=diff-baseline]')).toHaveText(/^vs \d\d:\d\d:\d\d$/);
+    await page.click('[data-testid=follow]');
+    const rows = page.locator('[data-testid=history-row]');
+    const pred = (await rows.nth(3).locator('td').first().textContent())!.slice(0, 8);
+    await rows.nth(2).click();
+    await expect(page.locator('[data-testid=detail] .callout')).toContainText('Showing the message from');
+    await expect(page.locator('[data-testid=diff-baseline]')).toHaveText(`vs ${pred}`);
+    await page.click('[data-testid=diff-toggle]');
+    await expect(page.locator('[data-testid=payload-json] [data-kind]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=diff-baseline]')).toHaveCount(0);
   });
 
   test('X-14 payloads above the render limit open the paged raw view; "format anyway" works', async ({ page }) => {
@@ -274,9 +281,10 @@ test.describe('Charts', () => {
   async function chartWithSeries(page: Page) {
     await open(page, 'mock=demo&connect=plant&screen=explore');
     await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
-    await page.click('[data-testid=tab-chart]');
     await page.click('[data-testid=add-field]');
-    await page.click('[data-testid="picker-check-supply.temp"]');
+    // the demo topic chart already holds supply.temp and supply.fan; keep supply.temp only and also add it to a new chart
+    await page.click('[data-testid="picker-check-supply.fan"]');
+    await page.selectOption('[data-testid=picker-also]', 'new');
     await page.click('[data-testid=picker-add]');
     await page.click('[data-testid=rail-charts]');
     await page.waitForSelector('[data-testid=series-card]');
@@ -284,7 +292,7 @@ test.describe('Charts', () => {
 
   test('D-18 clicking a key in the last message writes its path into the series', async ({ page }) => {
     await chartWithSeries(page);
-    await page.locator('[data-testid=series-card] .t button').first().click();
+    await page.locator('[data-testid=series-more]').first().click();
     await page.waitForSelector('[data-testid=series-sample]');
     await page.locator('[data-testid=series-sample] [data-path="$.supply.fan"]').first().click();
     await expect(page.locator('[data-testid=series-path]')).toHaveValue('$.supply.fan');
@@ -299,10 +307,10 @@ test.describe('Charts', () => {
   test('D-19 hover readout lists every series at the same time', async ({ page }) => {
     await open(page, 'mock=demo&connect=plant&screen=explore');
     await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
-    await page.click('[data-testid=tab-chart]');
     await page.click('[data-testid=add-field]');
-    await page.click('[data-testid="picker-check-supply.temp"]');
+    await page.click('[data-testid="picker-check-supply.fan"]');
     await page.click('[data-testid="picker-check-alarm.active"]');
+    await page.selectOption('[data-testid=picker-also]', 'new');
     await page.click('[data-testid=picker-add]');
     await page.click('[data-testid=rail-charts]');
     await page.waitForSelector('[data-testid=series-card]');
@@ -716,7 +724,7 @@ test.describe('Change set 4', () => {
     await page.click('[data-testid=connect]');
     await expect(page.locator('.toast.err')).toContainText('already in use by node', { timeout: 8000 });
     await expect(page.locator('[data-testid=explorer]')).toHaveCount(0);
-    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=cbar]')).toHaveAttribute('data-empty', 'true');
     await expect(page.locator('[data-testid=rail-broker-badge]')).toHaveCount(0);
   });
 
@@ -739,7 +747,7 @@ test.describe('Change set 4', () => {
     await expect(plant.locator('[data-testid=card-state]')).toHaveText('reconnecting');
     await plant.locator('[data-testid=card-stop]').click();
     await expect(plant.locator('[data-testid=card-state]')).toHaveCount(0);
-    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=cbar]')).toHaveAttribute('data-empty', 'true');
   });
 
   test('C-19 Security and Advanced are folds, closed at start, with a summary; the state is kept while the app runs', async ({ page }) => {
@@ -1240,7 +1248,7 @@ test.describe('Change set 6', () => {
     expect(p.tls.trustedFingerprints).toEqual([]);
     // always: the profile switch is on
     await page.click('[data-testid=cbar-tab][data-conn=lab] [data-testid=cbar-close]');
-    await expect(page.locator('[data-testid=cbar]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=cbar]')).toHaveAttribute('data-empty', 'true');
     await page.click('[data-testid=rail-connect]');
     await page.click('[data-profile=lab]');
     await page.click('[data-testid=connect]');
@@ -1266,5 +1274,166 @@ test.describe('Change set 6', () => {
     p = ((await mock(page, 'listProfiles')) as any[]).find((x) => x.name === 'private');
     expect(p.tls.caCert.fileName).toBe('lab-private-ca.pem');
     expect(p.tls.skipVerify).toBe(false);
+  });
+});
+
+test.describe('Change set 8', () => {
+  test('X-15 tree rows: name, payload, R, then sparkline, messages, throughput, subtopics with tooltips; never wrap', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await page.fill('[data-testid=search]', 'building/f2/r204');
+    const folder = page.locator('[data-testid=tree-row][data-path="building/f2/r204"]');
+    await expect(folder.locator('[data-testid=tree-subtopics]')).toHaveAttribute('title', 'Subtopics below this one');
+    await expect(folder.locator('[data-testid=tree-msgs]')).toHaveAttribute('title', 'Messages since the connection opened');
+    await expect(folder.locator('[data-testid=tree-rate]')).toHaveAttribute('title', 'Messages per second');
+    await expect(folder.locator('[data-testid=tree-rate]')).toHaveText(/^[\d.,]+\/s$/);
+    const temp = page.locator('[data-testid=tree-row][data-path="building/f2/r204/temperature"]');
+    await expect(temp.locator('[data-testid=tree-payload] em')).toContainText('{"value":');
+    await expect(temp.locator('[data-testid=tree-payload] .chip')).toHaveText('R');
+    await expect(temp.locator('.v > *')).toHaveCount(3); // sparkline, messages, throughput
+    await expect(page.locator('[data-testid=activity-dot]')).toHaveCount(0);
+    // every row is one line: its height is the row height and the payload is cut with an ellipsis
+    const heights = await page.locator('[data-testid=tree-row]').evaluateAll((els) => els.map((e) => (e as HTMLElement).scrollHeight - (e as HTMLElement).clientHeight));
+    expect(heights.every((h) => h <= 0)).toBe(true);
+    const em = temp.locator('[data-testid=tree-payload] em');
+    await expect(em).toHaveCSS('text-overflow', 'ellipsis');
+    await expect(em).toHaveCSS('white-space', 'nowrap');
+  });
+
+  test('X-16 / X-17 a click on a JSON value opens the click menu; "Use as sparkline" draws it and survives a reload', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await selectTopic(page, 'building/f2/r205/temperature', 'building/f2/r205/temperature');
+    const row = page.locator('[data-testid=tree-row][data-path="building/f2/r205/temperature"]');
+    await expect(row.locator('svg.spark')).toHaveCount(0); // JSON: nothing until picked
+    await expect(page.locator('[data-testid=detail] .charticon')).toHaveCount(0);
+    await page.click('[data-testid=diff-toggle]');
+    await page.locator('[data-testid=payload-json] .num[data-path="$.value"]').click();
+    const menu = page.locator('[data-testid=json-menu]');
+    await expect(menu.locator('.ctx-label')).toHaveText(['Use as sparkline', 'Add value to chart…', 'Copy path · $.value', /^Copy value · [\d.]+$/]);
+    await menu.locator('.ctx-item', { hasText: 'Use as sparkline' }).click();
+    await expect(row.locator('svg.spark')).toHaveCount(1);
+    // a text value: the plot items are disabled
+    await page.locator('[data-testid=payload-json] .k[data-path="$.unit"]').click();
+    await expect(menu.locator('.ctx-item').first()).toHaveAttribute('aria-disabled', 'true');
+    await expect(menu.locator('.ctx-item').first()).toHaveText('Use as sparkline · text, not plottable');
+    await page.keyboard.press('Escape');
+    // right-click on a topic still opens the topic menu
+    await row.click({ button: 'right' });
+    await expect(page.locator('[data-testid=context-menu] .ctx-label').first()).toHaveText(/^Pin|^Unpin/);
+    await page.keyboard.press('Escape');
+    const p = ((await page.evaluate(() => (window as any).__mqttpanelMock.engine.listProfiles())) as any[]).find((x) => x.id === 'plant');
+    expect(p.topics['building/f2/r205/temperature'].sparklinePath).toBe('$.value');
+    // a bare number draws by itself
+    await page.fill('[data-testid=search]', 'building/f2/r205/humidity');
+    await expect(page.locator('[data-testid=tree-row][data-path="building/f2/r205/humidity"] svg.spark')).toHaveCount(1);
+  });
+
+  test('X-19 topic chart: chips, + Add field… with this chart\'s fields checked, Also add to a dashboard chart', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
+    await expect(page.locator('[data-testid=chart-field]')).toHaveCount(2);
+    await expect(page.locator('[data-testid=topic-chart]')).toBeVisible();
+    await page.click('[data-testid=add-field]');
+    const picker = page.locator('[data-testid=field-picker]');
+    await expect(picker).toContainText('Fields on this chart · building/f2/ahu01/state');
+    await expect(picker.locator('[role=checkbox][aria-checked=true]')).toHaveCount(2);
+    await expect(page.locator('[data-testid=picker-also] option')).toHaveText(['None', 'New chart']);
+    await page.click('[data-testid="picker-check-setpoint"]');
+    await page.selectOption('[data-testid=picker-also]', 'new');
+    await page.click('[data-testid=picker-add]');
+    await expect(page.locator('[data-testid=chart-field]')).toHaveCount(3);
+    await page.locator('[data-testid=chart-field][data-path="$.supply.fan"] .x').click();
+    await expect(page.locator('[data-testid=chart-field]')).toHaveCount(2);
+    await page.click('[data-testid=rail-charts]');
+    await expect(page.locator('[data-testid=series-card]')).toHaveCount(3);
+  });
+
+  test('X-20 History lists every buffered message and the buffer can be raised for this topic', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await selectTopic(page, 'building/f2/r204/humidity', 'building/f2/r204/humidity');
+    await page.click('[data-testid=follow]');
+    const n = await page.locator('[data-testid=history-row]').count();
+    expect(n).toBeGreaterThan(4);
+    await expect(page.locator('[data-testid=detail]')).toContainText(`History · ${n}`);
+    await expect(page.locator('[data-testid=detail]')).not.toContainText('Recent');
+    await page.click('[data-testid=buffer-raise]');
+    await page.locator('[role=dialog] input').fill('500');
+    await page.locator('[role=dialog] .btn.pri').click();
+    await expect(page.locator('[data-testid=buffer-line]')).toContainText('500');
+  });
+
+  test('X-21 detail header: star, Publish icon, ⋯; boxed quick publish', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await selectTopic(page, 'building/f2/r204/humidity', 'building/f2/r204/humidity');
+    const pin = page.locator('[data-testid=pin-btn]');
+    await expect(pin).toHaveText('☆');
+    await expect(pin).toHaveAttribute('title', 'Pin');
+    await pin.click();
+    await expect(pin).toHaveText('★');
+    await expect(pin).toHaveAttribute('title', 'Pinned');
+    const qp = page.locator('[data-testid=quick-publish]');
+    await expect(qp).toHaveCSS('border-top-width', '1px');
+    await expect(qp).toHaveCSS('border-top-left-radius', '8px');
+    await expect(qp.locator('.sep')).toHaveCount(4);
+    await expect(qp).not.toContainText('Quick publish');
+    await page.click('[data-testid=publish-here]');
+    await expect(page.locator('[data-testid=pub-topic]')).toHaveValue('building/f2/r204/humidity');
+  });
+
+  test('X-22 the bar is always there, right of the rail; empty it offers + with the New connection menu', async ({ page }) => {
+    await open(page, 'mock=demo&screen=explore');
+    const bar = page.locator('[data-testid=cbar]');
+    await expect(bar).toHaveAttribute('data-empty', 'true');
+    await expect(bar).toContainText('Choose a connection');
+    const railBox = (await page.locator('.rail').boundingBox())!;
+    const barBox = (await bar.boundingBox())!;
+    expect(barBox.x).toBeGreaterThanOrEqual(railBox.x + railBox.width - 1);
+    expect(railBox.y).toBeLessThanOrEqual(barBox.y);
+    await page.click('[data-testid=cbar-new]');
+    await expect(page.locator('[data-testid=context-menu] .ctx-label')).toHaveText(['New broker…', 'Built-in broker']);
+    await page.locator('[data-testid=context-menu] .ctx-item', { hasText: 'Built-in broker' }).hover();
+    await page.locator('[data-testid=context-submenu] .ctx-item').first().click();
+    await expect(page.locator('[data-testid=app-broker]')).toBeVisible();
+  });
+
+  test('D-24 series edited in place; the chart title renamed in place', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await selectTopic(page, 'building/f2/ahu01', 'building/f2/ahu01/state');
+    await page.click('[data-testid=add-field]');
+    await page.selectOption('[data-testid=picker-also]', 'new');
+    await page.click('[data-testid=picker-add]');
+    await page.click('[data-testid=rail-charts]');
+    await expect(page.locator('[data-testid=series-card]')).toHaveCount(2);
+    await expect(page.locator('[data-testid=series-pane]')).not.toContainText('Edit series');
+    const card = page.locator('[data-testid=series-card]').first();
+    await card.locator('[data-testid=series-name]').fill('supply');
+    await card.locator('[data-testid=series-name]').press('Enter');
+    await expect(page.locator('[data-testid=chart-pane] .legend')).toContainText('supply · $.supply.temp');
+    await card.locator('[data-testid=series-colour]').click();
+    await page.locator('[data-testid=series-palette] [aria-label=Brick]').click();
+    await card.locator('[data-testid=series-more]').click();
+    await expect(card.locator('[data-testid=series-details]')).toContainText('Unit');
+    await page.click('[data-testid=chart-title]');
+    await page.fill('input[data-testid=chart-title]', 'AHU 01 · supply');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-testid=chart-title]')).toContainText('AHU 01 · supply');
+    await page.click('[data-testid=chart-title]');
+    await page.fill('input[data-testid=chart-title]', 'nope');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-testid=chart-title]')).toContainText('AHU 01 · supply');
+    await expect(page.locator('[data-testid=series-card]')).toHaveCount(2);
+  });
+
+  test('V-11 typed host names, topics and client IDs keep their lower case', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    await page.click('[data-profile=lab]');
+    const bad = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('input, textarea'))
+        .filter((e) => !['checkbox', 'radio', 'file'].includes((e as HTMLInputElement).type))
+        .filter((e) => e.getAttribute('autocapitalize') !== 'off' || e.getAttribute('autocorrect') !== 'off' || e.getAttribute('spellcheck') !== 'false').length,
+    );
+    expect(bad).toBe(0);
+    await page.locator('#pf-cid').fill('');
+    await page.locator('#pf-cid').pressSequentially('myclient');
+    await expect(page.locator('#pf-cid')).toHaveValue('myclient');
   });
 });

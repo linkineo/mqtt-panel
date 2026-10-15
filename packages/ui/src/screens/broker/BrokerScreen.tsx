@@ -5,7 +5,7 @@ import { engine, platform } from '../../services';
 import { renderMessage, toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
 import { reportSave, run } from '../../lib/actions';
-import { ConfirmDialog, Info, Modal, Msg, Popover, Seg, Switch } from '../../components/ui';
+import { ConfirmDialog, Info, Modal, Msg, Popover, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { fmtAge, fmtNum, fmtRate, fmtTime, fmtUptime, isoDateToMonth } from '../../lib/format';
 import { AddListenerDialog, CredentialsDialog, IssueCertDialog, RegenerateDialog, checkPort, kindLabel } from './BrokerDialogs';
 import { SecretInput, SecretText } from '../../components/Secret';
@@ -72,7 +72,7 @@ function PortCell({ l, disabled, onConfig }: { l: Listener; disabled: boolean; o
   }
   return (
     <>
-      <input
+      <input {...NO_AUTO}
         ref={ref}
         autoFocus
         className={`input mono${err ? ' err' : ''}`}
@@ -959,7 +959,7 @@ function CsrDialog({ onClose, onDone }: { onClose(): void; onDone(): void }) {
       <div className="form">
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <label htmlFor="csr-name">{t('issue.name')}</label>
-          <input id="csr-name" className="input mono w-l" value={name} placeholder={t('csr.fromCsr')} onChange={(e) => setName(e.target.value)} />
+          <input {...NO_AUTO} id="csr-name" className="input mono w-l" value={name} placeholder={t('csr.fromCsr')} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
           <span className="lbl">{t('issue.validFor')}</span>

@@ -4,7 +4,7 @@ import type { Profile, Qos, Scheme, Subscription } from '@mqttpanel/engine-clien
 import { engine } from '../../services';
 import { useApp } from '../../store/app';
 import { connectProfile, testProfile, disconnect, saveProfile, replaceProfile, setSkipOnce, useBusy, run } from '../../lib/actions';
-import { Info, Msg, Modal, Popover, Seg, Switch } from '../../components/ui';
+import { Info, Msg, Modal, Popover, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { FileField } from './FileField';
 import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { SecretText } from '../../components/Secret';
@@ -32,7 +32,7 @@ function AddressField({ p, onChange }: { p: Profile; onChange(patch: Partial<Pro
   }, [p.scheme, p.host, p.port, p.wsPath]);
   return (
     <span className="row2">
-      <input
+      <input {...NO_AUTO}
         id="pf-host"
         className="input mono w-xl"
         spellCheck={false}
@@ -47,7 +47,7 @@ function AddressField({ p, onChange }: { p: Profile; onChange(patch: Partial<Pro
           if (!sameFields(next, cur)) onChange(next);
         }}
       />
-      <input
+      <input {...NO_AUTO}
         className="input mono w-s"
         aria-label={t('conn.port')}
         data-testid="pf-port"
@@ -79,7 +79,7 @@ function SubscriptionAdd({ onAdd }: { onAdd(s: Subscription): void }) {
       {open && (
         <Popover anchor={ref.current} onClose={() => setOpen(false)} label={t('conn.addSubTitle')}>
           <div className="row">
-            <input
+            <input {...NO_AUTO}
               className="input mono"
               style={{ width: 220 }}
               placeholder="building/+/temperature"
@@ -135,7 +135,7 @@ function ProtoDialog({ profile, fileName, onClose, onProfile }: { profile: Profi
       <div className="form">
         <div className="f" style={{ gridTemplateColumns: '120px 1fr' }}>
           <label>{t('proto.filter')}</label>
-          <input className="input mono w-l" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input {...NO_AUTO} className="input mono w-l" value={filter} onChange={(e) => setFilter(e.target.value)} />
         </div>
         <div className="f" style={{ gridTemplateColumns: '120px 1fr' }}>
           <label>{t('proto.type')}</label>
@@ -369,7 +369,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
           <div className="sec">{t('conn.basics')}</div>
           <div className="f">
             <label htmlFor="pf-name">{t('conn.name')}</label>
-            <input
+            <input {...NO_AUTO}
               id="pf-name"
               className="input w-xl"
               value={p.name}
@@ -416,13 +416,13 @@ export function ProfileForm({ profileId }: { profileId: string }) {
           {isWebSocket(p.scheme) && (
             <div className="f">
               <label htmlFor="pf-ws">{t('conn.wsPath')}</label>
-              <input id="pf-ws" className="input mono w-m" value={p.wsPath} onChange={(e) => update({ wsPath: e.target.value })} />
+              <input {...NO_AUTO} id="pf-ws" className="input mono w-m" value={p.wsPath} onChange={(e) => update({ wsPath: e.target.value })} />
             </div>
           )}
           <div className="f">
             <label htmlFor="pf-cid">{t('conn.clientId')}</label>
             <span className="row2">
-              <input id="pf-cid" className="input mono w-l" value={p.clientId} onChange={(e) => update({ clientId: e.target.value })} />
+              <input {...NO_AUTO} id="pf-cid" className="input mono w-l" value={p.clientId} onChange={(e) => update({ clientId: e.target.value })} />
               <button type="button" className="btn sm" data-testid="generate-cid" onClick={() => update({ clientId: 'mqttpanel-' + Math.random().toString(16).slice(2, 6) })}>
                 {t('conn.generate')}
               </button>
@@ -430,7 +430,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
           </div>
           <div className="f">
             <label htmlFor="pf-user">{t('conn.username')}</label>
-            <input id="pf-user" className="input w-l" value={p.username} onChange={(e) => update({ username: e.target.value })} />
+            <input {...NO_AUTO} id="pf-user" className="input w-l" value={p.username} onChange={(e) => update({ username: e.target.value })} />
           </div>
           <div className="f">
             <label htmlFor="pf-pw">{t('conn.password')}</label>
@@ -440,7 +440,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               </span>
             ) : (
               <span className="row2">
-                <input
+                <input {...NO_AUTO}
                   id="pf-pw"
                   className="input w-l"
                   type="password"
@@ -496,7 +496,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                   {t('conn.sni')} <Info id="sni" title={t('conn.sni')} />
                 </span>
                 <span className="row2">
-                  <input className="input mono w-l" aria-label={t('conn.sni')} placeholder={t('common.optional')} value={p.tls.sni} onChange={(e) => updateTls({ sni: e.target.value.trim() })} />
+                  <input {...NO_AUTO} className="input mono w-l" aria-label={t('conn.sni')} placeholder={t('common.optional')} value={p.tls.sni} onChange={(e) => updateTls({ sni: e.target.value.trim() })} />
                 </span>
               </div>
               <div className="f">
@@ -504,7 +504,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                   {t('conn.alpn')} <Info id="alpn" title={t('conn.alpn')} />
                 </span>
                 <span className="row2">
-                  <input className="input mono w-m" aria-label={t('conn.alpn')} placeholder={t('common.optional')} value={p.tls.alpn} onChange={(e) => updateTls({ alpn: e.target.value.trim() })} />
+                  <input {...NO_AUTO} className="input mono w-m" aria-label={t('conn.alpn')} placeholder={t('common.optional')} value={p.tls.alpn} onChange={(e) => updateTls({ alpn: e.target.value.trim() })} />
                 </span>
               </div>
             </>
@@ -517,7 +517,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               <div className="f">
                 <label htmlFor="pf-ka">{t('conn.keepAlive')}</label>
                 <span className="row2">
-                  <input id="pf-ka" className="input mono w-s" inputMode="numeric" value={p.keepAlive} onChange={(e) => update({ keepAlive: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
+                  <input {...NO_AUTO} id="pf-ka" className="input mono w-s" inputMode="numeric" value={p.keepAlive} onChange={(e) => update({ keepAlive: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
                   <span className="hint">s</span>
                   <span className="muted">{t('conn.cleanStart')}</span>
                   <Switch on={p.cleanStart} label={t('conn.cleanStart')} onChange={(cleanStart) => update({ cleanStart })} />
@@ -526,7 +526,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               <div className="f">
                 <label htmlFor="pf-se">{t('conn.sessionExpiry')}</label>
                 <span className="row2">
-                  <input id="pf-se" className="input mono w-s" inputMode="numeric" value={p.sessionExpiry} onChange={(e) => update({ sessionExpiry: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
+                  <input {...NO_AUTO} id="pf-se" className="input mono w-s" inputMode="numeric" value={p.sessionExpiry} onChange={(e) => update({ sessionExpiry: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
                   <span className="hint">{t('conn.sessionExpiryHint')}</span>
                 </span>
               </div>
@@ -560,7 +560,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               <div className="f">
                 <span className="lbl">{t('conn.lastWill')}</span>
                 <span className="row2">
-                  <input
+                  <input {...NO_AUTO}
                     className="input mono w-l"
                     aria-label={t('conn.lastWillTopic')}
                     placeholder={t('conn.lastWillTopic')}
@@ -569,7 +569,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                       update({ lastWill: e.target.value || p.lastWill?.payload ? { qos: 0, retain: false, payload: '', ...p.lastWill, topic: e.target.value } : null })
                     }
                   />
-                  <input
+                  <input {...NO_AUTO}
                     className="input mono w-l"
                     aria-label={t('conn.lastWillPayload')}
                     placeholder={t('conn.lastWillPayload')}

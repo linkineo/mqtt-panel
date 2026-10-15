@@ -10,9 +10,8 @@ import { addToChart } from '../../lib/topicActions';
 import { NoConnection } from '../../components/NoConnection';
 import { UChart } from '../../components/UChart';
 import { JsonView, pathLabel } from '../../components/JsonView';
-import { Info, Popover, PromptDialog, Seg, Switch } from '../../components/ui';
+import { Info, Popover, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { TopicInput } from '../publish/PublishScreen';
-import { castLabel } from '../explorer/FieldPicker';
 import { fmtBytes, fmtNum } from '../../lib/format';
 
 export function ChartsScreen() {
@@ -27,13 +26,6 @@ function sinceFor(c: Chart, now: number): number | null {
   return r === null ? null : now - r;
 }
 
-function ruleLabel(s: SeriesData | undefined, t: (k: string) => string): string {
-  if (!s) return '';
-  if (s.castRule === 'mixed') return t('cast.mixed');
-  if (s.castRule === 'none') return t('cast.none');
-  return castLabel({ cast: s.castRule, plottable: true }, t);
-}
-
 function AddSeries({ connId, chartId }: { connId: string; chartId: string | null }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -42,7 +34,7 @@ function AddSeries({ connId, chartId }: { connId: string; chartId: string | null
   const go = () => {
     if (!topic.trim()) return;
     setOpen(false);
-    useCharts.getState().openPicker({ connId, topic: topic.trim(), preselect: null, chartId });
+    useCharts.getState().openPicker({ connId, topic: topic.trim(), preselect: null, chartId, mode: 'chart' });
     setTopic('');
   };
   return (
@@ -67,13 +59,57 @@ function AddSeries({ connId, chartId }: { connId: string; chartId: string | null
   );
 }
 
-function SeriesEditor({ chart, s, data, connId, onDone }: { chart: Chart; s: ChartSeries; data: SeriesData | undefined; connId: string; onDone(): void }) {
+/** Saves after a short pause while typing (like the profile form). */
+function useDebounced(save: (v: string) => void, value: string, ms = 400): [string, (v: string) => void, () => void] {
+  const [v, setV] = useState(value);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = useRef<string | null>(null);
+  useEffect(() => {
+    if (pending.current === null) setV(value);
+  }, [value]);
+  const flush = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    if (pending.current !== null) save(pending.current);
+    pending.current = null;
+  };
+  const change = (x: string) => {
+    setV(x);
+    pending.current = x;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(flush, ms);
+  };
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  return [v, change, flush];
+}
+
+const normPath = (p: string) => (p.trim() === '' ? '$' : p.trim().startsWith('$') ? p.trim() : '$.' + p.trim().replace(/^\./, ''));
+
+/** The cast rule shown on a card: the one chosen, else the one the engine detected. */
+export function castOfSeries(s: ChartSeries, d: SeriesData | undefined): 'number' | 'parsedNumber' | 'boolean' {
+  if (s.cast) return s.cast;
+  return d?.castRule === 'parsedNumber' || d?.castRule === 'boolean' ? d.castRule : 'number';
+}
+
+/**
+ * A series card, edited in place (owner, change set 8; mockup 10): switch, colour dot (palette popover), name, field
+ * path with the cast rule, and a chevron that opens style, axis, unit, "pick from the last message" and Remove.
+ * No edit mode: every change applies as it is made.
+ */
+function SeriesCard({ chart, s, data, connId }: { chart: Chart; s: ChartSeries; data: SeriesData | undefined; connId: string }) {
   const { t } = useTranslation();
   const upd = (p: Partial<ChartSeries>) => useCharts.getState().updateSeries(chart.id, s.id, p);
+  const [open, setOpen] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const dot = useRef<HTMLButtonElement>(null);
   const [sample, setSample] = useState<unknown>(undefined);
-  const [path, setPath] = useState(s.path);
-  useEffect(() => setPath(s.path), [s.path]);
+  const [name, setName, flushName] = useDebounced((name) => upd({ name }), s.name);
+  const [path, setPath, flushPath] = useDebounced((p) => upd({ path: normPath(p) }), s.path);
+  const [unit, setUnit, flushUnit] = useDebounced((unit) => upd({ unit }), s.unit);
   useEffect(() => {
+    if (!open) return;
     let live = true;
     void engine()
       .topicDetail(connId, s.topic)
@@ -86,56 +122,75 @@ function SeriesEditor({ chart, s, data, connId, onDone }: { chart: Chart; s: Cha
     return () => {
       live = false;
     };
-  }, [connId, s.topic]);
-  const lbl = { gridTemplateColumns: '60px minmax(0,1fr)' };
+  }, [open, connId, s.topic]);
+  const cast = castOfSeries(s, data);
   return (
-    <div className="card on" data-testid="series-editor">
+    <div className={`card series${open ? ' on' : ''}`} data-testid="series-card" data-series={s.id}>
       <div className="t">
-        <span className="row" style={{ gap: 8 }}>
-          <i className="cdot" style={{ background: `var(--c-${s.color})` }} />
-          {t('charts.editing')}
+        <span className="row" style={{ gap: 8, minWidth: 0, flex: 1 }}>
+          <button
+            ref={dot}
+            type="button"
+            className="cdot btnless"
+            style={{ background: `var(--c-${s.color})` }}
+            aria-label={`${t('series.colour')}: ${t(`colour.${s.color}`)}`}
+            title={t('series.colour')}
+            data-testid="series-colour"
+            onClick={() => setPalette(!palette)}
+          />
+          <input {...NO_AUTO}
+            className="input sname"
+            value={name}
+            aria-label={t('series.name')}
+            data-testid="series-name"
+            onChange={(e) => setName(e.target.value)}
+            onBlur={flushName}
+            onKeyDown={(e) => e.key === 'Enter' && flushName()}
+          />
         </span>
-        <button type="button" className="btn sm" onClick={onDone}>
-          {t('common.done')}
-        </button>
+        <span className="row" style={{ gap: 6 }}>
+          <Switch on={s.enabled} label={t('charts.show', { name: s.name })} onChange={(enabled) => upd({ enabled })} />
+          <button
+            type="button"
+            className="iconbtn chev"
+            aria-expanded={open}
+            aria-label={t('series.more')}
+            title={t('series.more')}
+            data-testid="series-more"
+            onClick={() => setOpen(!open)}
+          >
+            {open ? '▾' : '▸'}
+          </button>
+        </span>
       </div>
-      <div className="form" style={{ marginTop: 8, gap: 6 }}>
-        <div className="f" style={lbl}>
-          <label htmlFor={`sn-${s.id}`}>{t('series.name')}</label>
-          <input id={`sn-${s.id}`} className="input" value={s.name} onChange={(e) => upd({ name: e.target.value })} />
-        </div>
-        <div className="f" style={lbl}>
-          <span className="lbl">{t('series.topic')}</span>
-          <TopicInput connId={connId} value={s.topic} onChange={(topic) => upd({ topic })} />
-        </div>
-        <div className="f" style={lbl}>
-          <label htmlFor={`sp-${s.id}`}>{t('series.field')}</label>
-          <span className="row2">
-            <input
-              id={`sp-${s.id}`}
-              className="input mono"
-              style={{ flex: 1 }}
-              value={path}
-              data-testid="series-path"
-              onChange={(e) => setPath(e.target.value)}
-              onBlur={() => upd({ path: path.startsWith('$') ? path : '$.' + path })}
-              onKeyDown={(e) => e.key === 'Enter' && upd({ path: path.startsWith('$') ? path : '$.' + path })}
-            />
-            {data && <span className="chip">{ruleLabel(data, t)}</span>}
-          </span>
-        </div>
-        {sample !== undefined && (
-          <>
-            <p className="muted small" style={{ margin: 0, paddingLeft: 70 }}>
-              {t('series.pickHint')}
-            </p>
-            <div style={{ marginLeft: 0 }}>
-              <JsonView value={sample} small onPick={(p) => upd({ path: p })} pickedPath={s.path} testId="series-sample" />
-            </div>
-          </>
-        )}
-        <div className="f" style={lbl}>
-          <span className="lbl">{t('series.colour')}</span>
+      <div className="s mono" title={s.topic}>
+        <span className="ell">{s.topic}</span>
+      </div>
+      <div className="s" style={{ gap: 6 }}>
+        <input {...NO_AUTO}
+          className="input mono"
+          style={{ width: 150 }}
+          value={path}
+          aria-label={t('series.field')}
+          data-testid="series-path"
+          onChange={(e) => setPath(e.target.value)}
+          onBlur={flushPath}
+          onKeyDown={(e) => e.key === 'Enter' && flushPath()}
+        />
+        <Seg
+          label={t('series.cast')}
+          value={cast}
+          testId="series-cast"
+          onChange={(c) => upd({ cast: c, style: c === 'boolean' ? 'step' : s.style })}
+          options={[
+            { value: 'number', label: t('series.castNumber') },
+            { value: 'parsedNumber', label: t('series.castParsed') },
+            { value: 'boolean', label: t('series.castBool') },
+          ]}
+        />
+      </div>
+      {palette && (
+        <Popover anchor={dot.current} onClose={() => setPalette(false)} label={t('series.colour')} testId="series-palette">
           <span className="row2" role="radiogroup" aria-label={t('series.colour')}>
             {COLORS.map((c) => (
               <button
@@ -146,53 +201,140 @@ function SeriesEditor({ chart, s, data, connId, onDone }: { chart: Chart; s: Cha
                 aria-label={t(`colour.${c}`)}
                 className={`swatch${s.color === c ? ' on' : ''}`}
                 style={{ background: `var(--c-${c})`, color: `var(--c-${c})` }}
-                onClick={() => upd({ color: c })}
+                onClick={() => {
+                  upd({ color: c });
+                  setPalette(false);
+                }}
               />
             ))}
           </span>
+        </Popover>
+      )}
+      {open && (
+        <div className="form" style={{ marginTop: 8, gap: 6 }} data-testid="series-details">
+          {sample !== undefined && (
+            <>
+              <p className="muted small" style={{ margin: 0 }}>
+                {t('series.pickHint')}
+              </p>
+              <JsonView
+                value={sample}
+                small
+                onPick={(p) => {
+                  setPath(p);
+                  upd({ path: p });
+                }}
+                pickedPath={s.path}
+                testId="series-sample"
+              />
+            </>
+          )}
+          <div className="f" style={{ gridTemplateColumns: '60px minmax(0,1fr)' }}>
+            <span className="lbl">{t('series.style')}</span>
+            <span className="row2">
+              <Seg
+                label={t('series.style')}
+                value={s.style}
+                onChange={(style) => upd({ style })}
+                options={[
+                  { value: 'line', label: t('series.line') },
+                  { value: 'step', label: t('series.step') },
+                  { value: 'points', label: t('series.points') },
+                ]}
+              />
+            </span>
+          </div>
+          <div className="f" style={{ gridTemplateColumns: '60px minmax(0,1fr)' }}>
+            <span className="lbl">{t('series.axis')}</span>
+            <span className="row2">
+              <Seg
+                label={t('series.axis')}
+                value={s.axis}
+                onChange={(axis) => upd({ axis })}
+                options={[
+                  { value: 'left', label: t('series.leftAxis') },
+                  { value: 'right', label: t('series.rightAxis') },
+                ]}
+              />
+            </span>
+          </div>
+          <div className="f" style={{ gridTemplateColumns: '60px minmax(0,1fr)' }}>
+            <label htmlFor={`su-${s.id}`}>{t('series.unit')}</label>
+            <span className="row2">
+              <input {...NO_AUTO}
+                id={`su-${s.id}`}
+                className="input mono"
+                style={{ width: 60 }}
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                onBlur={flushUnit}
+                onKeyDown={(e) => e.key === 'Enter' && flushUnit()}
+              />
+              <Info id="seriesUnit" title={t('series.unit')} />
+            </span>
+          </div>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="hint">
+              {t('series.pointsCount', { n: fmtNum(data?.count ?? 0), skipped: fmtNum(data?.skipped ?? 0) })}
+            </span>
+            <button type="button" className="btn sm danger" data-testid="series-remove" onClick={() => useCharts.getState().removeSeries(chart.id, s.id)}>
+              {t('series.remove')}
+            </button>
+          </div>
         </div>
-        <div className="f" style={lbl}>
-          <span className="lbl">{t('series.style')}</span>
-          <span className="row2">
-            <Seg
-              label={t('series.style')}
-              value={s.style}
-              onChange={(style) => upd({ style })}
-              options={[
-                { value: 'line', label: t('series.line') },
-                { value: 'step', label: t('series.step') },
-                { value: 'points', label: t('series.points') },
-              ]}
-            />
-          </span>
-        </div>
-        <div className="f" style={lbl}>
-          <span className="lbl">{t('series.axis')}</span>
-          <Seg
-            label={t('series.axis')}
-            value={s.axis}
-            onChange={(axis) => upd({ axis })}
-            options={[
-              { value: 'left', label: t('series.leftAxis') },
-              { value: 'right', label: t('series.rightAxis') },
-            ]}
-          />
-        </div>
-        <div className="f" style={lbl}>
-          <label htmlFor={`su-${s.id}`}>{t('series.unit')}</label>
-          <span className="row2">
-            <input id={`su-${s.id}`} className="input mono" style={{ width: 60 }} value={s.unit} onChange={(e) => upd({ unit: e.target.value })} />
-            <Info id="seriesUnit" title={t('series.unit')} />
-          </span>
-        </div>
-      </div>
-      <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
-        <span className="hint">{t('series.pointsCount', { n: fmtNum(data?.count ?? 0), skipped: fmtNum(data?.skipped ?? 0) })}</span>
-        <button type="button" className="btn sm danger" onClick={() => useCharts.getState().removeSeries(chart.id, s.id)}>
-          {t('series.remove')}
-        </button>
-      </div>
+      )}
     </div>
+  );
+}
+
+/** The chart title, renamed in place (change set 8): click, type, Enter or focus loss saves, Escape cancels. */
+function ChartTitle({ name, onRename, editing, setEditing }: { name: string; onRename(n: string): void; editing: boolean; setEditing(v: boolean): void }) {
+  const { t } = useTranslation();
+  const [v, setV] = useState(name);
+  const cancelled = useRef(false);
+  useEffect(() => {
+    if (editing) {
+      setV(name);
+      cancelled.current = false;
+    }
+  }, [editing, name]);
+  if (!editing) {
+    return (
+      <h5 className="ell" style={{ minWidth: 0 }}>
+        <button type="button" className="btn link titlebtn" title={t('charts.rename')} data-testid="chart-title" onClick={() => setEditing(true)}>
+          <span className="ell">{name}</span> <span className="muted" style={{ fontWeight: 400 }} aria-hidden="true">✎</span>
+        </button>
+      </h5>
+    );
+  }
+  const save = () => {
+    if (cancelled.current) return;
+    const n = v.trim();
+    if (n && n !== name) onRename(n);
+    setEditing(false);
+  };
+  return (
+    <input {...NO_AUTO}
+      className="input titlein"
+      autoFocus
+      value={v}
+      aria-label={t('charts.renameTitle')}
+      data-testid="chart-title"
+      onChange={(e) => setV(e.target.value)}
+      onFocus={(e) => e.currentTarget.select()}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          save();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          cancelled.current = true;
+          setEditing(false);
+        }
+      }}
+    />
   );
 }
 
@@ -204,7 +346,6 @@ function Charts({ connId }: { connId: string }) {
   const chart = charts.find((c) => c.id === activeId) ?? charts[0] ?? null;
   const seq = useApp((s) => s.seqs[connId] ?? 0);
   const [data, setData] = useState<Record<string, SeriesData>>({});
-  const [editing, setEditing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [mem, setMem] = useState<MemoryEstimate | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -301,14 +442,10 @@ function Charts({ connId }: { connId: string }) {
   };
 
   return (
-    <div className="cols" style={{ gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
+    <div className="cols" style={{ gridTemplateColumns: 'minmax(0,1fr) 400px' }}>
       <div className="pane" data-testid="chart-pane">
         <div className="ph">
-          <h5>
-            <button type="button" className="btn link" style={{ fontSize: 13 }} title={t('common.rename')} onClick={() => setRenaming(true)} data-testid="chart-name">
-              {chart.name}
-            </button>
-          </h5>
+          <ChartTitle name={chart.name} editing={renaming} setEditing={setRenaming} onRename={(name) => upd({ name })} />
           <div className="row" style={{ gap: 6 }}>
             <Seg<ChartRange>
               label={t('charts.range')}
@@ -337,7 +474,7 @@ function Charts({ connId }: { connId: string }) {
           {chart.range === 'custom' && (
             <div className="row" style={{ marginBottom: 8 }}>
               <span className="hint">{t('export.from')}</span>
-              <input
+              <input {...NO_AUTO}
                 className="input"
                 type="datetime-local"
                 style={{ width: 180 }}
@@ -346,7 +483,7 @@ function Charts({ connId }: { connId: string }) {
                 onChange={(e) => upd({ customFrom: new Date(e.target.value).getTime() || null })}
               />
               <span className="hint">{t('export.to')}</span>
-              <input
+              <input {...NO_AUTO}
                 className="input"
                 type="datetime-local"
                 style={{ width: 180 }}
@@ -367,15 +504,19 @@ function Charts({ connId }: { connId: string }) {
               testId="chart"
               onReady={(u) => (plot.current = u)}
               xRange={xRange}
-              series={enabled.map((s) => ({
-                label: s.name,
-                color: s.color,
-                points: data[s.id]?.points ?? [],
-                style: s.style,
-                axis: s.axis,
-                unit: s.unit,
-                boolean: data[s.id]?.castRule === 'boolean',
-              }))}
+              series={enabled.map((s) => {
+                const bool = castOfSeries(s, data[s.id]) === 'boolean';
+                const pts = data[s.id]?.points ?? [];
+                return {
+                  label: s.name,
+                  color: s.color,
+                  points: bool && s.cast === 'boolean' ? pts.map(([x, y]) => [x, y !== 0 ? 1 : 0] as [number, number]) : pts,
+                  style: s.style,
+                  axis: s.axis,
+                  unit: s.unit,
+                  boolean: bool,
+                };
+              })}
             />
           )}
           <div className="legend" style={{ marginTop: 8 }}>
@@ -418,32 +559,9 @@ function Charts({ connId }: { connId: string }) {
         </div>
         <div className="pc">
           <div className="list">
-            {chart.series.map((s) =>
-              editing === s.id ? (
-                <SeriesEditor key={s.id} chart={chart} s={s} data={data[s.id]} connId={connId} onDone={() => setEditing(null)} />
-              ) : (
-                <div key={s.id} className="card" data-testid="series-card">
-                  <div className="t">
-                    <button type="button" className="btn link row" style={{ gap: 8, minWidth: 0 }} onClick={() => setEditing(s.id)} title={t('charts.edit')}>
-                      <i className="cdot" style={{ background: `var(--c-${s.color})` }} />
-                      <span className="ell">{s.name}</span>
-                    </button>
-                    <Switch on={s.enabled} label={t('charts.show', { name: s.name })} onChange={(enabled) => useCharts.getState().updateSeries(chart.id, s.id, { enabled })} />
-                  </div>
-                  <div className="s mono">{s.topic}</div>
-                  <div className="s">
-                    {t('charts.summary', {
-                      path: s.path,
-                      rule: ruleLabel(data[s.id], t),
-                      style: t(`series.${s.style}`).toLowerCase(),
-                      axis: s.axis === 'left' ? t('series.left') : t('series.right'),
-                      n: fmtNum(data[s.id]?.count ?? 0),
-                    })}
-                    {data[s.id]?.skipped ? ` · ${t('charts.skipped', { n: fmtNum(data[s.id].skipped) })}` : ''}
-                  </div>
-                </div>
-              ),
-            )}
+            {chart.series.map((s) => (
+              <SeriesCard key={s.id} chart={chart} s={s} data={data[s.id]} connId={connId} />
+            ))}
           </div>
           {chart.series.length === 0 && (
             <div className="hint" style={{ whiteSpace: 'normal' }}>
@@ -468,16 +586,6 @@ function Charts({ connId }: { connId: string }) {
           </div>
         </div>
       </div>
-      {renaming && (
-        <PromptDialog
-          title={t('charts.renameTitle')}
-          label={t('views.name')}
-          initial={chart.name}
-          confirmLabel={t('common.save')}
-          onClose={() => setRenaming(false)}
-          onConfirm={(name) => upd({ name })}
-        />
-      )}
     </div>
   );
 }

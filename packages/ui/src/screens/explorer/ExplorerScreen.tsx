@@ -6,7 +6,7 @@ import { isMac, useApp } from '../../store/app';
 import { ALL_COLUMNS, EMPTY_FILTERS, filterCount, useExplorer } from '../../store/explorer';
 import { addToChart, copyTopic, clearHistory, publishHere, topicMenu, type TopicDialog } from '../../lib/topicActions';
 import { modHeld, typingTarget } from '../../lib/keys';
-import { Check, Kbd, Popover, PromptDialog, ConfirmDialog, Seg } from '../../components/ui';
+import { Check, Kbd, Popover, PromptDialog, ConfirmDialog, Seg, NO_AUTO } from '../../components/ui';
 import { NoConnection } from '../../components/NoConnection';
 import { DeleteRetainedDialog, DeleteSubtreeDialog } from '../../components/DeleteRetainedDialog';
 import { fmtNum, shortTopic } from '../../lib/format';
@@ -28,7 +28,7 @@ function FiltersPopover({ filters, onChange, anchor, onClose }: { filters: Filte
             label={t('filters.changed')}
             onChange={(v) => onChange({ ...filters, changedWithinMin: v ? Math.max(1, Number(mins) || 10) : null })}
           />
-          <input
+          <input {...NO_AUTO}
             className="input mono"
             style={{ width: 56 }}
             value={mins}
@@ -43,7 +43,7 @@ function FiltersPopover({ filters, onChange, anchor, onClose }: { filters: Filte
         </div>
         <div className="row">
           <span className="small nowrap">{t('filters.contains')}</span>
-          <input className="input mono" style={{ flex: 1 }} value={filters.payloadContains} aria-label={t('filters.contains')} onChange={(e) => onChange({ ...filters, payloadContains: e.target.value })} />
+          <input {...NO_AUTO} className="input mono" style={{ flex: 1 }} value={filters.payloadContains} aria-label={t('filters.contains')} onChange={(e) => onChange({ ...filters, payloadContains: e.target.value })} />
         </div>
         <div className="row">
           <span className="small nowrap">QoS</span>
@@ -343,7 +343,7 @@ function Explorer({ connId }: { connId: string }) {
       <div className="pane" data-testid="explorer">
         <div className="ph">
           <label className="search">
-            <input
+            <input {...NO_AUTO}
               ref={searchRef}
               className="mono"
               value={search}

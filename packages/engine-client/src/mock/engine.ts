@@ -706,6 +706,12 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       if (!copy.id) copy.id = `p-${randHex(8)}`;
       if (i >= 0) profiles[i] = copy;
       else profiles.push(copy);
+      // a sparkline pick (profile `topics`, change set 8) shows at once on the open connection
+      const c = conns.get(copy.id);
+      if (c) {
+        c.store.seq++;
+        changedTick();
+      }
       return clone(copy);
     },
     async deleteProfile(id) {
