@@ -1,5 +1,6 @@
 // In-memory topic store for the mock engine: ring buffers, decoding, fields and casting, series, tree and
 // table slices, search and filters, history, diff and export estimates.
+import { lastSecondRate, pruneTimes } from '../rate';
 import type {
   DecodedPayload,
   DiffLine,
@@ -268,7 +269,7 @@ export class TopicStore {
     rec.lastAt = rec.lastAt === null ? at : Math.max(rec.lastAt, at);
     rec.retained = retain;
     rec.recent.push(at);
-    if (rec.recent.length > 200) rec.recent.splice(0, rec.recent.length - 200);
+    if (rec.recent.length > 5000) rec.recent.splice(0, rec.recent.length - 5000);
     this.recentAll.push(at);
     if (this.recentAll.length > 20000) this.recentAll.splice(0, this.recentAll.length - 20000);
     this.updateSeries(rec, m);
@@ -342,12 +343,10 @@ export class TopicStore {
     return n.sorted;
   }
 
+  /** Change set 9: the count of the last completed second (`lastSecondRate`), as the Rust engine does. */
   private rateOf(rec: TopicRec, now: number): number {
-    const from = now - 10_000;
-    let i = 0;
-    while (i < rec.recent.length && rec.recent[i] < from) i++;
-    if (i > 0) rec.recent.splice(0, i);
-    return rec.recent.filter((t) => t <= now).length / 10;
+    pruneTimes(rec.recent, now);
+    return lastSecondRate(rec.recent, now);
   }
 
   private aggs(now: number): Map<Node, Agg> {
@@ -378,11 +377,8 @@ export class TopicStore {
   }
 
   msgRate(now: number): number {
-    const from = now - 10_000;
-    let i = 0;
-    while (i < this.recentAll.length && this.recentAll[i] < from) i++;
-    if (i > 0) this.recentAll.splice(0, i);
-    return Math.round((this.recentAll.length / 10) * 10) / 10;
+    pruneTimes(this.recentAll, now);
+    return lastSecondRate(this.recentAll, now);
   }
 
   // ---------------------------------------------------------------- matching

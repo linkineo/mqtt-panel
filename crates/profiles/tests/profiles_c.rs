@@ -209,9 +209,10 @@ fn c01_topics_round_trip() {
         TopicPrefs {
             sparkline_path: Some("$.supply.temp".into()),
             chart_fields: Some(vec![ChartField { path: "$.supply.fan".into(), colour: "clay".into(), style: "line".into(), axis: "right".into(), unit: "%".into() }]),
+            sparkline_off: false,
         },
     );
-    p.topics.insert("building/f2/r204/setpoint".into(), TopicPrefs { sparkline_path: Some("$.value".into()), chart_fields: None });
+    p.topics.insert("building/f2/r204/setpoint".into(), TopicPrefs { sparkline_path: Some("$.value".into()), chart_fields: None, sparkline_off: false });
     let p = s.save(p).unwrap();
     let reloaded = s.get(&p.id).unwrap().profile;
     assert_eq!(reloaded, p);
@@ -228,4 +229,23 @@ fn c01_topics_round_trip() {
     // A chart field written with only its path takes the defaults.
     let f: ChartField = serde_json::from_str(r#"{"path":"$.value"}"#).unwrap();
     assert_eq!((f.colour.as_str(), f.style.as_str(), f.axis.as_str()), ("sage", "line", "left"));
+}
+
+/// Change set 9: a hidden sparkline (`sparklineOff`) survives a save and reload; it is left out of the file when off,
+/// and an entry written without it loads with the sparkline shown.
+#[test]
+fn c01_sparkline_off_round_trip() {
+    let (_d, s, _secrets) = store();
+    let mut p = Profile::new_default();
+    p.topics.insert("building/f2/r204/temperature".into(), TopicPrefs { sparkline_path: None, chart_fields: None, sparkline_off: true });
+    p.topics.insert("building/f2/r204/setpoint".into(), TopicPrefs { sparkline_path: Some("$.value".into()), chart_fields: None, sparkline_off: false });
+    let p = s.save(p).unwrap();
+    let reloaded = s.get(&p.id).unwrap().profile;
+    assert_eq!(reloaded, p);
+    assert!(reloaded.topics["building/f2/r204/temperature"].sparkline_off);
+    let json = serde_json::to_value(&reloaded).unwrap();
+    assert_eq!(json["topics"]["building/f2/r204/temperature"]["sparklineOff"], true);
+    assert!(json["topics"]["building/f2/r204/setpoint"].get("sparklineOff").is_none());
+    let old: TopicPrefs = serde_json::from_str(r#"{"sparklinePath":"$.value"}"#).unwrap();
+    assert!(!old.sparkline_off);
 }

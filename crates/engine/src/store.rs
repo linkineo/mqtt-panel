@@ -16,7 +16,7 @@ pub const ROOT: NodeId = 0;
 /// Seconds in the rate window.
 pub const RATE_WINDOW_S: i64 = 10;
 
-/// Message counts per second over the last 10 seconds.
+/// Message counts per second over the last 10 seconds (the rate shown is the last completed second).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RateWindow {
     last_sec: i64,
@@ -44,20 +44,15 @@ impl RateWindow {
         *slot = slot.saturating_add(1);
     }
 
-    /// Messages per second over the 10 s window ending at `now_ms`.
+    /// Messages per second shown in the UI (change set 9): the count of the last completed one-second window before
+    /// `now_ms`, so the figure changes once a second and never jumps between two ticks. During the first second after
+    /// the first message it reads 0.
     pub fn rate(&self, now_ms: i64) -> f64 {
-        let now = now_ms.div_euclid(1000);
-        let lo = (now.saturating_sub(RATE_WINDOW_S - 1))
-            .max(self.last_sec.saturating_sub(RATE_WINDOW_S - 1));
-        let hi = now.min(self.last_sec);
-        if hi < lo {
+        let s = now_ms.div_euclid(1000) - 1;
+        if s > self.last_sec || s <= self.last_sec.saturating_sub(RATE_WINDOW_S) {
             return 0.0;
         }
-        let mut sum = 0u64;
-        for s in lo..=hi {
-            sum += u64::from(self.counts[s.rem_euclid(RATE_WINDOW_S) as usize]);
-        }
-        sum as f64 / RATE_WINDOW_S as f64
+        f64::from(self.counts[s.rem_euclid(RATE_WINDOW_S) as usize])
     }
 
     /// Resets the window.
@@ -158,5 +153,27 @@ impl Node {
     /// Last receive time as an option.
     pub fn last_at(&self) -> Option<i64> {
         (self.last_received_at != i64::MIN).then_some(self.last_received_at)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RateWindow;
+
+    /// X-24: 50 messages within one second read 50 msg/s during the whole next second, then 0.
+    #[test]
+    fn rate_is_the_last_completed_second() {
+        let mut w = RateWindow::default();
+        for i in 0..50 {
+            w.add(10_000 + i * 19);
+        }
+        assert_eq!(w.rate(10_500), 0.0); // the first second is not complete yet
+        assert_eq!(w.rate(11_000), 50.0);
+        assert_eq!(w.rate(11_999), 50.0);
+        w.add(11_200);
+        assert_eq!(w.rate(11_900), 50.0); // a message of the running second does not move the figure
+        assert_eq!(w.rate(12_000), 1.0);
+        assert_eq!(w.rate(13_000), 0.0);
+        assert_eq!(w.rate(40_000), 0.0);
     }
 }

@@ -149,7 +149,7 @@ fn left() -> String {
 }
 
 /// What the profile remembers for one topic (change set 8): the value picked with "Use as sparkline" and the fields
-/// of the topic's chart.
+/// of the topic's chart; change set 9 adds whether the sparkline is hidden.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TopicPrefs {
@@ -157,6 +157,13 @@ pub struct TopicPrefs {
     pub sparkline_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chart_fields: Option<Vec<ChartField>>,
+    /// Change set 9: the user hid the sparkline of this topic ("Hide sparkline"); a new pick clears it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub sparkline_off: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// A connection profile as the UI sees it (no secrets).

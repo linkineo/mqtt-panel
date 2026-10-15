@@ -143,6 +143,8 @@ export interface TopicPrefs {
   sparklinePath?: string;
   /** The fields of the topic's chart under the payload. */
   chartFields?: ChartField[];
+  /** Change set 9: the sparkline is hidden ("Hide sparkline"); "Show sparkline" or a new pick clears it. */
+  sparklineOff?: boolean;
 }
 
 export interface Profile {
@@ -191,7 +193,7 @@ export interface ConnectionStatus {
   negotiatedVersion: NegotiatedVersion | null;
   requestedVersion: MqttVersionPref;
   topics: number;
-  msgRate: number; // messages per second, 10 s window
+  msgRate: number; // messages per second: count of the last completed second (change set 9)
   /** The open connection accepted the broker certificate without verification (profile switch or "only this time"). */
   skipVerify: boolean;
   error: UserMessage | null;
@@ -269,7 +271,7 @@ export interface TreeRow {
   retained: boolean;
   lastReceivedAt: number | null; // own or subtree, drives the highlight
   active: boolean; // changed in the last 10 s (own or subtree)
-  rate: number; // msg/s, subtree, 10 s window
+  rate: number; // msg/s, subtree, count of the last completed second (change set 9)
   spark: number[]; // last 10 values of the tracked value (bare payload or picked value), oldest first; empty when none
   sparkTimes: number[]; // receive times for spark values
   formatHint: string | null; // "Sparkplug B" on spBv1.0 roots, etc.
