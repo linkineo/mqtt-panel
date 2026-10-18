@@ -125,7 +125,17 @@
   - Error sites that hard-coded `keychain.unavailable` for secret store errors (profile password, connect, file fields, "Local broker" set-up) now take the key from the error, so a refusal reads `keychain.refused` everywhere.
   - Test C-02 (real OS keychain) now round-trips through the master key under a test service name and removes that item afterwards; the per-secret keychain store it used is gone.
 
-### 15 Oct 2026, owner feedback on the eighth build (change set 9)
+### 18 Oct 2026, master key store by build (change set 10)
+Owner, 18 Oct 2026: unhappy with the keychain manager, it induces friction by asking for the system password; wants a state-of-the-art way of storing certificates and keys that does not bother the user unless they want to; after the rundown: "ok document it and add the data protection as a release gate in the doc". Decision: the store follows the build. Signed release builds use the silent OS store on every platform (macOS Data Protection keychain, Windows DPAPI, Linux Secret Service with a file fallback); unsigned builds use an owner-only key file and never show a dialog; the key is moved once, silently where possible; the Data Protection keychain is a release gate (SPEC 11, TESTPLAN V-12). Spec: `docs/SPEC.md` 6 and 11, `docs/TESTPLAN.md` V-09 rewritten, V-12, S-06, `docs/RUNNING.md`, `CLAUDE.md` product rule.
+
+Readings to confirm:
+- "Signed" on macOS means a code signature with a Developer ID team identifier; ad-hoc and unsigned count as unsigned. A local self-signed identity counts as signed and keeps using the login keychain, so a developer who wants to test the keychain path still can.
+- Windows and Linux already have silent stores (DPAPI through the credential manager, Secret Service), so the by-build rule changes nothing visible there; the file fallback on Linux applies only where no keyring is present.
+- The move from the login keychain to the file reads the item once, which on the owner's unsigned build means one last dialog; after that no build ever asks. Denying keeps the current `keychain.refused` behaviour and the move is retried at the next start.
+- No settings toggle: the behaviour follows the build, and the ⓘ states where the key lives.
+- The Data Protection keychain is implemented with the signing step in phase 5 (it needs the Developer ID signature and the keychain access group entitlement); until then signed builds use the login keychain as before. The file store, the detection and the move are implemented now.
+- The CLI applies the same rule on the same data folder, so app and CLI share the key file on unsigned builds and no longer each ask.
+
 Owner, 15 Oct 2026 (in French): the "Choisissez une connexion" text in the tab bar is wrong, nothing while nothing is connected; once connected the tab must smooth the messages per second, showing the average once a second only; the same for the messages per second in the Explorer; right-click on the sparkline switches it off; the rate unit is "msg/s" as before; in History every entry unfolds to inspect its JSON; for JSON payloads a toggle shows a tree instead of raw JSON, applying to the History view as well; in the JSON view the click on a value or its key shows that value in the History "changed keys" column, the click cancels it too; a filter button next to History does the same and cancels it. Spec: `docs/FEATURES.md` (Connections bar, Explorer rows and sparkline, Message inspection), `docs/SPEC.md` 4 (`sparklineOff`), `docs/TESTPLAN.md` X-23 to X-27, mockups 01, 04, 06 and the rate unit on every tree. Mid-turn addition: the sparkline, messages, rate and subtopics keep a vertical alignment across rows (fixed columns).
 
 Readings to confirm:

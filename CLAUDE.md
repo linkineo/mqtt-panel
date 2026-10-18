@@ -19,7 +19,7 @@ These rules apply to every session working in this repository, whichever model r
 
 ## Product rules
 - No telemetry, no crash reporting, no accounts, no network calls except to configured brokers and, if enabled, the update feed.
-- Secrets (passwords, private keys, PKCS#12 passphrases) live in the OS keychain, never in profile files or the repository.
+- Secrets (passwords, private keys, PKCS#12 passphrases) live in the encrypted secrets file whose master key sits in the OS secret store on signed builds and in an owner-only key file on unsigned builds (change set 10); never in profile files or the repository. A signed release must never show a keychain dialog to an end user (release gate, `docs/SPEC.md` 11).
 - Users never type file paths: every file field has a Browse button (native dialog) and accepts drag-and-drop.
 - Every security option has an info bubble in plain words, in EN, FR and DE.
 - The UI must match the validated mockups in `docs/mockups/`. Deviations go through a spec change first.
