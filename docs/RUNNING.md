@@ -134,3 +134,15 @@ scripts/check-forbidden-words.sh
 ```
 
 Tests that use public brokers are opt-in: `MQTTPANEL_PUBLIC_BROKERS=1 cargo test --workspace -- --ignored`.
+
+## 9. TestFlight build for macOS
+
+`scripts/release-mac-testflight.sh` builds the sandboxed Mac App Store variant, signs it, wraps it in a signed installer
+package and uploads it to App Store Connect, where TestFlight picks it up after processing. It reads `.env.local`
+(copy `.env.example`): the App Store Connect key ID and issuer, the team identifier, the two identity names
+("Apple Distribution" and "3rd Party Mac Developer Installer", both in the login keychain) and the path of the Mac App
+Store provisioning profile kept outside the repository. The variant is defined by `apps/desktop/src-tauri/tauri.mas.conf.json`
+(entitlements from `Entitlements.mas.plist`: app sandbox, network client and server, user-selected files) merged onto
+`tauri.conf.json`; the build number is the UTC time of the build. The sandboxed app keeps its data under
+`~/Library/Containers/com.remora-labs.mqttpanel/`, apart from the unsandboxed builds. Export compliance is answered
+in App Store Connect by the owner, not in the build. Pass `--no-upload` to stop after the package.
