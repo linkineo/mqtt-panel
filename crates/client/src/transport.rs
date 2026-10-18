@@ -367,8 +367,10 @@ pub fn classify_tls_error(err: &rustls::Error, captured: &Arc<Mutex<Captured>>, 
                     if leaf.self_signed {
                         trust(TrustReason::SelfSigned, msg!("tls.reason.selfSigned"), false)
                     } else if chain.len() == 1 && opts.tls.ca.is_some() {
+                        // The leaf's issuer is not the configured CA: a leaf signed directly by an unknown CA looks
+                        // the same as a missing intermediate, so offer the trust prompt instead of failing (CONN-001).
                         let issuer = leaf.issuer_cn.clone().map(|cn| format!("CN={cn}")).unwrap_or_else(|| leaf.issuer.clone());
-                        msg!("tls.missingIntermediate", issuer = issuer).into()
+                        trust(TrustReason::UnknownCa, msg!("tls.reason.unknownCaMaybeIntermediate", issuer = issuer), false)
                     } else {
                         let issuer = chain.last().map(|c| c.issuer.clone()).unwrap_or_default();
                         trust(TrustReason::UnknownCa, msg!("tls.reason.unknownCa", issuer = issuer), false)

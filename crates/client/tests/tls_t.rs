@@ -50,13 +50,35 @@ async fn t02_intermediate_sent_by_server() {
 
 #[tokio::test]
 async fn t03_intermediate_missing() {
+    // CONN-001: an unknown issuer with a configured CA is a trust prompt, never a hard failure; the reason text
+    // still mentions the possibly missing intermediate.
     let k = kit();
     let b = start(FakeConfig { tls: Some(server(vec![k.server_from_intermediate.cert_der.clone()], k.server_from_intermediate.key_der.clone())), ..Default::default() }).await;
-    let m = msg_of(test_connection(&with_ca(tls_opts(b.port))).await);
+    let t = trust_of(test_connection(&with_ca(tls_opts(b.port))).await);
+    assert_eq!(t.reason, TrustReason::UnknownCa);
+    assert!(!t.ca_offer);
+    assert_eq!(t.reason_text.key, "tls.reason.unknownCaMaybeIntermediate");
     assert_eq!(
-        m.text,
-        "The broker did not send its intermediate certificate (issuer CN=MQTT Panel Test Intermediate CA). Ask the broker owner to include the chain, or add the intermediate under CA certificate."
+        t.reason_text.text,
+        "Reason: the certificate is signed by CN=MQTT Panel Test Intermediate CA, which is not the CA set in this profile. The broker may also have left out its intermediate certificate. Compare the fingerprint with the one shown on the broker before trusting it."
     );
+}
+
+#[tokio::test]
+async fn t03b_leaf_from_other_ca_than_configured_is_trust_prompt() {
+    // CONN-001: a leaf signed directly by a CA other than the configured one (single-cert chain) offers the trust
+    // prompt, and pinning its fingerprint then connects.
+    let k = kit();
+    let leaf = k.other_ca.issue("localhost", &mqttpanel_tls::kit::local_sans(), mqttpanel_tls::kit::Usage::Server, mqttpanel_tls::kit::KeyAlg::Ecdsa, mqttpanel_tls::kit::Validity::years(1)).unwrap();
+    let b = start(FakeConfig { tls: Some(server(vec![leaf.cert_der.clone()], leaf.key_der.clone())), ..Default::default() }).await;
+    let r = test_connection(&with_ca(tls_opts(b.port))).await;
+    assert!(!matches!(r, Err(ConnectFailure::Message(_))), "an unknown issuer must not be a hard failure");
+    let t = trust_of(r);
+    assert_eq!(t.reason, TrustReason::UnknownCa);
+    assert_eq!(t.leaf.fingerprint, mqttpanel_tls::fingerprint_sha256(&leaf.cert_der));
+    let mut o = with_ca(tls_opts(b.port));
+    o.tls.trusted_fingerprints = vec![t.leaf.fingerprint.clone()];
+    test_connection(&o).await.unwrap();
 }
 
 #[tokio::test]

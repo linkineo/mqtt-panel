@@ -291,8 +291,13 @@ pub struct LocalConnection {
     pub scheme: String,
     /// "/mqtt" for WS and WSS listeners.
     pub ws_path: Option<String>,
-    /// CA certificate (PEM) for TLS and WSS listeners.
+    /// CA certificate (PEM) for TLS and WSS listeners: the broker's own CA, or, after a server certificate from
+    /// another issuer was imported, the CA and intermediates that import carried (None when it had the leaf only).
     pub ca_pem: Option<String>,
+    /// SHA-256 fingerprint ("3F:9A:…") of the served certificate, set only for an imported leaf-only identity on a
+    /// TLS or WSS listener: no issuer is known, so the profile pins the certificate instead.
+    #[serde(default)]
+    pub server_fingerprint: Option<String>,
     /// Client certificate (PEM) for mutual TLS ("mqttpanel-desktop").
     pub client_cert_pem: Option<String>,
     /// Client key (PKCS#8 PEM, unencrypted) for mutual TLS. Secret: goes to the keychain, never to a file.

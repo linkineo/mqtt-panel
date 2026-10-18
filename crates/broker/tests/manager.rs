@@ -806,6 +806,57 @@ async fn status_counts_and_live_certificate_change() {
     tokio::time::sleep(Duration::from_millis(10)).await;
 }
 
+/// CONN-001: the "Local broker" settings carry the trust the broker actually serves.
+#[tokio::test]
+async fn b12_local_connection_trust_follows_served_identity() {
+    let dir = tempfile::tempdir().unwrap();
+    let (m, _) = open(dir.path());
+    let k = kit();
+    let fp = |der: &[u8]| mqttpanel_tls::fingerprint_sha256(der);
+    // Generated identity: the broker's own CA, no pin.
+    let lc = m.local_connection(Some("tls")).unwrap();
+    assert_eq!(lc.ca_pem.as_deref(), Some(m.ca_pem().as_str()));
+    assert_eq!(lc.server_fingerprint, None);
+    assert!(!m.server_imported());
+    // PKCS#12 that includes the issuing CA: that CA, no pin.
+    let p12 = mqttpanel_tls::kit::pkcs12(
+        &k.server.cert_der,
+        &[k.root.cert_der.clone()],
+        &k.server.key_der,
+        "qa",
+        "server",
+    )
+    .unwrap();
+    m.import_server_cert(&p12, None, Some("qa")).unwrap();
+    assert!(m.server_imported());
+    let lc = m.local_connection(Some("tls")).unwrap();
+    let roots = der(lc.ca_pem.as_ref().expect("imported CA"));
+    assert_eq!(roots.len(), 1);
+    assert_eq!(fp(roots[0].as_ref()), fp(&k.root.cert_der));
+    assert_eq!(lc.server_fingerprint, None);
+    // PEM leaf + CA in one file: the same.
+    let chain_pem = format!("{}{}", k.server.cert_pem, k.root.cert_pem);
+    m.import_server_cert(chain_pem.as_bytes(), Some(k.server.key_pem.as_bytes()), None)
+        .unwrap();
+    let lc = m.local_connection(Some("tls")).unwrap();
+    assert_eq!(fp(der(lc.ca_pem.as_ref().unwrap())[0].as_ref()), fp(&k.root.cert_der));
+    assert_eq!(lc.server_fingerprint, None);
+    // PEM leaf only: no issuer known, the served certificate is pinned.
+    m.import_server_cert(k.server.cert_pem.as_bytes(), Some(k.server.key_pem.as_bytes()), None)
+        .unwrap();
+    let lc = m.local_connection(Some("tls")).unwrap();
+    assert_eq!(lc.ca_pem, None);
+    assert_eq!(lc.server_fingerprint.as_deref(), Some(fp(&k.server.cert_der).as_str()));
+    // Plain listeners carry neither.
+    let tcp = m.local_connection(Some("tcp")).unwrap();
+    assert_eq!((tcp.ca_pem, tcp.server_fingerprint), (None, None));
+    // Back to a generated identity: the local CA again.
+    m.regenerate(&[], KeyAlg::Ecdsa).unwrap();
+    let lc = m.local_connection(Some("tls")).unwrap();
+    assert_eq!(lc.ca_pem.as_deref(), Some(m.ca_pem().as_str()));
+    assert_eq!(lc.server_fingerprint, None);
+}
+
 #[tokio::test]
 async fn import_server_cert_and_client_ca() {
     let dir = tempfile::tempdir().unwrap();

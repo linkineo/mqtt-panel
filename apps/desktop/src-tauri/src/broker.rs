@@ -323,7 +323,8 @@ pub async fn app_broker_step_on(state: &AppState, listener_id: &str, step: &str,
         }
         "trust" => {
             let lc = m.local_connection(Some(listener_id)).map_err(be)?;
-            let tls = lc.ca_pem.is_some();
+            // Pinning the served certificate (imported leaf without its CA) is a form of trust too.
+            let tls = lc.ca_pem.is_some() || lc.server_fingerprint.is_some();
             save_local_profile(state, &lc, profile_name)?;
             Ok(step_result(step, if tls { "trusted" } else { "skipped" }))
         }
@@ -380,7 +381,8 @@ pub fn save_local_profile(state: &AppState, lc: &LocalConnection, profile_name: 
     p.ws_path = lc.ws_path.clone().unwrap_or_else(|| "/mqtt".into());
     p.mqtt_version = "5".into();
     p.tls.skip_verify = false;
-    p.tls.trusted_fingerprints.clear();
+    // What the broker serves (CONN-001): a pin only for an imported certificate without its CA, none otherwise.
+    p.tls.trusted_fingerprints = lc.server_fingerprint.iter().cloned().collect();
     p.username = lc.username.clone().unwrap_or_default();
     let secrets = state.store.secrets().clone();
     let set = |k: String, v: &str| secrets.set(&k, v).map_err(|e| msg!(e.catalog_key(), detail = e.to_string()));
@@ -429,7 +431,8 @@ async fn followed(state: &AppState, before: Option<String>, r: Result<BrokerConf
 }
 
 /// What the connection of the profile "Local broker" depends on: its listener (kind, port, reachability) and its
-/// login (user and password, client certificate and key, the CA it trusts, Anonymous). None without the profile.
+/// login (user and password, client certificate and key, the CA or pinned certificate it trusts, whether the broker
+/// serves an imported certificate, Anonymous). None without the profile.
 pub fn local_fingerprint(state: &AppState) -> Option<String> {
     let m = mgr(state).ok()?;
     let stored = state.store.list().into_iter().find(|p| p.profile.is_local_broker)?;
@@ -447,6 +450,8 @@ pub fn local_fingerprint(state: &AppState) -> Option<String> {
         p.has_password,
         secret(secret_keys::password(&p.id)),
         stored.blobs.ca_pem,
+        p.tls.trusted_fingerprints,
+        m.server_imported(),
         stored.blobs.client_cert_pem,
         secret(secret_keys::client_key(&p.id)),
     ]);

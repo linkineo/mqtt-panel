@@ -508,6 +508,80 @@ async fn c16_local_broker_profile_follows_the_broker() {
     m.stop().await;
 }
 
+/// CONN-001: after a server certificate from another issuer is imported, the trust step saves what the broker serves
+/// (the imported CA, or a pin of the served certificate when the import had no CA), the flow connects, and a
+/// re-import, "Regenerate" or a CA rotation make "Local broker" follow and reconnect.
+#[tokio::test]
+async fn c17_imported_server_identity_trust_and_follow() {
+    use mqttpanel_tls::kit::{local_sans, pkcs12, Ca, KeyAlg, Usage, Validity};
+    let dir = tempfile::tempdir().unwrap();
+    let (state, mtls) = local_state(dir.path()).await;
+    let m = manager(&state);
+    let ext = Ca::new_root("QA external CA", KeyAlg::Ecdsa, Validity::years(1)).unwrap();
+    let issue = || ext.issue("localhost", &local_sans(), Usage::Server, KeyAlg::Ecdsa, Validity::years(1)).unwrap();
+    let fp = mqttpanel_tls::fingerprint_sha256;
+    let ca_fp = |p: &mqttpanel_profiles::StoredProfile| {
+        p.blobs.ca_pem.as_ref().map(|pem| fp(mqttpanel_tls::parse_certs(pem.as_bytes()).unwrap()[0].as_ref()))
+    };
+    // Imported before the flow: PKCS#12 with the CA. The trust step saves that CA and no pin; the flow connects.
+    let a = issue();
+    let p12 = pkcs12(&a.cert_der, &[ext.cert_der.clone()], &a.key_der, "qa", "server").unwrap();
+    m.import_server_cert(&p12, None, Some("qa")).unwrap();
+    assert_eq!(run_flow(&state, &mtls).await, ["created", "issued", "trusted", "started", "connected"]);
+    let p = local_profile(&state);
+    assert_eq!(ca_fp(&p), Some(fp(&ext.cert_der)));
+    assert!(p.profile.tls.ca_cert.is_some() && p.profile.tls.trusted_fingerprints.is_empty());
+    let id = p.profile.id.clone();
+    let connected = || lock(&state.conns).get(&id).map(|c| (c.is_open(), lock(&c.link).state.clone())) == Some((true, "connected".to_string()));
+    assert!(connected());
+    macro_rules! change {
+        ($e:expr) => {{
+            let before = crate::broker::local_fingerprint(&state);
+            $e;
+            crate::broker::follow_and_reconnect(&state, before.clone()).await;
+            assert_ne!(crate::broker::local_fingerprint(&state), before, "the follow fingerprint changed");
+        }};
+    }
+    // Leaf-only PEM import: no CA known, the served certificate is pinned; it follows and reconnects.
+    let b = issue();
+    change!(m.import_server_cert(b.cert_pem.as_bytes(), Some(b.key_pem.as_bytes()), None).unwrap());
+    let p = local_profile(&state);
+    assert!(p.blobs.ca_pem.is_none() && p.profile.tls.ca_cert.is_none());
+    assert_eq!(p.profile.tls.trusted_fingerprints, vec![fp(&b.cert_der)]);
+    assert!(connected(), "connected with the pinned certificate");
+    // The flow again: "trusted" (the pin), connected.
+    assert_eq!(run_flow(&state, &mtls).await, ["kept", "kept", "trusted", "running", "connected"]);
+    // Another leaf-only import: the pin follows.
+    let c = issue();
+    change!(m.import_server_cert(c.cert_pem.as_bytes(), Some(c.key_pem.as_bytes()), None).unwrap());
+    assert_eq!(local_profile(&state).profile.tls.trusted_fingerprints, vec![fp(&c.cert_der)]);
+    assert!(connected());
+    // PEM leaf + CA: the CA again, no pin.
+    let d = issue();
+    change!(m.import_server_cert(format!("{}{}", d.cert_pem, ext.cert_pem).as_bytes(), Some(d.key_pem.as_bytes()), None).unwrap());
+    let p = local_profile(&state);
+    assert_eq!(ca_fp(&p), Some(fp(&ext.cert_der)));
+    assert!(p.profile.tls.trusted_fingerprints.is_empty());
+    assert!(connected());
+    // "Regenerate": back to the local CA.
+    change!(m.regenerate(&[], KeyAlg::Ecdsa).unwrap());
+    let p = local_profile(&state);
+    assert_eq!(ca_fp(&p), Some(fp(mqttpanel_tls::parse_certs(m.ca_pem().as_bytes()).unwrap()[0].as_ref())));
+    assert!(p.profile.tls.trusted_fingerprints.is_empty());
+    assert!(connected());
+    // Leaf-only import, then a CA rotation (which issues a new server certificate from the new local CA).
+    let e = issue();
+    change!(m.import_server_cert(e.cert_pem.as_bytes(), Some(e.key_pem.as_bytes()), None).unwrap());
+    assert!(connected());
+    change!(m.rotate_ca().unwrap());
+    let p = local_profile(&state);
+    assert_eq!(ca_fp(&p), Some(fp(mqttpanel_tls::parse_certs(m.ca_pem().as_bytes()).unwrap()[0].as_ref())));
+    assert!(p.profile.tls.trusted_fingerprints.is_empty());
+    assert!(connected(), "connected after the CA rotation");
+    crate::commands::close(&state, &id).await;
+    m.stop().await;
+}
+
 /// Waits up to 5 s for a condition.
 pub(crate) async fn tests_support_wait(mut cond: impl FnMut() -> bool) -> bool {
     for _ in 0..200 {

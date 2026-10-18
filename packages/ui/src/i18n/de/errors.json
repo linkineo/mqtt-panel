@@ -39,6 +39,7 @@
  "tls.untrusted": "Dieser Broker zeigt ein Zertifikat, das MQTT Panel nicht prüfen kann.",
  "tls.reason.selfSigned": "Grund: Das Zertifikat ist selbst signiert. Niemand bürgt dafür; vergleiche den Fingerabdruck mit dem am Broker angezeigten, bevor du ihm vertraust.",
  "tls.reason.unknownCa": "Grund: Das Zertifikat ist von einer Stelle signiert, die dieser Computer nicht kennt ({issuer}). Vergleiche den Fingerabdruck mit dem am Broker angezeigten, bevor du ihm vertraust.",
+ "tls.reason.unknownCaMaybeIntermediate": "Grund: Das Zertifikat ist von {issuer} signiert, nicht von der CA, die in diesem Profil eingetragen ist. Vielleicht hat der Broker auch sein Zwischenzertifikat nicht mitgeschickt. Vergleiche den Fingerabdruck mit dem am Broker angezeigten, bevor du ihm vertraust.",
  "tls.reason.fingerprintChanged": "Der Broker zeigt jetzt ein anderes Zertifikat als das, dem du vertraut hast. Alter Fingerabdruck {old}, neuer Fingerabdruck {new}.",
  "tls.expired": "Das Zertifikat des Brokers ist am {date} abgelaufen.",
  "tls.notYetValid": "Das Zertifikat des Brokers gilt erst ab {date}. Prüfe die Uhr am Broker oder an diesem Computer.",

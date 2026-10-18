@@ -212,6 +212,21 @@ fn details_of_pem(pem: &str) -> Result<CertDetails, BrokerError> {
     cert_details(first.as_ref()).map_err(|e| BrokerError::tls_file(&e, "certificate"))
 }
 
+/// The trust a client needs for the server identity the broker serves: `(CA PEM, leaf fingerprint)`.
+/// Generated identity: the local CA, no pin. Imported identity: the certificates after the leaf (its CA and
+/// intermediates), no pin; or, when the import carried the leaf only, no CA and a pin of the leaf.
+fn served_trust(st: &Stored) -> (Option<String>, Option<String>) {
+    if !st.server_imported {
+        return (Some(st.ca_pem.clone()), None);
+    }
+    let certs = parse_certs(st.server_pem.as_bytes()).unwrap_or_default();
+    match certs.split_first() {
+        Some((_, rest)) if !rest.is_empty() => (Some(certs_pem(rest)), None),
+        Some((leaf, _)) => (None, Some(mqttpanel_tls::fingerprint_sha256(leaf.as_ref()))),
+        None => (None, None),
+    }
+}
+
 fn fingerprint_of_pem(pem: &str) -> String {
     details_of_pem(pem)
         .map(|d| d.fingerprint)
@@ -1999,7 +2014,8 @@ impl BrokerManager {
     /// Connection settings for the profile "Local broker": the given listener or the most secure enabled one.
     /// With Anonymous off it carries the user "mqtt-panel" (created when missing) and, when the listener requires
     /// one, the client certificate "mqttpanel-desktop" (issued when missing, see [`BrokerManager::ensure_desktop_cert`]).
-    /// TLS and WSS listeners carry the broker's own CA.
+    /// TLS and WSS listeners carry what the broker serves (see [`served_trust`]): its own CA, or after an import the
+    /// imported CA, or a pin of the served certificate when the import had no CA (CONN-001).
     pub fn local_connection(
         &self,
         listener_id: Option<&str>,
@@ -2009,7 +2025,7 @@ impl BrokerManager {
             None => self.preferred_listener(),
         }
         .ok_or_else(|| BrokerError::new("broker.noListener", &[]))?;
-        let (port, anonymous, ca_pem) = {
+        let (port, anonymous, (ca_pem, server_fingerprint)) = {
             let inner = self.lock();
             (
                 inner
@@ -2018,9 +2034,10 @@ impl BrokerManager {
                     .and_then(|h| h.port(&l.id))
                     .unwrap_or(l.port),
                 inner.stored.anonymous,
-                inner.stored.ca_pem.clone(),
+                served_trust(&inner.stored),
             )
         };
+        let encrypted = l.kind.encrypted();
         let mut lc = LocalConnection {
             listener_id: l.id.clone(),
             host: "localhost".into(),
@@ -2030,7 +2047,8 @@ impl BrokerManager {
                 .kind
                 .websocket()
                 .then(|| crate::runtime::ws::WS_PATH.to_string()),
-            ca_pem: l.kind.encrypted().then_some(ca_pem),
+            ca_pem: ca_pem.filter(|_| encrypted),
+            server_fingerprint: server_fingerprint.filter(|_| encrypted),
             client_cert_pem: None,
             client_key_pem: None,
             username: None,
@@ -2047,6 +2065,11 @@ impl BrokerManager {
             lc.client_key_pem = Some(key);
         }
         Ok(lc)
+    }
+
+    /// True when the broker serves an imported server certificate (not one issued by its own CA).
+    pub fn server_imported(&self) -> bool {
+        self.lock().stored.server_imported
     }
 
     /// True when Anonymous is on.

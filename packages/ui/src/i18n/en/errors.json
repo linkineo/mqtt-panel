@@ -39,6 +39,7 @@
  "tls.untrusted": "This broker presents a certificate MQTT Panel cannot verify.",
  "tls.reason.selfSigned": "Reason: the certificate is self-signed. Nobody vouches for it, so compare the fingerprint with the one shown on the broker before trusting it.",
  "tls.reason.unknownCa": "Reason: the certificate is signed by an authority this computer does not know ({issuer}). Compare the fingerprint with the one shown on the broker before trusting it.",
+ "tls.reason.unknownCaMaybeIntermediate": "Reason: the certificate is signed by {issuer}, which is not the CA set in this profile. The broker may also have left out its intermediate certificate. Compare the fingerprint with the one shown on the broker before trusting it.",
  "tls.reason.fingerprintChanged": "The broker now presents a different certificate from the one you trusted. Old fingerprint {old}, new fingerprint {new}.",
  "tls.expired": "The broker's certificate expired on {date}.",
  "tls.notYetValid": "The broker's certificate is not valid before {date}. Check the clock on the broker or this computer.",
