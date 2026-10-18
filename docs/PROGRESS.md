@@ -34,6 +34,7 @@ Specified in `docs/SPEC.md` 6 and 11 (release gate), `docs/TESTPLAN.md` V-09, V-
 | CLI follows the same rule; ⓘ texts say where the key lives | Done 18 Oct 2026. Both go through `open_app_secrets`; `key_store_kind` command, the client key ⓘ adds `info.keyStore.file` or `info.keyStore.keychain` |
 | Tests S-06 (crate), V-09 (manual, owner) | S-06 done 18 Oct 2026. Rust 218 (11 new), Vitest 147, Playwright 287, all green; V-09 is the owner's |
 | macOS Data Protection keychain for signed builds, release gate V-12 | Deferred to the signing step (phase 5) |
+| CONN-001: "Built-in broker" flow after a server certificate from another issuer was imported | CONN-001 fixed 18 Oct 2026. The trust step saves what the broker serves (imported CA, or a pin of the served certificate when the import had no CA); "Local broker" follows re-imports; an unknown issuer with a configured CA is a trust prompt, never a hard failure. Tests B-12, C-17, T-03, T-03b, T-27; Rust 221 (3 new), Vitest 147, Playwright 287, all green; `tests/connectivity/extended.py` 22 PASS, 0 FAIL, the four `app-imported-*-local` cases included. See `docs/DECISIONS.md` |
 
 ## Change set 9 (15 Oct 2026, owner feedback on the eighth build): implemented
 

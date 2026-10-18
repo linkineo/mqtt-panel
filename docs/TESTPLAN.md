@@ -67,7 +67,7 @@ Each row is run against the embedded broker (TLS listener configured with the na
 |---|---|---|---|---|---|
 | T-01 | I | auto | Cert from local root CA | CA file set | Connects; Properties shows chain. |
 | T-02 | I | auto | Cert from intermediate CA, server sends chain | Root CA only | Connects (intermediate taken from the handshake). |
-| T-03 | I | auto | Cert from intermediate CA, server sends leaf only | Root CA only | Fails with "The broker did not send its intermediate certificate (issuer CN=…). Ask the broker owner to include the chain, or add the intermediate under CA certificate." |
+| T-03 | I | auto | Cert from intermediate CA, server sends leaf only; also a leaf signed directly by another CA (T-03b) | Root CA only | Trust prompt (unknown CA), never a hard failure (CONN-001): "Reason: the certificate is signed by CN=…, which is not the CA set in this profile. The broker may also have left out its intermediate certificate. …"; pinning the fingerprint then connects. |
 | T-04 | I | auto | Self-signed | nothing | Trust prompt with subject, SAN list, SHA-256 fingerprint, validity, reason "self-signed"; one action "Trust this certificate"; after trusting, connects; fingerprint stored per profile. |
 | T-05 | I | auto | Self-signed, then the server cert is replaced | fingerprint trusted earlier | Connection stops; prompt returns saying the fingerprint changed, old and new shown. |
 | T-06 | I | auto | Chain ending in a private CA, unknown to the client | nothing | Prompt shows the second action "Trust anything this CA signs"; choosing it fills the CA field; reconnect works; a renewed server cert from the same CA connects without prompt. |
@@ -91,6 +91,7 @@ Each row is run against the embedded broker (TLS listener configured with the na
 | T-24 | I | nightly, P | A public broker reached via IP with SNI empty | nothing | Name mismatch message T-09, then success after setting SNI. |
 | T-25 | U | auto | Certificate parsing: PEM with CRLF, PEM bundle with several certs, DER, PKCS#8 and traditional keys, encrypted keys, garbage. | Each parsed or refused with the specific reason. |
 | T-26 | E | auto | Every security field shows its ⓘ bubble with the agreed text in EN, FR, DE. | Text matches the catalog. |
+| T-27 | I | auto | Built-in broker with an imported server identity from another CA: PEM leaf + key, PKCS#12 with the CA; TLS and WSS listeners | "Built-in broker" flow (user → cert → trust → broker → connect); an external client with that CA | The flow connects over TLS and WSS (the profile trusts the imported CA, or pins the served certificate when the import had no CA); the external client with the CA connects; a re-import, Regenerate or a CA rotation makes "Local broker" follow and reconnect (CONN-001; B-12, C-17, `tests/connectivity/extended.py` `app-imported-*`). |
 
 ## 3. Charts and datapoints (the variety matrix)
 
