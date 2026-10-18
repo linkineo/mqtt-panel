@@ -19,6 +19,7 @@ PROFILE="${MQTTPANEL_PROVISIONING_PROFILE/#\~/$HOME}"
 [ -f "$PROFILE" ] || { echo "provisioning profile not found: $PROFILE"; exit 2; }
 mkdir -p "$SRC/signing"
 cp "$PROFILE" "$SRC/signing/embedded.provisionprofile"
+chmod 644 "$SRC/signing/embedded.provisionprofile"   # the bundle must stay readable by every user (App Store check 90255)
 sed "s/\$(TEAM_ID)/$APPLE_TEAM_ID/g" "$SRC/Entitlements.mas.plist" > "$SRC/signing/Entitlements.plist"
 
 VERSION=$(python3 -c "import json;print(json.load(open('$SRC/tauri.conf.json'))['version'])")
@@ -32,6 +33,7 @@ cargo tauri build --bundles app \
   --config "{\"bundle\":{\"macOS\":{\"bundleVersion\":\"$BUILD\"}}}"
 
 APP="target/release/bundle/macos/MQTT Panel.app"
+chmod -R u+rwX,go+rX "$APP"   # file modes are not part of the signature; every file must be readable by every user
 codesign --verify --deep --strict "$APP"
 codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q "com.apple.security.app-sandbox" || { echo "sandbox entitlement missing"; exit 1; }
 OUT="target/release/bundle/macos/MQTT Panel $VERSION-$BUILD.pkg"
