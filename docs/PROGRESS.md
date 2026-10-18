@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 18 Oct 2026 (phases 1 to 4, change sets 1 to 10 complete on macOS, the Data Protection keychain of change set 10 deferred to the signing step; change set 5 to 10 readings awaiting the owner; Windows and Linux through CI).
+Last update: 18 Oct 2026 (website and branding; phases 1 to 4, change sets 1 to 10 complete on macOS, the Data Protection keychain of change set 10 deferred to the signing step; change set 5 to 10 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -21,6 +21,18 @@ Last update: 18 Oct 2026 (phases 1 to 4, change sets 1 to 10 complete on macOS, 
 | Change set 4 | owner feedback on the third build: broker starts on Connect, stop button on cards, no parsed chips, no "mTLS", Security and Advanced folds, rail badges instead of the title bar pill, Broker screen reorganised | Done on macOS (13 Oct 2026). See below. |
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
+
+## Website and branding (18 Oct 2026)
+
+| Item | Status |
+|---|---|
+| Brand references in the app (bundle copyright, About dialog, Settings "About and licences"), `README.md`, `NOTICE`, workspace `authors` | Done: website only, no company name. The title-bar mark is decorative (`aria-hidden`). |
+| `CLAUDE.md` rule (website, mark as icon only, commit identity, website check) | Done |
+| `website/`: EN, FR, DE single page with privacy and legal pages, light and dark, phone width without horizontal scroll | Done (checked at 1280, 375 and 320 px) |
+| Demo clips (4, WebM and MP4, posters, reduced motion) and feature screenshots from the real UI with the mock engine | Done, English media on all pages |
+| Forbidden-words check in `build.py` | Done |
+| Deploy: Worker `mqtt-panel-site`, custom domains `mqtt-panel.com` and `www.mqtt-panel.com` | Deployed 18 Oct 2026 |
+| Store and GitHub links, operator details on the legal page | Owner (placeholders) |
 
 ## Change set 10 (18 Oct 2026, master key store by build): implemented, Data Protection deferred
 
@@ -269,6 +281,6 @@ Change set 4 adds the flows C-17 (broker starts on Connect and Test, a failing s
 - Mockup details: "since connect" wording on the tree root row (04); "n s left when received" on Message expiry (07).
 - Owner confirmations: licence allow-list additions, the change set 1 points under "Open" in `docs/DECISIONS.md`, the three small layout deviations listed under "Open" in `docs/DECISIONS.md`.
 - Installers (DMG, MSI, AppImage, deb, rpm), auto-update, Homebrew cask, winget manifest; signing and notarization last.
-- Website at mqtt-panel.com (EN, FR, DE, no trackers) with localised screenshots.
+- Website at https://mqtt-panel.com (EN, FR, DE, no trackers) with screenshots and demo clips: see "Website and branding (18 Oct 2026)".
 - `scripts/check-testplan-coverage.sh` (listed in TESTPLAN) is not written yet.
 - The memory budget is reported but not enforced (engine).

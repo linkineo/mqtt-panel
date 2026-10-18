@@ -3,6 +3,7 @@
 How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules.
 
 ## Status (18 Oct 2026)
+- Website and branding (18 Oct 2026): the app and the repository name the website https://mqtt-panel.com only (no company name); the site is live from `website/` (see "Website" below and `docs/DECISIONS.md` "18 Oct 2026, website mqtt-panel.com and brand references"). Tests: Vitest 147, Playwright 287, `cargo test -p mqttpanel-desktop` 11 (3 ignored), all green.
 - Change set 10 (master key store by build, 18 Oct 2026) is implemented except the macOS Data Protection keychain (signing step): unsigned and ad-hoc builds keep the master key in `master.key` (0600) in the data folder, builds signed with a real identity in the OS keychain, moved once between them; `MQTTPANEL_KEYSTORE=file|keychain` forces the store. Code in `crates/profiles/src/keystore.rs`. Tests: Rust 218, Vitest 147, Playwright 287, all green. Readings under "Open" in `docs/DECISIONS.md`.
 - Change set 8 (owner feedback on the seventh build, 15 Oct 2026) is implemented. Model change: `Profile.topics: { <topic>: { sparklinePath?, chartFields? } }` keeps the "Use as sparkline" pick and the topic chart per topic (the engine gets the picks through `set_sparkline_paths` at connect and on every save); layout change: the connection bar is the first row of the main column (`.main-col`, right of the rail) and is always shown. Tests: Rust 205, Vitest 134, Playwright 266, all green. See `docs/PROGRESS.md` "Change set 8"; readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
 - Change set 7 (live apply, 14 Oct 2026) is implemented: every broker change applies while the broker runs and drops only the sessions it invalidates; no Restart button, prompt or pending state; a listener that cannot start shows its error on its row; one ↓ menu (PEM / PKCS#12…) per client-certificate row. Runtime structure change: one task per listener (`start_listener`, `stop_listener`, `rebind` on `BrokerHandle`), TLS material in a swappable slot read at each handshake, the client-certificate rule read live, and a session registry (listener, login kind, certificate issuer and serial) behind `revalidate()`; the manager's listener changes are `async`. `restartNeeded`, `restart()` and the `broker_restart` command are removed; `BrokerStatus.listeners[].error` carries a listener's start error. Tests: Rust 203, Vitest 115, Playwright 248, all green. See `docs/PROGRESS.md` "Change set 7"; readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
@@ -56,6 +57,15 @@ MQTTPANEL_PUBLIC_BROKERS=1 cargo test --workspace -- --ignored   # nightly: publ
 ```
 `MQTTPANEL_HOME=<dir>` points the app and the CLI to another data folder (tests); `MQTTPANEL_SECRETS=memory` keeps secrets in memory instead of `secrets.enc` and the OS keychain (tests only).
 
+## Website
+The site at https://mqtt-panel.com is built from `website/` (details in `website/README.md`).
+```
+python3 website/build.py                    # generate website/public/ (EN, FR, DE); fails on a forbidden word
+python3 website/build.py --licences         # also refresh third-party.json (cargo metadata, package-lock.json)
+WRANGLER=<path to wrangler> website/deploy.sh   # build, then wrangler deploy (Worker mqtt-panel-site)
+```
+New clips and screenshots: `npm run dev`, then `node e2e/website-media.mjs` in `packages/ui`, then `website/encode-media.sh` (ffmpeg). The store and GitHub links are constants at the top of `build.py`; the operator details on the legal page are the owner's to fill.
+
 ## Mockups
 - `docs/mockups/mqtt-panel-mockups.html` is the validated visual contract (27 screens and states: 22 validated 12 Oct 2026, 02b and 12c plus edits from change set 1, 02c and the connection bar from change set 2, 02d, the rail badges and the reorganised Broker screen from change set 4, all on 13 Oct 2026, implemented 13 Oct 2026; 02e, the Protocol and MQTT version rows, the address prefiller, the play button and the rename to "MQTT Panel broker" from change set 5, 14 Oct 2026; three-line cards, fixed field widths, "Built-in broker" and the per-connection certificate prompt from change set 6, 14 Oct 2026). The UI must match it: layout, wording, states (empty state, trust dialog, context menus, field picker, Add listener steps, Anonymous on, French and German samples). Deviations need a note in `docs/DECISIONS.md` under "Open".
 
@@ -68,4 +78,4 @@ MQTTPANEL_PUBLIC_BROKERS=1 cargo test --workspace -- --ignored   # nightly: publ
 - Verify library candidates at kick-off (`docs/SPEC.md` section 10): rumqttc TLS and WebSocket flags, rmqtt library API and client-cert hooks, prost-reflect and protox, keyring on Linux without Secret Service, uPlot theming.
 - Windows signing: cheapest hassle-free option for end users; candidate Azure Trusted Signing (verify eligibility and price). Betas are unsigned on Windows and macOS; signing and notarization are the last step before a release.
 - Export compliance review before the first release (owner).
-- Website at mqtt-panel.com (static, EN/FR/DE, no trackers), built in phase 5.
+- Website at https://mqtt-panel.com (static, EN/FR/DE, no cookies or trackers): built 18 Oct 2026 in `website/`; see "Website" below.
