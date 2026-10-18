@@ -1,12 +1,16 @@
 {
   "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
   "bundle": {
-    "targets": ["app"],
+    "targets": [
+      "app"
+    ],
     "macOS": {
-      "minimumSystemVersion": "11.0",
+      "minimumSystemVersion": "12.0",
       "hardenedRuntime": true,
       "entitlements": "signing/Entitlements.plist",
-      "files": { "embedded.provisionprofile": "signing/embedded.provisionprofile" }
+      "files": {
+        "embedded.provisionprofile": "signing/embedded.provisionprofile"
+      }
     }
   }
 }
