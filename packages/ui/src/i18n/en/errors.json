@@ -93,6 +93,7 @@
  "broker.notRunning": "The broker is not running. Start it first.",
  "keychain.unavailable": "The system keychain is not available: {detail}",
  "keychain.refused": "The keychain did not give MQTT Panel its key. Restart MQTT Panel to try again.",
+ "keychain.keyFile": "Other users of this computer can read the key file master.key, so MQTT Panel does not use it. Make it readable by your account only, then restart MQTT Panel.",
  "profile.notFound": "This profile no longer exists.",
  "profile.noSubscriptions": "No subscriptions: you will see nothing until you add one.",
  "cli.badArgs": "{detail} Run mqttpanel {command} --help for the options.",

@@ -5,6 +5,7 @@ import type {
   BrokerStatus,
   ConnectionStatus,
   EngineEvent,
+  KeyStoreKind,
   Profile,
   RepeatStatus,
   SentEntry,
@@ -32,6 +33,8 @@ type MenuListener = (id: string) => void;
 interface AppState {
   ready: boolean;
   appInfo: AppInfo;
+  /** Where the master key lives in this build (change set 10); null until known. The ⓘ of the key fields says it. */
+  keyStore: KeyStoreKind | null;
   settings: Settings;
   screen: Screen;
   profiles: Profile[];
@@ -101,6 +104,7 @@ let toastId = 1;
 export const useApp = create<AppState>((set, get) => ({
   ready: false,
   appInfo: { version: '', platform: 'web', native: false },
+  keyStore: null,
   settings: DEFAULT_SETTINGS,
   screen: 'connect',
   profiles: [],

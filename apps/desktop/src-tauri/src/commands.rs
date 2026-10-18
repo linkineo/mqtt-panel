@@ -32,6 +32,12 @@ pub fn app_info() -> AppInfo {
     AppInfo { version: env!("CARGO_PKG_VERSION").into(), platform: platform.into(), native: true }
 }
 
+/// Where the master key lives in this build: "file" or "keychain" (change set 10; the ⓘ next to the key fields says it).
+#[tauri::command]
+pub fn key_store_kind() -> &'static str {
+    mqttpanel_profiles::key_store_kind()
+}
+
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Settings {
     lock(&state.settings).clone()

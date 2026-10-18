@@ -1,6 +1,7 @@
 //! The secrets file (SPEC section 6, change set 2): every secret lives in `secrets.enc` in the data folder, each record
-//! encrypted and authenticated with XChaCha20-Poly1305 under one random 256-bit master key. The OS keychain holds
-//! exactly one item for MQTT Panel, that master key.
+//! encrypted and authenticated with XChaCha20-Poly1305 under one random 256-bit master key. That key lives where the
+//! build says (change set 10, [`crate::keystore`]): the owner-only file `master.key` on unsigned builds, the single OS
+//! keychain item of MQTT Panel on signed ones.
 //!
 //! - The master key is read lazily, the first time a secret value is read or written, never when the store is created,
 //!   and cached for the session. Listing, `contains` and `delete` never need it, nor does reading a secret that is not
@@ -43,7 +44,8 @@ pub trait MasterKeySource: Send + Sync {
     fn load_or_create(&self) -> Result<[u8; 32], SecretError>;
 }
 
-/// The master key as the single OS keychain item of MQTT Panel (base64 text).
+/// The master key as the single OS keychain item of MQTT Panel (base64 text). Used by signed builds and, through
+/// [`crate::keystore::MigratingMasterKey`], as the place an older key is moved from (change set 10).
 #[derive(Debug, Clone)]
 pub struct KeychainMasterKey {
     service: String,
@@ -63,23 +65,18 @@ impl KeychainMasterKey {
     pub fn with_service(service: &str) -> Self {
         Self { service: service.to_string() }
     }
+    /// The keychain service name.
+    pub fn service(&self) -> &str {
+        &self.service
+    }
 }
 
 impl MasterKeySource for KeychainMasterKey {
     fn load_or_create(&self) -> Result<[u8; 32], SecretError> {
-        let entry = keyring::Entry::new(&self.service, MASTER_KEY_ACCOUNT).map_err(|e| SecretError::Unavailable(e.to_string()))?;
-        let b64 = base64::engine::general_purpose::STANDARD;
-        match entry.get_password() {
-            Ok(text) => {
-                let bytes = b64.decode(text.trim()).map_err(|_| SecretError::Unavailable("master key damaged".into()))?;
-                bytes.try_into().map_err(|_| SecretError::Unavailable("master key damaged".into()))
-            }
-            Err(keyring::Error::NoEntry) => {
-                let key: [u8; 32] = rand::random();
-                entry.set_password(&b64.encode(key)).map_err(|e| SecretError::Unavailable(e.to_string()))?;
-                Ok(key)
-            }
-            Err(e) => Err(SecretError::Unavailable(e.to_string())),
+        use crate::keystore::KeySlot;
+        match self.read()? {
+            Some(key) => Ok(key),
+            None => self.store_new(&rand::random()),
         }
     }
 }
@@ -148,7 +145,7 @@ pub struct FileSecrets {
 enum KeyState {
     NotLoaded,
     Loaded([u8; 32]),
-    Refused(String),
+    Refused(SecretError),
 }
 
 impl std::fmt::Debug for FileSecrets {
@@ -171,7 +168,8 @@ impl FileSecrets {
         FileSecrets { path, source, key: Mutex::new(KeyState::NotLoaded), io: Mutex::new(()) }
     }
 
-    /// The store of the data folder `dir` with the master key in the OS keychain.
+    /// The store of the data folder `dir` with the master key in the OS keychain (no selection, no move; see
+    /// [`open_app_secrets`] for the app and the CLI).
     pub fn in_dir(dir: &Path) -> Self {
         Self::new(dir.join(SECRETS_FILE), Arc::new(KeychainMasterKey::new()))
     }
@@ -186,7 +184,7 @@ impl FileSecrets {
         self.key.lock().map(|k| matches!(*k, KeyState::Loaded(_))).unwrap_or(false)
     }
 
-    /// True once the keychain refused the master key in this session.
+    /// True once the keychain refused the master key (or the key file was unusable) in this session.
     pub fn key_refused(&self) -> bool {
         self.key.lock().map(|k| matches!(*k, KeyState::Refused(_))).unwrap_or(false)
     }
@@ -197,7 +195,7 @@ impl FileSecrets {
         let mut k = self.key.lock().map_err(unavailable)?;
         match &*k {
             KeyState::Loaded(key) => return Ok(*key),
-            KeyState::Refused(detail) => return Err(SecretError::Refused(detail.clone())),
+            KeyState::Refused(e) => return Err(e.clone()),
             KeyState::NotLoaded => {}
         }
         match self.source.load_or_create() {
@@ -206,14 +204,16 @@ impl FileSecrets {
                 Ok(key)
             }
             Err(e) => {
-                let detail = match e {
-                    SecretError::Unavailable(d) | SecretError::Refused(d) => d,
+                // A key file other users can read keeps its own sentence; every other failure reads as a refusal.
+                let e = match e {
+                    SecretError::Unavailable(d) | SecretError::Refused(d) => SecretError::Refused(d),
+                    other @ SecretError::KeyFile(_) => other,
                 };
                 if std::env::var_os("MQTTPANEL_LOG").is_some() {
-                    eprintln!("[mqttpanel] keychain refused the master key: {detail}; not asked again in this session");
+                    eprintln!("[mqttpanel] the master key is not available: {e}; not asked again in this session");
                 }
-                *k = KeyState::Refused(detail.clone());
-                Err(SecretError::Refused(detail))
+                *k = KeyState::Refused(e.clone());
+                Err(e)
             }
         }
     }
@@ -286,7 +286,7 @@ impl FileSecrets {
         let a = aad(name);
         let plain = cipher
             .decrypt(XNonce::from_slice(&nonce), Payload { msg: &ct, aad: &a })
-            .map_err(|_| unavailable("the secrets file does not match the keychain master key"))?;
+            .map_err(|_| unavailable("the secrets file does not match the master key"))?;
         String::from_utf8(plain).map_err(|_| unavailable("damaged record"))
     }
 
@@ -327,8 +327,14 @@ impl SecretStore for FileSecrets {
     }
 }
 
-/// Opens the secrets file of the data folder `dir`, its master key the single OS keychain item. Nothing touches the
-/// keychain here; the master key is read on first secret use.
+/// Opens the secrets file of the data folder `dir` for the app and the CLI alike, its master key where the build says
+/// (change set 10: [`crate::keystore::selected_store`], with the one-time move between stores). Nothing reads a key
+/// here; the store is chosen and the key read on first secret use.
 pub fn open_app_secrets(dir: &Path) -> Arc<FileSecrets> {
-    Arc::new(FileSecrets::in_dir(dir))
+    Arc::new(FileSecrets::new(dir.join(SECRETS_FILE), Arc::new(crate::keystore::AppMasterKey::new(dir))))
+}
+
+/// Where this process keeps the master key: "file" or "keychain" (the UI query `key_store_kind`). Reads no key.
+pub fn key_store_kind() -> &'static str {
+    crate::keystore::selected_store().as_str()
 }

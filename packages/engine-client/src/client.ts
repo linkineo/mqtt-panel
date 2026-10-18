@@ -21,6 +21,7 @@ import type {
   ImportSummary,
   IssueCertRequest,
   IssuedCert,
+  KeyStoreKind,
   Listener,
   LogLine,
   MemoryEstimate,
@@ -53,6 +54,8 @@ import type {
 export interface EngineClient {
   // app and settings
   appInfo(): Promise<AppInfo>;
+  /** Where the master key lives in this build (change set 10): the owner-only key file or the OS keychain. */
+  keyStoreKind(): Promise<KeyStoreKind>;
   getSettings(): Promise<Settings>;
   saveSettings(settings: Settings): Promise<Settings>;
 

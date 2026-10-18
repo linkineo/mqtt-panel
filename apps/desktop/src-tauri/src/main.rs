@@ -85,8 +85,8 @@ fn logged<R: Runtime>(handler: impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + S
     }
 }
 
-/// The secret store: `secrets.enc` in the data folder, its master key the single keychain item (SPEC 6). The master
-/// key is read on first secret use, never here; it is the only keychain item the app reads or writes (change set 3).
+/// The secret store: `secrets.enc` in the data folder, its master key in the key file or the single keychain item as
+/// the build says (SPEC 6, change set 10). The master key is read on first secret use, never here.
 fn secrets(dir: &std::path::Path) -> Arc<dyn SecretStore> {
     if std::env::var("MQTTPANEL_SECRETS").as_deref() == Ok("memory") {
         return Arc::new(MemorySecrets::new());
@@ -128,6 +128,7 @@ fn main() {
         .invoke_handler(logged(tauri::generate_handler![
             menu::set_menu_language,
             commands::app_info,
+            commands::key_store_kind,
             commands::get_settings,
             commands::save_settings,
             commands::list_profiles,

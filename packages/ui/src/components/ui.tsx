@@ -175,8 +175,11 @@ export function Popover(props: {
 /* ---------------------------------------------------------------- info bubble */
 
 /** The ⓘ chip next to a label; opens a small popover with the plain-word explanation. */
-export function Info(props: { id: string; title: string; tone?: 'clay' }) {
+/** An ⓘ with its bubble text `info.<id>`. `keyStore` appends the sentence on where the master key lives in this build
+ * (`info.keyStore.file` or `info.keyStore.keychain`, change set 10) for fields whose value goes to the secret store. */
+export function Info(props: { id: string; title: string; tone?: 'clay'; keyStore?: boolean }) {
   const { t } = useTranslation();
+  const store = useApp((s) => s.keyStore);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
   return (
@@ -199,7 +202,10 @@ export function Info(props: { id: string; title: string; tone?: 'clay' }) {
       {open && (
         <Popover anchor={ref.current} onClose={() => setOpen(false)} className="bubble" testId={`bubble-${props.id}`} label={props.title}>
           <b>{props.title}</b>
-          <span data-testid={`bubble-text-${props.id}`}>{t(`info.${props.id}`)}</span>
+          <span data-testid={`bubble-text-${props.id}`}>
+            {t(`info.${props.id}`)}
+            {props.keyStore && store ? ` ${t(store === 'file' ? 'info.keyStore.file' : 'info.keyStore.keychain')}` : ''}
+          </span>
         </Popover>
       )}
     </>

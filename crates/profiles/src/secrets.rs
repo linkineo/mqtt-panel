@@ -1,6 +1,7 @@
 //! Secrets (passwords, private keys, PKCS#12 bundles and passphrases) never sit in profile files. The app and the CLI
-//! keep them in the encrypted secrets file ([`crate::secrets_file::FileSecrets`]) whose master key is the single OS
-//! keychain item (SPEC section 6). [`MemorySecrets`] serves tests and `MQTTPANEL_SECRETS=memory`.
+//! keep them in the encrypted secrets file ([`crate::secrets_file::FileSecrets`]) whose master key lives where the build
+//! says (SPEC section 6, change set 10: the owner-only key file on unsigned builds, the OS store on signed ones; see
+//! [`crate::keystore`]). [`MemorySecrets`] serves tests and `MQTTPANEL_SECRETS=memory`.
 //! Keys are strings such as "profile/<id>/password" or "broker/ca-key"; values are text (binary is base64).
 
 use std::collections::HashMap;
@@ -18,6 +19,10 @@ pub enum SecretError {
     /// refusal is remembered and never retried until the next start (SPEC 6, change set 3).
     #[error("keychain refused the master key: {0}")]
     Refused(String),
+    /// The key file `master.key` cannot be used safely (other users can read it); it is not used until its permissions
+    /// are fixed (change set 10). Remembered for the session like a refusal.
+    #[error("{0}")]
+    KeyFile(String),
 }
 
 impl SecretError {
@@ -26,6 +31,7 @@ impl SecretError {
         match self {
             SecretError::Unavailable(_) => "keychain.unavailable",
             SecretError::Refused(_) => "keychain.refused",
+            SecretError::KeyFile(_) => "keychain.keyFile",
         }
     }
 }

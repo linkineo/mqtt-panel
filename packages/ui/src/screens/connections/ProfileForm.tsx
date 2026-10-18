@@ -487,7 +487,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
               </div>
               <div className="f">
                 <span className="lbl">
-                  {t('conn.clientKey')} <Info id="clientKey" title={t('conn.clientKey')} />
+                  {t('conn.clientKey')} <Info id="clientKey" title={t('conn.clientKey')} keyStore />
                 </span>
                 <FileField field="clientKey" profile={p} label={t('conn.clientKey')} beforeChange={flush} onProfile={fromEngine} />
               </div>

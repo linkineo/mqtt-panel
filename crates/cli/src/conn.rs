@@ -9,8 +9,9 @@ use std::io::IsTerminal;
 use std::path::Path;
 use std::sync::Arc;
 
-/// The secret store, shared with the desktop app: `secrets.enc` in the data folder with its master key in the OS
-/// keychain (read on first secret use only).
+/// The secret store, shared with the desktop app: `secrets.enc` in the data folder with its master key where the build
+/// says (change set 10: the key file `master.key` on unsigned builds, the OS keychain on signed ones; read on first
+/// secret use only). `MQTTPANEL_KEYSTORE=file|keychain` forces the store, as in the app.
 ///
 /// Test hook: `MQTTPANEL_SECRETS=memory` switches to an in-memory store (nothing touches the keychain), optionally
 /// seeded from `MQTTPANEL_SECRETS_SEED`, a JSON object of secret keys and values

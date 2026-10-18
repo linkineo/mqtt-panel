@@ -11,6 +11,7 @@ import type { EngineEvent } from './types';
 export function createTauriEngineClient(): EngineClient {
   const client: Omit<EngineClient, 'onEvent'> = {
     appInfo: () => invoke('app_info', {}),
+    keyStoreKind: () => invoke('key_store_kind', {}),
     getSettings: () => invoke('get_settings', {}),
     saveSettings: (settings) => invoke('save_settings', { settings }),
     listProfiles: () => invoke('list_profiles', {}),

@@ -35,6 +35,9 @@ export interface Settings {
   brokerLogOpen: boolean;
 }
 
+/** Where the master key lives (change set 10): "file" on unsigned builds, "keychain" (the OS secret store) on signed ones. */
+export type KeyStoreKind = 'file' | 'keychain';
+
 export interface AppInfo {
   version: string;
   platform: 'macos' | 'windows' | 'linux' | 'web';

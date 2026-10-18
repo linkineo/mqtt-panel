@@ -72,6 +72,10 @@ export async function startApp(eng: EngineClient, plat: Platform, o: BootOverrid
     i18n.on('languageChanged', (l) => relabel(l));
   }
   useApp.setState({ appInfo, settings });
+  void eng
+    .keyStoreKind()
+    .then((keyStore) => useApp.setState({ keyStore }))
+    .catch(() => undefined);
   applySettings(settings, appInfo);
   const [profiles, connections] = await Promise.all([eng.listProfiles(), eng.listConnections()]);
   let broker = null;

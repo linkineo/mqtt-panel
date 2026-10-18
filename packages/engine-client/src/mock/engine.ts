@@ -55,6 +55,8 @@ export interface MockOptions {
   live?: boolean;
   latencyMs?: number;
   now?: () => number;
+  /** What `keyStoreKind` answers (default "keychain", as a signed build). */
+  keyStore?: 'file' | 'keychain';
 }
 
 export interface MockControls {
@@ -683,6 +685,9 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
   const client: MockEngineClient = {
     async appInfo() {
       return { version: '1.0.0-beta.3', platform: detectPlatform(), native: false };
+    },
+    async keyStoreKind() {
+      return options.keyStore ?? 'keychain';
     },
     async getSettings() {
       return clone(settings);

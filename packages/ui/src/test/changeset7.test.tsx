@@ -108,8 +108,8 @@ describe('Change set 7: no restart (B-25)', () => {
       const hits = Object.entries(cat)
         .filter(([, v]) => /restart|redémarr|neu ?start|neustart|starte .* neu\b/i.test(v))
         .map(([k]) => k);
-      // only the app's own restart, after a keychain refusal
-      expect(hits, lang).toEqual(['keychain.refused']);
+      // only the app's own restart, after a keychain refusal or a key file other users can read (change set 10)
+      expect(hits, lang).toEqual(['keychain.refused', 'keychain.keyFile']);
       for (const k of ['broker.restart', 'broker.restartApply', 'broker.restartPending', 'broker.pendingChip', 'addl.afterPrompt', 'appb.s.restart', 'appb.s.restarted', 'rs.title']) {
         expect(cat[k], `${lang} ${k}`).toBeUndefined();
       }
