@@ -50,3 +50,7 @@ packages/ui/playwright-report/
 tools/testlab/.venv/
 tools/testlab/out/
 __pycache__/
+
+# Website build output and raw recordings
+website/public/
+website/.media-raw/

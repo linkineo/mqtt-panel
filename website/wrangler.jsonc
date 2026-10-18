@@ -1,0 +1,18 @@
+{
+  // MQTT Panel website: static assets served by one Worker on mqtt-panel.com (www. redirects to the apex).
+  "name": "mqtt-panel-site",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+    "run_worker_first": true
+  },
+  "routes": [
+    { "pattern": "mqtt-panel.com", "custom_domain": true },
+    { "pattern": "www.mqtt-panel.com", "custom_domain": true }
+  ],
+  "workers_dev": false
+}
