@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 15 Oct 2026 (phases 1 to 4, change sets 1 to 9 complete on macOS; change set 10 specified and in progress; change set 5, 6, 7, 8 and 9 readings awaiting the owner; Windows and Linux through CI).
+Last update: 18 Oct 2026 (phases 1 to 4, change sets 1 to 10 complete on macOS, the Data Protection keychain of change set 10 deferred to the signing step; change set 5 to 10 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -11,7 +11,7 @@ Last update: 15 Oct 2026 (phases 1 to 4, change sets 1 to 9 complete on macOS; c
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
-| Change set 10 | master key store by build: owner-only key file on unsigned builds (no dialog), OS store on signed builds, one silent move; macOS Data Protection keychain as a release gate | Specified 18 Oct 2026; file store, detection and move in progress; Data Protection with the signing step (phase 5). See below. |
+| Change set 10 | master key store by build: owner-only key file on unsigned builds (no dialog), OS store on signed builds, one silent move; macOS Data Protection keychain as a release gate | Done on macOS 18 Oct 2026 (file store, detection and move); Data Protection with the signing step (phase 5). V-09 is the owner's manual check. See below. |
 | Change set 9 | owner feedback on the eighth build: empty bar without text, one-second smoothed msg/s on tabs and tree rows, sparkline hidden by right-click, expandable History rows with a one-field filter, JSON / Tree toggle, aligned row columns | Done 15 Oct 2026. See below. |
 | Change set 8 | owner feedback on the seventh build: permanent connection bar beside the rail, tree rows with payload, sparkline, messages, throughput and subtopics, sparkline pick and click menu in the payload, Payload and Properties tabs only with "Show diff to previous", topic chart under the payload with "+ Add field…" and "Also add to", History section, in-place series editing and chart rename, icon buttons and boxed quick publish, no auto-capitalisation | Specified 15 Oct 2026, implementation in progress. See below. |
 | Change set 7 | live apply of broker changes, no restart: listeners start, stop and rebind one by one, TLS material swapped live, only invalidated sessions dropped, Restart button, prompt and pending state removed | Specified 14 Oct 2026, implementation in progress. See below. |
@@ -22,17 +22,17 @@ Last update: 15 Oct 2026 (phases 1 to 4, change sets 1 to 9 complete on macOS; c
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
 
-## Change set 10 (18 Oct 2026, master key store by build): in progress
+## Change set 10 (18 Oct 2026, master key store by build): implemented, Data Protection deferred
 
 Specified in `docs/SPEC.md` 6 and 11 (release gate), `docs/TESTPLAN.md` V-09, V-12, S-06, `docs/RUNNING.md`, `CLAUDE.md`. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
 
 | Item | Status |
 |---|---|
-| Store selection by build: macOS signature check (Developer ID team identifier), `MQTTPANEL_KEYSTORE` override | Specified |
-| File master key store: `master.key` 0600 in a 0700 folder, plain error on bad permissions | Specified |
-| One-time move from the login keychain to the file (and back on the first signed start), old item deleted | Specified |
-| CLI follows the same rule; ⓘ texts say where the key lives | Specified |
-| Tests S-06 (crate), V-09 (manual, owner) | Specified |
+| Store selection by build: macOS signature check, `MQTTPANEL_KEYSTORE` override | Done 18 Oct 2026. Keychain when the signature has a certificate chain (any real identity), key file when ad-hoc or unsigned; read through the Security framework once per process; Linux falls back to the file without a Secret Service (see Open) |
+| File master key store: `master.key` 0600 in a 0700 folder, plain error on bad permissions | Done 18 Oct 2026. Base64 text; never replaces an existing file; a readable file gives `keychain.keyFile` |
+| One-time move from the login keychain to the file (and back on the first signed start), old item deleted | Done 18 Oct 2026. Old store read once, a refusal leaves everything in place for the next start, a fresh key only when no store holds one |
+| CLI follows the same rule; ⓘ texts say where the key lives | Done 18 Oct 2026. Both go through `open_app_secrets`; `key_store_kind` command, the client key ⓘ adds `info.keyStore.file` or `info.keyStore.keychain` |
+| Tests S-06 (crate), V-09 (manual, owner) | S-06 done 18 Oct 2026. Rust 218 (11 new), Vitest 147, Playwright 287, all green; V-09 is the owner's |
 | macOS Data Protection keychain for signed builds, release gate V-12 | Deferred to the signing step (phase 5) |
 
 ## Change set 9 (15 Oct 2026, owner feedback on the eighth build): implemented
