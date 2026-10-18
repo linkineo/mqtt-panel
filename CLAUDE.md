@@ -7,9 +7,12 @@ These rules apply to every session working in this repository, whichever model r
 - Do not use the `ios-app-workflow` skill in this repository. It is for a different product line and the owner has disabled it here.
 
 ## Brand and public material
-- The brand is **mqtt-panel.com** (mqtt-panel.com). Never write personal names, personal e-mail addresses, employer names or local file paths anywhere in the repository.
+- The official website is **https://mqtt-panel.com** (owner, 18 Oct 2026). The app and the website reference the website only: copyright lines read "© 2026 mqtt-panel.com".
+- The words "mqtt-panel.com" appear nowhere user-facing (copyright, About, Settings, website, store texts, README, NOTICE). The app mark stays as a decorative icon in the app's title bar (`aria-hidden`, no title, no text naming it). Historical entries in `docs/DECISIONS.md` and internal identifiers such as the bundle ID `com.remora-labs.mqttpanel` stay as they are.
+- Never write personal names, personal e-mail addresses, employer names or local file paths anywhere in the repository.
 - The predecessor tool that inspired this project is **never named** in this repository, in commit messages, release notes, the website or app strings. Write "the predecessor tool" when a reference is unavoidable.
 - Run `scripts/check-forbidden-words.sh` before every commit. A hit blocks the commit.
+- The website (`website/`) runs its own check in `build.py` on the generated HTML (the same patterns plus "mqtt-panel.com"); a hit fails the build.
 
 ## Languages
 - English is the source language. French and German ship in v1.0.
@@ -29,5 +32,6 @@ These rules apply to every session working in this repository, whichever model r
 - `cargo deny` and `npm audit` run in CI. Lockfiles are committed.
 
 ## Commits
+- Commit identity: `git -c user.name="MQTT Panel" -c user.email="noreply@mqtt-panel.com" commit …`.
 - Commit messages end with the line `Co-Authored-By: Claude <model name> <noreply@anthropic.com>` using the model that made the change.
 - Before committing: `scripts/check-forbidden-words.sh`, then tests.

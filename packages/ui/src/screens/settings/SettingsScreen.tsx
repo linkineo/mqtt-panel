@@ -370,7 +370,8 @@ export function SettingsScreen() {
                 <strong>MQTT Panel</strong> {info.version}
               </div>
               <div className="muted">{t('settings.licence')}</div>
-              <div className="muted">{t('settings.madeBy')}</div>
+              <div className="muted">{t('settings.copyright')}</div>
+              <div className="muted" style={{ userSelect: 'text' }}>{t('settings.website')}</div>
               <div className="muted" style={{ marginTop: 6 }}>
                 {t('settings.thirdParty')}
               </div>

@@ -1,6 +1,6 @@
 # MQTT Panel
 
-Open-source MQTT client, embedded broker and command line for Windows, macOS and Linux, by [mqtt-panel.com](https://mqtt-panel.com).
+Open-source MQTT client, embedded broker and command line for Windows, macOS and Linux. Website: [mqtt-panel.com](https://mqtt-panel.com).
 
 MQTT Panel is the tool an engineer opens to understand what is happening on a broker: which topics exist, what the last payload was, how a value moved over the last hour, and whether a device answered. It stays fast with a hundred thousand topics, treats security as a first-class feature (certificates, mutual TLS, OS keychain), and lets the same person stand up a local broker in two clicks when they have none.
 

@@ -35,12 +35,15 @@ fn item<R: Runtime>(app: &AppHandle<R>, id: &str, text: &str, accel: Option<&str
     MenuItem::with_id(app, id, text, true, accel)
 }
 
+/// Copyright line of the About dialog: the website only, no company name (owner, 18 Oct 2026).
+pub const ABOUT_COPYRIGHT: &str = "© 2026 mqtt-panel.com · https://mqtt-panel.com · Apache License 2.0";
+
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>, lang: &str) -> tauri::Result<Menu<R>> {
     let l = |k: &str| label(lang, k);
     let about = AboutMetadataBuilder::new()
         .name(Some("MQTT Panel"))
         .version(Some(env!("CARGO_PKG_VERSION")))
-        .copyright(Some("mqtt-panel.com · Apache License 2.0"))
+        .copyright(Some(ABOUT_COPYRIGHT))
         .build();
     let settings = item(app, "open-settings", &l("settings"), Some("CmdOrCtrl+,"))?;
     let new_conn = item(app, "new-connection", &l("newConnection"), Some("CmdOrCtrl+N"))?;
@@ -181,5 +184,15 @@ mod tests {
         assert_eq!(label("xx", "quit"), label("en", "quit"));
         // change set 5: the import item and its label are gone
         assert_eq!(label("en", "import"), "import");
+    }
+
+    #[test]
+    fn about_names_the_website_only() {
+        let c = super::ABOUT_COPYRIGHT;
+        assert!(c.contains("mqtt-panel.com"));
+        assert!(!c.to_lowercase().contains("mqtt-panel"));
+        let conf = include_str!("../tauri.conf.json");
+        assert!(conf.contains("\"copyright\": \"mqtt-panel.com\""));
+        assert!(!conf.to_lowercase().contains("mqtt-panel labs"));
     }
 }
