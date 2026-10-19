@@ -10,6 +10,9 @@
       "entitlements": "signing/Entitlements.plist",
       "files": {
         "embedded.provisionprofile": "signing/embedded.provisionprofile"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     }
   }
