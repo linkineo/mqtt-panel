@@ -9,6 +9,7 @@ Commands:
   pub        Publish one message (or one per line from stdin)
   broker     Run the embedded broker
   profiles   List, export and import saved connection profiles
+  mcp        Connect an assistant (MCP host) to the running app
 
 Options:
   --profile <name>   Use a saved connection profile (from the desktop app)

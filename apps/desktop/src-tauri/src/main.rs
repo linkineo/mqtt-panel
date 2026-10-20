@@ -4,6 +4,7 @@
 mod broker;
 mod commands;
 mod files;
+mod mcp;
 mod menu;
 mod payload;
 mod state;
@@ -17,6 +18,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use types::EngineEvent;
+
+/// The assistant socket while the app runs.
+struct McpSocket(Mutex<Option<mcp::server::Listening>>);
 
 /// Emits a tick when something changed, at most 20 times a second, and a heartbeat every second.
 fn spawn_ticker(app: AppHandle) {
@@ -95,6 +99,11 @@ fn secrets(dir: &std::path::Path) -> Arc<dyn SecretStore> {
 }
 
 fn main() {
+    // `<app> mcp`: the MCP stdio shim, so a host can start the app's own executable (docs/MCP.md section 2).
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.len() == 1 && args[0] == "mcp" {
+        std::process::exit(mqttpanel_shim::run(mqttpanel_shim::Launch::SelfExe));
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -109,6 +118,7 @@ fn main() {
                 conns: Mutex::new(HashMap::new()),
                 pending_trust: Mutex::new(HashMap::new()),
                 broker: broker::BrokerState::default(),
+                assistant: mcp::Hub::default(),
             });
             let handle = app.handle().clone();
             let menu = menu::build_menu(&handle, "en")?;
@@ -116,7 +126,23 @@ fn main() {
             app.on_menu_event(|app, event| {
                 let _ = app.emit("engine-event", EngineEvent::Menu { id: event.id().0.clone() });
             });
-            spawn_ticker(handle);
+            spawn_ticker(handle.clone());
+            // The assistant socket (docs/MCP.md section 2): enabled by default, same user only, no network port.
+            let link: Arc<dyn mcp::AppLink> = Arc::new(mcp::commands::TauriLink(handle.clone()));
+            let mcp_dir = mqttpanel_profiles::default_dir();
+            tauri::async_runtime::spawn(async move {
+                match mcp::server::listen(link, &mcp_dir).await {
+                    Ok(l) => {
+                        // Kept for the life of the app; the socket file goes when the app quits.
+                        handle.manage(McpSocket(Mutex::new(Some(l))));
+                    }
+                    Err(e) => {
+                        if log_enabled() {
+                            eprintln!("[mqttpanel] assistant socket: {e}");
+                        }
+                    }
+                }
+            });
             Ok(())
         })
         .on_page_load(|webview, payload| {
@@ -225,6 +251,15 @@ fn main() {
             broker::disconnect_client,
             broker::broker_log,
             broker::app_broker_step,
+            mcp::commands::assistant_status,
+            mcp::commands::assistant_accept,
+            mcp::commands::assistant_decline,
+            mcp::commands::assistant_add_to_claude,
+            mcp::commands::assistant_add_to_chatgpt,
+            mcp::commands::assistant_log,
+            mcp::commands::assistant_clear_log,
+            mcp::commands::assistant_export_log,
+            mcp::commands::assistant_answer,
         ]))
         .build(tauri::generate_context!())
         .expect("error while building MQTT Panel")
@@ -232,6 +267,9 @@ fn main() {
             if let tauri::RunEvent::Exit = event {
                 let st = app.state::<AppState>();
                 tauri::async_runtime::block_on(broker::shutdown(&st.broker));
+                if let Some(s) = app.try_state::<McpSocket>() {
+                    lock(&s.0).take();
+                }
             }
         });
 }

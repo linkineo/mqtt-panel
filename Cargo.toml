@@ -7,6 +7,7 @@ members = [
   "crates/broker",
   "crates/profiles",
   "crates/cli",
+  "crates/shim",
   "apps/desktop/src-tauri",
 ]
 
@@ -15,7 +16,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["mqtt-panel.com"]
-rust-version = "1.85"
+rust-version = "1.88"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -39,6 +40,7 @@ mqttpanel-tls = { path = "crates/tls" }
 mqttpanel-client = { path = "crates/client" }
 mqttpanel-broker = { path = "crates/broker" }
 mqttpanel-profiles = { path = "crates/profiles" }
+mqttpanel-shim = { path = "crates/shim" }
 
 [profile.release]
 lto = "thin"

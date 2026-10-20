@@ -337,6 +337,9 @@ pub struct Settings {
     pub update_channel: String,
     /// The broker log is expanded in the right pane of the Broker screen (collapsed by default, change set 2).
     pub broker_log_open: bool,
+    /// The day (YYYY-MM-DD) the user accepted the assistant acknowledgement (docs/MCP.md section 3); until then the
+    /// assistant's writing tools are refused.
+    pub assistant_acknowledged: Option<String>,
 }
 
 impl Default for Settings {
@@ -356,6 +359,7 @@ impl Default for Settings {
             update_check: true,
             update_channel: "stable".into(),
             broker_log_open: false,
+            assistant_acknowledged: None,
         }
     }
 }

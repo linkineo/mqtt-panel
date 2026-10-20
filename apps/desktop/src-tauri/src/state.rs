@@ -22,6 +22,8 @@ pub struct AppState {
     pub conns: Mutex<HashMap<String, Arc<Conn>>>,
     pub pending_trust: Mutex<HashMap<String, TrustInfo>>,
     pub broker: crate::broker::BrokerState,
+    /// The assistant interface (docs/MCP.md): session, acknowledgement waits, Assistant log, requests for the user.
+    pub assistant: crate::mcp::Hub,
 }
 
 #[derive(Debug, Clone)]

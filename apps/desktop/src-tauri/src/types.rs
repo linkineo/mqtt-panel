@@ -237,6 +237,8 @@ pub enum EngineEvent {
         broker_log_seq: u64,
     },
     Menu { id: String },
+    /// The assistant (docs/MCP.md): toasts, navigation, refreshes, the acknowledgement dialog, prompts for the user.
+    Assistant { event: crate::mcp::AssistantEvent },
 }
 
 pub fn now_ms() -> i64 {

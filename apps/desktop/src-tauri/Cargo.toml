@@ -29,6 +29,11 @@ mqttpanel-tls.workspace = true
 mqttpanel-broker.workspace = true
 time.workspace = true
 rustls-pki-types.workspace = true
+rmcp = { version = "3.6", default-features = false, features = ["server"] }
+toml_edit = "0.25"
+dirs = "6"
+mqttpanel-shim.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+rmcp = { version = "3.6", default-features = false, features = ["server", "client"] }

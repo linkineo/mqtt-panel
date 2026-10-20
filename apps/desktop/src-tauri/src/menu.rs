@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use tauri::menu::{AboutMetadataBuilder, Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
 const EN: &str = include_str!("../../../../packages/ui/src/i18n/en/ui.json");
 const FR: &str = include_str!("../../../../packages/ui/src/i18n/fr/ui.json");
@@ -156,6 +156,8 @@ pub fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
         "fr" | "de" => lang,
         _ => "en".to_string(),
     };
+    // The assistant's texts follow the app language too (docs/MCP.md section 5).
+    app.state::<crate::state::AppState>().assistant.set_lang(&lang);
     let menu = build_menu(&app, &lang).map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
     Ok(())

@@ -92,12 +92,22 @@ pub fn broker_config(state: State<'_, AppState>) -> R<BrokerConfig> {
 
 #[tauri::command]
 pub async fn broker_start(state: State<'_, AppState>) -> R<BrokerStatus> {
-    mgr(&state)?.start().await;
-    if mgr(&state)?.take_ca_regenerated() {
-        follow_local_profile(&state);
+    broker_start_on(&state).await
+}
+
+/// Starts the broker (nothing happens when it runs), then lets the profile "Local broker" follow and reconnect.
+pub async fn broker_start_on(state: &AppState) -> R<BrokerStatus> {
+    mgr(state)?.start().await;
+    if mgr(state)?.take_ca_regenerated() {
+        follow_local_profile(state);
     }
-    reconnect_local(&state).await;
-    Ok(mgr(&state)?.status())
+    reconnect_local(state).await;
+    Ok(mgr(state)?.status())
+}
+
+/// True when the embedded broker runs.
+pub fn broker_running(state: &AppState) -> bool {
+    mgr(state).map(|m| m.is_running()).unwrap_or(false)
 }
 
 #[tauri::command]

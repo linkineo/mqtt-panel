@@ -203,6 +203,10 @@ fn main() {
         print!("{}", help::MAIN);
         finish(0);
     }
+    // `mqttpanel mcp`: the MCP stdio shim for assistants (docs/MCP.md section 2); stdout belongs to the host.
+    if argv.len() == 1 && argv[0] == "mcp" {
+        std::process::exit(mqttpanel_shim::run(mqttpanel_shim::Launch::FindApp));
+    }
     match prescan(&argv) {
         Some(Early::Help(text)) => {
             print!("{text}");

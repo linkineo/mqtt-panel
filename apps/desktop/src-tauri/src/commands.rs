@@ -68,6 +68,11 @@ pub fn new_profile() -> Profile {
 
 #[tauri::command]
 pub fn save_profile(state: State<'_, AppState>, profile: Profile) -> R<Profile> {
+    save_profile_on(&state, profile)
+}
+
+/// Saves a profile and applies its name and sparkline picks to the open connection (also used by the assistant).
+pub fn save_profile_on(state: &AppState, profile: Profile) -> R<Profile> {
     let saved = state.store.save(profile)?;
     if let Some(c) = lock(&state.conns).get(&saved.id) {
         *lock(&c.name) = saved.name.clone();
@@ -79,8 +84,12 @@ pub fn save_profile(state: State<'_, AppState>, profile: Profile) -> R<Profile> 
 
 #[tauri::command]
 pub async fn delete_profile(state: State<'_, AppState>, profile_id: String) -> R<()> {
-    close(&state, &profile_id).await;
-    state.store.delete(&profile_id)
+    delete_profile_on(&state, &profile_id).await
+}
+
+pub async fn delete_profile_on(state: &AppState, profile_id: &str) -> R<()> {
+    close(state, profile_id).await;
+    state.store.delete(profile_id)
 }
 
 #[tauri::command]
@@ -150,6 +159,11 @@ pub fn inspect_file(kind: String, path: String) -> FileInspection {
 
 #[tauri::command]
 pub fn set_profile_file(state: State<'_, AppState>, profile_id: String, field: String, path: Option<String>, passphrase: Option<String>) -> R<Profile> {
+    set_profile_file_on(&state, profile_id, field, path, passphrase)
+}
+
+/// Applies a file to a profile field (`caCert`, `clientCert`, `clientKey`); None clears the field.
+pub fn set_profile_file_on(state: &AppState, profile_id: String, field: String, path: Option<String>, passphrase: Option<String>) -> R<Profile> {
     let secrets = state.store.secrets().clone();
     let set = |k: String, v: &str| secrets.set(&k, v).map_err(|e| msg!(e.catalog_key(), detail = e.to_string()));
     let del = |k: String| {
@@ -398,7 +412,7 @@ fn trust_prompt(state: &AppState, profile_id: &str, t: mqttpanel_client::TrustIn
     TrustPrompt { profile_id: profile_id.to_string(), info: t }
 }
 
-fn stored(state: &AppState, id: &str) -> R<StoredProfile> {
+pub fn stored(state: &AppState, id: &str) -> R<StoredProfile> {
     state.store.get(id).ok_or_else(|| msg!("profile.notFound"))
 }
 
@@ -452,7 +466,15 @@ pub async fn connect_profile(state: State<'_, AppState>, profile_id: String, ski
 
 #[tauri::command]
 pub async fn test_profile(state: State<'_, AppState>, profile_id: String, skip_once: Option<bool>) -> R<TestOutcome> {
-    let p = stored(&state, &profile_id)?;
+    test_profile_on(&state, &profile_id, skip_once.unwrap_or(false)).await
+}
+
+/// "Test": one connection attempt without keeping the connection; the result is kept as the profile's last test.
+pub async fn test_profile_on(state: &AppState, profile_id: &str, skip_once: bool) -> R<TestOutcome> {
+    let state = state;
+    let profile_id = profile_id.to_string();
+    let skip_once = Some(skip_once);
+    let p = stored(state, &profile_id)?;
     let opts = mqttpanel_profiles::connect_options(&p, state.store.secrets().as_ref(), skip_once.unwrap_or(false))?;
     let tls = opts.scheme.is_tls();
     let result = match mqttpanel_client::test_connection(&opts).await {
@@ -467,7 +489,7 @@ pub async fn test_profile(state: State<'_, AppState>, profile_id: String, skip_o
             verified: if tls { r.info.transport.verified } else { None },
             error: None,
         },
-        Err(ConnectFailure::Trust(t)) => return Ok(TestOutcome::NeedsTrust { trust: trust_prompt(&state, &profile_id, *t) }),
+        Err(ConnectFailure::Trust(t)) => return Ok(TestOutcome::NeedsTrust { trust: trust_prompt(state, &profile_id, *t) }),
         Err(ConnectFailure::Message(m)) => TestResult {
             ok: false,
             at: now_ms(),
@@ -487,6 +509,12 @@ pub async fn test_profile(state: State<'_, AppState>, profile_id: String, skip_o
 
 #[tauri::command]
 pub fn trust_certificate(state: State<'_, AppState>, profile_id: String, mode: String) -> R<Profile> {
+    trust_certificate_on(&state, &profile_id, &mode)
+}
+
+/// Resolves the pending certificate prompt of a profile: `certificate` (pin), `ca`, `skipOnce` or `skipAlways`.
+pub fn trust_certificate_on(state: &AppState, profile_id: &str, mode: &str) -> R<Profile> {
+    let profile_id = profile_id.to_string();
     let t = lock(&state.pending_trust).remove(&profile_id).ok_or_else(|| msg!("profile.notFound"))?;
     let p = state.store.update(&profile_id, |p| {
         if mode == "skipOnce" {
@@ -525,7 +553,12 @@ pub async fn close(state: &AppState, id: &str) {
 
 #[tauri::command]
 pub async fn disconnect(state: State<'_, AppState>, connection_id: String) -> R<()> {
-    let c = lock(&state.conns).get(&connection_id).cloned();
+    disconnect_on(&state, &connection_id).await
+}
+
+/// Disconnects an open connection, keeping its topics and history.
+pub async fn disconnect_on(state: &AppState, connection_id: &str) -> R<()> {
+    let c = lock(&state.conns).get(connection_id).cloned();
     if let Some(c) = c {
         halt_repeat(&c, Some(msg!("repeat.stoppedDisconnect")));
         let h = lock(&c.handle).take();
@@ -545,6 +578,10 @@ pub async fn close_connection(state: State<'_, AppState>, connection_id: String)
 
 #[tauri::command]
 pub fn list_connections(state: State<'_, AppState>) -> Vec<ConnectionStatus> {
+    connection_statuses(&state)
+}
+
+pub fn connection_statuses(state: &AppState) -> Vec<ConnectionStatus> {
     let now = now_ms();
     lock(&state.conns).values().map(|c| c.status(now)).collect()
 }
