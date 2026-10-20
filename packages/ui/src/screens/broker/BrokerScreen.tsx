@@ -655,6 +655,19 @@ export function BrokerScreen() {
                 <button type="button" className="btn sm" data-testid="regenerate" onClick={() => setDialog({ kind: 'regen' })}>
                   {t('certs.regenerateDots')}
                 </button>
+                {/* change set 11: the served chain as PEM, for a device that pins the server certificate */}
+                <button
+                  type="button"
+                  className="btn sm"
+                  data-testid="export-server-cert"
+                  title={t('certs.exportServer')}
+                  onClick={async () => {
+                    const out = await run(engine().exportServerCert());
+                    if (out) reportSave(out, t);
+                  }}
+                >
+                  {t('certs.exportDots')}
+                </button>
               </span>
             </div>
           )}
@@ -663,6 +676,10 @@ export function BrokerScreen() {
     </>
   );
 
+  const stoppable = running || status.state === 'starting';
+  const start = () => void lifecycle(() => engine().brokerStart());
+  const stop = () => void lifecycle(() => engine().brokerStop());
+
   return (
     <div className="cols" style={{ gridTemplateColumns: 'minmax(0,1fr) 350px' }}>
       <div className="pane" data-testid="broker">
@@ -670,12 +687,13 @@ export function BrokerScreen() {
           <h5>{t('broker.title')}</h5>
           <div className="row" style={{ gap: 6 }}>
             {/* Start and Stop only: every change applies live, nothing restarts (change set 7). */}
-            {running || status.state === 'starting' ? (
-              <button type="button" className="btn danger" data-testid="broker-stop" onClick={() => void lifecycle(() => engine().brokerStop())}>
+            {/* change set 11: Start is the accent primary button like Connect; Stop stays outlined in brick */}
+            {stoppable ? (
+              <button type="button" className="btn danger out" data-testid="broker-stop" onClick={stop}>
                 {t('broker.stop')}
               </button>
             ) : (
-              <button type="button" className="btn" data-testid="broker-start" onClick={() => void lifecycle(() => engine().brokerStart())}>
+              <button type="button" className="btn pri" data-testid="broker-start" onClick={start}>
                 {t('broker.start')}
               </button>
             )}
@@ -702,6 +720,20 @@ export function BrokerScreen() {
                   <small data-testid="uptime" style={{ marginLeft: 4 }}>
                     {fmtUptime(now - status.startedAt)}
                   </small>
+                )}
+                {/* change set 11: the same two actions as the header, at the right end of the value line */}
+                {stoppable ? (
+                  <button type="button" className="tile-btn stop" data-testid="tile-stop" title={t('broker.tileStop')} aria-label={t('broker.tileStop')} onClick={stop}>
+                    <svg viewBox="0 0 10 10" aria-hidden="true">
+                      <rect x="1.5" y="1.5" width="7" height="7" rx="1" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button type="button" className="tile-btn play" data-testid="tile-start" title={t('broker.tileStart')} aria-label={t('broker.tileStart')} onClick={start}>
+                    <svg viewBox="0 0 10 10" aria-hidden="true">
+                      <path d="M2.5 1.2 L9 5 L2.5 8.8 Z" />
+                    </svg>
+                  </button>
                 )}
               </div>
             </div>

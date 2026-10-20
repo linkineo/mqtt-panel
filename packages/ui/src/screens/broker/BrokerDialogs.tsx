@@ -4,7 +4,7 @@ import type { BrokerCerts, BrokerConfig, IssueCertRequest, Listener, ListenerKin
 import { engine } from '../../services';
 import { toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
-import { reportSave, run } from '../../lib/actions';
+import { reportSave } from '../../lib/actions';
 import { Check, Info, Modal, Msg, Seg, NO_AUTO } from '../../components/ui';
 import { SecretInput } from '../../components/Secret';
 
@@ -408,43 +408,78 @@ export function CredentialsDialog(props: {
   );
 }
 
+/**
+ * Regenerate the server certificate (change set 11): the automatic names (localhost, the host name, the interface
+ * addresses read now) are listed read-only; "Extra names" takes the names and addresses the app cannot know (a DNS
+ * name, a WAN address), comma or space separated, kept in the broker configuration for every later generation.
+ */
 export function RegenerateDialog({ certs, onClose, onCerts }: { certs: BrokerCerts; onClose(): void; onCerts(c: BrokerCerts): void }) {
   const { t } = useTranslation();
-  const [sans, setSans] = useState(certs.server.san.join(', '));
+  const [extra, setExtra] = useState((certs.extraSans ?? []).join(', '));
   const [keyType, setKeyType] = useState<'ecdsa' | 'rsa'>(certs.server.keyType.startsWith('RSA') ? 'rsa' : 'ecdsa');
+  const [error, setError] = useState<UserMessage | null>(null);
+  const ok = async () => {
+    try {
+      const c = await engine().regenerateBrokerCerts(extra.split(/[\s,]+/).filter(Boolean), keyType);
+      onCerts(c);
+      useApp.getState().toast({ kind: 'info', text: t('certs.regenerated') });
+      onClose();
+    } catch (e) {
+      setError(toMessage(e));
+    }
+  };
   return (
     <Modal
       title={t('certs.regenTitle')}
-      width={520}
+      width={560}
       onClose={onClose}
+      testId="regen-dialog"
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>
             {t('common.cancel')}
           </button>
-          <button
-            type="button"
-            className="btn pri"
-            onClick={async () => {
-              const c = await run(engine().regenerateBrokerCerts(sans.split(/[\s,]+/).filter(Boolean), keyType));
-              if (c) {
-                onCerts(c);
-                useApp.getState().toast({ kind: 'info', text: t('certs.regenerated') });
-              }
-              onClose();
-            }}
-          >
+          <button type="button" className="btn pri" data-testid="regen-ok" onClick={() => void ok()}>
             {t('certs.regenerate')}
           </button>
         </>
       }
     >
       <div className="form">
-        <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
-          <label htmlFor="regen-sans">{t('certs.sans')}</label>
-          <input {...NO_AUTO} id="regen-sans" className="input mono w-xl" value={sans} onChange={(e) => setSans(e.target.value)} />
+        <div className="f" style={{ gridTemplateColumns: '170px 1fr', alignItems: 'start' }}>
+          <span className="lbl">{t('certs.autoNames')}</span>
+          <div className="mono small selectable" data-testid="regen-auto" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere', paddingTop: 2 }}>
+            {(certs.autoSans ?? []).join(', ')}
+          </div>
         </div>
-        <div className="f" style={{ gridTemplateColumns: '110px 1fr' }}>
+        <div className="f" style={{ gridTemplateColumns: '170px 1fr' }}>
+          <span className="lbl">
+            <label htmlFor="regen-extra">{t('certs.extraNames')}</label> <Info id="extraNames" title={t('certs.extraNames')} />
+          </span>
+          <span className="row2">
+            <input
+              {...NO_AUTO}
+              id="regen-extra"
+              data-testid="regen-extra"
+              className={`input mono w-xl${error ? ' err' : ''}`}
+              placeholder="broker.example.com, 203.0.113.7"
+              value={extra}
+              onChange={(e) => {
+                setExtra(e.target.value);
+                setError(null);
+              }}
+            />
+          </span>
+        </div>
+        {error && (
+          <div className="f" style={{ gridTemplateColumns: '170px 1fr' }}>
+            <span className="lbl" />
+            <span className="hint err" data-testid="regen-error">
+              <Msg msg={error} />
+            </span>
+          </div>
+        )}
+        <div className="f" style={{ gridTemplateColumns: '170px 1fr' }}>
           <span className="lbl">{t('issue.key')}</span>
           <Seg
             label={t('issue.key')}

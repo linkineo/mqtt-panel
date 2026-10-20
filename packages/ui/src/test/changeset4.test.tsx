@@ -82,7 +82,7 @@ describe('Change set 4: form folds (C-19)', () => {
     render(<ProfileForm profileId="plant" />);
     expect(screen.getByTestId('fold-security').getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByTestId('fold-advanced').getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByTestId('fold-security-summary').textContent).toBe('CA · client certificate · verified');
+    expect(screen.getByTestId('fold-security-summary').textContent).toBe('CA · client certificate (imported) · verified');
     expect(screen.getByTestId('fold-advanced-summary').textContent).toBe('keep-alive 60 s · 3 subscriptions · 1 schema');
     expect(screen.queryByTestId('file-caCert')).toBeNull();
     await act(async () => fireEvent.click(screen.getByTestId('fold-security')));

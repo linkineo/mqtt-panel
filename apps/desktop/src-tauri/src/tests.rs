@@ -360,7 +360,7 @@ async fn b12_this_apps_broker_flow_three_runs_no_duplicates() {
     assert_eq!(users.iter().filter(|u| u.username == "mqtt-panel").count(), 1, "{users:?}");
     assert!(users[0].system);
     // The profile password is the user's password and can be revealed (app-owned).
-    assert_eq!(crate::commands::local_profile_password(&state, &p.id), m.user_password("mqtt-panel").unwrap());
+    assert_eq!(crate::commands::stored_password(&state, &p.id).unwrap(), m.user_password("mqtt-panel").unwrap());
     assert_eq!(m.issued_certs().iter().filter(|c| c.system).count(), 1);
     // A listener change applies at once: the flow finds the broker running and never restarts it (change set 7).
     let started_at = m.status().started_at;
@@ -591,4 +591,92 @@ pub(crate) async fn tests_support_wait(mut cond: impl FnMut() -> bool) -> bool {
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
     cond()
+}
+
+/// C-33 (adapter part): "Generate key and request a certificate". The key goes to the secret store, the CSR carries
+/// the chosen common name and is signed by the broker's "Import CSR…", a certificate for another key is refused, the
+/// signed certificate is accepted, and the connection authenticates with the generated key against the embedded
+/// broker with client certificates required. Start over and switching the way clear the material.
+#[tokio::test]
+async fn c33_generated_key_csr_and_signed_certificate_connect() {
+    use crate::commands::{client_cert_way, client_csr_pem, generate_key_for, import_signed_cert_bytes, stored_password};
+    use mqttpanel_profiles::model::secret_keys;
+    use mqttpanel_profiles::FileField;
+    let dir = tempfile::tempdir().unwrap();
+    let (state, mtls) = local_state(dir.path()).await;
+    let m = manager(&state);
+    assert_eq!(m.start().await.state, mqttpanel_broker::BrokerState::Running);
+    let port = m.running_port(&mtls).unwrap();
+    let mut p = Profile::new_default();
+    p.name = "Generated".into();
+    p.host = "localhost".into();
+    p.port = port;
+    p.scheme = "mqtts".into();
+    p.mqtt_version = "5".into();
+    p.client_id = "gen-client".into();
+    let p = state.store.save(p).unwrap();
+    let id = p.id.clone();
+    let ca = m.ca_pem();
+    state
+        .store
+        .update(&id, |s| {
+            s.blobs.ca_pem = Some(ca.clone());
+            s.profile.tls.ca_cert = Some(FileField { file_name: "CA.pem".into(), summary: None, in_keychain: false });
+        })
+        .unwrap();
+    // The password eye reads the stored password of any profile (change set 11).
+    state.store.set_password(&id, "typed-secret").unwrap();
+    assert_eq!(stored_password(&state, &id).unwrap().as_deref(), Some("typed-secret"));
+    state.store.set_password(&id, "").unwrap();
+
+    // Without a generated key there is nothing to request.
+    assert_eq!(client_csr_pem(&state, &id, "gen-client").unwrap_err().key, "file.noGeneratedKey");
+    // Generate: the key is in the secret store, the profile shows the algorithm and the fingerprint.
+    let p = generate_key_for(&state, &id, mqttpanel_tls::kit::KeyAlg::Ecdsa).unwrap();
+    assert!(p.tls.client_key_generated && p.tls.client_cert.is_none());
+    let s = p.tls.client_key.as_ref().unwrap().summary.as_ref().unwrap();
+    assert_eq!((s.kind.as_str(), s.key_type.as_deref()), ("generated", Some("ECDSA P-256")));
+    let key = state.store.secrets().get(&secret_keys::client_key(&id)).unwrap().unwrap();
+    assert_eq!(mqttpanel_tls::kit::describe_key(&key).unwrap().1, s.fingerprint.clone().unwrap());
+    let profile_file = std::fs::read_to_string(dir.path().join("profiles").join("profiles.json")).unwrap_or_default();
+    assert!(!profile_file.contains("PRIVATE KEY"), "the key never reaches the profile file");
+
+    // CSR with the chosen common name, signed by the broker.
+    assert_eq!(client_csr_pem(&state, &id, "  ").unwrap_err().key, "file.csrNoName");
+    let csr = client_csr_pem(&state, &id, "gen-client").unwrap();
+    assert!(csr.starts_with("-----BEGIN CERTIFICATE REQUEST-----"));
+    let (_, signed) = m.import_csr(csr.as_bytes(), None, 2).unwrap();
+    assert!(m.issued_certs().iter().any(|c| c.name == "gen-client"));
+
+    // A certificate for another key is refused; the signed one is accepted (DER too).
+    let (_, other) = m
+        .issue_client_cert(mqttpanel_broker::IssueCertRequest { name: "someone-else".into(), key_type: mqttpanel_tls::kit::KeyAlg::Ecdsa, valid_years: 1, format: mqttpanel_broker::CertFormat::Pem, passphrase: String::new(), save_ca: false })
+        .unwrap()
+        .into_iter()
+        .find(|(n, _)| n.ends_with(".pem") && !n.contains("CA"))
+        .unwrap();
+    assert_eq!(import_signed_cert_bytes(&state, &id, "someone-else.pem", &other).unwrap_err().key, "file.notGeneratedKey");
+    let der = mqttpanel_tls::parse_certs(&signed).unwrap()[0].as_ref().to_vec();
+    let p = import_signed_cert_bytes(&state, &id, "gen-client.der", &der).unwrap();
+    assert_eq!(p.tls.client_cert.as_ref().unwrap().file_name, "gen-client.der");
+    assert!(p.tls.client_key.is_some(), "the generated key stays");
+
+    // The connection authenticates with the generated key (client certificates required on this listener).
+    let stored = state.store.get(&id).unwrap();
+    match crate::commands::connect_stored(&state, stored, false).await {
+        ConnectOutcome::Connected { .. } => {}
+        other => panic!("connect with the generated key: {:?}", serde_json::to_string(&other).unwrap()),
+    }
+    assert!(m.clients().iter().any(|c| c.client_id == "gen-client" && c.cert_cn.as_deref() == Some("gen-client")));
+    crate::commands::close(&state, &id).await;
+
+    // Removing the certificate keeps the key; Start over clears both; switching to Import clears and flips the way.
+    let p = client_cert_way(&state, &id, true).unwrap();
+    assert!(p.tls.client_key_generated && p.tls.client_key.is_none() && p.tls.client_cert.is_none());
+    assert!(state.store.secrets().get(&secret_keys::client_key(&id)).unwrap().is_none());
+    generate_key_for(&state, &id, mqttpanel_tls::kit::KeyAlg::Rsa).unwrap();
+    let p = client_cert_way(&state, &id, false).unwrap();
+    assert!(!p.tls.client_key_generated && p.tls.client_key.is_none());
+    assert!(state.store.secrets().get(&secret_keys::client_key(&id)).unwrap().is_none());
+    m.stop().await;
 }

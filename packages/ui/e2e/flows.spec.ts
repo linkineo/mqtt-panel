@@ -758,7 +758,7 @@ test.describe('Change set 4', () => {
     await expect(sec).toHaveAttribute('aria-expanded', 'false');
     await expect(adv).toHaveAttribute('aria-expanded', 'false');
     await expect(page.locator('[data-testid=profile-form] .sec')).toHaveText(['Basics']);
-    await expect(page.locator('[data-testid=fold-security-summary]')).toHaveText('CA · client certificate · verified');
+    await expect(page.locator('[data-testid=fold-security-summary]')).toHaveText('CA · client certificate (imported) · verified');
     await expect(page.locator('[data-testid=fold-advanced-summary]')).toHaveText('keep-alive 60 s · 3 subscriptions · 1 schema');
     await expect(page.locator('[data-testid=info-caCert]')).toHaveCount(0);
     await sec.click();
@@ -866,7 +866,7 @@ test.describe('Change set 4', () => {
     await expect(users.locator('[data-user=dashboard]')).toHaveCount(0);
     const certs = page.locator('[data-testid=client-certs]');
     await expect(certs.locator('.hd [data-testid=info-clientCerts]')).toBeVisible();
-    await expect(certs.locator('.hd button')).toHaveText(['ⓘ', 'Import CSR…', 'Issue…']);
+    await expect(certs.locator('.hd button')).toHaveText(['i', 'Import CSR…', 'Issue…']);
     await expect(certs.locator('th')).toHaveText(['Name', 'Expires', 'Last seen', '']);
     await expect(certs.locator('[data-cert=mqttpanel-desktop] [data-testid=cert-local-tag]')).toHaveText('Local broker');
     await expect(certs.locator('[data-cert=mqttpanel-desktop] [data-testid=revoke-mqttpanel-desktop]')).toHaveCount(0);
@@ -880,7 +880,7 @@ test.describe('Change set 4', () => {
     const adv = page.locator('[data-testid=advanced-security]');
     for (const id of ['require-cert', 'verify-against', 'local-ca', 'server-cert']) await expect(adv.locator(`[data-testid=${id}]`)).toBeVisible();
     await expect(adv.locator('[data-testid=local-ca] button')).toHaveText(['Export CA.pem', 'Rotate…']);
-    await expect(adv.locator('[data-testid=server-cert] button')).toHaveText(['Import…', 'Regenerate…']);
+    await expect(adv.locator('[data-testid=server-cert] button')).toHaveText(['Import…', 'Regenerate…', 'Export…']);
     await page.click('[data-testid=add-listener]');
     await page.click('[data-testid=addl-next]');
     await expect(page.locator('[data-testid=add-listener-2] .f > .lbl, [data-testid=add-listener-2] .f > label')).toHaveText(['Kind', 'Port']);
@@ -1586,5 +1586,198 @@ test.describe('Change set 9', () => {
       const clipped = await page.locator('[data-testid=tree-row] .v > *').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length);
       expect(clipped).toBe(0);
     }
+  });
+});
+
+test.describe('Change set 11', () => {
+  test('C-31 every info button is the round ⓘ: an 18 px circle with an "i", accent on hover; light and dark', async ({ page }) => {
+    for (const theme of ['light', 'dark']) {
+      for (const q of ['mock=demo&screen=connect', 'mock=demo&screen=broker']) {
+        await page.goto(`/?${q}&lang=en&theme=${theme}`);
+        await page.waitForSelector('#app-root');
+        if (q.includes('connect')) {
+          await page.click('[data-profile=plant]');
+          await page.click('[data-testid=fold-security]');
+          await page.click('[data-testid=fold-advanced]');
+        } else await page.click('[data-testid=fold-brokerAdvanced]');
+        const infos = page.locator('button[data-testid^=info-]');
+        const n = await infos.count();
+        expect(n).toBeGreaterThan(4);
+        for (let i = 0; i < n; i++) {
+          const b = infos.nth(i);
+          if (!(await b.isVisible())) continue;
+          await expect(b).toHaveText('i');
+          await expect(b).toHaveClass(/(^| )info-btn( |$)/);
+          await expect(b).not.toHaveClass(/chip/);
+          const box = (await b.boundingBox())!;
+          expect(Math.round(box.width)).toBe(18);
+          expect(Math.round(box.height)).toBe(18);
+          expect(await b.evaluate((el) => getComputedStyle(el).borderRadius)).toBe('50%');
+        }
+        await expect(page.locator('.chip.info')).toHaveCount(0);
+      }
+      // hover takes the accent colour
+      const first = page.locator('[data-testid=info-reachable]');
+      const before = await first.evaluate((el) => getComputedStyle(el).borderColor);
+      await first.hover();
+      await expect.poll(() => first.evaluate((el) => getComputedStyle(el).borderColor)).not.toBe(before);
+      await page.screenshot({ path: `test-results/c31-info-${theme}.png` });
+    }
+  });
+
+  test('C-32 accepted formats after Browse; the password eye reveals the typed and the stored password while pressed; no wrap in EN, FR, DE', async ({ page }) => {
+    for (const lang of ['en', 'fr', 'de'] as const) {
+      await page.goto(`/?mock=demo&screen=connect&lang=${lang}&theme=light`);
+      await page.waitForSelector('#app-root');
+      await page.click('[data-profile=plant]');
+      await page.click('[data-testid=fold-security]');
+      await expect(page.locator('[data-testid=formats-caCert]')).toHaveText('PEM, CRT, DER');
+      await expect(page.locator('[data-testid=formats-clientCert]')).toHaveText('PEM, CRT, DER, P12, PFX');
+      await expect(page.locator('[data-testid=formats-clientKey]')).toHaveText('PEM, KEY');
+      for (const f of ['caCert', 'clientCert', 'clientKey']) {
+        const row = page.locator(`[data-testid=file-${f}]`);
+        const h = (await row.boundingBox())!.height;
+        expect(h).toBeLessThan(34);
+        // the formats follow the Browse button
+        const b = (await page.locator(`[data-testid=browse-${f}]`).boundingBox())!;
+        const fm = (await page.locator(`[data-testid=formats-${f}]`).boundingBox())!;
+        expect(fm.x).toBeGreaterThan(b.x + b.width - 1);
+      }
+    }
+    await open(page, 'mock=demo&screen=connect');
+    await page.click('[data-profile=plant]');
+    const pw = page.locator('[data-testid=pf-pw]');
+    const eye = page.locator('[data-testid=pw-eye]');
+    await expect(pw).toHaveAttribute('type', 'password');
+    await eye.dispatchEvent('pointerdown');
+    await expect(pw).toHaveAttribute('type', 'text');
+    await expect(pw).toHaveValue('site-2026-commissioning');
+    await eye.dispatchEvent('pointerup');
+    await expect(pw).toHaveAttribute('type', 'password');
+    await expect(pw).toHaveValue('');
+    await pw.fill('typed-now');
+    await eye.dispatchEvent('pointerdown');
+    await expect(pw).toHaveValue('typed-now');
+    await expect(pw).toHaveAttribute('type', 'text');
+    await eye.dispatchEvent('pointerup');
+    await expect(pw).toHaveAttribute('type', 'password');
+    // the copy icon stays reserved for the password the app generated
+    await expect(page.locator('[data-testid=profile-form] [data-testid$=-copy]')).toHaveCount(0);
+    await page.click('[data-profile=local]');
+    await expect(page.locator('[data-testid=profile-pw-copy]')).toBeVisible();
+  });
+
+  test('C-33 generate key, download CSR, import signed certificate; a foreign certificate is refused; switching asks; Start over clears', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    await page.click('[data-profile=plant]');
+    await page.click('[data-testid=fold-security]');
+    await expect(page.locator('[data-testid=cert-way-import]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('[data-testid=fold-security-summary]')).toContainText('client certificate (imported)');
+    // switching with imported material asks first
+    await page.click('[data-testid=cert-way-generate]');
+    await expect(page.locator('[data-testid=cert-way-confirm] .mh')).toHaveText('Discard the imported certificate and key?');
+    await page.click('[data-testid=confirm-ok]');
+    await expect(page.locator('[data-testid=gen-card]')).toBeVisible();
+    await expect(page.locator('[data-testid=file-caCert]')).toBeVisible();
+    await expect(page.locator('[data-testid=gen-csr]')).toBeDisabled();
+    // RSA as a second choice, ECDSA by default
+    await expect(page.locator('[data-testid=gen-alg] [aria-checked=true]')).toHaveText('ECDSA P-256');
+    await page.click('[data-testid=gen-key]');
+    await expect(page.locator('[data-testid=gen-key-line]')).toHaveText(/^Key generated · ECDSA P-256 · [0-9A-F:]+…[0-9A-F:]+$/);
+    for (const id of ['certWay', 'genKey', 'genCsr', 'genCert']) await expect(page.locator(`[data-testid=info-${id}]`)).toBeVisible();
+    await expect(page.locator('[data-testid=gen-cn]')).toHaveValue('mqttpanel-7f3a');
+    await page.fill('[data-testid=gen-cn]', 'commissioning-laptop');
+    await page.click('[data-testid=gen-csr]');
+    await expect.poll(async () => (await saves(page)).map((s) => s.fileName)).toContain('commissioning-laptop.csr');
+    // a dropped certificate for another key is refused with the plain sentence
+    const box = (await page.locator('[data-testid=file-signedCert]').boundingBox())!;
+    await page.evaluate(([x, y]) => (window as any).__mqttpanelMock.platform.simulateDrop(['/dropped/other-device.crt'], x, y), [box.x + 20, box.y + box.height / 2]);
+    await expect(page.locator('[data-testid=file-error-signedCert]')).toHaveText('This certificate does not match the generated key.');
+    await page.click('[data-testid=browse-signedCert]');
+    await expect(page.locator('[data-testid=file-signedCert]')).toContainText('mqttpanel-7f3a.crt');
+    await expect(page.locator('[data-testid=formats-signedCert]')).toHaveText('PEM, CRT, DER');
+    await expect(page.locator('[data-testid=fold-security-summary]')).toContainText('client certificate (generated key)');
+    // switching back asks about the generated key
+    await page.click('[data-testid=cert-way-import]');
+    await expect(page.locator('[data-testid=cert-way-confirm] .mh')).toHaveText('Discard the generated key?');
+    await page.click('[data-testid=cert-way-confirm] .mf .btn >> nth=0');
+    await expect(page.locator('[data-testid=gen-card]')).toBeVisible();
+    // Start over clears after a confirmation
+    await page.click('[data-testid=gen-start-over]');
+    await expect(page.locator('[data-testid=start-over-confirm] .mh')).toHaveText('Discard the generated key and its certificate?');
+    await page.click('[data-testid=confirm-ok]');
+    await expect(page.locator('[data-testid=gen-key]')).toBeVisible();
+    await expect(page.locator('[data-testid=file-signedCert]')).not.toContainText('.crt');
+    // with nothing on the other side, switching is silent
+    await page.click('[data-testid=cert-way-import]');
+    await expect(page.locator('[data-testid=cert-way-confirm]')).toHaveCount(0);
+    await expect(page.locator('[data-testid=file-clientKey]')).toBeVisible();
+  });
+
+  test('C-34 session expiry shows the unit only; its ⓘ explains 0 and empty; an empty field saves as 0', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    await page.click('[data-profile=plant]');
+    await page.click('[data-testid=fold-advanced]');
+    const row = page.locator('.f', { has: page.locator('#pf-se') });
+    await expect(row).not.toContainText('0 = none');
+    await expect(row.locator('.hint')).toHaveText('s');
+    await page.click('[data-testid=info-sessionExpiry]');
+    await expect(page.locator('[data-testid=bubble-text-sessionExpiry]')).toHaveText(
+      'How long the broker keeps your session after a disconnect: subscriptions and queued messages. Empty or 0: the session ends with the connection.',
+    );
+    await page.keyboard.press('Escape');
+    await page.fill('#pf-se', '300');
+    await page.fill('#pf-se', '');
+    await expect(page.locator('#pf-se')).toHaveValue('0');
+    await expect
+      .poll(async () => page.evaluate(async () => ((await (window as any).__mqttpanelMock.engine.listProfiles()) as { id: string; sessionExpiry: number }[]).find((p) => p.id === 'plant')!.sessionExpiry))
+      .toBe(0);
+  });
+
+  test('B-27 Start is the accent primary button, Stop outlined in brick; the Status tile play/stop does the same', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    await expect(page.locator('[data-testid=broker-stop]')).toHaveClass(/danger/);
+    await expect(page.locator('[data-testid=broker-stop]')).toHaveClass(/out/);
+    await expect(page.locator('[data-testid=tile-start]')).toHaveCount(0);
+    await page.click('[data-testid=tile-stop]');
+    await expect(page.locator('[data-testid=broker-tiles] .stat').first()).toContainText('Stopped');
+    const start = page.locator('[data-testid=broker-start]');
+    await expect(start).toHaveClass(/pri/);
+    const bg = await start.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const connectBg = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sage').trim());
+    expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+    expect(connectBg).not.toBe('');
+    // the tile play button sits at the right end of the value line
+    const tile = (await page.locator('[data-testid=broker-tiles] .stat').first().boundingBox())!;
+    const play = (await page.locator('[data-testid=tile-start]').boundingBox())!;
+    expect(play.x + play.width).toBeGreaterThan(tile.x + tile.width - 30);
+    await page.click('[data-testid=tile-start]');
+    await expect(page.locator('[data-testid=tile-stop]')).toBeVisible();
+    await expect(page.locator('[data-testid=broker-stop]')).toBeVisible();
+    // the header does the same
+    await page.click('[data-testid=broker-stop]');
+    await expect(page.locator('[data-testid=tile-start]')).toBeVisible();
+  });
+
+  test('B-29 "Export…" on the Server certificate line saves the served chain; Regenerate takes extra names', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    await page.click('[data-testid=fold-brokerAdvanced]');
+    const line = page.locator('[data-testid=server-cert] button');
+    await expect(line).toHaveText(['Import…', 'Regenerate…', 'Export…']);
+    await page.click('[data-testid=export-server-cert]');
+    await expect.poll(async () => (await saves(page)).map((s) => s.fileName)).toContain('server-chain.pem');
+    await page.click('[data-testid=regenerate]');
+    await expect(page.locator('[data-testid=regen-auto]')).toContainText('localhost, 127.0.0.1, ::1');
+    await expect(page.locator('[data-testid=info-extraNames]')).toBeVisible();
+    await page.fill('[data-testid=regen-extra]', 'broker.example.com, not_a_name');
+    await page.click('[data-testid=regen-ok]');
+    await expect(page.locator('[data-testid=regen-error]')).toContainText('not_a_name');
+    await page.fill('[data-testid=regen-extra]', 'broker.example.com 203.0.113.7');
+    await page.click('[data-testid=regen-ok]');
+    await expect(page.locator('[data-testid=regen-dialog]')).toHaveCount(0);
+    const san = await page.evaluate(async () => (await (window as any).__mqttpanelMock.engine.brokerCerts()).server.san as string[]);
+    expect(san).toEqual(expect.arrayContaining(['localhost', '192.168.1.20', 'broker.example.com', '203.0.113.7']));
+    await page.click('[data-testid=regenerate]');
+    await expect(page.locator('[data-testid=regen-extra]')).toHaveValue('broker.example.com, 203.0.113.7');
   });
 });

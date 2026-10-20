@@ -70,6 +70,32 @@ export const STATES: UiState[] = [
     },
   },
   {
+    // change set 11: the second way to a client certificate, with a generated key (mockup 02d, second card)
+    id: '02f-generate-key',
+    query: 'mock=demo&connect=local&screen=connect',
+    steps: async (p) => {
+      await p.click('[data-testid=fold-security]');
+      await p.click('[data-testid=cert-way-generate]');
+      await p.click('[data-testid=confirm-ok]');
+      await p.click('[data-testid=gen-key]');
+      await p.waitForSelector('[data-testid=gen-key-line]');
+    },
+  },
+  {
+    // change set 11: the password eye held down
+    id: '02g-password-eye',
+    query: 'mock=demo&connect=local&screen=connect',
+    steps: async (p) => {
+      const eye = p.locator('[data-testid=pw-eye]');
+      const box = await eye.boundingBox();
+      if (box) {
+        await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await p.mouse.down();
+      }
+      await p.waitForFunction(() => (document.querySelector('[data-testid=pf-pw]') as HTMLInputElement | null)?.type === 'text');
+    },
+  },
+  {
     // change set 6: "Skip unverified broker certificate" under Advanced asks "only this time" or "always"
     id: '02d-skip-prompt',
     query: 'mock=demo&connect=local&screen=connect',
@@ -301,6 +327,26 @@ export const STATES: UiState[] = [
     steps: async (p) => {
       await p.click('[data-testid=user-pw-mqtt-panel-eye]');
       await p.waitForFunction(() => document.querySelector('[data-testid=user-pw-mqtt-panel-value]')?.textContent !== '••••••••••••');
+    },
+  },
+  {
+    // change set 11: stopped, Start in the accent colour, the Status tile with its play button
+    id: '12g-broker-stopped',
+    query: 'mock=demo&screen=broker',
+    steps: async (p) => {
+      await p.click('[data-testid=tile-stop]');
+      await p.waitForSelector('[data-testid=tile-start]');
+    },
+  },
+  {
+    // change set 11: Regenerate with the automatic names and "Extra names"
+    id: '12h-regenerate',
+    query: 'mock=demo&screen=broker',
+    steps: async (p) => {
+      await p.click('[data-testid=fold-brokerAdvanced]');
+      await p.click('[data-testid=regenerate]');
+      await p.waitForSelector('[data-testid=regen-dialog]');
+      await p.fill('[data-testid=regen-extra]', 'broker.example.com, 203.0.113.7');
     },
   },
   {

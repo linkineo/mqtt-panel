@@ -174,8 +174,8 @@ export function Popover(props: {
 
 /* ---------------------------------------------------------------- info bubble */
 
-/** The ⓘ chip next to a label; opens a small popover with the plain-word explanation. */
-/** An ⓘ with its bubble text `info.<id>`. `keyStore` appends the sentence on where the master key lives in this build
+/** The ⓘ next to a label: one round 18 px button with an "i" (change set 11, never the pill-shaped chip); it opens a
+ * small popover with the plain-word explanation, its bubble text `info.<id>`. `keyStore` appends the sentence on where the master key lives in this build
  * (`info.keyStore.file` or `info.keyStore.keychain`, change set 10) for fields whose value goes to the secret store. */
 export function Info(props: { id: string; title: string; tone?: 'clay'; keyStore?: boolean }) {
   const { t } = useTranslation();
@@ -187,7 +187,7 @@ export function Info(props: { id: string; title: string; tone?: 'clay'; keyStore
       <button
         ref={ref}
         type="button"
-        className={`chip info${props.tone === 'clay' ? ' clay' : ''}`}
+        className={`info-btn${props.tone === 'clay' ? ' clay' : ''}`}
         aria-label={t('info.aria', { name: props.title })}
         aria-expanded={open}
         data-testid={`info-${props.id}`}
@@ -197,7 +197,7 @@ export function Info(props: { id: string; title: string; tone?: 'clay'; keyStore
           setOpen(!open);
         }}
       >
-        ⓘ
+        i
       </button>
       {open && (
         <Popover anchor={ref.current} onClose={() => setOpen(false)} className="bubble" testId={`bubble-${props.id}`} label={props.title}>

@@ -133,12 +133,13 @@ describe('Change set 1: eye and copy on passwords the app owns (B-16)', () => {
     await waitFor(() => expect(platform.lastCopied()).toBe(input.value));
   });
 
-  it('reveals the "Local broker" profile password, never another profile\'s', async () => {
+  it('copies the "Local broker" profile password; the eye of other profiles reveals theirs (change set 11)', async () => {
     const { platform } = await boot('demo');
     render(<ProfileForm profileId="local" />);
     await act(async () => fireEvent.click(screen.getByTestId('profile-pw-copy')));
     await waitFor(() => expect(platform.lastCopied()).toBe('Vq7mZ3xLwT9bN4cHs8kR2p'));
-    expect(await engine().profilePassword('plant')).toBeNull();
+    // change set 11: the eye of the password field reveals the stored password of any profile (no copy icon there)
+    expect(await engine().profilePassword('plant')).toBe('site-2026-commissioning');
   });
 
   it('abbreviates long secrets to the first and last four characters', () => {

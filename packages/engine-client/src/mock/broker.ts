@@ -36,6 +36,21 @@ function fingerprint(): string {
   return Array.from({ length: 32 }, () => randHex(2).toUpperCase()).join(':');
 }
 
+/** The automatic server certificate names of the demo computer (change set 11: interface addresses included). */
+export const AUTO_SANS = ['localhost', '127.0.0.1', '::1', 'mqttpanel-host', 'mqttpanel-host.local', '192.168.1.20', 'fd00::20'];
+
+/** An extra name: an IP literal or a host name (same rule as the engine); lower-cased, or null when invalid. */
+export function validExtraName(raw: string): string | null {
+  const s = raw.trim().replace(/\.$/, '');
+  if (!s) return null;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(s)) return s.split('.').every((o) => Number(o) <= 255) ? s : null;
+  if (s.includes(':')) return /^\[?[0-9a-fA-F:.]+\]?$/.test(s) ? s.replace(/^\[|\]$/g, '').toLowerCase() : null;
+  const body = s.startsWith('*.') ? s.slice(2) : s;
+  const labels = body.split('.');
+  const ok = labels.every((l) => /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(l));
+  return ok && !labels.every((l) => /^\d+$/.test(l)) ? s.toLowerCase() : null;
+}
+
 function certDetails(subject: string, issuer: string, san: string[], notBefore: string, notAfter: string, isCa: boolean, keyType = 'ECDSA P-256'): CertDetails {
   return { subject, issuer, san, notBefore, notAfter, fingerprint: fingerprint(), keyType, selfSigned: subject === issuer, isCa };
 }
@@ -78,6 +93,7 @@ export class MockBroker {
       requireClientCert: demo,
       verifyAgainst: 'local',
       maxClients: 1000,
+      extraSans: [],
     };
     if (demo) {
       this.passwords.set(APP_USER, 'Vq7mZ3xLwT9bN4cHs8kR2p');
@@ -89,9 +105,11 @@ export class MockBroker {
     this.startedAt = demo ? t - (2 * 60 + 14) * 60_000 : null;
     this.certs = {
       ca: certDetails('CN=MQTT Panel Local CA', 'CN=MQTT Panel Local CA', [], '2026-10-12', '2028-10-12', true),
-      server: certDetails('CN=mqttpanel-local', 'CN=MQTT Panel Local CA', ['localhost', '127.0.0.1', '::1', 'mqttpanel-host.local'], '2026-10-12', '2028-10-12', false),
+      server: certDetails('CN=mqttpanel-local', 'CN=MQTT Panel Local CA', [...AUTO_SANS], '2026-10-12', '2028-10-12', false),
       imported: false,
       importedCa: null,
+      autoSans: [...AUTO_SANS],
+      extraSans: [],
     };
     const ic = (name: string, lastSeen: IssuedCert['lastSeen'], system = false): IssuedCert => ({
       name,
@@ -444,10 +462,20 @@ export class MockBroker {
     this.applied('warn', `client certificate ${name} revoked`, n, 'certificate revoked');
   }
 
-  regenerate(sans: string[], keyType: 'ecdsa' | 'rsa'): void {
+  /** Change set 11: the automatic names plus the extra names, which are checked and kept in the configuration. */
+  regenerate(extra: string[], keyType: 'ecdsa' | 'rsa'): void {
+    const names: string[] = [];
+    for (const raw of extra.flatMap((x) => x.split(/[\s,]+/)).filter(Boolean)) {
+      const n = validExtraName(raw);
+      if (n === null) throw um('certs.badName', { name: raw });
+      if (!names.includes(n)) names.push(n);
+    }
+    this.config.extraSans = names;
+    this.certs.extraSans = [...names];
+    const sans = [...AUTO_SANS, ...names.filter((n) => !AUTO_SANS.includes(n))];
     const kt = keyType === 'rsa' ? 'RSA 2048' : 'ECDSA P-256';
     const today = new Date(this.now()).toISOString().slice(0, 10);
-    this.certs.server = certDetails('CN=mqttpanel-local', this.certs.ca.subject, sans.length ? sans : this.certs.server.san, today, this.certs.server.notAfter, false, kt);
+    this.certs.server = certDetails('CN=mqttpanel-local', this.certs.ca.subject, sans, today, this.certs.server.notAfter, false, kt);
     this.certs.imported = false;
     // New handshakes use it; open sessions stay.
     this.addLog('info', 'server certificate regenerated');

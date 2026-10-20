@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { platform } from '../services';
@@ -106,5 +106,59 @@ export function SecretInput(props: Omit<React.InputHTMLAttributes<HTMLInputEleme
       <input {...NO_AUTO} {...rest} className={rest.className ?? 'input w-l'} type={shown ? 'text' : 'password'} value={value} data-testid={testId} onChange={(e) => onValue(e.target.value)} />
       <SecretButtons shown={shown} disabled={!value} testId={testId} onToggle={() => setShown(!shown)} onCopy={() => void copySecret(value)} />
     </span>
+  );
+}
+
+/**
+ * Change set 11: the eye of a password field, revealing while pressed (pointer or Space/Enter held). `reveal` returns the
+ * value to show (the typed text, or the stored secret read on demand); `onReveal(null)` hides it again.
+ */
+export function RevealButton(props: { reveal(): Promise<string | null>; onReveal(v: string | null): void; disabled?: boolean; testId?: string }) {
+  const { t } = useTranslation();
+  const pressed = useRef(false);
+  const [on, setOn] = useState(false);
+  const down = async () => {
+    if (pressed.current) return;
+    pressed.current = true;
+    const v = await props.reveal();
+    if (!pressed.current || v === null) return;
+    setOn(true);
+    props.onReveal(v);
+  };
+  const up = () => {
+    if (!pressed.current) return;
+    pressed.current = false;
+    setOn(false);
+    props.onReveal(null);
+  };
+  return (
+    <button
+      type="button"
+      className="eye"
+      title={t('secret.show')}
+      aria-label={t('secret.show')}
+      aria-pressed={on}
+      disabled={props.disabled}
+      data-testid={props.testId}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        void down();
+      }}
+      onPointerUp={up}
+      onPointerLeave={up}
+      onPointerCancel={up}
+      onBlur={up}
+      onKeyDown={(e) => {
+        if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
+          e.preventDefault();
+          void down();
+        }
+      }}
+      onKeyUp={(e) => {
+        if (e.key === ' ' || e.key === 'Enter') up();
+      }}
+    >
+      <Icon name={on ? 'eyeOff' : 'eye'} />
+    </button>
   );
 }

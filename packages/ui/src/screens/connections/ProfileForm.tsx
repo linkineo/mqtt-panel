@@ -7,7 +7,8 @@ import { connectProfile, testProfile, disconnect, saveProfile, replaceProfile, s
 import { Info, Msg, Modal, Popover, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { FileField } from './FileField';
 import { DeleteProfileDialog } from './DeleteProfileDialog';
-import { SecretText } from '../../components/Secret';
+import { RevealButton, SecretText } from '../../components/Secret';
+import { ClientCertWays } from './ClientCertWays';
 import { FoldHeader, useFold } from '../../components/Fold';
 import { fmtAge, fmtBytes } from '../../lib/format';
 import { applyAddressText, applyScheme, formatAddress, isWebSocket, nameFromHost, type AddressFields } from '../../lib/address';
@@ -196,6 +197,8 @@ export function ProfileForm({ profileId }: { profileId: string }) {
   const advancedOpen = useFold('advanced');
   const [p, setP] = useState<Profile | null>(stored);
   const [pw, setPw] = useState('');
+  /** Change set 11: the value shown while the eye of the password field is pressed (typed text or stored password). */
+  const [revealed, setRevealed] = useState<string | null>(null);
   const [protoEdit, setProtoEdit] = useState<{ fileName: string; path: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [skipPrompt, setSkipPrompt] = useState(false);
@@ -212,7 +215,10 @@ export function ProfileForm({ profileId }: { profileId: string }) {
       setP(stored);
     }
   }, [stored]);
-  useEffect(() => setPw(''), [profileId]);
+  useEffect(() => {
+    setPw('');
+    setRevealed(null);
+  }, [profileId]);
 
   const flush = useCallback(async (): Promise<Profile> => {
     if (timer.current) {
@@ -282,7 +288,7 @@ export function ProfileForm({ profileId }: { profileId: string }) {
   const securitySummary = () => {
     const parts: React.ReactNode[] = [];
     if (p.tls.caCert) parts.push(t('conn.sum.ca'));
-    if (p.tls.clientCert) parts.push(t('conn.sum.clientCert'));
+    if (p.tls.clientCert) parts.push(p.tls.clientKeyGenerated ? t('conn.sum.clientCertGenerated') : t('conn.sum.clientCertImported'));
     if (lastTest && lastTest.ok && lastTest.verified !== null) {
       parts.push(
         <span key="v" className={lastTest.verified ? 'ok' : 'warn'} data-testid="security-verified">
@@ -443,9 +449,11 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                 <input {...NO_AUTO}
                   id="pf-pw"
                   className="input w-l"
-                  type="password"
+                  type={revealed !== null ? 'text' : 'password'}
                   autoComplete="off"
-                  value={pw}
+                  data-testid="pf-pw"
+                  value={revealed ?? pw}
+                  readOnly={revealed !== null}
                   placeholder={p.hasPassword ? '••••••••••••' : t('conn.passwordNone')}
                   onChange={(e) => setPw(e.target.value)}
                   onBlur={async () => {
@@ -455,6 +463,13 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                     setPw('');
                     if (np) fromEngine(np);
                   }}
+                />
+                {/* change set 11: the eye reveals the typed password, or the stored one, while pressed */}
+                <RevealButton
+                  testId="pw-eye"
+                  disabled={!pw && !p.hasPassword}
+                  reveal={async () => (pw ? pw : await run(engine().profilePassword(p.id)))}
+                  onReveal={setRevealed}
                 />
                 {p.hasPassword && (
                   <button type="button" className="iconbtn" aria-label={t('conn.removePassword')} onClick={async () => {
@@ -479,18 +494,8 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                 </span>
                 <FileField field="caCert" profile={p} label={t('conn.caCert')} beforeChange={flush} onProfile={fromEngine} />
               </div>
-              <div className="f">
-                <span className="lbl">
-                  {t('conn.clientCert')} <Info id="clientCert" title={t('conn.clientCert')} />
-                </span>
-                <FileField field="clientCert" profile={p} label={t('conn.clientCert')} beforeChange={flush} onProfile={fromEngine} />
-              </div>
-              <div className="f">
-                <span className="lbl">
-                  {t('conn.clientKey')} <Info id="clientKey" title={t('conn.clientKey')} keyStore />
-                </span>
-                <FileField field="clientKey" profile={p} label={t('conn.clientKey')} beforeChange={flush} onProfile={fromEngine} />
-              </div>
+              {/* change set 11: the client certificate in one of two exclusive ways, the CA row above always stays */}
+              <ClientCertWays p={p} flush={flush} onProfile={fromEngine} />
               <div className="f">
                 <span className="lbl">
                   {t('conn.sni')} <Info id="sni" title={t('conn.sni')} />
@@ -523,11 +528,14 @@ export function ProfileForm({ profileId }: { profileId: string }) {
                   <Switch on={p.cleanStart} label={t('conn.cleanStart')} onChange={(cleanStart) => update({ cleanStart })} />
                 </span>
               </div>
+              {/* change set 11: only the unit; 0 and empty are explained in the ⓘ; an empty field saves as 0 */}
               <div className="f">
-                <label htmlFor="pf-se">{t('conn.sessionExpiry')}</label>
+                <span className="lbl">
+                  <label htmlFor="pf-se">{t('conn.sessionExpiry')}</label> <Info id="sessionExpiry" title={t('conn.sessionExpiry')} />
+                </span>
                 <span className="row2">
                   <input {...NO_AUTO} id="pf-se" className="input mono w-s" inputMode="numeric" value={p.sessionExpiry} onChange={(e) => update({ sessionExpiry: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
-                  <span className="hint">{t('conn.sessionExpiryHint')}</span>
+                  <span className="hint">s</span>
                 </span>
               </div>
               {/* change set 6: per-connection skip of certificate verification; turning it on asks "only this time" or "always" */}

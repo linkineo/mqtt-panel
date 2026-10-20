@@ -142,6 +142,8 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
   const broker = new MockBroker(demo, now);
   /** Password of the profile "Local broker" (the app-generated password of "mqtt-panel"). */
   let localPassword: string | null = demo ? (broker.passwords.get(APP_USER) ?? null) : null;
+  /** Passwords typed into profiles (change set 11: the eye reveals them). */
+  const typedPasswords = new Map<string, string>();
   const handlers = new Set<(e: EngineEvent) => void>();
   let pendingUpdates: { connectionId: string; entry: SentEntry }[] = [];
   const pendingTrust = new Map<string, TrustPrompt>();
@@ -558,7 +560,9 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
 
   const stem = (path: string) => (path.split(/[\\/]/).pop() ?? path).replace(/\.[^.]+$/, '');
   const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
-  const certKinds: FileKind[] = ['caCert', 'clientCert', 'brokerCert'];
+  const certKinds: FileKind[] = ['caCert', 'clientCert', 'signedCert', 'brokerCert'];
+  /** The stored password the eye reveals for demo profiles saved with one. */
+  const DEMO_PASSWORD = 'site-2026-commissioning';
 
   const inspect = (kind: FileKind, path: string): FileInspection => {
     const fileName = baseName(path);
@@ -576,11 +580,12 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     if (ext === 'p12' || ext === 'pfx') {
       return { ok: true, path, fileName, summary: { ...certSummary(stem(path), '2027-10-12'), kind: 'pkcs12', encrypted: true } };
     }
+    if ((kind === 'caCert' || kind === 'signedCert') && (ext === 'p12' || ext === 'pfx')) return fail('file.notCertificate');
     if (ext === 'key') {
-      if (kind === 'caCert') return fail('file.notCertificate');
+      if (kind === 'caCert' || kind === 'signedCert') return fail('file.notCertificate');
       return { ok: true, path, fileName, summary: keySummary(false) };
     }
-    if (ext === 'pem' || ext === 'crt' || ext === 'cer') {
+    if (ext === 'pem' || ext === 'crt' || ext === 'cer' || ext === 'der') {
       if (kind === 'clientKey' || kind === 'brokerKey') {
         if (ext === 'pem' && /key/i.test(fileName)) return { ok: true, path, fileName, summary: keySummary(false) };
         return fail('file.notKey');
@@ -596,6 +601,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     caCert: '/picked/plant-root-ca.pem',
     clientCert: '/picked/commissioning-laptop.pem',
     clientKey: '/picked/commissioning-laptop.key',
+    signedCert: '/picked/mqttpanel-7f3a.crt',
     proto: '/picked/plant.proto',
     import: '/picked/connections.json',
     payload: '/picked/payload.json',
@@ -751,11 +757,16 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       const p = needProfile(id);
       p.hasPassword = password !== '';
       if (p.isLocalBroker) localPassword = password || null;
+      if (password) typedPasswords.set(id, password);
+      else typedPasswords.delete(id);
       return clone(p);
     },
     async profilePassword(id) {
+      // change set 11: the eye reveals the stored password of every profile
       const p = needProfile(id);
-      return p.isLocalBroker && p.hasPassword ? localPassword : null;
+      if (!p.hasPassword) return null;
+      if (p.isLocalBroker) return localPassword;
+      return typedPasswords.get(id) ?? DEMO_PASSWORD;
     },
     async importProfiles(_path) {
       await delay(100);
@@ -783,6 +794,8 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       const p = needProfile(profileId);
       if (path === null) {
         p.tls[field] = null;
+        // removing the client certificate of an import takes its key along; a generated key stays (change set 11)
+        if (field === 'clientCert' && !p.tls.clientKeyGenerated && p.tls.clientKey?.inKeychain && p.tls.clientKey.fileName === p.tls.clientCert?.fileName) p.tls.clientKey = null;
         return clone(p);
       }
       const ins = inspect(field, path);
@@ -791,6 +804,35 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       if (isP12 && (passphrase === null || passphrase === 'wrong')) throw um('tls.wrongPassphrase', { file: ins.fileName });
       p.tls[field] = file(ins.fileName, ins.summary, field === 'clientKey' || isP12);
       if (isP12 && field === 'clientCert') p.tls.clientKey = file(ins.fileName, keySummary(true), true);
+      return clone(p);
+    },
+    async setClientCertWay(profileId, generated) {
+      const p = needProfile(profileId);
+      p.tls = { ...p.tls, clientKeyGenerated: generated, clientCert: null, clientKey: null };
+      return clone(p);
+    },
+    async profileGenerateClientKey(profileId, algorithm) {
+      const p = needProfile(profileId);
+      await delay(algorithm === 'rsa' ? 300 : 60);
+      const fp = Array.from({ length: 32 }, () => randHex(2).toUpperCase()).join(':');
+      const summary = { ...keySummary(false), kind: 'generated' as const, keyType: algorithm === 'rsa' ? 'RSA 2048' : 'ECDSA P-256', fingerprint: fp };
+      p.tls = { ...p.tls, clientKeyGenerated: true, clientCert: null, clientKey: file('', summary, true) };
+      return clone(p);
+    },
+    async profileClientCsr(profileId, commonName) {
+      const p = needProfile(profileId);
+      if (!p.tls.clientKeyGenerated || !p.tls.clientKey) throw um('file.noGeneratedKey');
+      if (!commonName.trim()) throw um('file.csrNoName');
+      return saved(`${commonName.trim().replace(/[^A-Za-z0-9._-]/g, '_')}.csr`, 480);
+    },
+    async profileImportSignedCert(profileId, path) {
+      const p = needProfile(profileId);
+      if (!p.tls.clientKeyGenerated || !p.tls.clientKey) throw um('file.noGeneratedKey');
+      const ins = inspect('signedCert', path);
+      if (!ins.ok) throw ins.error;
+      // e2e: a file named "other…" carries another public key
+      if (/^other/i.test(ins.fileName)) throw um('file.notGeneratedKey');
+      p.tls = { ...p.tls, clientCert: file(ins.fileName, ins.summary, false) };
       return clone(p);
     },
     async addProtoSchema(profileId, path, topicFilter, messageType) {
@@ -1191,8 +1233,11 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     async exportCa() {
       return saved('CA.pem');
     },
-    async regenerateBrokerCerts(sans, keyType) {
-      await brokerChange(() => broker.regenerate(sans, keyType));
+    async exportServerCert() {
+      return saved('server-chain.pem');
+    },
+    async regenerateBrokerCerts(extraSans, keyType) {
+      await brokerChange(() => broker.regenerate(extraSans, keyType));
       return clone(broker.certs);
     },
     async importBrokerCert() {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { FileInspection, Profile, UserMessage } from '@mqttpanel/engine-client';
+import type { FileInspection, FileKind, Profile, UserMessage } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
 import { toMessage } from '../../i18n';
 import { Modal, Msg, NO_AUTO } from '../../components/ui';
@@ -8,8 +8,12 @@ import { Modal, Msg, NO_AUTO } from '../../components/ui';
 type Field = 'caCert' | 'clientCert' | 'clientKey';
 
 /**
- * A certificate or key field: read-only file name, Browse…, drop target, and a plain error when the file is not
- * what the field expects (C3). Nothing parsed is shown next to the name (owner, 13 Oct 2026, change set 4).
+ * A certificate or key field: read-only file name, Browse…, the accepted formats in muted text (change set 11: exactly
+ * the picker's filters), drop target, and a plain error when the file is not what the field expects (C3). Nothing
+ * parsed is shown next to the name (owner, 13 Oct 2026, change set 4).
+ *
+ * `kind`, `browseLabel` and `applyPath` serve "Import signed certificate…" of the generated way (change set 11): the
+ * picker kind, the button text and the engine call that takes the file.
  */
 export function FileField(props: {
   field: Field;
@@ -17,9 +21,16 @@ export function FileField(props: {
   label: string;
   beforeChange(): Promise<Profile>;
   onProfile(p: Profile): void;
+  kind?: FileKind;
+  browseLabel?: string;
+  applyPath?(profileId: string, path: string): Promise<Profile>;
+  disabled?: boolean;
+  testId?: string;
 }) {
   const { t } = useTranslation();
   const { field, profile } = props;
+  const kind: FileKind = props.kind ?? field;
+  const tid = props.testId ?? field;
   const value = profile.tls[field];
   const ref = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<UserMessage | null>(null);
@@ -32,7 +43,7 @@ export function FileField(props: {
     setBusy(true);
     try {
       const saved = await props.beforeChange();
-      const p = await engine().setProfileFile(saved.id, field, path, passphrase);
+      const p = path !== null && props.applyPath ? await props.applyPath(saved.id, path) : await engine().setProfileFile(saved.id, field, path, passphrase);
       setError(null);
       props.onProfile(p);
       return true;
@@ -62,7 +73,7 @@ export function FileField(props: {
 
   const browse = async () => {
     try {
-      const ins = await engine().pickFile(field);
+      const ins = await engine().pickFile(kind);
       if (ins) await accept(ins);
     } catch (e) {
       setError(toMessage(e));
@@ -78,25 +89,29 @@ export function FileField(props: {
         const r = ref.current?.getBoundingClientRect();
         if (!r || !paths.length) return;
         if (x < r.left || x > r.right || y < r.top || y > r.bottom) return;
+        if (props.disabled) return;
         void engine()
-          .inspectFile(field, paths[0])
+          .inspectFile(kind, paths[0])
           .then((ins) => acceptRef.current(ins))
           .catch((e) => setError(toMessage(e)));
       }),
-    [field],
+    [kind, props.disabled],
   );
 
   return (
     <>
-      <div className="row2" ref={ref} data-testid={`file-${field}`}>
-        <span className={`input mono ro w-xl${error ? ' err' : ''}`} aria-label={props.label} title={value?.fileName}>
+      <div className="row2" ref={ref} data-testid={`file-${tid}`}>
+        <span className={`input mono ro ${props.browseLabel ? 'w-l' : 'w-xl'}${error ? ' err' : ''}`} aria-label={props.label} title={value?.fileName}>
           {value ? value.fileName : <span className="ph-text">{t('file.none')}</span>}
         </span>
-        <button type="button" className="btn sm" onClick={() => void browse()} disabled={busy} data-testid={`browse-${field}`}>
-          {t('common.browse')}
+        <button type="button" className="btn sm" onClick={() => void browse()} disabled={busy || props.disabled} data-testid={`browse-${tid}`}>
+          {props.browseLabel ?? t('common.browse')}
         </button>
+        <span className="fmt" data-testid={`formats-${tid}`}>
+          {t(`file.formats.${kind}`)}
+        </span>
         {error && (
-          <span className="hint err" data-testid={`file-error-${field}`}>
+          <span className="hint err" data-testid={`file-error-${tid}`}>
             <Msg msg={error} />
           </span>
         )}

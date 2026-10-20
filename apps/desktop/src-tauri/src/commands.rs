@@ -98,19 +98,17 @@ pub fn set_password(state: State<'_, AppState>, profile_id: String, password: St
     state.store.set_password(&profile_id, &password)
 }
 
-/// The password of a profile whose password the app generated (the profile "Local broker"), for the eye and copy
-/// icons. Passwords typed by the user are never sent back to the UI.
+/// The stored password of a profile, for the eye of the password field (change set 11: every profile; the copy icon
+/// stays reserved for the password the app generated for "Local broker"). Read from the secret store only when the
+/// eye is pressed.
 #[tauri::command]
 pub fn profile_password(state: State<'_, AppState>, profile_id: String) -> R<Option<String>> {
-    Ok(local_profile_password(&state, &profile_id))
+    stored_password(&state, &profile_id)
 }
 
-pub fn local_profile_password(state: &AppState, profile_id: &str) -> Option<String> {
-    let p = state.store.get(profile_id)?;
-    if !p.profile.is_local_broker {
-        return None;
-    }
-    state.store.password(profile_id)
+pub fn stored_password(state: &AppState, profile_id: &str) -> R<Option<String>> {
+    stored(state, profile_id)?;
+    Ok(state.store.password(profile_id))
 }
 
 #[tauri::command]
@@ -172,7 +170,8 @@ pub fn set_profile_file(state: State<'_, AppState>, profile_id: String, field: S
                 p.profile.tls.client_key = None;
             }
         })?;
-        if field != "caCert" {
+        // Change set 11: in the generated way, removing the signed certificate keeps the generated key.
+        if field != "caCert" && !(field == "clientCert" && p.profile.tls.client_key_generated) {
             if field == "clientKey" || p.profile.tls.client_cert.is_none() {
                 del(secret_keys::client_key(&id));
                 del(secret_keys::pkcs12(&id));
@@ -239,6 +238,130 @@ pub fn set_profile_file(state: State<'_, AppState>, profile_id: String, field: S
             Ok(p.profile)
         }
     }
+}
+
+// ---------------------------------------------------------------- client certificate, second way (change set 11)
+
+fn secret_err(e: mqttpanel_profiles::SecretError) -> UserMessage {
+    msg!(e.catalog_key(), detail = e.to_string())
+}
+
+/// Clears every piece of client-certificate material of a profile (certificate, key, PKCS#12 bundle, passphrase).
+fn clear_client_material(state: &AppState, id: &str) {
+    let secrets = state.store.secrets();
+    for k in [secret_keys::client_key(id), secret_keys::pkcs12(id), secret_keys::passphrase(id)] {
+        let _ = secrets.delete(&k);
+    }
+}
+
+/// Chooses how the profile gets its client certificate: imported (false) or generated key and CSR (true). Any material
+/// of either way is discarded (the UI asked first when there was some); "Start over" is the same call with `true`.
+#[tauri::command]
+pub fn set_client_cert_way(state: State<'_, AppState>, profile_id: String, generated: bool) -> R<Profile> {
+    client_cert_way(&state, &profile_id, generated)
+}
+
+pub fn client_cert_way(state: &AppState, profile_id: &str, generated: bool) -> R<Profile> {
+    stored(state, profile_id)?;
+    clear_client_material(state, profile_id);
+    let p = state.store.update(profile_id, |p| {
+        p.profile.tls.client_key_generated = generated;
+        p.profile.tls.client_cert = None;
+        p.profile.tls.client_key = None;
+        p.blobs.client_cert_pem = None;
+    })?;
+    Ok(p.profile)
+}
+
+/// "Generate key": a new ECDSA P-256 (default) or RSA 2048 key for the profile, stored in the secret store under the
+/// profile's client-key secret; the key never leaves it. Any previous certificate is dropped (it belongs to another
+/// key). The profile's `tls.clientKey` carries the algorithm and the public-key fingerprint (summary kind "generated").
+#[tauri::command]
+pub fn profile_generate_client_key(state: State<'_, AppState>, profile_id: String, algorithm: Option<mqttpanel_tls::kit::KeyAlg>) -> R<Profile> {
+    generate_key_for(&state, &profile_id, algorithm.unwrap_or_default())
+}
+
+pub fn generate_key_for(state: &AppState, profile_id: &str, algorithm: mqttpanel_tls::kit::KeyAlg) -> R<Profile> {
+    stored(state, profile_id)?;
+    let k = mqttpanel_tls::kit::generate_client_key(algorithm).map_err(|e| msg!("error.internal", detail = e.to_string()))?;
+    clear_client_material(state, profile_id);
+    state.store.secrets().set(&secret_keys::client_key(profile_id), &k.key_pem).map_err(secret_err)?;
+    let summary = generated_summary(&k.algorithm, &k.fingerprint);
+    let p = state.store.update(profile_id, |p| {
+        p.profile.tls.client_key_generated = true;
+        p.profile.tls.client_cert = None;
+        p.blobs.client_cert_pem = None;
+        p.profile.tls.client_key = Some(FileField { file_name: String::new(), summary: Some(summary), in_keychain: true });
+    })?;
+    Ok(p.profile)
+}
+
+pub fn generated_summary(algorithm: &str, fingerprint: &str) -> mqttpanel_tls::CertSummary {
+    mqttpanel_tls::CertSummary {
+        kind: "generated".into(),
+        subject: None,
+        cn: None,
+        issuer: None,
+        not_before: None,
+        not_after: None,
+        key_type: Some(algorithm.to_string()),
+        count: 0,
+        self_signed: false,
+        is_ca: false,
+        encrypted: false,
+        fingerprint: Some(fingerprint.to_string()),
+    }
+}
+
+fn generated_key(state: &AppState, profile_id: &str) -> R<String> {
+    let p = stored(state, profile_id)?;
+    if !p.profile.tls.client_key_generated {
+        return Err(msg!("file.noGeneratedKey"));
+    }
+    state.store.secrets().get(&secret_keys::client_key(profile_id)).map_err(secret_err)?.ok_or_else(|| msg!("file.noGeneratedKey"))
+}
+
+/// The certificate request (PEM) for the generated key with this common name.
+pub fn client_csr_pem(state: &AppState, profile_id: &str, common_name: &str) -> R<String> {
+    let key = generated_key(state, profile_id)?;
+    let cn = common_name.trim();
+    if cn.is_empty() {
+        return Err(msg!("file.csrNoName"));
+    }
+    mqttpanel_tls::kit::csr_for_key(&key, cn).map_err(|e| msg!("error.internal", detail = e.to_string()))
+}
+
+/// "Download CSR…": the request for the generated key, saved through the native save dialog as "<common name>.csr".
+#[tauri::command]
+pub async fn profile_client_csr(app: AppHandle, state: State<'_, AppState>, profile_id: String, common_name: String) -> R<SaveOutcome> {
+    let pem = client_csr_pem(&state, &profile_id, &common_name)?;
+    let safe: String = common_name.trim().chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' }).collect();
+    Ok(files::save_bytes(&app, &format!("{safe}.csr"), pem.as_bytes()))
+}
+
+/// "Import signed certificate…": the certificate (PEM, CRT or DER, with its chain if any) must carry the generated
+/// key's public key, otherwise "This certificate does not match the generated key".
+#[tauri::command]
+pub fn profile_import_signed_cert(state: State<'_, AppState>, profile_id: String, path: String) -> R<Profile> {
+    let path = PathBuf::from(path);
+    let name = files::file_name(&path);
+    let bytes = std::fs::read(&path).map_err(|_| msg!("file.unreadable", file = name.clone()))?;
+    import_signed_cert_bytes(&state, &profile_id, &name, &bytes)
+}
+
+pub fn import_signed_cert_bytes(state: &AppState, profile_id: &str, name: &str, bytes: &[u8]) -> R<Profile> {
+    let key = generated_key(state, profile_id)?;
+    let certs = mqttpanel_tls::parse_certs(bytes).map_err(|e| files::tls_error(&e, name))?;
+    if !mqttpanel_tls::kit::cert_matches_key(certs[0].as_ref(), &key) {
+        return Err(msg!("file.notGeneratedKey"));
+    }
+    let summary = mqttpanel_tls::inspect(bytes, mqttpanel_tls::FileExpect::Certificate, None).map_err(|e| files::tls_error(&e, name))?;
+    let pem: String = certs.iter().map(|c| mqttpanel_tls::to_pem("CERTIFICATE", c.as_ref())).collect();
+    let p = state.store.update(profile_id, |p| {
+        p.blobs.client_cert_pem = Some(pem);
+        p.profile.tls.client_cert = Some(FileField { file_name: name.to_string(), summary: Some(summary), in_keychain: false });
+    })?;
+    Ok(p.profile)
 }
 
 #[tauri::command]

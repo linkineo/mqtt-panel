@@ -228,10 +228,19 @@ pub async fn export_ca(app: AppHandle, state: State<'_, AppState>) -> R<SaveOutc
     Ok(files::save_bytes(&app, &name, &data))
 }
 
+/// "Export…" on the Server certificate line (change set 11): the served chain as PEM.
 #[tauri::command]
-pub async fn regenerate_broker_certs(state: State<'_, AppState>, sans: Vec<String>, key_type: mqttpanel_tls::kit::KeyAlg) -> R<BrokerCerts> {
+pub async fn export_server_cert(app: AppHandle, state: State<'_, AppState>) -> R<SaveOutcome> {
+    let (name, data) = mgr(&state)?.export_server_chain();
+    Ok(files::save_bytes(&app, &name, &data))
+}
+
+/// Regenerates the server certificate with the automatic names plus `extra_sans` (change set 11: the Regenerate
+/// dialog's "Extra names", kept in the broker configuration).
+#[tauri::command]
+pub async fn regenerate_broker_certs(state: State<'_, AppState>, extra_sans: Vec<String>, key_type: mqttpanel_tls::kit::KeyAlg) -> R<BrokerCerts> {
     let before = local_fingerprint(&state);
-    let c = mgr(&state)?.regenerate(&sans, key_type).map_err(be)?;
+    let c = mgr(&state)?.regenerate_with_extra(&extra_sans, key_type).map_err(be)?;
     follow_and_reconnect(&state, before).await;
     Ok(c)
 }

@@ -142,7 +142,11 @@ input.input { display: block }
 .chip .x { opacity: .6; border: 0; background: none; padding: 0; font-size: 11px; color: inherit }
 .chip .x:hover { opacity: 1 }
 button.chip:hover { filter: brightness(.97) }
-.chip.info { padding: 0 6px; font-size: 11px; font-family: var(--sans); vertical-align: 1px }
+/* change set 11: every ⓘ is one round 18 px button with a thin muted outline and an "i"; accent on hover and focus */
+.info-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: 18px; height: 18px; min-width: 18px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--ink-2); font-family: var(--sans); font-size: 11px; font-weight: 700; font-style: normal; line-height: 1; vertical-align: middle; text-transform: none; letter-spacing: 0 }
+.info-btn:hover, .info-btn:focus-visible, .info-btn[aria-expanded="true"] { color: var(--sage); border-color: var(--sage) }
+.info-btn.clay { color: var(--clay); border-color: var(--clay-soft) }
+@media (forced-colors: active) { .info-btn { border: 1px solid CanvasText } }
 .sw { width: 30px; height: 17px; border-radius: 9px; background: var(--line); position: relative; display: inline-block; flex: none; border: 0; padding: 0; vertical-align: middle }
 .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--surface); transition: left .12s }
 .sw.on { background: var(--sage) } .sw.on::after { left: 15px }
@@ -496,3 +500,15 @@ button.chip:hover { filter: brightness(.97) }
 .hfilter-pop .hf-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .hfilter-pop .hf-row .muted { text-align: right }
 .hfilter-pop .hf-other { display: flex; gap: 6px; align-items: center; padding: 8px 8px 4px; border-top: 1px solid var(--line-2); margin-top: 4px }
+
+/* change set 11: accepted formats after Browse; the generated-key card; the Status tile play/stop button */
+.fmt { color: var(--ink-2); font-size: 11px; white-space: nowrap; flex: none }
+.gencard { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--form-gap); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface) }
+.gencard .f { grid-template-columns: 159px minmax(0, 1fr) } /* the content column lines up with the rows outside the card */
+.gencard .small { font-size: 12px }
+.tile-btn { align-self: center; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; padding: 0; margin-left: auto; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2) }
+.tile-btn svg { width: 10px; height: 10px; fill: currentColor }
+.tile-btn.play { color: var(--sage); border-color: var(--sage) }
+.tile-btn.stop { color: var(--brick); border-color: var(--brick) }
+.tile-btn:hover:not(:disabled) { filter: brightness(.95); background: var(--line-2) }
+.tile-btn:disabled { opacity: .45 }

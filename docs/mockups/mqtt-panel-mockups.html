@@ -138,6 +138,14 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
 .chip.on { background: var(--sage-soft); color: var(--sage) }
 .chip.clay { background: var(--clay-soft); color: var(--clay) }
 .chip.brick { background: var(--brick-soft); color: var(--brick) }
+/* change set 11: every ⓘ is one round 18 px button with a thin muted outline and an "i" (accent on hover and focus) */
+.info-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); color: var(--ink-2); font-size: 11px; font-weight: 700; line-height: 1; vertical-align: middle; text-transform: none; letter-spacing: 0 }
+.info-btn.clay { color: var(--clay); border-color: var(--clay-soft) }
+.fmt { color: var(--ink-2); font-size: 11px; white-space: nowrap }
+.tile-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); font-size: 9px; margin-left: auto }
+.tile-btn.stop { color: var(--brick); border-color: var(--brick) }
+.tile-btn.play { color: var(--sage); border-color: var(--sage) }
+.gencard { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; background: var(--surface) }
 .mono { font-family: var(--mono) }
 .form { display: grid; gap: 10px }
 .f { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: center; font-size: 12px }
@@ -394,7 +402,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
         <div style="display:grid;gap:6px">
           <div class="card on"><div class="radio"><i class="on"></i><div style="flex:1"><div class="t">TLS · port 8883 <span class="chip on">client certificate</span></div><div class="s">Encrypted, client certificate required. The most secure listener, preselected.</div></div></div></div>
           <div class="card"><div class="radio"><i></i><div style="flex:1"><div class="t">TCP · port 1883 <span class="chip clay">unencrypted</span></div><div class="s">Plain, lab only.</div></div></div></div>
-          <div class="card"><div class="radio"><i></i><div style="flex:1"><div class="t">Add a listener… <span class="chip">ⓘ</span></div><div class="s">Choose a setup and a port first, then come back here.</div></div></div></div>
+          <div class="card"><div class="radio"><i></i><div style="flex:1"><div class="t">Add a listener… <span class="info-btn">i</span></div><div class="s">Choose a setup and a port first, then come back here.</div></div></div></div>
         </div>
         <div class="callout" style="padding:8px 12px"><p class="small" style="margin:0"><strong>What MQTT Panel will do.</strong> Create the user <span class="mono">mqtt-panel</span> with a strong password (kept in the keychain, shown on the Broker screen), issue the client certificate <span class="mono">mqttpanel-desktop</span> because this listener requires one, trust the broker's own CA, then connect. Nothing to type. The result is the profile "Local broker".</p></div>
         <div style="display:grid;gap:4px;font-size:12px"><div><span style="color:var(--sage)">✓</span> User mqtt-panel created · password <span class="mono">••••••••••••</span> <span class="eye">👁</span> <span class="eye">⧉</span></div><div><span style="color:var(--sage)">✓</span> Client certificate mqttpanel-desktop issued</div><div><span style="color:var(--sage)">✓</span> Broker CA trusted in the profile</div><div><span class="muted">◌</span> Connecting</div></div>
@@ -451,21 +459,22 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
             <div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="width:320px">mqtts://broker.plant.example:8883</span><span class="input mono" style="width:80px">8883</span></span></div>
             <div class="f"><label>Client ID</label><span class="row2"><span class="input mono" style="width:240px">mqttpanel-7f3a</span><span class="btn sm">Generate</span></span></div>
             <div class="f"><label>Username</label><span class="input" style="width:240px">commissioning</span></div>
-            <div class="f"><label>Password</label><span class="input" style="width:220px">••••••••••••</span></div>
-            <div class="fold"><span class="chev">▾</span>Security <span class="sum">CA · client certificate · <span style="color:var(--sage)">verified</span></span></div>
-            <div class="f"><label>CA certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">plant-root-ca.pem</span><span class="btn sm">Browse…</span></span></div>
-            <div class="f"><label>Client certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.pem</span><span class="btn sm">Browse…</span></span></div>
-            <div class="f"><label>Client key <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.key</span><span class="btn sm">Browse…</span></span></div>
-            <div class="f"><label>Server name (SNI) <span class="chip">ⓘ</span></label><span class="input mono" style="width:220px"><span class="ph-text">optional</span></span></div>
-            <div class="f"><label>Protocol tag (ALPN) <span class="chip">ⓘ</span></label><span class="input mono" style="width:140px">mqtt</span></div>
+            <div class="f"><label>Password</label><span class="row2"><span class="input" style="width:220px">••••••••••••</span><span class="eye">👁</span></span></div>
+            <div class="fold"><span class="chev">▾</span>Security <span class="sum">CA · client certificate (imported) · <span style="color:var(--sage)">verified</span></span></div>
+            <div class="f"><label>CA certificate <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:320px">plant-root-ca.pem</span><span class="btn sm">Browse…</span><span class="fmt">PEM, CRT, DER</span></span></div>
+            <div class="f"><label></label><span class="row2"><span class="seg"><span class="on">Import certificate and key</span><span>Generate key and request a certificate</span></span><span class="info-btn">i</span></span></div>
+            <div class="f"><label>Client certificate <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.pem</span><span class="btn sm">Browse…</span><span class="fmt">PEM, CRT, DER, P12, PFX</span></span></div>
+            <div class="f"><label>Client key <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.key</span><span class="btn sm">Browse…</span><span class="fmt">PEM, KEY</span></span></div>
+            <div class="f"><label>Server name (SNI) <span class="info-btn">i</span></label><span class="input mono" style="width:220px"><span class="ph-text">optional</span></span></div>
+            <div class="f"><label>Protocol tag (ALPN) <span class="info-btn">i</span></label><span class="input mono" style="width:140px">mqtt</span></div>
             <div class="fold"><span class="chev">▾</span>Advanced <span class="sum">keep-alive 60 s · 3 subscriptions · 1 schema</span></div>
             <div class="sub">Session</div>
             <div class="f"><label>Keep-alive</label><span class="row2"><span class="input mono" style="width:80px">60 s</span><span class="muted">Clean start</span><span class="sw on"></span></span></div>
-            <div class="f"><label>Session expiry</label><span class="row2"><span class="input mono" style="width:100px">0 (none)</span></span></div>
-            <div class="f"><label>Skip unverified broker certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="sw"></span></span></div>
+            <div class="f"><label>Session expiry <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:80px">0</span><span class="hint">s</span></span></div>
+            <div class="f"><label>Skip unverified broker certificate <span class="info-btn">i</span></label><span class="row2"><span class="sw"></span></span></div>
             <div class="f"><label>Last will</label><span class="row2"><span class="input mono" style="width:240px"><span class="ph-text">topic (optional)</span></span><span class="input mono" style="width:240px"><span class="ph-text">payload</span></span></span></div>
             <div class="sub">Subscriptions</div>
-            <div class="f"><label>Filters <span class="chip">ⓘ</span></label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">building/# · QoS 1 <span style="opacity:.6">✕</span></span><span class="chip mono">$SYS/broker/clients/# · QoS 0 <span style="opacity:.6">✕</span></span><span class="chip mono">spBv1.0/# · QoS 0 <span style="opacity:.6">✕</span></span><span class="btn sm">+ Add</span></span></div>
+            <div class="f"><label>Filters <span class="info-btn">i</span></label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">building/# · QoS 1 <span style="opacity:.6">✕</span></span><span class="chip mono">$SYS/broker/clients/# · QoS 0 <span style="opacity:.6">✕</span></span><span class="chip mono">spBv1.0/# · QoS 0 <span style="opacity:.6">✕</span></span><span class="btn sm">+ Add</span></span></div>
             <div class="sub">Decoders</div>
             <div class="f"><label>Protobuf schemas</label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">plant.proto → spBv1.0/# · Payload <span style="opacity:.6">✕</span></span><span class="btn sm">Browse…</span></span></div>
           </div>
@@ -474,7 +483,15 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       </div></div>
     </div>
   </div></div>
-  <p class="cap">The two folds open in place. Security: CA certificate, Client certificate, Client key, Server name (SNI), Protocol tag (ALPN), each with its ⓘ and nothing else on the row (the "Verify server" switch is gone, change set 6). Advanced: Session, with the switch "Skip unverified broker certificate" that opens the prompt "only this time / always for this connection", Subscriptions and Decoders as sub-headings. Text fields have fixed widths (80, 160, 240, 320 px) and align on the label column. The folds are closed when the app starts and keep their state while it runs.</p>
+  <p class="cap" style="margin-top:10px"><b>02d, second way (change set 11):</b> "Generate key and request a certificate" replaces the certificate and key rows by one card with three steps, each with its ⓘ; the CA certificate row above it stays.</p>
+  <div class="gencard" style="max-width:760px;margin:6px 0 10px"><div class="form">
+    <div class="f"><label></label><span class="row2"><span class="seg"><span>Import certificate and key</span><span class="on">Generate key and request a certificate</span></span><span class="info-btn">i</span></span></div>
+    <div class="f"><label>Client key <span class="info-btn">i</span></label><span class="row2"><span class="mono" style="font-size:12px">Key generated · ECDSA P-256 · 3F:9A:…:C2</span></span></div>
+    <div class="f"><label>Certificate request <span class="info-btn">i</span></label><span class="row2"><span class="muted">Common name</span><span class="input mono" style="width:200px">mqttpanel-7f3a</span><span class="btn sm">Download CSR…</span></span></div>
+    <div class="f"><label>Client certificate <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:240px">mqttpanel-7f3a.crt</span><span class="btn sm">Import signed certificate…</span><span class="fmt">PEM, CRT, DER</span></span></div>
+    <div class="f"><label></label><span class="row2"><span class="btn sm danger">Start over…</span></span></div>
+  </div></div>
+  <p class="cap">The two folds open in place. Security: CA certificate, then the client certificate in one of two exclusive ways ("Import certificate and key": certificate and key rows; "Generate key and request a certificate": the card above), Server name (SNI), Protocol tag (ALPN), each with its ⓘ and nothing else on the row; after each Browse button the accepted formats in muted text (change set 11). The password has an eye that reveals it while pressed. Session expiry shows only its unit; 0 and empty are explained in its ⓘ (the "Verify server" switch is gone, change set 6). Advanced: Session, with the switch "Skip unverified broker certificate" that opens the prompt "only this time / always for this connection", Subscriptions and Decoders as sub-headings. Text fields have fixed widths (80, 160, 240, 320 px) and align on the label column. The folds are closed when the app starts and keep their state while it runs.</p>
 
   <!-- 02e Unencrypted profile, Security disabled -->
   <div class="shot-head" id="s02e"><h3>02e · Connections, unencrypted profile</h3><span class="muted small">With mqtt or ws the Security fold is disabled and says why; the address field carries the prefix</span></div>
@@ -515,7 +532,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   <div class="shotwrap"><div class="app">
     <div class="tb"></div>
     <div class="body"><nav class="rail" data-open="1" data-on="connect"></nav>
-      <div class="main"><div class="pane"><div class="ph"><h5>Lab Mosquitto</h5><div style="display:flex;gap:8px"><span class="btn">Test</span><span class="btn pri">Connect</span></div></div><div class="pc"><div class="form"><div class="sec">Basics</div><div class="f"><label>Protocol</label><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span></div><div class="f"><label>MQTT version</label><span class="seg"><span>3.1.1</span><span>5</span><span class="on">auto</span></span></div><div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="width:320px">mqtts://10.20.4.17:8883</span><span class="input mono" style="width:80px">8883</span></span></div><div class="sec">Security</div><div class="f"><label>CA certificate <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px"><span class="ph-text">none</span></span><span class="btn sm">Browse…</span></span></div></div></div></div></div>
+      <div class="main"><div class="pane"><div class="ph"><h5>Lab Mosquitto</h5><div style="display:flex;gap:8px"><span class="btn">Test</span><span class="btn pri">Connect</span></div></div><div class="pc"><div class="form"><div class="sec">Basics</div><div class="f"><label>Protocol</label><span class="seg"><span>mqtt</span><span class="on">mqtts</span><span>ws</span><span>wss</span></span></div><div class="f"><label>MQTT version</label><span class="seg"><span>3.1.1</span><span>5</span><span class="on">auto</span></span></div><div class="f"><label>Host and port</label><span class="row2"><span class="input mono" style="width:320px">mqtts://10.20.4.17:8883</span><span class="input mono" style="width:80px">8883</span></span></div><div class="sec">Security</div><div class="f"><label>CA certificate <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:320px"><span class="ph-text">none</span></span><span class="btn sm">Browse…</span></span></div></div></div></div></div>
     </div>
     <div class="overlay"><div class="modal">
       <div class="mh">This broker's certificate cannot be verified</div>
@@ -712,7 +729,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   <span class="k">"cmd"</span>: <span class="s">"restart"</span>,
   <span class="k">"delay"</span>: <span class="num">5</span>
 }</div><div class="muted small" style="margin-top:6px">Valid JSON · 27 bytes</div>
-            <div class="sec" style="margin-top:14px">Request and response <span class="chip on" style="text-transform:none;letter-spacing:0">MQTT 5</span> <span class="chip">ⓘ</span></div>
+            <div class="sec" style="margin-top:14px">Request and response <span class="chip on" style="text-transform:none;letter-spacing:0">MQTT 5</span> <span class="info-btn">i</span></div>
             <div class="callout" style="margin-top:6px;padding:6px 12px"><p class="small" style="margin:0"><strong>How this works in MQTT 5.</strong> Your message carries a response topic and a correlation ID. The device answers on that response topic and copies the correlation ID into its reply. MQTT Panel subscribes to the response topic for you, matches the reply by correlation ID and shows it next to the sent entry. Broker and device must both speak MQTT 5; on 3.1.1 this section is not available.</p></div>
             <div class="form" style="margin-top:8px"><div class="f"><label>Response topic</label><span class="row2"><span class="input mono" style="flex:1">building/f2/ahu01/cmd/ack</span><span class="muted small">subscribed automatically</span></span></div><div class="f"><label>Correlation data</label><span class="row2"><span class="input mono" style="width:140px">auto (c-1042)</span><span class="muted small">Wait up to</span><span class="input mono" style="width:70px">10 s</span></span></div></div>
             <div class="sec" style="margin-top:14px">MQTT 5 properties <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0">· 2 set</span></div>
@@ -868,24 +885,24 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
     <div class="tb"></div>
     <div class="body"><nav class="rail" data-broker="on" data-on="broker"></nav>
       <div class="main"><div class="cols" style="grid-template-columns: 1fr 380px">
-        <div class="pane"><div class="ph"><h5>Embedded broker</h5><div style="display:flex;gap:6px"><span class="btn danger">Stop</span></div></div>
+        <div class="pane"><div class="ph"><h5>Embedded broker</h5><div style="display:flex;gap:6px"><span class="btn danger out">Stop</span></div></div>
           <div class="pc">
-            <div class="stats"><div class="stat"><div class="l">Status</div><div class="v" style="display:flex;align-items:center;gap:8px"><span class="dot"></span>Running<small>2 h 14 min</small></div></div><div class="stat" style="border-left:3px solid var(--sage)"><div class="l" style="color:var(--sage)">↓ Messages in</div><div class="v">148<small>/s</small></div></div><div class="stat" style="border-left:3px solid var(--clay)"><div class="l" style="color:var(--clay)">↑ Messages out</div><div class="v">392<small>/s</small></div></div><div class="stat"><div class="l">Retained</div><div class="v">1 212</div></div></div>
-            <div class="sec" style="margin-top:18px;display:flex;align-items:center;gap:8px;white-space:nowrap">Listeners<span style="flex:1"></span><span class="seg" style="text-transform:none;letter-spacing:0"><span>This computer only</span><span class="on">Whole network</span></span><span class="chip">ⓘ</span><span style="width:4px"></span><span class="btn pri sm" style="letter-spacing:0;text-transform:none">+ Add listener…</span></div>
+            <div class="stats"><div class="stat"><div class="l">Status</div><div class="v" style="display:flex;align-items:center;gap:8px"><span class="dot"></span>Running<small>2 h 14 min</small><span class="tile-btn stop" title="Stop">■</span></div></div><div class="stat" style="border-left:3px solid var(--sage)"><div class="l" style="color:var(--sage)">↓ Messages in</div><div class="v">148<small>/s</small></div></div><div class="stat" style="border-left:3px solid var(--clay)"><div class="l" style="color:var(--clay)">↑ Messages out</div><div class="v">392<small>/s</small></div></div><div class="stat"><div class="l">Retained</div><div class="v">1 212</div></div></div>
+            <div class="sec" style="margin-top:18px;display:flex;align-items:center;gap:8px;white-space:nowrap">Listeners<span style="flex:1"></span><span class="seg" style="text-transform:none;letter-spacing:0"><span>This computer only</span><span class="on">Whole network</span></span><span class="info-btn">i</span><span style="width:4px"></span><span class="btn pri sm" style="letter-spacing:0;text-transform:none">+ Add listener…</span></div>
             <table class="tbl" style="margin-top:6px"><tr><th>On</th><th>Kind</th><th>Port</th><th>Setup</th><th></th></tr>
               <tr><td><span class="sw on"></span></td><td>TCP <span class="chip clay">unencrypted</span></td><td class="mono">1883</td><td>Plain, lab only</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               <tr><td><span class="sw on"></span></td><td>TLS</td><td class="mono">8883</td><td>Encrypted + client certificates</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               <tr><td><span class="sw on"></span></td><td>WebSocket <span class="chip clay">unencrypted</span></td><td class="mono">8083</td><td>Plain, lab only</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               <tr><td><span class="sw"></span></td><td>Secure WebSocket</td><td class="mono">8084</td><td>Encrypted</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               </table>
-            <div class="pnl"><div class="hd">Users<span style="flex:1"></span><span class="muted" style="font-weight:500">Anonymous</span><span class="sw"></span><span class="chip">ⓘ</span><span style="width:6px"></span><span class="btn sm">+ Add user</span></div>
+            <div class="pnl"><div class="hd">Users<span style="flex:1"></span><span class="muted" style="font-weight:500">Anonymous</span><span class="sw"></span><span class="info-btn">i</span><span style="width:6px"></span><span class="btn sm">+ Add user</span></div>
               <table class="tbl"><tr><th>Username</th><th>Password</th><th></th></tr>
               <tr><td class="mono">mqtt-panel <span class="chip">Local broker</span></td><td class="mono">Vq7m…kR2p <span class="eye">🙈</span> <span class="eye">⧉</span></td><td style="text-align:right"><span class="x">✎</span> <span class="x">✕</span></td></tr>
               <tr><td class="mono">commissioning</td><td class="mono">•••••••••••• <span class="eye">👁</span> <span class="eye">⧉</span></td><td style="text-align:right"><span class="x">✎</span> <span class="x">✕</span></td></tr>
               <tr><td class="mono">edge01</td><td class="mono">•••••••••••• <span class="eye">👁</span> <span class="eye">⧉</span></td><td style="text-align:right"><span class="x">✎</span> <span class="x">✕</span></td></tr>
               <tr><td class="mono">dashboard</td><td class="mono">•••••••••••• <span class="eye">👁</span> <span class="eye">⧉</span></td><td style="text-align:right"><span class="x">✎</span> <span class="x">✕</span></td></tr>
               </table></div>
-            <div class="pnl"><div class="hd">Client certificates <span class="chip">ⓘ</span><span style="flex:1"></span><span class="btn sm">Import CSR…</span><span class="btn pri sm">Issue…</span></div>
+            <div class="pnl"><div class="hd">Client certificates <span class="info-btn">i</span><span style="flex:1"></span><span class="btn sm">Import CSR…</span><span class="btn pri sm">Issue…</span></div>
               <table class="tbl"><tr><th>Name</th><th>Expires</th><th>Last seen</th><th></th></tr>
               <tr><td class="mono">edge01</td><td class="mono">2028-10-12</td><td><span class="chip on">connected</span></td><td style="text-align:right"><span class="btn sm" title="Export…">↓</span> <span class="x">✕</span></td></tr>
               <tr><td class="mono">sensor-r204</td><td class="mono">2028-10-12</td><td><span class="chip on">connected</span></td><td style="text-align:right"><span class="btn sm" title="Export…">↓</span> <span class="x">✕</span></td></tr>
@@ -902,7 +919,7 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       </div></div>
     </div>
   </div></div>
-  <p class="cap">Reorganised 13 Oct 2026: reachability is one choice for the whole broker on the Listeners line, with its explanation behind the ⓘ; the rows have On, Kind, Port, Setup and an ✕ that removes the listener at once; every change applies live, nothing restarts (change set 7). Users and Client certificates are panels with their actions in the header; each certificate row has one ↓ button whose menu offers PEM or PKCS#12… (change set 7); the eye reveals a password the app owns, the copy icon copies it. Client-certificate verification and the broker certificates are in the "Advanced security" fold (open in 12c). Nothing says "live" and no client count is repeated; the log strip adds "· n warnings" only when there are some.</p>
+  <p class="cap">Change set 11: Start is the accent primary button like Connect (shown while stopped), Stop is outlined in brick; the Status tile ends its value line with a round stop button while running and a round play button while stopped, doing what the header button does. Reorganised 13 Oct 2026: reachability is one choice for the whole broker on the Listeners line, with its explanation behind the ⓘ; the rows have On, Kind, Port, Setup and an ✕ that removes the listener at once; every change applies live, nothing restarts (change set 7). Users and Client certificates are panels with their actions in the header; each certificate row has one ↓ button whose menu offers PEM or PKCS#12… (change set 7); the eye reveals a password the app owns, the copy icon copies it. Client-certificate verification and the broker certificates are in the "Advanced security" fold (open in 12c). Nothing says "live" and no client count is repeated; the log strip adds "· n warnings" only when there are some.</p>
 
   <!-- 12b Broker anonymous -->
   <div class="shot-head" id="s12b"><h3>12b · Broker with Anonymous on</h3><span class="muted small">One sentence of warning; users, certificates and Advanced security greyed together</span></div>
@@ -912,19 +929,19 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       <div class="main"><div class="pane"><div class="ph"><h5>Embedded broker</h5><div style="display:flex;gap:6px"><span class="btn danger">Stop</span></div></div>
         <div class="pc">
           <div class="warnstrip"><strong>Anonymous access is on:</strong> anyone who can reach a listener can connect.</div>
-          <div class="sec" style="margin-top:18px;display:flex;align-items:center;gap:8px;white-space:nowrap">Listeners <span style="flex:1"></span><span class="seg" style="text-transform:none;letter-spacing:0"><span>This computer only</span><span class="on">Whole network</span></span><span class="chip">ⓘ</span><span style="width:4px"></span><span class="btn pri sm" style="letter-spacing:0;text-transform:none">+ Add listener…</span></div>
+          <div class="sec" style="margin-top:18px;display:flex;align-items:center;gap:8px;white-space:nowrap">Listeners <span style="flex:1"></span><span class="seg" style="text-transform:none;letter-spacing:0"><span>This computer only</span><span class="on">Whole network</span></span><span class="info-btn">i</span><span style="width:4px"></span><span class="btn pri sm" style="letter-spacing:0;text-transform:none">+ Add listener…</span></div>
           <table class="tbl" style="margin-top:6px"><tr><th>On</th><th>Kind</th><th>Port</th><th>Setup</th><th></th></tr>
               <tr><td><span class="sw on"></span></td><td>TCP <span class="chip clay">unencrypted</span></td><td class="mono">1883</td><td>Plain, lab only</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               <tr><td><span class="sw on"></span></td><td>TLS</td><td class="mono">8883</td><td>Encrypted + client certificates</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               <tr><td><span class="sw on"></span></td><td>WebSocket <span class="chip clay">unencrypted</span></td><td class="mono">8083</td><td>Plain, lab only</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               </table>
-          <div class="pnl"><div class="hd">Users<span style="flex:1"></span><span style="color:var(--clay);font-weight:500">Anonymous</span><span class="sw on" style="background:var(--clay)"></span><span class="chip">ⓘ</span><span style="width:6px"></span><span class="btn sm" style="opacity:.45">+ Add user</span></div>
+          <div class="pnl"><div class="hd">Users<span style="flex:1"></span><span style="color:var(--clay);font-weight:500">Anonymous</span><span class="sw on" style="background:var(--clay)"></span><span class="info-btn">i</span><span style="width:6px"></span><span class="btn sm" style="opacity:.45">+ Add user</span></div>
             <table class="tbl" style="opacity:.45"><tr><th>Username</th><th>Password</th><th></th></tr>
             <tr><td class="mono">commissioning</td><td class="mono">•••••••••••• <span class="eye">👁</span> <span class="eye">⧉</span></td><td style="text-align:right"><span class="x">✎</span> <span class="x">✕</span></td></tr>
               <tr><td class="mono">edge01</td><td class="mono">•••••••••••• <span class="eye">👁</span> <span class="eye">⧉</span></td><td style="text-align:right"><span class="x">✎</span> <span class="x">✕</span></td></tr>
               <tr><td class="mono">dashboard</td><td class="mono">•••••••••••• <span class="eye">👁</span> <span class="eye">⧉</span></td><td style="text-align:right"><span class="x">✎</span> <span class="x">✕</span></td></tr>
               </table></div>
-          <div class="pnl" style="opacity:.45"><div class="hd">Client certificates <span class="chip">ⓘ</span><span style="flex:1"></span><span class="btn sm">Import CSR…</span><span class="btn pri sm">Issue…</span></div>
+          <div class="pnl" style="opacity:.45"><div class="hd">Client certificates <span class="info-btn">i</span><span style="flex:1"></span><span class="btn sm">Import CSR…</span><span class="btn pri sm">Issue…</span></div>
             <table class="tbl"><tr><th>Name</th><th>Expires</th><th>Last seen</th><th></th></tr>
             <tr><td class="mono">edge01</td><td class="mono">2028-10-12</td><td><span class="chip">connected</span></td><td style="text-align:right"><span class="btn sm" title="Export…">↓</span> <span class="x">✕</span></td></tr>
               <tr><td class="mono">sensor-r204</td><td class="mono">2028-10-12</td><td><span class="chip">connected</span></td><td style="text-align:right"><span class="btn sm" title="Export…">↓</span> <span class="x">✕</span></td></tr>
@@ -941,17 +958,17 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
   <div class="shotwrap"><div class="app" style="height:600px">
     <div class="tb"></div>
     <div class="body"><nav class="rail" data-broker="on" data-on="broker"></nav><div class="main"><div class="cols" style="grid-template-columns: 1fr 380px"><div class="pane"><div class="ph"><h5>Embedded broker</h5><div style="display:flex;gap:6px"><span class="btn danger">Stop</span></div></div><div class="pc">
-      <div class="sec" style="margin-top:18px;display:flex;align-items:center;gap:8px;white-space:nowrap">Listeners<span style="flex:1"></span><span class="seg" style="text-transform:none;letter-spacing:0"><span>This computer only</span><span class="on">Whole network</span></span><span class="chip">ⓘ</span><span style="width:4px"></span><span class="btn pri sm" style="letter-spacing:0;text-transform:none">+ Add listener…</span></div>
+      <div class="sec" style="margin-top:18px;display:flex;align-items:center;gap:8px;white-space:nowrap">Listeners<span style="flex:1"></span><span class="seg" style="text-transform:none;letter-spacing:0"><span>This computer only</span><span class="on">Whole network</span></span><span class="info-btn">i</span><span style="width:4px"></span><span class="btn pri sm" style="letter-spacing:0;text-transform:none">+ Add listener…</span></div>
       <table class="tbl" style="margin-top:6px"><tr><th>On</th><th>Kind</th><th>Port</th><th>Setup</th><th></th></tr>
               <tr><td><span class="sw on"></span></td><td>TCP <span class="chip clay">unencrypted</span></td><td class="mono">1883</td><td>Plain, lab only</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               <tr><td><span class="sw on"></span></td><td>TLS</td><td class="mono">8884</td><td>Encrypted + client certificates</td><td style="text-align:right"><span class="x">✕</span></td></tr>
               </table>
       <div class="fold" style="margin-top:14px"><span class="chev">▾</span>Advanced security</div>
       <div class="form" style="margin-top:4px">
-        <div class="f"><label>Client certificates <span class="chip">ⓘ</span></label><span class="row2"><span class="seg"><span>Optional</span><span class="on">Required</span></span><span class="muted small">on encrypted listeners</span></span></div>
-        <div class="f"><label>Verify against <span class="chip">ⓘ</span></label><span class="seg"><span class="on">Local CA</span><span>Imported CA</span></span></div>
+        <div class="f"><label>Client certificates <span class="info-btn">i</span></label><span class="row2"><span class="seg"><span>Optional</span><span class="on">Required</span></span><span class="muted small">on encrypted listeners</span></span></div>
+        <div class="f"><label>Verify against <span class="info-btn">i</span></label><span class="seg"><span class="on">Local CA</span><span>Imported CA</span></span></div>
         <div class="f"><label>Local CA</label><span class="row2"><span class="mono small" style="font-size:12px">MQTT Panel Local CA · until 2031-10 · ECDSA P-256</span><span class="btn sm">Export CA.pem</span><span class="btn sm">Rotate…</span></span></div>
-        <div class="f"><label>Server certificate</label><span class="row2"><span class="mono" style="font-size:12px">mqttpanel-local · until 2028-10 · ECDSA P-256</span><span class="btn sm">Import…</span><span class="btn sm">Regenerate…</span></span></div>
+        <div class="f"><label>Server certificate</label><span class="row2"><span class="mono" style="font-size:12px">mqttpanel-local · until 2028-10 · ECDSA P-256</span><span class="btn sm">Import…</span><span class="btn sm">Regenerate…</span><span class="btn sm">Export…</span></span></div>
       </div>
     </div></div>
       <div class="pane right" style="display:flex;flex-direction:column"><div class="ph"><h5>Clients</h5></div><div class="pc" style="padding:0;flex:1"><table class="tbl"><tr><th>Client ID</th><th>From</th><th>Proto</th></tr><tr><td class="mono">edge01</td><td class="mono">10.20.4.31</td><td>5 · TLS</td></tr><tr><td class="mono">mqttpanel-desktop</td><td class="mono">localhost</td><td>5 · TLS</td></tr></table></div>
@@ -970,10 +987,10 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       <div class="mh">Add listener <span class="muted" style="font-weight:500">· step 1 of 2 · choose a setup</span></div>
       <div class="mb">
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
-          <div class="card"><div class="radio"><i></i><div><div class="t">Plain, lab only <span class="chip clay">ⓘ</span></div><div class="s">No encryption, anyone can connect. For a trusted lab network only.</div></div></div></div>
-          <div class="card"><div class="radio"><i></i><div><div class="t">Encrypted <span class="chip">ⓘ</span></div><div class="s">Clients verify the broker. Uses the local CA and server certificate.</div></div></div></div>
-          <div class="card"><div class="radio"><i></i><div><div class="t">Encrypted + passwords <span class="chip">ⓘ</span></div><div class="s">Encrypted, and each client needs a username and password.</div></div></div></div>
-          <div class="card on"><div class="radio"><i class="on"></i><div><div class="t">Encrypted + client certificates <span class="chip">ⓘ</span></div><div class="s">Encrypted, and each device needs its own certificate, issued on the Broker screen. No passwords.</div></div></div></div>
+          <div class="card"><div class="radio"><i></i><div><div class="t">Plain, lab only <span class="info-btn clay">i</span></div><div class="s">No encryption, anyone can connect. For a trusted lab network only.</div></div></div></div>
+          <div class="card"><div class="radio"><i></i><div><div class="t">Encrypted <span class="info-btn">i</span></div><div class="s">Clients verify the broker. Uses the local CA and server certificate.</div></div></div></div>
+          <div class="card"><div class="radio"><i></i><div><div class="t">Encrypted + passwords <span class="info-btn">i</span></div><div class="s">Encrypted, and each client needs a username and password.</div></div></div></div>
+          <div class="card on"><div class="radio"><i class="on"></i><div><div class="t">Encrypted + client certificates <span class="info-btn">i</span></div><div class="s">Encrypted, and each device needs its own certificate, issued on the Broker screen. No passwords.</div></div></div></div>
         </div>
         <div class="callout" style="padding:8px 12px"><p class="small" style="margin:0"><strong>What this setup means.</strong> The broker proves who it is with its server certificate, and each device proves who it is with a certificate you issue here. Install CA.pem on the device together with its certificate. No passwords. It sets client certificates to Required for every encrypted listener (one setting, under Advanced security).</p></div>
       </div>
@@ -1009,11 +1026,11 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
       <div class="mh">Issue client certificate</div>
       <div class="mb">
         <div class="form">
-          <div class="f"><label>Name <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="flex:1">sensor-r206</span><span class="muted small">Used as the certificate's CN.</span></span></div>
+          <div class="f"><label>Name <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="flex:1">sensor-r206</span><span class="muted small">Used as the certificate's CN.</span></span></div>
           <div class="f"><label>Valid for</label><span class="row2"><span class="seg"><span>1 year</span><span class="on">2 years</span><span>5 years</span></span><span class="muted small">until 2028-10-12</span></span></div>
           <div class="f"><label>Key</label><span class="row2"><span class="seg"><span class="on">ECDSA P-256</span><span>RSA 2048</span></span><span class="muted small">RSA only for old devices.</span></span></div>
           <div class="f"><label>Export as</label><span class="row2"><span class="seg"><span class="on">PEM (cert + key)</span><span>PKCS#12 (.p12)</span></span></span></div>
-          <div class="f"><label>Passphrase <span class="chip">ⓘ</span></label><span class="row2"><span class="input" style="flex:1">••••••••</span><span class="btn sm">Generate</span><span class="chip on">kept in keychain</span></span></div>
+          <div class="f"><label>Passphrase <span class="info-btn">i</span></label><span class="row2"><span class="input" style="flex:1">••••••••</span><span class="btn sm">Generate</span><span class="chip on">kept in keychain</span></span></div>
           <div class="callout" style="padding:6px 12px;margin-top:0"><p class="small" style="margin:0"><strong>Passphrase.</strong> Protects only the exported file (the PKCS#12 bundle or the PEM key). It is not the broker login and not a listener password. The device asks for it once, when the certificate is installed.</p></div>
           <div class="f"><label></label><span><span class="chk on"></span>Also save CA.pem next to it</span></div>
         </div>
@@ -1101,12 +1118,12 @@ ul.checks li::before { content: ""; width: 14px; height: 14px; border: 1.5px sol
             <div class="f"><label>Hôte et port</label><span class="row2"><span class="input mono" style="width:320px">mqtts://broker.plant.example:8883</span><span class="input mono" style="width:80px">8883</span></span></div>
             <div class="f"><label>Mot de passe</label><span class="input" style="width:220px">••••••••••••</span></div>
             <div class="sec">Sécurité</div>
-                        <div class="f"><label>Autorité (CA) <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">plant-root-ca.pem</span><span class="btn sm">Parcourir…</span></span></div>
-            <div class="f"><label>Certificat client <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.pem</span><span class="btn sm">Parcourir…</span></span></div>
-            <div class="f"><label>Clé client <span class="chip">ⓘ</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.key</span><span class="btn sm">Parcourir…</span><span class="chip on">Trousseau</span></span></div>
+                        <div class="f"><label>Autorité (CA) <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:320px">plant-root-ca.pem</span><span class="btn sm">Parcourir…</span></span></div>
+            <div class="f"><label>Certificat client <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.pem</span><span class="btn sm">Parcourir…</span></span></div>
+            <div class="f"><label>Clé client <span class="info-btn">i</span></label><span class="row2"><span class="input mono" style="width:320px">commissioning-laptop.key</span><span class="btn sm">Parcourir…</span><span class="chip on">Trousseau</span></span></div>
             <div class="callout" style="padding:6px 12px;margin-top:0"><p class="small" style="margin:0"><strong>Certificat d’autorité.</strong> Le certificat de l’autorité qui a signé celui du broker. Nécessaire quand le broker utilise un certificat privé ou auto-signé ; laissez vide pour un broker avec un certificat public. Choisissez le fichier avec Parcourir ou déposez-le sur le champ.</p></div>
             <div class="sec">Abonnements</div>
-            <div class="f"><label>Filtres <span class="chip">ⓘ</span></label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">building/# · QoS 1 ✕</span><span class="btn sm">+ Ajouter</span></span></div>
+            <div class="f"><label>Filtres <span class="info-btn">i</span></label><span class="row2" style="flex-wrap:wrap"><span class="chip mono">building/# · QoS 1 ✕</span><span class="btn sm">+ Ajouter</span></span></div>
           </div>
           <div class="callout" style="margin-top:16px"><div class="eyebrow">Dernier test · il y a 2 min</div><p class="small">Connecté en 84 ms. Certificat du serveur CN=broker.plant.example, émis par Plant Root CA, valable jusqu’au 30 juin 2027. Version négociée : MQTT 5.</p></div>
         </div></div>
