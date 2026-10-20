@@ -12,10 +12,14 @@ import shutil
 import subprocess
 import sys
 
-# ---- The owner fills these when the listings exist. Empty: the button shows "… · coming soon", disabled. ----
+# ---- The owner fills these when the listings and files exist. Empty: the link goes nowhere (href="#",
+# aria-disabled) and shows "coming soon". They appear in the Download section at the bottom of the home page.
 MAC_APP_STORE_URL = ""
 MICROSOFT_STORE_URL = ""
 GITHUB_URL = ""
+WINDOWS_MSI_URL = ""
+MACOS_DMG_URL = ""
+LINUX_PACKAGES_URL = ""
 
 ROOT = pathlib.Path(__file__).resolve().parent
 REPO = ROOT.parent
@@ -61,8 +65,9 @@ T = {
         meta="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in.",
         nav_features="Features", nav_privacy="Privacy", lang_label="Language",
         lead="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in.",
-        platforms="Windows · macOS · Linux · open source, Apache 2.0",
-        store=["Mac App Store", "Microsoft Store", "Source code on GitHub"], soon="coming soon",
+        dl=dict(button="Download", h="Download", soon="coming soon", mas="Download on the Mac App Store",
+                ms="Get it from Microsoft", gh="View on GitHub",
+                files=["Windows executable (.msi)", "macOS executable (.dmg)", "Linux packages (.deb, .rpm, AppImage)"]),
         demo_h="A closer look",
         demo_p="Screens from the app, with demo data.",
         looks=[
@@ -70,7 +75,7 @@ T = {
             ("look-table", "Table view", "The same topics as a flat table, sortable by any column.", "The Explorer as a table of topics."),
         ],
         hero=dict(alt='MQTT Panel live with demo data: the topic tree, a JSON payload shown as a tree, and its chart.', hint='Live demo with sample data. Use the menu on the left to switch screens.'),
-        live=dict(pause='Pause the live view', play='Play the live view', soon='soon', dl='Download'),
+        live=dict(pause='Pause the live view', play='Play the live view'),
         theme=dict(label='Appearance', light='Light', dark='Dark'),
         features_h="What it does",
         features=[
@@ -125,8 +130,9 @@ T = {
         meta="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré.",
         nav_features="Fonctions", nav_privacy="Confidentialité", lang_label="Langue",
         lead="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré.",
-        platforms="Windows · macOS · Linux · open source, Apache 2.0",
-        store=["Mac App Store", "Microsoft Store", "Code source sur GitHub"], soon="bientôt disponible",
+        dl=dict(button="Télécharger", h="Télécharger", soon="bientôt disponible", mas="Télécharger dans le Mac App Store",
+                ms="Obtenir auprès de Microsoft", gh="Voir sur GitHub",
+                files=["Programme d’installation Windows (.msi)", "Image disque macOS (.dmg)", "Paquets Linux (.deb, .rpm, AppImage)"]),
         demo_h="Vu de plus près",
         demo_p="Des écrans de l’app, avec des données de démonstration.",
         looks=[
@@ -134,7 +140,7 @@ T = {
             ("look-table", "Vue tableau", "Les mêmes topics dans un tableau, triable sur chaque colonne.", "L’écran Explorer en tableau de topics."),
         ],
         hero=dict(alt='MQTT Panel en direct avec des données de démonstration : l’arbre des topics, un message JSON en arbre et sa courbe.', hint='Démo en direct avec des données d’exemple. Changez d’écran avec le menu de gauche.'),
-        live=dict(pause='Mettre la vue en direct en pause', play='Relancer la vue en direct', soon='bientôt', dl='Télécharger'),
+        live=dict(pause='Mettre la vue en direct en pause', play='Relancer la vue en direct'),
         theme=dict(label='Apparence', light='Clair', dark='Sombre'),
         features_h="Ce que fait l’app",
         features=[
@@ -189,8 +195,9 @@ T = {
         meta="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker.",
         nav_features="Funktionen", nav_privacy="Datenschutz", lang_label="Sprache",
         lead="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker.",
-        platforms="Windows · macOS · Linux · Open Source, Apache 2.0",
-        store=["Mac App Store", "Microsoft Store", "Quellcode auf GitHub"], soon="bald verfügbar",
+        dl=dict(button="Herunterladen", h="Herunterladen", soon="bald verfügbar", mas="Laden im Mac App Store",
+                ms="Bei Microsoft herunterladen", gh="Auf GitHub ansehen",
+                files=["Windows-Installationsprogramm (.msi)", "macOS-Image (.dmg)", "Linux-Pakete (.deb, .rpm, AppImage)"]),
         demo_h="Genauer hingeschaut",
         demo_p="Bildschirme aus der App, mit Demodaten.",
         looks=[
@@ -198,7 +205,7 @@ T = {
             ("look-table", "Tabellenansicht", "Dieselben Topics als Tabelle, nach jeder Spalte sortierbar.", "Erkunden als Tabelle der Topics."),
         ],
         hero=dict(alt='MQTT Panel live mit Demodaten: der Topic-Baum, eine JSON-Nachricht als Baum und ihre Kurve.', hint='Live-Demo mit Beispieldaten. Wechsle den Bildschirm über das Menü links.'),
-        live=dict(pause='Live-Ansicht anhalten', play='Live-Ansicht fortsetzen', soon='bald', dl='Herunterladen'),
+        live=dict(pause='Live-Ansicht anhalten', play='Live-Ansicht fortsetzen'),
         theme=dict(label='Darstellung', light='Hell', dark='Dunkel'),
         features_h="Was die App kann",
         features=[
@@ -319,18 +326,44 @@ def theme_switch(t):
     return f'<span class="theme" role="group" aria-label="{e(th["label"])}">{btns}</span>'
 
 
-def downloads(t):
-    """The store and source links, in the sticky header (a bar at the bottom on small screens)."""
-    out = []
-    short = ("App Store", "Microsoft Store", "GitHub")  # small screens
-    for i, (label, url) in enumerate(zip(t["store"], (MAC_APP_STORE_URL, MICROSOFT_STORE_URL, GITHUB_URL))):
-        cls = "dl primary" if i == 0 else "dl"
-        text = f'<span class="full">{e(label)}</span><span class="short" aria-hidden="true">{e(short[i])}</span>'
-        if url:
-            out.append(f'<a class="{cls}" href="{e(url)}">{text}</a>')
-        else:
-            out.append(f'<a class="{cls}" href="#" aria-disabled="true">{text}<small>{e(t["live"]["soon"])}</small></a>')
-    return f'<div class="dls" role="group" aria-label="{e(t["live"]["dl"])}">{"".join(out)}</div>'
+BADGES = ROOT / "assets" / "badges"
+# Apple's badge is only available from Apple's marketing tools (Marketing Resources and Identity Guidelines,
+# "Download on the Mac App Store"), after the owner accepts Apple's licence. Save the official black badge, unaltered,
+# as website/assets/badges/mac-app-store.svg: the build then shows it instead of the neutral placeholder button.
+MAS_BADGE = "mac-app-store.svg"
+
+
+def dl_link(t, url, inner, cls):
+    """A download link; without a URL it goes nowhere and says "coming soon" under it."""
+    if url:
+        return f'<li class="dlitem"><a class="{cls}" href="{e(url)}">{inner}</a></li>'
+    return (f'<li class="dlitem"><a class="{cls}" href="#" aria-disabled="true">{inner}</a>'
+            f'<small class="soon">{e(t["dl"]["soon"])}</small></li>')
+
+
+GH_MARK = '<img src="/assets/badges/github-mark-white.svg" alt="" width="25" height="24">'
+
+
+def download_section(t):
+    """The Download band at the bottom of the home page: the official store badges (black, never recoloured), the
+    GitHub button, then plain links to the installers."""
+    d = t["dl"]
+    if (BADGES / MAS_BADGE).exists():
+        mas = f'<img src="/assets/badges/{MAS_BADGE}" alt="{e(d["mas"])}" height="48">'
+        mas_cls = "badge"
+    else:
+        mas = 'Mac App Store'  # neutral placeholder: no Apple logo until the official badge is in place
+        mas_cls = "badge plain"
+    ms = f'<img src="/assets/badges/microsoft-store.svg" alt="{e(d["ms"])}" width="175" height="48">'
+    gh = f'{GH_MARK}<span>{e(d["gh"])}</span>'
+    badges = (dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge")
+              + dl_link(t, GITHUB_URL, gh, "badge plain gh"))
+    files = "".join(dl_link(t, u, e(label), "file") for label, u in zip(d["files"], (WINDOWS_MSI_URL, MACOS_DMG_URL, LINUX_PACKAGES_URL)))
+    return f"""<section class="dlband" id="download" aria-labelledby="download-h">
+  <h2 id="download-h">{e(d["h"])}</h2>
+  <ul class="badges">{badges}</ul>
+  <ul class="files">{files}</ul>
+</section>"""
 
 
 def header(t, lang, page):
@@ -340,12 +373,12 @@ def header(t, lang, page):
         for l in LANGS
     )
     return f"""<header class="top">
-  <a class="brand" href="{p}/"><img src="/assets/icon-64.png" alt="" width="32" height="32">MQTT Panel</a>
+  <a class="brand" href="{p}/"><img src="/assets/icon-64.png" alt="" width="32" height="32"><span>MQTT Panel</span></a>
   <nav aria-label="Site">
     <a class="navl" href="{p}/#features">{e(t["nav_features"])}</a><a class="navl" href="{p}/privacy">{e(t["nav_privacy"])}</a>
-    {downloads(t)}
     <span class="lang" role="group" aria-label="{e(t["lang_label"])}">{langs}</span>
     {theme_switch(t)}
+    <a class="cta" href="{p}/#download">{e(t["dl"]["button"])}</a>
   </nav>
 </header>"""
 
@@ -465,7 +498,6 @@ def index(t, lang):
 <section class="hero">
   <h1>MQTT Panel</h1>
   <p class="lead">{e(t["lead"])}</p>
-  <p class="meta">{e(t["platforms"])}</p>
   {live(t, lang, "hero", "look-tree", t["hero"]["alt"], hero=True)}
   <p class="hint">{e(t["hero"]["hint"])}</p>
 </section>
@@ -482,6 +514,7 @@ def index(t, lang):
   <p>{e(t["privacy_p"])}</p>
   <p><a class="more" href="{p}/privacy">{e(t["privacy_link"])} →</a></p>
 </section>
+{download_section(t)}
 </main>""" + footer(t, lang, "")
 
 

@@ -40,6 +40,12 @@
   });
   showTheme();
 
+  // ---- small screens: the Download bar at the bottom steps aside while the Download section is on screen
+  var cta = document.querySelector('.cta'), band = document.getElementById('download');
+  if (cta && band && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (es) { cta.classList.toggle('away', es[0].isIntersecting); }).observe(band);
+  }
+
   // ---- tabs: click or arrow keys switch the panel
   Array.prototype.forEach.call(document.querySelectorAll('.looks'), function (box) {
     var tabs = Array.prototype.slice.call(box.querySelectorAll('[role=tab]'));

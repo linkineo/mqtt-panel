@@ -5,6 +5,8 @@
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --u: 8px; --dim: rgba(12, 12, 11, .5);
+  /* the Download button and band: slate with white text in both themes (5.7:1) */
+  --slate: #56697A; --slate-ink: #FFFFFF;
   color-scheme: light;
 }
 /* dark: follows the system unless the visitor picked light or dark with the switch (data-theme on <html>) */
@@ -30,7 +32,7 @@
 :root[data-theme="dark"] .td { display: block !important }
 
 * { box-sizing: border-box }
-html { -webkit-text-size-adjust: 100%; overflow-x: clip }
+html { -webkit-text-size-adjust: 100%; overflow-x: clip; scroll-behavior: smooth }
 body {
   margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -43,7 +45,7 @@ h1, h2 { letter-spacing: -.03em; line-height: 1.05; text-wrap: balance }
 a { color: inherit; text-underline-offset: 3px }
 a:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
 
-/* header: sticky, with the download links (a bar at the bottom on small screens) */
+/* header: sticky, with the Download button at the right (a bar at the bottom on small screens) */
 .top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: calc(2 * var(--u)); padding-block: calc(1.5 * var(--u)) }
 .top::before { content: ""; position: absolute; z-index: -1; top: 0; bottom: 0; left: 50%; width: 100vw; transform: translateX(-50%); background: var(--paper); border-bottom: 1px solid var(--line) }
 .brand { display: flex; align-items: center; gap: var(--u); font-weight: 700; font-size: 18px; letter-spacing: -.01em; text-decoration: none; flex: none }
@@ -51,12 +53,9 @@ a:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-
 .top nav { display: flex; align-items: center; gap: calc(2 * var(--u)); font-size: 15px; color: var(--ink-2); min-width: 0 }
 .top nav > .navl { text-decoration: none; white-space: nowrap }
 .top nav > .navl:hover { color: var(--ink) }
-.dls { display: flex; gap: 6px }
-.dl { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap }
-.dl.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
-.dl small { font-size: 11px; font-weight: 500; opacity: .75 }
-.dl .short { display: none }
-.dl[aria-disabled="true"] { cursor: default }
+.cta { display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 6px; background: var(--slate); color: var(--slate-ink); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; flex: none }
+.cta:hover { background: #4A5B6A }
+.cta:focus-visible { outline: 2px solid var(--slate); outline-offset: 2px }
 .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; font-size: 13px; font-weight: 600; flex: none }
 .lang a { padding: 4px var(--u); text-decoration: none; color: var(--ink-2) }
 .lang a[aria-current] { background: var(--ink); color: var(--paper) }
@@ -64,7 +63,6 @@ a:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-
 .hero { padding-block: calc(6 * var(--u)) calc(8 * var(--u)); border-bottom: 1px solid var(--line) }
 .hero h1 { font-size: clamp(48px, 8vw, 96px); font-weight: 800 }
 .hero .lead { margin-top: calc(3 * var(--u)); font-size: clamp(19px, 2.2vw, 24px); line-height: 1.4; max-width: 46ch }
-.meta { margin-top: calc(2 * var(--u)); font-size: 14px; color: var(--ink-2) }
 .hero .live { margin-top: calc(5 * var(--u)) }
 
 /* live views: the screenshot, then the app in a frame scaled over it */
@@ -77,7 +75,7 @@ a:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-
 .lpause { position: absolute; right: 10px; bottom: 10px; z-index: 2; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-size: 9px; display: grid; place-items: center; padding: 0; cursor: pointer; opacity: .8 }
 .lpause[hidden] { display: none }
 .lpause:hover, .lpause:focus-visible { opacity: 1; color: var(--ink) }
-.lpause:focus-visible, .theme button:focus-visible, .dl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.lpause:focus-visible, .theme button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 
 /* blocks */
 .block { padding-block: calc(8 * var(--u)); border-bottom: 1px solid var(--line) }
@@ -130,6 +128,23 @@ html:not(.js) .term .cmd::after { content: none }
 .more { color: var(--accent); font-weight: 600; text-decoration: none }
 .more:hover { text-decoration: underline }
 
+/* Download band: the official badges stay black (Apple and Microsoft forbid recolouring) on the slate band */
+.dlband { margin-block: calc(8 * var(--u)) 0; padding: calc(6 * var(--u)) calc(5 * var(--u)); border-radius: 28px; background: var(--slate); color: var(--slate-ink); scroll-margin-top: 80px }
+.dlband h2 { font-size: clamp(32px, 4.4vw, 52px); font-weight: 700 }
+.dlband ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap }
+.badges { margin-top: calc(4 * var(--u)) !important; gap: calc(3 * var(--u)) }
+.dlitem { display: flex; flex-direction: column; align-items: flex-start; gap: 6px }
+.badge { display: block; border-radius: 8px; text-decoration: none }
+.badge img { height: 48px; width: auto }
+.badge.plain { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 18px; background: #000; color: #FFF; border: 1px solid #A6A6A6; font-size: 17px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap }
+.badge.gh img { height: 24px; width: auto }
+.badge:focus-visible, .file:focus-visible { outline: 2px solid var(--slate-ink); outline-offset: 3px }
+a[aria-disabled="true"] { cursor: default }
+.soon { font-size: 13px; color: var(--slate-ink) }
+.files { margin-top: calc(4 * var(--u)) !important; padding-top: calc(3 * var(--u)) !important; border-top: 1px solid rgba(255, 255, 255, .35); gap: var(--u) calc(4 * var(--u)) }
+.files .dlitem { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 0 var(--u) }
+.file { color: var(--slate-ink); font-size: 16px; font-weight: 600 }
+
 /* text pages */
 .doc { max-width: 720px; padding-block: calc(6 * var(--u)) calc(8 * var(--u)); display: grid; gap: calc(3 * var(--u)) }
 .doc h1 { font-size: clamp(36px, 5vw, 56px); font-weight: 800 }
@@ -151,18 +166,21 @@ footer a:hover { color: var(--ink); text-decoration: underline }
   .top nav > .navl { display: none }
 }
 @media (max-width: 900px) {
-  .dls { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; justify-content: center; padding: var(--u) max(16px, env(safe-area-inset-left)) calc(var(--u) + env(safe-area-inset-bottom)); background: var(--paper); border-top: 1px solid var(--line) }
-  .dl { flex: 1 1 0; justify-content: center; min-width: 0; padding: 0 8px; font-size: 13px; overflow: hidden }
-  .dl small { display: none }
-  .dl .full { display: none }
-  .dl .short { display: inline }
-  body { padding-bottom: 64px }
+  .cta { position: fixed; left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); bottom: calc(var(--u) + env(safe-area-inset-bottom)); z-index: 20; justify-content: center; height: 44px; box-shadow: 0 0 0 6px var(--paper) }
+  body { padding-bottom: 72px }
+  .cta { transition: opacity .2s ease }
+  .cta.away { opacity: 0; visibility: hidden }
+  .dlband { padding: calc(4 * var(--u)) calc(3 * var(--u)); border-radius: 20px }
   .bhead h2, .bhead p { grid-column: 1 / -1 }
   .cards { grid-template-columns: 1fr }
   .card, .card.wide { display: flex; flex-direction: column; padding: calc(3 * var(--u)) calc(3 * var(--u)) 0; border-radius: 20px }
   .card.wide .ctext { padding-bottom: 0 }
   .card.wide .cvisual { padding-top: calc(3 * var(--u)) }
   .card.wide .cvisual > .frame { border-radius: 12px 12px 0 0 }
+}
+@media (max-width: 400px) {
+  /* 320 px: the icon alone links home, so the language and theme switches fit */
+  .brand span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap }
 }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important }
