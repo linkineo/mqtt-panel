@@ -19,18 +19,20 @@ The assistant acts through the running app. The user sees every change in the wi
 - `mqttpanel mcp` is an MCP server over stdio in the existing CLI binary. It forwards every call to the running app
   over a local socket (Unix socket in the app data folder, named pipe on Windows), same user only. If the app is not
   running, the shim starts it and waits for the socket (owner: start the app).
-- The app also serves MCP over streamable HTTP on `127.0.0.1` with a random bearer token, for hosts that only speak
-  HTTP. It is off until the user turns it on in Settings; the token is shown there and can be rotated.
-- "Seamless" setup, Settings page **Assistant**:
-  - **Claude Desktop** and **Claude Code**: one button each, "Add to Claude Desktop" / "Add to Claude Code", which
-    writes the `mqttpanel mcp` entry into the host's configuration file after a confirmation that names the file.
-  - **ChatGPT**: ChatGPT connects to MCP servers as connectors over HTTP. The spike verifies whether the ChatGPT
-    desktop app accepts a `127.0.0.1` connector; if yes, the page offers "Copy connector address" (URL and token) and
-    the short list of steps; if ChatGPT only accepts public addresses, MQTT Panel says so on the page and stops there
-    (no tunnel, no relay; the app makes no outbound connection for this).
-  - **Any other host**: the generic configuration snippet to copy.
-- The MCP server is **enabled by default** (owner), reachable only once a host launches the shim or the user turns
-  the HTTP endpoint on.
+- stdio is enough for both target hosts (checked 20 Oct 2026): Claude Desktop and Claude Code launch stdio servers
+  from their configuration files; the ChatGPT desktop app launches stdio servers through its Codex configuration
+  (`~/.codex/config.toml`, section `[mcp_servers.<name>]`, also editable in the app under Settings, MCP servers),
+  shared with the Codex CLI and IDE extension, per OpenAI's documentation. ChatGPT on the web only takes remote
+  servers over HTTPS; that is out of scope (no tunnel, no relay, no outbound connection). No HTTP endpoint in the app.
+- "Seamless" setup, Settings page **Assistant**, one button per host family:
+  - **"Add to Claude"**: writes the `mqttpanel mcp` entry into the Claude Desktop and Claude Code configuration files
+    that exist on this machine, after a confirmation that names the files, and reports which ones it wrote.
+  - **"Add to ChatGPT"**: writes `[mcp_servers.mqttpanel]` into `~/.codex/config.toml` (created if missing), same
+    confirmation; the page notes that this is for the ChatGPT desktop app and that ChatGPT on the web cannot reach a
+    local server.
+  - **Other hosts**: the generic configuration snippet to copy.
+- The MCP server is **enabled by default** (owner): a configured host can launch the shim at any time; nothing listens
+  until it does.
 
 ## 3. Security model
 
@@ -53,7 +55,7 @@ The assistant acts through the running app. The user sees every change in the wi
   broker") and appends a row to Settings, Assistant (time, host name, tool, arguments without secrets, outcome), kept
   for the session, exportable as text.
 - **Limits**: one host session at a time per transport; tool calls time out after 30 s (connect: 20 s); history reads
-  are bounded (section 5); the HTTP endpoint accepts only loopback clients with the token.
+  are bounded (section 5).
 
 ## 4. Tools (names and arguments are proposals)
 
@@ -122,9 +124,8 @@ devices" (asks what devices, picks the preset, issues certificates, exports CA.p
 
 ## 6. Settings page "Assistant"
 
-Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude Desktop", "Add to Claude Code",
-"ChatGPT" (address and token when the HTTP endpoint is on, or the explanation), "Other hosts" (snippet, copy); HTTP
-endpoint switch with the token and "Rotate"; the Assistant log (table, Clear, Export…). Every row has an ⓘ.
+Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude", "Add to ChatGPT", "Other hosts"
+(snippet, copy), each reporting what is configured; the Assistant log (table, Clear, Export…). Every row has an ⓘ.
 
 ## 7. Tests
 
@@ -137,20 +138,19 @@ endpoint switch with the token and "Rotate"; the Assistant log (table, Clear, Ex
 
 ## 8. Phases
 
-1. Spike (2 days): shim, socket, three tools (`list_connections`, `connect`, `list_topics`), Claude Code and Claude
-   Desktop setup buttons, ChatGPT connector check.
+1. Spike (2 days): shim, socket, three tools (`list_connections`, `connect`, `list_topics`), the "Add to Claude"
+   and "Add to ChatGPT" buttons, a scripted session from each host.
 2. Connections and certificates tools, secrets rules, acknowledgement, toasts and log.
 3. Broker tools, data and charts tools, navigation, resources, prompts, exports.
 4. Settings page polish, docs (RUNNING, FEATURES, SPEC 6 security), website section "Works with your assistant".
 
 ## 9. Readings to confirm
 
-- The HTTP endpoint exists only for hosts that cannot spawn a process (ChatGPT); it is off until turned on, even
-  though MCP as such is "enabled by default".
 - "Enabled by default" plus the one-time acknowledgement means: a host can connect at any time, but writing tools
   work only after the sentence was accepted once.
 - Direct secrets are allowed but every such tool result carries the warning once per session, and the log says so.
 - Navigation tools bring the window forward; they never steal focus while the user is typing in another app (the
   window is raised without activation when MQTT Panel is not frontmost; a toast says the assistant moved the view).
 - History reads are capped at 500 rows per call; bigger extracts go through `export_data` to a file picked in the app.
-- One host session per transport at a time; a second host gets "another assistant is connected".
+- One host session at a time; a second host gets "another assistant is connected".
+- ChatGPT support means the ChatGPT desktop app through its Codex MCP configuration; ChatGPT on the web is out of scope.
