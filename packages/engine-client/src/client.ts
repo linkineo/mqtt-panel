@@ -4,6 +4,7 @@ import type {
   AppBrokerStepResult,
   AppInfo,
   AssistantAnswer,
+  AssistantChart,
   AssistantLogEntry,
   AssistantStatus,
   AssistantWriteReport,
@@ -235,6 +236,12 @@ export interface EngineClient {
   assistantExportLog(): Promise<SaveOutcome>;
   /** Answers an assistant request (password prompt, file picker); false when the call no longer waits. */
   assistantAnswer(requestId: string, answer: AssistantAnswer): Promise<boolean>;
+  /** "Choose…" in an assistant export request: the native save dialog with this name; the path, or null. */
+  assistantPickSave(defaultName: string): Promise<string | null>;
+  /** "Choose…" in an assistant folder request (CA.pem, server certificate, a new client certificate). */
+  assistantPickFolder(): Promise<string | null>;
+  /** The dashboard charts after every change, for the assistant's chart tools (session only). */
+  syncCharts(charts: AssistantChart[]): Promise<void>;
 
   // events
   /** Subscribes to batched events (<= 30 Hz). Returns an unsubscribe function. */

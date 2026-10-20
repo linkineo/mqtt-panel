@@ -13,6 +13,7 @@ import { JsonView, pathLabel } from '../../components/JsonView';
 import { Info, Popover, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { TopicInput } from '../publish/PublishScreen';
 import { fmtBytes, fmtNum } from '../../lib/format';
+import { chartPngBase64 } from '../../lib/chartImage';
 
 export function ChartsScreen() {
   const conn = useActiveConnection();
@@ -411,15 +412,7 @@ function Charts({ connId }: { connId: string }) {
     } else if (id === 'png') {
       const canvas = plot.current?.ctx.canvas;
       if (!canvas) return;
-      // paint the theme background under the transparent canvas
-      const c2 = document.createElement('canvas');
-      c2.width = canvas.width;
-      c2.height = canvas.height;
-      const g = c2.getContext('2d')!;
-      g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff';
-      g.fillRect(0, 0, c2.width, c2.height);
-      g.drawImage(canvas, 0, 0);
-      const b64 = c2.toDataURL('image/png').split(',')[1];
+      const b64 = chartPngBase64(canvas);
       const out = await run(engine().savePng(`${chart.name || 'chart'}.png`, b64));
       if (out) reportSave(out, t);
     }

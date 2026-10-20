@@ -77,11 +77,30 @@ pub enum AssistantEvent {
     Acknowledge,
     /// The acknowledgement was answered (the dialog closes in every window).
     AcknowledgeDone,
-    /// Ask the user in the app: `password`, `caCert`, `clientCert` (certificate, key, passphrase) or `signedCert`.
+    /// Ask the user in the app: `password`, `caCert`, `clientCert` (certificate, key, passphrase) or `signedCert` for a
+    /// connection; `brokerPassword` (a broker user), `saveFile` (where to save an export, `default_name`), `folder`
+    /// (a folder for `default_name`), `issueCert` (a folder for a new client certificate, and its passphrase when
+    /// `with_passphrase`), or `chartPng` (the window draws the chart `chart_id` and answers with the image, no dialog).
+    /// `profile_name` is the name shown in the dialog title (connection, user, certificate or file).
     #[serde(rename_all = "camelCase")]
-    Request { id: String, request: String, profile_id: String, profile_name: String },
+    Request {
+        id: String,
+        request: String,
+        profile_id: String,
+        profile_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        default_name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        format: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        with_passphrase: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        chart_id: Option<String>,
+    },
     /// A request was answered, cancelled or timed out: the UI closes its prompt.
     RequestDone { id: String },
+    /// The dashboard charts changed through the assistant: the Charts screen shows this list.
+    Charts { charts: Vec<crate::charts::Chart> },
 }
 
 /// The answer to an [`AssistantEvent::Request`], from the app's prompt or picker. Secrets in it stay in the app.
@@ -95,6 +114,20 @@ pub struct AssistantAnswer {
     /// The picked key file (client certificate request).
     pub key_path: Option<String>,
     pub passphrase: Option<String>,
+    /// `chartPng`: the chart image, PNG in base64 (not a secret).
+    pub data: Option<String>,
+}
+
+/// What a tool asks the user in the app (see [`AssistantEvent::Request`]).
+#[derive(Debug, Clone, Default)]
+pub struct Ask {
+    pub request: String,
+    pub profile_id: String,
+    pub name: String,
+    pub default_name: Option<String>,
+    pub format: Option<String>,
+    pub with_passphrase: Option<bool>,
+    pub chart_id: Option<String>,
 }
 
 /// One row of the Assistant log (Settings, Assistant); kept for the session of the app, never written to disk.
@@ -320,12 +353,21 @@ pub async fn wait_for_ack(link: &dyn AppLink) -> bool {
     ok && acknowledged(state)
 }
 
-/// Asks the user in the app (a prompt or a picker) and waits up to `limits.user`. Err(true) when cancelled, Err(false)
-/// when nobody answered in time.
-pub async fn ask_user(link: &dyn AppLink, request: &str, profile_id: &str, profile_name: &str) -> Result<AssistantAnswer, bool> {
+/// Asks the user in the app (a prompt, a picker, or the chart image) and waits up to `limits.user`. Err(true) when
+/// cancelled, Err(false) when nobody answered in time.
+pub async fn ask_with(link: &dyn AppLink, a: Ask) -> Result<AssistantAnswer, bool> {
     let hub = &link.state().assistant;
     let (id, rx) = hub.new_request();
-    link.emit(AssistantEvent::Request { id: id.clone(), request: request.into(), profile_id: profile_id.into(), profile_name: profile_name.into() });
+    link.emit(AssistantEvent::Request {
+        id: id.clone(),
+        request: a.request,
+        profile_id: a.profile_id,
+        profile_name: a.name,
+        default_name: a.default_name,
+        format: a.format,
+        with_passphrase: a.with_passphrase,
+        chart_id: a.chart_id,
+    });
     link.raise_window();
     let r = tokio::time::timeout(hub.limits().user, rx).await;
     lock(&hub.pending).remove(&id);

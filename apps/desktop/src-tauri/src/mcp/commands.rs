@@ -109,6 +109,18 @@ pub async fn assistant_export_log(app: AppHandle, state: State<'_, AppState>) ->
     Ok(crate::files::save_bytes(&app, "mqttpanel-assistant-log.txt", text.as_bytes()))
 }
 
+/// "Choose…" in an assistant request to save an export: the native save dialog with the default name; the path.
+#[tauri::command]
+pub async fn assistant_pick_save(app: AppHandle, default_name: String) -> Option<String> {
+    crate::files::save_path(&app, &default_name).map(|p| p.to_string_lossy().to_string())
+}
+
+/// "Choose…" in an assistant request for a folder (CA.pem, server certificate, a new client certificate).
+#[tauri::command]
+pub async fn assistant_pick_folder(app: AppHandle) -> Option<String> {
+    crate::files::pick_folder(&app).map(|p| p.to_string_lossy().to_string())
+}
+
 /// The app's answer to a request of the assistant (password prompt, file picker); false when nobody waits any more.
 #[tauri::command]
 pub fn assistant_answer(state: State<'_, AppState>, request_id: String, answer: AssistantAnswer) -> bool {

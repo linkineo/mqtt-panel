@@ -33,11 +33,13 @@ pub fn broker_dir() -> std::path::PathBuf {
     mqttpanel_profiles::default_dir().join("broker")
 }
 
-fn um(m: mqttpanel_broker::UserMessage) -> UserMessage {
+/// A broker message as the app's message.
+pub fn um(m: mqttpanel_broker::UserMessage) -> UserMessage {
     UserMessage { key: m.key, params: m.params, text: m.text }
 }
 
-fn be(e: BrokerError) -> UserMessage {
+/// A broker error as the app's message.
+pub fn be(e: BrokerError) -> UserMessage {
     um(e.into())
 }
 
@@ -47,7 +49,8 @@ pub fn test_manager(s: &BrokerState) -> &BrokerManager {
     s.manager.get().unwrap().as_ref().unwrap()
 }
 
-fn mgr<'a>(state: &'a AppState) -> R<&'a BrokerManager> {
+/// The broker manager (opened on first use); shared with the assistant tools.
+pub fn mgr<'a>(state: &'a AppState) -> R<&'a BrokerManager> {
     state
         .broker
         .manager
@@ -112,7 +115,11 @@ pub fn broker_running(state: &AppState) -> bool {
 
 #[tauri::command]
 pub async fn broker_stop(state: State<'_, AppState>) -> R<BrokerStatus> {
-    Ok(mgr(&state)?.stop().await)
+    broker_stop_on(&state).await
+}
+
+pub async fn broker_stop_on(state: &AppState) -> R<BrokerStatus> {
+    Ok(mgr(state)?.stop().await)
 }
 
 #[tauri::command]
@@ -124,70 +131,110 @@ pub fn validate_port(state: State<'_, AppState>, port: u32, listener_id: Option<
 
 #[tauri::command]
 pub async fn add_listener(state: State<'_, AppState>, request: AddListenerRequest) -> R<BrokerConfig> {
-    let before = local_fingerprint(&state);
-    let r = mgr(&state)?.add_listener(request).await;
-    followed(&state, before, r).await
+    add_listener_on(&state, request).await
+}
+
+pub async fn add_listener_on(state: &AppState, request: AddListenerRequest) -> R<BrokerConfig> {
+    let before = local_fingerprint(state);
+    let r = mgr(state)?.add_listener(request).await;
+    followed(state, before, r).await
 }
 
 #[tauri::command]
 pub async fn update_listener(state: State<'_, AppState>, listener: Listener) -> R<BrokerConfig> {
-    let before = local_fingerprint(&state);
-    let r = mgr(&state)?.update_listener(listener).await;
-    followed(&state, before, r).await
+    update_listener_on(&state, listener).await
+}
+
+pub async fn update_listener_on(state: &AppState, listener: Listener) -> R<BrokerConfig> {
+    let before = local_fingerprint(state);
+    let r = mgr(state)?.update_listener(listener).await;
+    followed(state, before, r).await
 }
 
 #[tauri::command]
 pub async fn remove_listener(state: State<'_, AppState>, listener_id: String) -> R<BrokerConfig> {
-    let before = local_fingerprint(&state);
-    let r = mgr(&state)?.remove_listener(&listener_id).await;
-    followed(&state, before, r).await
+    remove_listener_on(&state, &listener_id).await
+}
+
+pub async fn remove_listener_on(state: &AppState, listener_id: &str) -> R<BrokerConfig> {
+    let before = local_fingerprint(state);
+    let r = mgr(state)?.remove_listener(listener_id).await;
+    followed(state, before, r).await
 }
 
 /// Reachability of every listener, broker-wide (change set 4): the whole network or this computer only.
 #[tauri::command]
 pub async fn set_broker_bind(state: State<'_, AppState>, bind: Bind) -> R<BrokerConfig> {
-    let before = local_fingerprint(&state);
-    let r = mgr(&state)?.set_bind(bind).await;
-    followed(&state, before, r).await
+    set_broker_bind_on(&state, bind).await
+}
+
+pub async fn set_broker_bind_on(state: &AppState, bind: Bind) -> R<BrokerConfig> {
+    let before = local_fingerprint(state);
+    let r = mgr(state)?.set_bind(bind).await;
+    followed(state, before, r).await
 }
 
 #[tauri::command]
 pub async fn set_anonymous(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
-    let before = local_fingerprint(&state);
-    let r = mgr(&state)?.set_anonymous(on);
-    followed(&state, before, r).await
+    set_anonymous_on(&state, on).await
+}
+
+pub async fn set_anonymous_on(state: &AppState, on: bool) -> R<BrokerConfig> {
+    let before = local_fingerprint(state);
+    let r = mgr(state)?.set_anonymous(on);
+    followed(state, before, r).await
 }
 
 /// Client certificate on encrypted listeners, broker-wide: Required (true) or Optional (false).
 #[tauri::command]
 pub async fn set_require_client_cert(state: State<'_, AppState>, on: bool) -> R<BrokerConfig> {
-    let before = local_fingerprint(&state);
-    let r = mgr(&state)?.set_require_client_cert(on);
-    followed(&state, before, r).await
+    set_require_client_cert_on(&state, on).await
+}
+
+pub async fn set_require_client_cert_on(state: &AppState, on: bool) -> R<BrokerConfig> {
+    let before = local_fingerprint(state);
+    let r = mgr(state)?.set_require_client_cert(on);
+    followed(state, before, r).await
 }
 
 #[tauri::command]
 pub async fn set_verify_against(state: State<'_, AppState>, source: VerifyAgainst) -> R<BrokerConfig> {
-    let before = local_fingerprint(&state);
-    let r = mgr(&state)?.set_verify_against(source);
-    followed(&state, before, r).await
+    set_verify_against_on(&state, source).await
+}
+
+pub async fn set_verify_against_on(state: &AppState, source: VerifyAgainst) -> R<BrokerConfig> {
+    let before = local_fingerprint(state);
+    let r = mgr(state)?.set_verify_against(source);
+    followed(state, before, r).await
 }
 
 #[tauri::command]
 pub fn add_user(state: State<'_, AppState>, username: String, password: String) -> R<BrokerConfig> {
-    mgr(&state)?.add_user(&username, &password).map_err(be)
+    add_user_on(&state, &username, &password)
+}
+
+pub fn add_user_on(state: &AppState, username: &str, password: &str) -> R<BrokerConfig> {
+    mgr(state)?.add_user(username, password).map_err(be)
 }
 
 #[tauri::command]
 pub async fn set_user_password(state: State<'_, AppState>, username: String, password: String) -> R<BrokerConfig> {
-    let before = local_fingerprint(&state);
-    let r = mgr(&state)?.set_user_password(&username, &password);
-    followed(&state, before, r).await
+    set_user_password_on(&state, &username, &password).await
+}
+
+pub async fn set_user_password_on(state: &AppState, username: &str, password: &str) -> R<BrokerConfig> {
+    let before = local_fingerprint(state);
+    let r = mgr(state)?.set_user_password(username, password);
+    followed(state, before, r).await
 }
 
 #[tauri::command]
 pub fn remove_user(state: State<'_, AppState>, username: String) -> R<BrokerConfig> {
-    mgr(&state)?.remove_user(&username).map_err(be)
+    remove_user_on(&state, &username)
+}
+
+pub fn remove_user_on(state: &AppState, username: &str) -> R<BrokerConfig> {
+    mgr(state)?.remove_user(username).map_err(be)
 }
 
 /// The plain password of a broker user, for the eye and copy icons of the users table.
@@ -203,8 +250,13 @@ pub fn issued_certs(state: State<'_, AppState>) -> R<Vec<IssuedCert>> {
 
 #[tauri::command]
 pub async fn issue_client_cert(app: AppHandle, state: State<'_, AppState>, request: IssueCertRequest) -> R<SaveOutcome> {
-    let files_ = mgr(&state)?.issue_client_cert(request).map_err(be)?;
+    let files_ = issue_client_cert_on(&state, request)?;
     Ok(files::save_files(&app, &files_))
+}
+
+/// Issues a client certificate; returns the files to write (certificate, key or PKCS#12 bundle, CA.pem).
+pub fn issue_client_cert_on(state: &AppState, request: IssueCertRequest) -> R<Vec<SaveFile>> {
+    mgr(state)?.issue_client_cert(request).map_err(be)
 }
 
 #[tauri::command]
@@ -224,7 +276,11 @@ pub async fn export_client_cert(app: AppHandle, state: State<'_, AppState>, name
 
 #[tauri::command]
 pub fn revoke_client_cert(state: State<'_, AppState>, name: String) -> R<Vec<IssuedCert>> {
-    mgr(&state)?.revoke_client_cert(&name).map_err(be)
+    revoke_client_cert_on(&state, &name)
+}
+
+pub fn revoke_client_cert_on(state: &AppState, name: &str) -> R<Vec<IssuedCert>> {
+    mgr(state)?.revoke_client_cert(name).map_err(be)
 }
 
 #[tauri::command]
@@ -249,9 +305,13 @@ pub async fn export_server_cert(app: AppHandle, state: State<'_, AppState>) -> R
 /// dialog's "Extra names", kept in the broker configuration).
 #[tauri::command]
 pub async fn regenerate_broker_certs(state: State<'_, AppState>, extra_sans: Vec<String>, key_type: mqttpanel_tls::kit::KeyAlg) -> R<BrokerCerts> {
-    let before = local_fingerprint(&state);
-    let c = mgr(&state)?.regenerate_with_extra(&extra_sans, key_type).map_err(be)?;
-    follow_and_reconnect(&state, before).await;
+    regenerate_broker_certs_on(&state, &extra_sans, key_type).await
+}
+
+pub async fn regenerate_broker_certs_on(state: &AppState, extra_sans: &[String], key_type: mqttpanel_tls::kit::KeyAlg) -> R<BrokerCerts> {
+    let before = local_fingerprint(state);
+    let c = mgr(state)?.regenerate_with_extra(extra_sans, key_type).map_err(be)?;
+    follow_and_reconnect(state, before).await;
     Ok(c)
 }
 
@@ -276,9 +336,13 @@ pub async fn import_client_ca(app: AppHandle, state: State<'_, AppState>) -> R<O
 
 #[tauri::command]
 pub async fn rotate_ca(state: State<'_, AppState>) -> R<BrokerCerts> {
-    let before = local_fingerprint(&state);
-    let c = mgr(&state)?.rotate_ca().map_err(be)?;
-    follow_and_reconnect(&state, before).await;
+    rotate_ca_on(&state).await
+}
+
+pub async fn rotate_ca_on(state: &AppState) -> R<BrokerCerts> {
+    let before = local_fingerprint(state);
+    let c = mgr(state)?.rotate_ca().map_err(be)?;
+    follow_and_reconnect(state, before).await;
     Ok(c)
 }
 

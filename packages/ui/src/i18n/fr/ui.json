@@ -999,5 +999,15 @@
  "info.assistant.claude": "Ajoute MQTT Panel à Claude Desktop et à Claude Code, dans les fichiers de configuration présents sur cet ordinateur. Le reste de ces fichiers ne change pas. Quittez puis rouvrez ensuite Claude.",
  "info.assistant.chatgpt": "Ajoute MQTT Panel à l’application ChatGPT pour ordinateur par ses réglages Codex (aussi utilisés par Codex en ligne de commande et dans l’éditeur). ChatGPT sur le web ne peut pas joindre un programme de cet ordinateur.",
  "info.assistant.other": "Pour tout autre assistant capable de lancer un serveur MCP local : il lance cette application avec l’argument « mcp ». Rien n’écoute sur le réseau ; l’assistant parle à MQTT Panel sur cet ordinateur uniquement.",
- "info.assistant.log": "Chaque modification faite par un assistant pendant cette session : heure, assistant, outil, ce qu’il a demandé (mots de passe et clés affichés •••) et le résultat. Conservé jusqu’à la fermeture de MQTT Panel ; Exporter… l’enregistre en fichier texte."
+ "info.assistant.log": "Chaque modification faite par un assistant pendant cette session : heure, assistant, outil, ce qu’il a demandé (mots de passe et clés affichés •••) et le résultat. Conservé jusqu’à la fermeture de MQTT Panel ; Exporter… l’enregistre en fichier texte.",
+ "assistant.req.brokerPassword": "L’assistant demande le mot de passe de l’utilisateur {name} du broker",
+ "assistant.req.saveFile": "L’assistant enregistre {name}",
+ "assistant.req.folder": "L’assistant enregistre {name}",
+ "assistant.req.issueCert": "L’assistant émet le certificat client {name}",
+ "assistant.req.saveText": "Choisissez où enregistrer le fichier. La conversation n’apprend que son chemin.",
+ "assistant.req.folderText": "Choisissez le dossier. La conversation n’apprend que le chemin du fichier.",
+ "assistant.req.issueText": "Choisissez le dossier des fichiers du certificat. La clé et la phrase secrète restent sur cet ordinateur ; la conversation n’apprend que les chemins.",
+ "assistant.req.saveTo": "Enregistrer sous",
+ "assistant.req.folderLabel": "Dossier",
+ "assistant.req.choose": "Choisir…"
 }

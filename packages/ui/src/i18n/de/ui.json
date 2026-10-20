@@ -999,5 +999,15 @@
  "info.assistant.claude": "Fügt MQTT Panel zu Claude Desktop und Claude Code hinzu, in den Konfigurationsdateien, die es auf diesem Computer gibt. Der Rest dieser Dateien bleibt, wie er ist. Beende Claude danach und öffne es wieder.",
  "info.assistant.chatgpt": "Fügt MQTT Panel über die Codex-Einstellungen zur ChatGPT-App für den Desktop hinzu (auch von Codex in der Kommandozeile und im Editor genutzt). ChatGPT im Web kann kein Programm auf diesem Computer erreichen.",
  "info.assistant.other": "Für jeden anderen Assistenten, der einen lokalen MCP-Server starten kann: Er startet diese App mit dem Argument „mcp“. Nichts lauscht im Netzwerk; der Assistent spricht nur auf diesem Computer mit MQTT Panel.",
- "info.assistant.log": "Jede Änderung, die ein Assistent in dieser Sitzung macht: Zeit, Assistent, Werkzeug, was er wollte (Passwörter und Schlüssel als •••) und das Ergebnis. Bleibt bis zum Beenden von MQTT Panel; Exportieren… speichert es als Textdatei."
+ "info.assistant.log": "Jede Änderung, die ein Assistent in dieser Sitzung macht: Zeit, Assistent, Werkzeug, was er wollte (Passwörter und Schlüssel als •••) und das Ergebnis. Bleibt bis zum Beenden von MQTT Panel; Exportieren… speichert es als Textdatei.",
+ "assistant.req.brokerPassword": "Der Assistent fragt nach dem Passwort des Broker-Benutzers {name}",
+ "assistant.req.saveFile": "Der Assistent speichert {name}",
+ "assistant.req.folder": "Der Assistent speichert {name}",
+ "assistant.req.issueCert": "Der Assistent stellt das Client-Zertifikat {name} aus",
+ "assistant.req.saveText": "Wähle, wo die Datei gespeichert wird. Der Chat erfährt nur ihren Pfad.",
+ "assistant.req.folderText": "Wähle den Ordner. Der Chat erfährt nur den Pfad der Datei.",
+ "assistant.req.issueText": "Wähle den Ordner für die Zertifikatsdateien. Schlüssel und Passphrase bleiben auf diesem Computer; der Chat erfährt nur die Pfade.",
+ "assistant.req.saveTo": "Speichern als",
+ "assistant.req.folderLabel": "Ordner",
+ "assistant.req.choose": "Wählen…"
 }

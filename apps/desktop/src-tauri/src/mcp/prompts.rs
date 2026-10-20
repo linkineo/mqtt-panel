@@ -1,6 +1,5 @@
-//! Prompts (guided flows the host can offer) and resources (cheap read-only views), docs/MCP.md section 4.
-//! Phase 3 adds "Set up the built-in broker for my devices", "Chart this value" and the broker, charts and topics
-//! resources here.
+//! Prompts (guided flows the host can offer) and the text of two resources, docs/MCP.md section 4: "Connect me to a
+//! broker", "Why can't I connect?", "Set up the built-in broker for my devices" and "Chart this value".
 
 use super::text::t;
 use super::{AppLink, LogEntry};
@@ -19,6 +18,8 @@ pub fn prompts() -> Vec<PromptDef> {
     vec![
         PromptDef { name: "connect_to_broker", key: "connect", arguments: &[("address", "connect.address")] },
         PromptDef { name: "why_cant_i_connect", key: "why", arguments: &[("connection", "why.connection")] },
+        PromptDef { name: "setup_builtin_broker", key: "broker", arguments: &[("devices", "broker.devices"), ("security", "broker.security")] },
+        PromptDef { name: "chart_this_value", key: "chart", arguments: &[("value", "chart.value"), ("connection", "chart.connection")] },
     ]
 }
 
@@ -35,6 +36,40 @@ pub fn prompt_text(link: &dyn AppLink, name: &str, args: &serde_json::Map<String
                 body.push_str("\n\n");
                 body.push_str(&t(lang, "prompt.connect.given", &[("address", json!(a))]));
             }
+        }
+        "broker" => {
+            for (k, given) in [("devices", "prompt.broker.givenDevices"), ("security", "prompt.broker.givenSecurity")] {
+                let a = arg(k);
+                if !a.is_empty() {
+                    body.push_str("\n\n");
+                    body.push_str(&t(lang, given, &[(k, json!(a))]));
+                }
+            }
+            body.push_str("\n\n");
+            body.push_str(&t(lang, "prompt.broker.state", &[]));
+            body.push_str("\n```json\n");
+            let state = super::tools::broker::status_json(link.state(), lang).unwrap_or(Value::Null);
+            body.push_str(&serde_json::to_string_pretty(&state).unwrap_or_default());
+            body.push_str("\n```");
+        }
+        "chart" => {
+            let v = arg("value");
+            if !v.is_empty() {
+                body.push_str("\n\n");
+                body.push_str(&t(lang, "prompt.chart.given", &[("value", json!(v))]));
+            }
+            let c = arg("connection");
+            if !c.is_empty() {
+                body.push_str("\n\n");
+                body.push_str(&t(lang, "prompt.chart.givenConnection", &[("connection", json!(c))]));
+            }
+            let open: Vec<Value> = connections_json(link).as_array().cloned().unwrap_or_default().into_iter().filter(|r| r["state"] == "connected").map(|r| json!({ "id": r["id"], "name": r["name"] })).collect();
+            body.push_str("\n\n");
+            body.push_str(&t(lang, "prompt.chart.state", &[]));
+            body.push_str("\n```json\n");
+            let charts = super::tools::charts::charts_json(link.state());
+            body.push_str(&serde_json::to_string_pretty(&json!({ "connected": open, "charts": charts["charts"] })).unwrap_or_default());
+            body.push_str("\n```");
         }
         _ => {
             let c = arg("connection");
@@ -93,11 +128,16 @@ pub fn log_text(lang: Lang, rows: &[LogEntry]) -> String {
     out.push_str(&t(lang, "logHeader", &[]));
     out.push('\n');
     for r in rows {
-        let at = time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(r.at) * 1_000_000)
-            .map(|d| format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC", d.year(), u8::from(d.month()), d.day(), d.hour(), d.minute(), d.second()))
-            .unwrap_or_default();
+        let at = utc(r.at);
         let note = r.note.as_deref().map(|n| format!(" ({n})")).unwrap_or_default();
         out.push_str(&format!("{at}\t{}\t{}\t{}\t{}\t{}{note}\n", r.host, r.tool, r.arguments, r.outcome, r.detail));
     }
     out
+}
+
+/// "2026-10-20 14:03:07 UTC" for a time in ms since the epoch.
+pub fn utc(ms: i64) -> String {
+    time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(ms) * 1_000_000)
+        .map(|d| format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC", d.year(), u8::from(d.month()), d.day(), d.hour(), d.minute(), d.second()))
+        .unwrap_or_default()
 }

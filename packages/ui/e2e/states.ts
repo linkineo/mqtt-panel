@@ -486,6 +486,18 @@ export const STATES: UiState[] = [
     },
   },
   {
+    // ask_in_app: the folder and the PKCS#12 passphrase of a new client certificate (broker_issue_client_cert)
+    id: '17f-assistant-issue',
+    query: 'mock=demo&screen=broker',
+    steps: async (p) => {
+      await p.evaluate(() =>
+        (window as any).__mqttpanelMock.engine.assistantEvent({ kind: 'request', id: 'r1', request: 'issueCert', profileId: '', profileName: 'sensor-12', format: 'pkcs12', withPassphrase: true }),
+      );
+      await p.click('[data-testid=choose-assistant-place]');
+      await p.waitForSelector('[data-testid=file-assistant-place]:has-text("Documents")');
+    },
+  },
+  {
     id: '18-palette',
     query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {

@@ -1,12 +1,15 @@
 //! The tool registry. Each group is a table of [`ToolDef`]; [`registry`] concatenates them and the server reads only
-//! the table (name, description, schema, `writes`, secret fields, timeout kind, handler). Phase 3 adds the broker,
-//! data and chart groups here without touching the server.
+//! the table (name, description, schema, `writes`, secret fields, timeout kind, handler): Connections, Broker, Data
+//! (Explorer), Charts and Navigation.
 //!
 //! Handlers call the same functions as the Tauri commands (`crate::commands::*_on`, `crate::broker::*_on`) and return
 //! an [`Outcome`]: one or two plain sentences in the app language, plus a JSON block. They never return a password, a
 //! private key or a passphrase.
 
+pub mod broker;
+pub mod charts;
 pub mod connections;
+pub mod data;
 pub mod navigation;
 
 use super::text;
@@ -29,6 +32,8 @@ pub enum Wait {
     Connect,
     /// A tool with `ask_in_app`: up to 120 s for the user when it asks in the app, 30 s otherwise.
     MaybeUser,
+    /// A tool that always waits for the user in the app (a folder for new key files): 120 s plus 30 s.
+    User,
 }
 
 pub struct ToolDef {
@@ -57,6 +62,9 @@ impl ToolDef {
 /// Every tool of this build, in the order the host lists them.
 pub fn registry() -> Vec<ToolDef> {
     let mut all = connections::tools();
+    all.extend(broker::tools());
+    all.extend(data::tools());
+    all.extend(charts::tools());
     all.extend(navigation::tools());
     all
 }
@@ -151,11 +159,89 @@ impl Call {
     pub fn ask_in_app(&self) -> bool {
         self.opt_bool("ask_in_app").unwrap_or(true)
     }
+    pub fn opt_i64(&self, k: &str) -> Result<Option<i64>, Fail> {
+        match self.args.get(k) {
+            None | Some(Value::Null) => Ok(None),
+            Some(v) => v.as_i64().map(Some).ok_or_else(|| Fail::args(&format!("{k} must be a whole number"))),
+        }
+    }
+    /// A string argument that must be one of `allowed` (None when absent).
+    pub fn opt_enum(&self, k: &str, allowed: &[&str]) -> Result<Option<String>, Fail> {
+        match self.opt_str(k).filter(|v| !v.is_empty()) {
+            None => Ok(None),
+            Some(v) if allowed.contains(&v.as_str()) => Ok(Some(v)),
+            Some(_) => Err(Fail::args(&format!("{k} must be one of {}", allowed.join(", ")))),
+        }
+    }
+    /// The open (or recently open) connection named by `key`: its profile and its engine.
+    pub fn connection(&self, key: &str) -> Result<(mqttpanel_profiles::Profile, Arc<crate::state::Conn>), Fail> {
+        let p = self.profile(key)?.profile;
+        let c = crate::state::lock(&self.state().conns).get(&p.id).cloned();
+        match c {
+            Some(c) => Ok((p, c)),
+            None => Err(Fail::from(text::um("notConnected", &[("name", json!(p.name))]))),
+        }
+    }
+    /// Asks the user in the app; maps a cancel or no answer to the failures of the log.
+    pub async fn ask(&self, a: super::Ask) -> Result<super::AssistantAnswer, Fail> {
+        (self.waiting)();
+        match super::ask_with(self.link.as_ref(), a).await {
+            Ok(a) => Ok(a),
+            Err(true) => Err(Fail::cancelled()),
+            Err(false) => Err(Fail::no_answer(self.state().assistant.limits().user.as_secs())),
+        }
+    }
+    /// The file an export goes to: the direct `file` argument (an absolute path; not a secret), or the save dialog in
+    /// the app with `default_name`.
+    pub async fn save_target(&self, default_name: &str, what: &str) -> Result<std::path::PathBuf, Fail> {
+        if let Some(f) = self.opt_str("file").filter(|f| !f.trim().is_empty()) {
+            return absolute(&f, false);
+        }
+        if !self.ask_in_app() {
+            return Err(need("file"));
+        }
+        let a = self.ask(super::Ask { request: "saveFile".into(), name: what.into(), default_name: Some(default_name.into()), ..Default::default() }).await?;
+        a.path.filter(|p| !p.is_empty()).map(std::path::PathBuf::from).ok_or_else(Fail::cancelled)
+    }
+    /// The folder files go to: the direct `folder` argument, or the folder dialog in the app.
+    pub async fn folder_target(&self, default_name: &str, what: &str) -> Result<std::path::PathBuf, Fail> {
+        if let Some(f) = self.opt_str("folder").filter(|f| !f.trim().is_empty()) {
+            return absolute(&f, true);
+        }
+        if !self.ask_in_app() {
+            return Err(need("folder"));
+        }
+        let a = self.ask(super::Ask { request: "folder".into(), name: what.into(), default_name: Some(default_name.into()), ..Default::default() }).await?;
+        a.path.filter(|p| !p.is_empty()).map(std::path::PathBuf::from).ok_or_else(Fail::cancelled)
+    }
     /// The profile named by `key` (an id, or a connection name).
     pub fn profile(&self, key: &str) -> Result<mqttpanel_profiles::StoredProfile, Fail> {
         let needle = self.str(key)?;
         self.state().store.find(&needle).ok_or_else(|| Fail::from(text::um("noConnection", &[("name", json!(needle))])))
     }
+}
+
+/// "Give {field}, or set ask_in_app to true so MQTT Panel asks the user."
+pub fn need(field: &str) -> Fail {
+    Fail::from(text::um("needSecret", &[("field", json!(field))]))
+}
+
+/// A path given by the host: absolute, its folder existing (a folder itself when `dir`).
+pub fn absolute(p: &str, dir: bool) -> Result<std::path::PathBuf, Fail> {
+    let path = std::path::PathBuf::from(p.trim());
+    if !path.is_absolute() {
+        return Err(Fail::args(if dir { "folder must be an absolute path" } else { "file must be an absolute path" }));
+    }
+    let ok = if dir { path.is_dir() } else { path.parent().is_some_and(|d| d.is_dir()) && !path.is_dir() };
+    if !ok {
+        return Err(Fail::args(if dir { "folder does not exist" } else { "the folder of file does not exist" }));
+    }
+    Ok(path)
+}
+
+/// A path for the chat and the log.
+pub fn shown(p: &std::path::Path) -> String {
+    p.to_string_lossy().to_string()
 }
 
 /// True when a call gives a secret directly (one of the tool's secret fields is present and not empty).
@@ -184,6 +270,19 @@ pub fn schema(properties: Value, required: &[&str]) -> Value {
 /// The `id` property every connection tool takes.
 pub fn id_prop() -> Value {
     json!({ "type": "string", "description": "The connection id from list_connections (a connection name also works)." })
+}
+
+/// The `connection` property of the data and chart tools.
+pub fn conn_prop() -> Value {
+    json!({ "type": "string", "description": "The connection id or name from list_connections; it must be connected (or was connected in this session)." })
+}
+
+pub fn file_prop() -> Value {
+    json!({ "type": "string", "description": "Direct way: an absolute file path on this computer. Leave it out to let the user choose in MQTT Panel's save dialog." })
+}
+
+pub fn folder_prop() -> Value {
+    json!({ "type": "string", "description": "Direct way: an absolute folder path on this computer. Leave it out to let the user choose the folder in MQTT Panel." })
 }
 
 pub fn ask_prop() -> Value {

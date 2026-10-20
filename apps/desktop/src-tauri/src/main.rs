@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod broker;
+mod charts;
 mod commands;
 mod files;
 mod mcp;
@@ -119,6 +120,7 @@ fn main() {
                 pending_trust: Mutex::new(HashMap::new()),
                 broker: broker::BrokerState::default(),
                 assistant: mcp::Hub::default(),
+                charts: Mutex::new(Default::default()),
             });
             let handle = app.handle().clone();
             let menu = menu::build_menu(&handle, "en")?;
@@ -260,6 +262,9 @@ fn main() {
             mcp::commands::assistant_clear_log,
             mcp::commands::assistant_export_log,
             mcp::commands::assistant_answer,
+            mcp::commands::assistant_pick_save,
+            mcp::commands::assistant_pick_folder,
+            charts::sync_charts,
         ]))
         .build(tauri::generate_context!())
         .expect("error while building MQTT Panel")

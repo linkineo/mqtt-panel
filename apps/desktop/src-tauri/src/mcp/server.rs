@@ -15,6 +15,10 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt};
 
 pub const URI_CONNECTIONS: &str = "mqttpanel://connections";
 pub const URI_LOG: &str = "mqttpanel://assistant-log";
+pub const URI_BROKER: &str = "mqttpanel://broker";
+pub const URI_CHARTS: &str = "mqttpanel://charts";
+/// `mqttpanel://topics/{connection}`: the first 200 topics of a connection (id or name).
+pub const URI_TOPICS: &str = "mqttpanel://topics/";
 
 /// The rmcp handler of one host session.
 pub struct McpServer {
@@ -64,6 +68,7 @@ impl McpServer {
             Wait::Connect => limits.connect,
             Wait::MaybeUser if asks => limits.user + limits.call,
             Wait::MaybeUser => limits.call,
+            Wait::User => limits.user + limits.call,
         };
         let call = Call { link: self.link.clone(), args: args.clone(), waiting };
         let r = tokio::time::timeout(limit, (def.handler)(call)).await;
@@ -103,6 +108,10 @@ impl McpServer {
             }
         }
     }
+}
+
+fn json_contents(v: &Value, uri: &str) -> ResourceContents {
+    ResourceContents::text(serde_json::to_string_pretty(v).unwrap_or_default(), uri).with_mime_type("application/json")
 }
 
 impl ToolDef {
@@ -173,11 +182,28 @@ impl ServerHandler for McpServer {
 
     async fn list_resources(&self, _request: Option<PaginatedRequestParams>, _context: RequestContext<RoleServer>) -> Result<ListResourcesResult, McpError> {
         let lang = self.lang();
-        let items = vec![
+        let mut items = vec![
             Resource::new(URI_CONNECTIONS, "connections").with_title(t(lang, "res.connections", &[])).with_mime_type("application/json"),
+            Resource::new(URI_BROKER, "broker").with_title(t(lang, "res.broker", &[])).with_mime_type("application/json"),
+            Resource::new(URI_CHARTS, "charts").with_title(t(lang, "res.charts", &[])).with_mime_type("application/json"),
             Resource::new(URI_LOG, "assistant-log").with_title(t(lang, "res.log", &[])).with_mime_type("text/plain"),
         ];
+        let st = self.link.state();
+        let mut open: Vec<(String, String)> = crate::state::lock(&st.conns).values().map(|c| (c.id.clone(), crate::state::lock(&c.name).clone())).collect();
+        open.sort();
+        for (id, name) in open {
+            items.push(Resource::new(format!("{URI_TOPICS}{id}"), format!("topics-{id}")).with_title(t(lang, "res.topicsOf", &[("name", json!(name))])).with_mime_type("application/json"));
+        }
         Ok(ListResourcesResult::with_all_items(items))
+    }
+
+    async fn list_resource_templates(&self, _request: Option<PaginatedRequestParams>, _context: RequestContext<RoleServer>) -> Result<ListResourceTemplatesResult, McpError> {
+        let lang = self.lang();
+        let items = vec![ResourceTemplate::new(format!("{URI_TOPICS}{{connection}}"), "topics")
+            .with_title(t(lang, "res.topics", &[]))
+            .with_description(t(lang, "res.topicsDescription", &[]))
+            .with_mime_type("application/json")];
+        Ok(ListResourceTemplatesResult::with_all_items(items))
     }
 
     async fn read_resource(&self, request: ReadResourceRequestParams, _context: RequestContext<RoleServer>) -> Result<ReadResourceResponse, McpError> {
@@ -188,6 +214,21 @@ impl ServerHandler for McpServer {
                 ResourceContents::text(serde_json::to_string_pretty(&v).unwrap_or_default(), URI_CONNECTIONS).with_mime_type("application/json")
             }
             URI_LOG => ResourceContents::text(log_text(lang, &self.link.state().assistant.log()), URI_LOG).with_mime_type("text/plain"),
+            URI_BROKER => {
+                let v = tools::broker::status_json(self.link.state(), lang).map_err(|m| McpError::internal_error(text::m(lang, &m), None))?;
+                json_contents(&v, URI_BROKER)
+            }
+            URI_CHARTS => json_contents(&tools::charts::charts_json(self.link.state()), URI_CHARTS),
+            other if other.starts_with(URI_TOPICS) => {
+                let needle = &other[URI_TOPICS.len()..];
+                let st = self.link.state();
+                let not_found = || McpError::resource_not_found(t(lang, "noResource", &[("uri", json!(other))]), None);
+                let p = st.store.find(needle).ok_or_else(not_found)?;
+                let conn = crate::state::lock(&st.conns).get(&p.profile.id).cloned().ok_or_else(not_found)?;
+                let mut v = tools::data::topics_json(&conn, "", tools::data::TOPICS_MAX);
+                v["connection"] = json!(p.profile.id);
+                json_contents(&v, other)
+            }
             other => return Err(McpError::resource_not_found(t(lang, "noResource", &[("uri", json!(other))]), None)),
         };
         Ok(ReadResourceResult::new(vec![contents]).into())

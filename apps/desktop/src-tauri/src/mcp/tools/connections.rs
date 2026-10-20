@@ -1,8 +1,8 @@
 //! Connections group (docs/MCP.md section 4): profiles, their secrets and certificates, test, trust, connect.
 
-use super::{ask_prop, id_prop, schema, BoxFuture, Call, Fail, Outcome, ToolDef, Wait};
+use super::{ask_prop, id_prop, need, schema, BoxFuture, Call, Fail, Outcome, ToolDef, Wait};
 use crate::commands as cmd;
-use crate::mcp::{ask_user, text};
+use crate::mcp::{text, Ask};
 use crate::state::lock;
 use crate::types::{ConnectOutcome, TestOutcome, TrustPrompt};
 use mqttpanel_profiles::{Profile, StoredProfile, Subscription};
@@ -443,18 +443,9 @@ async fn update_connection(c: Call) -> Result<Outcome, Fail> {
 
 // ---------------------------------------------------------------- secrets and certificates
 
-/// Asks the user in the app; maps a cancel or no answer to the failures of the log.
+/// Asks the user in the app about a connection.
 async fn ask(c: &Call, request: &str, p: &StoredProfile) -> Result<crate::mcp::AssistantAnswer, Fail> {
-    (c.waiting)();
-    match ask_user(c.link.as_ref(), request, &p.profile.id, &p.profile.name).await {
-        Ok(a) => Ok(a),
-        Err(true) => Err(Fail::cancelled()),
-        Err(false) => Err(Fail::no_answer(c.state().assistant.limits().user.as_secs())),
-    }
-}
-
-fn need(field: &str) -> Fail {
-    Fail::from(text::um("needSecret", &[("field", json!(field))]))
+    c.ask(Ask { request: request.into(), profile_id: p.profile.id.clone(), name: p.profile.name.clone(), ..Default::default() }).await
 }
 
 async fn set_connection_password(c: Call) -> Result<Outcome, Fail> {

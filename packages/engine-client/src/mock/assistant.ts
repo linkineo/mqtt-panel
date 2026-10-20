@@ -1,9 +1,11 @@
 // The assistant (MCP) side of the mock: the acknowledgement, a virtual home with the hosts' configuration files (so
 // "Add to Claude" and "Add to ChatGPT" can be checked end to end in the browser), the Assistant log and the answers
 // the app gives to assistant requests.
-import type { AssistantAnswer, AssistantEventBody, AssistantHostFile, AssistantLogEntry, AssistantStatus, AssistantWriteReport } from '../types';
+import type { AssistantAnswer, AssistantChart, AssistantEventBody, AssistantHostFile, AssistantLogEntry, AssistantStatus, AssistantWriteReport } from '../types';
 
 export const MOCK_EXECUTABLE = '/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel';
+/** Where the mock's save and folder dialogs point (as displayed). */
+export const MOCK_DOCUMENTS = '~/Documents';
 
 const FILES = {
   claudeDesktop: '~/Library/Application Support/Claude/claude_desktop_config.json',
@@ -20,6 +22,8 @@ export class MockAssistant {
   log: AssistantLogEntry[] = [];
   answers: { requestId: string; answer: AssistantAnswer }[] = [];
   session: string | null = null;
+  charts: AssistantChart[] = [];
+  pickCancelled = false;
 
   constructor(private emit: (e: AssistantEventBody) => void) {}
 

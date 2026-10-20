@@ -999,5 +999,15 @@
  "info.assistant.claude": "Adds MQTT Panel to Claude Desktop and Claude Code, in the configuration files that exist on this computer. The rest of those files stays as it is. Quit and reopen Claude afterwards.",
  "info.assistant.chatgpt": "Adds MQTT Panel to the ChatGPT desktop app through its Codex settings (also used by the Codex command line and editor extension). ChatGPT on the web cannot reach a program on this computer.",
  "info.assistant.other": "For any other assistant that can start a local MCP server: it runs this app with the argument “mcp”. Nothing listens on the network; the assistant talks to MQTT Panel on this computer only.",
- "info.assistant.log": "Every change an assistant makes in this session: time, assistant, tool, what it asked (passwords and keys shown as •••) and the outcome. Kept until MQTT Panel quits; Export… saves it as a text file."
+ "info.assistant.log": "Every change an assistant makes in this session: time, assistant, tool, what it asked (passwords and keys shown as •••) and the outcome. Kept until MQTT Panel quits; Export… saves it as a text file.",
+ "assistant.req.brokerPassword": "The assistant asks for the password of the broker user {name}",
+ "assistant.req.saveFile": "The assistant saves {name}",
+ "assistant.req.folder": "The assistant saves {name}",
+ "assistant.req.issueCert": "The assistant issues the client certificate {name}",
+ "assistant.req.saveText": "Choose where to save the file. The chat learns only its path.",
+ "assistant.req.folderText": "Choose the folder. The chat learns only the path of the file.",
+ "assistant.req.issueText": "Choose the folder for the certificate files. The key and the passphrase stay on this computer; the chat learns only the paths.",
+ "assistant.req.saveTo": "Save as",
+ "assistant.req.folderLabel": "Folder",
+ "assistant.req.choose": "Choose…"
 }

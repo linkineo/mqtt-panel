@@ -412,6 +412,17 @@ impl Engine {
         Some(pick.to_string())
     }
 
+    /// Topics under `topic` (its subtree without itself), as the tree's subtopic count shows them.
+    pub fn subtopic_count(&self, topic: &str) -> u64 {
+        match self.lookup(topic) {
+            Some(id) => {
+                let n = &self.nodes[id as usize];
+                u64::from(n.topic_count).saturating_sub(u64::from(n.topic.is_some()))
+            }
+            None => 0,
+        }
+    }
+
     /// Known topics starting with `prefix`, in tree order, at most `limit`.
     pub fn known_topics(&self, prefix: &str, limit: usize) -> Vec<String> {
         let mut v: Vec<&str> = self

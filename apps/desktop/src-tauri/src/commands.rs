@@ -14,7 +14,8 @@ use tauri::{AppHandle, State};
 
 type R<T> = Result<T, UserMessage>;
 
-fn conn(state: &AppState, id: &str) -> R<Arc<Conn>> {
+/// The open (or recently open) connection of a profile; "not connected" otherwise.
+pub fn conn(state: &AppState, id: &str) -> R<Arc<Conn>> {
     lock(&state.conns).get(id).cloned().ok_or_else(|| msg!("error.notConnected"))
 }
 
@@ -691,13 +692,17 @@ pub fn clear_history(state: State<'_, AppState>, connection_id: String, prefix: 
 
 #[derive(serde::Serialize)]
 pub struct RetainedItem {
-    topic: String,
-    preview: String,
+    pub topic: String,
+    pub preview: String,
 }
 
 #[tauri::command]
 pub fn retained_under(state: State<'_, AppState>, connection_id: String, prefix: String) -> R<Vec<RetainedItem>> {
-    Ok(lock(&conn(&state, &connection_id)?.engine).retained_under(&prefix).into_iter().map(|(topic, preview)| RetainedItem { topic, preview }).collect())
+    retained_under_on(&state, &connection_id, &prefix)
+}
+
+pub fn retained_under_on(state: &AppState, connection_id: &str, prefix: &str) -> R<Vec<RetainedItem>> {
+    Ok(lock(&conn(state, connection_id)?.engine).retained_under(prefix).into_iter().map(|(topic, preview)| RetainedItem { topic, preview }).collect())
 }
 
 #[tauri::command]
@@ -732,21 +737,33 @@ fn stamp() -> String {
 
 #[tauri::command]
 pub async fn export_data(app: AppHandle, state: State<'_, AppState>, connection_id: String, options: ExportOptions) -> R<SaveOutcome> {
-    let c = conn(&state, &connection_id)?;
+    let (name, data) = export_data_on(&state, &connection_id, &options)?;
+    Ok(files::save_bytes(&app, &name, &data))
+}
+
+/// The export file of the Export dialog: its default name and its bytes (also used by the assistant).
+pub fn export_data_on(state: &AppState, connection_id: &str, options: &ExportOptions) -> R<(String, Vec<u8>)> {
+    let c = conn(state, connection_id)?;
     let ext = match options.format {
         ExportFormat::Csv => "csv",
         ExportFormat::Json => "json",
         ExportFormat::Ndjson => "ndjson",
     };
     let mut data = Vec::new();
-    lock(&c.engine).export(&options, &mut data).map_err(|e| msg!("error.internal", detail = e.to_string()))?;
-    Ok(files::save_bytes(&app, &format!("mqtt-export-{}.{ext}", stamp()), &data))
+    lock(&c.engine).export(options, &mut data).map_err(|e| msg!("error.internal", detail = e.to_string()))?;
+    Ok((format!("mqtt-export-{}.{ext}", stamp()), data))
 }
 
 #[tauri::command]
 pub async fn export_chart_csv(app: AppHandle, state: State<'_, AppState>, connection_id: String, series: Vec<ChartSeriesRef>, since_ms: Option<i64>) -> R<SaveOutcome> {
-    let csv = lock(&conn(&state, &connection_id)?.engine).export_chart_csv(&series, since_ms);
-    Ok(files::save_bytes(&app, &format!("chart-{}.csv", stamp()), csv.as_bytes()))
+    let (name, csv) = chart_csv_on(&state, &connection_id, &series, since_ms)?;
+    Ok(files::save_bytes(&app, &name, csv.as_bytes()))
+}
+
+/// The chart CSV of "Export…, CSV" on the Charts screen: its default name and its text (also used by the assistant).
+pub fn chart_csv_on(state: &AppState, connection_id: &str, series: &[ChartSeriesRef], since_ms: Option<i64>) -> R<(String, String)> {
+    let csv = lock(&conn(state, connection_id)?.engine).export_chart_csv(series, since_ms);
+    Ok((format!("chart-{}.csv", stamp()), csv))
 }
 
 #[tauri::command]
@@ -834,7 +851,7 @@ pub fn publish(state: State<'_, AppState>, connection_id: String, request: Publi
     do_publish(&c, &request, "pending", true)
 }
 
-fn delete_request(topic: &str) -> PublishRequest {
+pub fn delete_request(topic: &str) -> PublishRequest {
     PublishRequest { topic: topic.to_string(), payload: String::new(), format: "text".into(), qos: 1, retain: true, props: None, request: None }
 }
 

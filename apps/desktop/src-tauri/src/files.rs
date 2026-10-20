@@ -70,6 +70,30 @@ pub fn save_files(app: &AppHandle, files: &[(String, Vec<u8>)]) -> SaveOutcome {
     SaveOutcome::Saved { file_name: file_name(&p) }
 }
 
+/// Writes one file (assistant exports to a path picked in the app or given by the host).
+pub fn write_file(path: &Path, data: &[u8]) -> Result<(), UserMessage> {
+    std::fs::write(path, data).map_err(|e| msg!("file.writeFailed", file = file_name(path), detail = e.kind().to_string()))
+}
+
+/// Writes several files into a folder; returns their paths in order.
+pub fn write_files_in(dir: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<PathBuf>, UserMessage> {
+    if !dir.is_dir() {
+        return Err(msg!("file.writeFailed", file = file_name(dir), detail = "not a folder"));
+    }
+    let mut out = Vec::with_capacity(files.len());
+    for (name, data) in files {
+        let p = dir.join(name);
+        write_file(&p, data)?;
+        out.push(p);
+    }
+    Ok(out)
+}
+
+/// Opens the native folder dialog; None when cancelled.
+pub fn pick_folder(app: &AppHandle) -> Option<PathBuf> {
+    app.dialog().file().blocking_pick_folder().and_then(|f| f.into_path().ok())
+}
+
 pub fn tls_error(e: &TlsFileError, file: &str) -> UserMessage {
     match e {
         TlsFileError::WrongPassphrase | TlsFileError::NeedsPassphrase => msg!("tls.wrongPassphrase", file = file),

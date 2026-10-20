@@ -295,6 +295,10 @@ export function BrokerScreen() {
   };
   useEffect(() => {
     void loadAll();
+    // The assistant changed the broker (certificates, users, listeners): read everything again.
+    return useApp.getState().onAssistant((e) => {
+      if (e.kind === 'changed' && e.what === 'broker') void loadAll();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // clients update live (no Refresh button): on every change of the count or state, and once a second

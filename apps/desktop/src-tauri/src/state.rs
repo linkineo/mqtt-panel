@@ -24,6 +24,8 @@ pub struct AppState {
     pub broker: crate::broker::BrokerState,
     /// The assistant interface (docs/MCP.md): session, acknowledgement waits, Assistant log, requests for the user.
     pub assistant: crate::mcp::Hub,
+    /// The window's dashboard charts (session only), for the assistant's chart tools.
+    pub charts: Mutex<crate::charts::Board>,
 }
 
 #[derive(Debug, Clone)]

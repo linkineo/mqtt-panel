@@ -724,8 +724,13 @@ export interface AssistantLogEntry {
   note?: string;
 }
 
-/** What the assistant asks the user for in the app (ask_in_app). */
-export type AssistantRequestKind = 'password' | 'caCert' | 'clientCert' | 'signedCert';
+/**
+ * What the assistant asks the user for in the app (ask_in_app): for a connection `password`, `caCert`, `clientCert`,
+ * `signedCert`; `brokerPassword` (a user of the built-in broker); `saveFile` (where to save an export, `defaultName`);
+ * `folder` (a folder for `defaultName`); `issueCert` (the folder of a new client certificate and, when
+ * `withPassphrase`, its passphrase); `chartPng` (no dialog: the window draws the chart `chartId` and answers `data`).
+ */
+export type AssistantRequestKind = 'password' | 'caCert' | 'clientCert' | 'signedCert' | 'brokerPassword' | 'saveFile' | 'folder' | 'issueCert' | 'chartPng';
 
 /** The app's answer to an assistant request; the secret stays in the app. */
 export interface AssistantAnswer {
@@ -736,6 +741,32 @@ export interface AssistantAnswer {
   /** The picked key file (client certificate). */
   keyPath?: string | null;
   passphrase?: string | null;
+  /** chartPng: the chart image, PNG in base64. */
+  data?: string | null;
+}
+
+/** A dashboard chart of the Charts screen as the app side knows it (same fields as the UI's Chart). */
+export interface AssistantChart {
+  id: string;
+  name: string;
+  connId: string;
+  range: '5m' | '15m' | '1h' | 'session' | 'custom';
+  customFrom: number | null;
+  customTo: number | null;
+  paused: boolean;
+  pausedAt: number | null;
+  series: {
+    id: string;
+    name: string;
+    topic: string;
+    path: string;
+    color: 'sage' | 'clay' | 'slate' | 'brick' | 'ink2';
+    style: 'line' | 'step' | 'points';
+    axis: 'left' | 'right';
+    unit: string;
+    enabled: boolean;
+    cast?: 'number' | 'parsedNumber' | 'boolean';
+  }[];
 }
 
 export type AssistantEventBody =
@@ -746,8 +777,21 @@ export type AssistantEventBody =
   | { kind: 'session'; connected: boolean; host: string | null }
   | { kind: 'acknowledge' }
   | { kind: 'acknowledgeDone' }
-  | { kind: 'request'; id: string; request: AssistantRequestKind; profileId: string; profileName: string }
-  | { kind: 'requestDone'; id: string };
+  | {
+      kind: 'request';
+      id: string;
+      request: AssistantRequestKind;
+      profileId: string;
+      /** The name in the dialog title: connection, broker user, certificate or file. */
+      profileName: string;
+      defaultName?: string;
+      format?: 'pem' | 'pkcs12';
+      withPassphrase?: boolean;
+      chartId?: string;
+    }
+  | { kind: 'requestDone'; id: string }
+  /** The assistant changed the dashboard charts: the Charts screen shows this list. */
+  | { kind: 'charts'; charts: AssistantChart[] };
 
 export interface AssistantEvent {
   type: 'assistant';

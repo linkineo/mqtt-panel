@@ -4,19 +4,34 @@ import type { AssistantAnswer, AssistantEventBody, AssistantRequestKind, FileIns
 import { engine, platform } from '../services';
 import { useApp } from '../store/app';
 import { useExplorer } from '../store/explorer';
-import { useCharts } from '../store/charts';
+import { useCharts, type Chart } from '../store/charts';
+import { chartPngBase64, waitForChartCanvas } from '../lib/chartImage';
 import { Modal, Msg, NO_AUTO } from './ui';
-import { toMessage } from '../i18n';
+import i18n, { toMessage } from '../i18n';
 
 /**
  * The window side of the assistant interface (docs/MCP.md sections 3 and 4): toasts for writing calls, navigation with
- * "The assistant moved the view", refreshes after changes, the one-time acknowledgement dialog, and the prompts and
- * pickers the assistant asks for (ask_in_app). Mounted once in App.
+ * "The assistant moved the view", refreshes after changes, the one-time acknowledgement dialog, the prompts and
+ * pickers the assistant asks for (ask_in_app: secrets, files, save places, folders, a new client certificate), the
+ * chart image for export_chart, and the dashboard charts both ways (syncCharts, `charts` events). Mounted once in App.
  */
 export function AssistantLayer() {
   const { t } = useTranslation();
   const [ack, setAck] = useState(false);
   const [requests, setRequests] = useState<Extract<AssistantEventBody, { kind: 'request' }>[]>([]);
+
+  // The app side knows the dashboard charts (the assistant's chart tools read and change them).
+  useEffect(() => {
+    void engine()
+      .syncCharts(useCharts.getState().charts)
+      .catch(() => undefined);
+    return useCharts.subscribe((s, prev) => {
+      if (s.charts !== prev.charts)
+        void engine()
+          .syncCharts(s.charts)
+          .catch(() => undefined);
+    });
+  }, []);
 
   useEffect(
     () =>
@@ -32,7 +47,13 @@ export function AssistantLayer() {
             break;
           case 'changed':
             if (e.what === 'profiles') void st.refreshProfiles();
-            if (e.what === 'broker') void st.refreshBrokerConfig();
+            if (e.what === 'broker') {
+              void st.refreshBrokerConfig();
+              void engine()
+                .brokerStatus()
+                .then((broker) => useApp.setState({ broker }))
+                .catch(() => undefined);
+            }
             if (e.what === 'connections')
               void engine()
                 .listConnections()
@@ -53,8 +74,14 @@ export function AssistantLayer() {
               .catch(() => undefined);
             break;
           case 'request':
-            setRequests((r) => [...r.filter((x) => x.id !== e.id), e]);
+            if (e.request === 'chartPng') void answerChartPng(e.id, e.chartId ?? '');
+            else setRequests((r) => [...r.filter((x) => x.id !== e.id), e]);
             break;
+          case 'charts': {
+            const charts = e.charts as Chart[];
+            useCharts.setState((c) => ({ charts, activeId: c.activeId && charts.some((x) => x.id === c.activeId) ? c.activeId : (charts[0]?.id ?? null) }));
+            break;
+          }
           case 'requestDone':
             setRequests((r) => r.filter((x) => x.id !== e.id));
             break;
@@ -72,6 +99,9 @@ export function AssistantLayer() {
           key={req.id}
           kind={req.request}
           name={req.profileName}
+          defaultName={req.defaultName}
+          format={req.format}
+          withPassphrase={req.withPassphrase}
           onAnswer={(answer) => {
             setRequests((r) => r.filter((x) => x.id !== req.id));
             void engine()
@@ -104,7 +134,7 @@ function navigate(e: Extract<AssistantEventBody, { kind: 'navigate' }>) {
       st.setScreen('explore');
       break;
     case 'charts':
-      if (e.chartId && useCharts.getState().charts.some((c) => c.id === e.chartId)) useCharts.getState().setActive(e.chartId);
+      if (e.chartId) showChart(e.chartId);
       st.setScreen('charts');
       break;
     case 'broker':
@@ -115,6 +145,30 @@ function navigate(e: Extract<AssistantEventBody, { kind: 'navigate' }>) {
       st.setScreen('settings');
       break;
   }
+}
+
+/** Selects a dashboard chart and the connection it belongs to (the Charts screen shows the active connection). */
+function showChart(chartId: string): boolean {
+  const ch = useCharts.getState().charts.find((c) => c.id === chartId);
+  if (!ch) return false;
+  if (useApp.getState().profiles.some((p) => p.id === ch.connId)) useApp.getState().setActiveConn(ch.connId);
+  useCharts.getState().setActive(chartId);
+  return true;
+}
+
+/** export_chart as PNG: the window shows the chart, waits until it is drawn and answers with the image. */
+async function answerChartPng(requestId: string, chartId: string) {
+  const st = useApp.getState();
+  let data: string | null = null;
+  if (showChart(chartId)) {
+    st.setScreen('charts');
+    st.toast({ kind: 'info', text: i18n.t('assistant.movedView') });
+    const canvas = await waitForChartCanvas();
+    if (canvas) data = chartPngBase64(canvas);
+  }
+  await engine()
+    .assistantAnswer(requestId, data ? { data } : { cancelled: true })
+    .catch(() => undefined);
 }
 
 /** The one-time acknowledgement (docs/MCP.md section 3), also on Settings, Assistant. */
@@ -215,22 +269,70 @@ function PickRow(props: { kind: FileKind; label: string; value: FileInspection |
   );
 }
 
+/** "Choose…" for a save place or a folder: shows the chosen path. */
+function ChooseRow(props: { label: string; value: string | null; placeholder: string; onChoose(): void; testId: string }) {
+  const { t } = useTranslation();
+  return (
+    <div className="f">
+      <span className="lbl">{props.label}</span>
+      <div className="row2" data-testid={`file-${props.testId}`}>
+        <span className="input mono ro w-l" aria-label={props.label} title={props.value ?? undefined}>
+          {props.value ?? <span className="ph-text">{props.placeholder}</span>}
+        </span>
+        <button type="button" className="btn sm" data-testid={`choose-${props.testId}`} onClick={props.onChoose}>
+          {t('assistant.req.choose')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** What the assistant asks for (ask_in_app): the secret or file stays in the app; the assistant gets the result. */
-export function RequestDialog(props: { kind: AssistantRequestKind; name: string; onAnswer(a: AssistantAnswer): void }) {
+export function RequestDialog(props: {
+  kind: AssistantRequestKind;
+  name: string;
+  defaultName?: string;
+  format?: 'pem' | 'pkcs12';
+  withPassphrase?: boolean;
+  onAnswer(a: AssistantAnswer): void;
+}) {
   const { t } = useTranslation();
   const [password, setPassword] = useState('');
   const [file, setFile] = useState<FileInspection | null>(null);
   const [key, setKey] = useState<FileInspection | null>(null);
   const [passphrase, setPassphrase] = useState('');
-  const fileKind: FileKind = props.kind === 'password' ? 'caCert' : props.kind;
+  const [place, setPlace] = useState<string | null>(null);
+  const secret = props.kind === 'password' || props.kind === 'brokerPassword';
+  const placeKind = props.kind === 'saveFile' || props.kind === 'folder' || props.kind === 'issueCert';
+  const fileKind: FileKind = props.kind === 'clientCert' || props.kind === 'signedCert' ? props.kind : 'caCert';
   const bundle = file?.ok && file.summary.kind === 'pkcs12';
   const encrypted = (file?.ok && file.summary.encrypted) || (key?.ok && key.summary.encrypted);
-  const ready = props.kind === 'password' ? true : !!file?.ok && (props.kind !== 'clientCert' || bundle || !!key?.ok);
+  const askPassphrase = props.kind === 'issueCert' && !!props.withPassphrase;
+  const needPassphrase = askPassphrase && props.format === 'pkcs12';
+  const ready = secret
+    ? props.kind === 'password' || password.length > 0
+    : placeKind
+      ? !!place && (!needPassphrase || passphrase.length > 0)
+      : !!file?.ok && (props.kind !== 'clientCert' || bundle || !!key?.ok);
   const give = () => {
     if (!ready) return;
-    if (props.kind === 'password') props.onAnswer({ password });
+    if (secret) props.onAnswer({ password });
+    else if (placeKind) props.onAnswer({ path: place, passphrase: askPassphrase && passphrase ? passphrase : null });
     else props.onAnswer({ path: file?.path ?? null, keyPath: !bundle ? (key?.path ?? null) : null, passphrase: passphrase || null });
   };
+  const choose = () => {
+    const pick = props.kind === 'saveFile' ? engine().assistantPickSave(props.defaultName ?? props.name) : engine().assistantPickFolder();
+    void pick.then((p) => p && setPlace(p)).catch(() => undefined);
+  };
+  const textKey = secret
+    ? 'assistant.req.secretText'
+    : props.kind === 'saveFile'
+      ? 'assistant.req.saveText'
+      : props.kind === 'folder'
+        ? 'assistant.req.folderText'
+        : props.kind === 'issueCert'
+          ? 'assistant.req.issueText'
+          : 'assistant.req.fileText';
   return (
     <Modal
       title={t(`assistant.req.${props.kind}`, { name: props.name })}
@@ -248,13 +350,38 @@ export function RequestDialog(props: { kind: AssistantRequestKind; name: string;
         </>
       }
     >
-      <div className="small muted">{t(props.kind === 'password' ? 'assistant.req.secretText' : 'assistant.req.fileText')}</div>
+      <div className="small muted">{t(textKey)}</div>
       <div className="form" style={{ marginTop: 10 }}>
-        {props.kind === 'password' ? (
+        {secret ? (
           <div className="f">
             <label htmlFor="assistant-password">{t('assistant.req.passwordLabel')}</label>
             <input {...NO_AUTO} id="assistant-password" type="password" className="input w-l" value={password} data-autofocus data-testid="assistant-password" onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && give()} />
           </div>
+        ) : placeKind ? (
+          <>
+            <ChooseRow
+              label={t(props.kind === 'saveFile' ? 'assistant.req.saveTo' : 'assistant.req.folderLabel')}
+              value={place}
+              placeholder={props.kind === 'saveFile' ? (props.defaultName ?? '') : t('file.none')}
+              onChoose={choose}
+              testId="assistant-place"
+            />
+            {askPassphrase && (
+              <div className="f">
+                <label htmlFor="assistant-passphrase">{t('assistant.req.passphrase')}</label>
+                <input
+                  {...NO_AUTO}
+                  id="assistant-passphrase"
+                  type="password"
+                  className="input w-l"
+                  value={passphrase}
+                  placeholder={needPassphrase ? '' : t('common.optional')}
+                  data-testid="assistant-passphrase"
+                  onChange={(e) => setPassphrase(e.target.value)}
+                />
+              </div>
+            )}
+          </>
         ) : (
           <>
             <PickRow kind={fileKind} label={t(props.kind === 'clientCert' ? 'assistant.req.cert' : 'assistant.req.file')} value={file} onValue={setFile} testId="assistant-file" />

@@ -3,6 +3,7 @@ import type { EngineClient } from '../client';
 import type {
   AppInfo,
   AssistantAnswer,
+  AssistantChart,
   AssistantEventBody,
   AssistantLogEntry,
   CertDetails,
@@ -31,7 +32,7 @@ import type {
   UserMessage,
 } from '../types';
 import { APP_USER, MockBroker } from './broker';
-import { MockAssistant } from './assistant';
+import { MOCK_DOCUMENTS, MockAssistant } from './assistant';
 import {
   WORDS,
   buildDataset,
@@ -81,6 +82,10 @@ export interface MockControls {
   addAssistantLog(entry: AssistantLogEntry): void;
   /** What the app answered to assistant requests, oldest first. */
   assistantAnswers(): { requestId: string; answer: AssistantAnswer }[];
+  /** The dashboard charts the window last sent with syncCharts. */
+  assistantCharts(): AssistantChart[];
+  /** "Choose…" in assistant export and folder requests answers "cancelled" (e2e). */
+  setAssistantPickCancelled(on: boolean): void;
   /** The virtual home of "Add to Claude" and "Add to ChatGPT": path as displayed → content; null removes a file. */
   hostFiles(): Record<string, string>;
   setHostFile(path: string, content: string | null): void;
@@ -1369,6 +1374,17 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       assistant.push({ kind: 'requestDone', id: requestId });
       return true;
     },
+    async assistantPickSave(defaultName) {
+      await delay(20);
+      return assistant.pickCancelled ? null : `${MOCK_DOCUMENTS}/${defaultName}`;
+    },
+    async assistantPickFolder() {
+      await delay(20);
+      return assistant.pickCancelled ? null : MOCK_DOCUMENTS;
+    },
+    async syncCharts(charts) {
+      assistant.charts = clone(charts);
+    },
 
     onEvent(handler) {
       handlers.add(handler);
@@ -1411,6 +1427,12 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
     assistantAnswers() {
       return clone(assistant.answers);
+    },
+    assistantCharts() {
+      return clone(assistant.charts);
+    },
+    setAssistantPickCancelled(on) {
+      assistant.pickCancelled = on;
     },
     hostFiles() {
       return Object.fromEntries(assistant.home);

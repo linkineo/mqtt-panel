@@ -1834,4 +1834,63 @@ test.describe('Assistant (docs/MCP.md section 6)', () => {
     const answers = await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantAnswers());
     expect(answers).toEqual([{ requestId: 'r7', answer: { password: 'typed-in-the-app' } }]);
   });
+
+  test('M-16 a new client certificate: the folder and the PKCS#12 passphrase are chosen in the app', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    await page.evaluate(() =>
+      (window as any).__mqttpanelMock.engine.assistantEvent({ kind: 'request', id: 'r1', request: 'issueCert', profileId: '', profileName: 'sensor-12', format: 'pkcs12', withPassphrase: true }),
+    );
+    const dlg = page.locator('[data-testid=assistant-request]');
+    await expect(dlg).toContainText('The assistant issues the client certificate sensor-12');
+    await expect(page.locator('[data-testid=assistant-request-ok]')).toBeDisabled();
+    await page.click('[data-testid=choose-assistant-place]');
+    await expect(page.locator('[data-testid=file-assistant-place]')).toContainText('~/Documents');
+    await page.fill('[data-testid=assistant-passphrase]', 'bundle-typed-here');
+    await page.click('[data-testid=assistant-request-ok]');
+    await expect(dlg).toHaveCount(0);
+    // an export: the save place
+    await page.evaluate(() =>
+      (window as any).__mqttpanelMock.engine.assistantEvent({ kind: 'request', id: 'r2', request: 'saveFile', profileId: '', profileName: 'chart.csv', defaultName: 'chart.csv' }),
+    );
+    await page.click('[data-testid=choose-assistant-place]');
+    await page.click('[data-testid=assistant-request-ok]');
+    const answers = await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantAnswers());
+    expect(answers).toEqual([
+      { requestId: 'r1', answer: { path: '~/Documents', passphrase: 'bundle-typed-here' } },
+      { requestId: 'r2', answer: { path: '~/Documents/chart.csv', passphrase: null } },
+    ]);
+  });
+
+  test('M-17 charts made by the assistant show on the Charts screen; export_chart as PNG gets the drawn chart', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    await page.evaluate(() =>
+      (window as any).__mqttpanelMock.engine.assistantEvent({
+        kind: 'charts',
+        charts: [
+          {
+            id: 'ac1',
+            name: 'Room 204',
+            connId: 'plant',
+            range: 'session',
+            customFrom: null,
+            customTo: null,
+            paused: false,
+            pausedAt: null,
+            series: [{ id: 'as2', name: 'setpoint', topic: 'building/f2/r204/setpoint', path: '$.value', color: 'clay', style: 'step', axis: 'left', unit: '°C', enabled: true }],
+          },
+        ],
+      }),
+    );
+    await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantEvent({ kind: 'request', id: 'r3', request: 'chartPng', profileId: '', profileName: 'Room 204', chartId: 'ac1' }));
+    await expect(page.locator('[data-testid=chart-title]')).toContainText('Room 204');
+    await expect(page.locator('[data-testid=assistant-request]')).toHaveCount(0);
+    await expect.poll(async () => (await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantAnswers())).length).toBe(1);
+    const [a] = await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantAnswers());
+    expect(a.requestId).toBe('r3');
+    expect(a.answer.data.startsWith('iVBORw0KGgo')).toBe(true);
+    expect(a.answer.data.length).toBeGreaterThan(1000);
+    // the window's charts go back to the app side
+    const synced = await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantCharts());
+    expect(synced.map((c: { id: string }) => c.id)).toEqual(['ac1']);
+  });
 });
