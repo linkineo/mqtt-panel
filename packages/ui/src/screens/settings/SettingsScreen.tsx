@@ -70,6 +70,7 @@ export function SettingsScreen() {
   const profiles = useApp((x) => x.profiles);
   const connections = useApp((x) => x.connections);
   const page = useApp((x) => x.settingsPage) as Page;
+  const nonce = useApp((x) => x.settingsNonce);
   const save = (p: Partial<Settings>) => void useApp.getState().saveSettings(p);
   const [mem, setMem] = useState<MemoryEstimate | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -87,7 +88,7 @@ export function SettingsScreen() {
   useEffect(() => {
     scrollTo(page);
     setActive(page);
-  }, [page]);
+  }, [page, nonce]);
 
   const offsetOf = (p: Page) => {
     const el = refs.current[p];

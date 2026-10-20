@@ -1893,4 +1893,39 @@ test.describe('Assistant (docs/MCP.md section 6)', () => {
     const synced = await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantCharts());
     expect(synced.map((c: { id: string }) => c.id)).toEqual(['ac1']);
   });
+
+  test('M-18 the rail item AI opens Settings on Assistant; aria-current follows the page', async ({ page }) => {
+    await open(page, 'mock=demo&connect=plant&screen=explore');
+    const ai = page.locator('[data-testid=rail-ai]');
+    const settings = page.locator('[data-testid=rail-settings]');
+    await expect(page.locator('.rail button')).toHaveText(['Connect1', 'Explore', 'Publish', 'Charts', 'Broker', 'AI', 'Settings']);
+    await expect(ai).toHaveAttribute('aria-label', 'AI assistant');
+    await expect(ai).not.toHaveAttribute('aria-current', /.*/);
+    // keyboard: focus it and press Enter
+    await ai.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-testid=settings-nav-assistant]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-testid=settings-assistant]')).toBeInViewport();
+    await expect(ai).toHaveAttribute('aria-current', 'page');
+    await expect(settings).not.toHaveAttribute('aria-current', /.*/);
+    // another Settings page: Settings lit, AI not
+    await page.click('[data-testid=settings-nav-appearance]');
+    await expect(settings).toHaveAttribute('aria-current', 'page');
+    await expect(ai).not.toHaveAttribute('aria-current', /.*/);
+    // AI again while Settings is open: back to Assistant
+    await ai.click();
+    await expect(page.locator('[data-testid=settings-assistant]')).toBeInViewport();
+    await expect(ai).toHaveAttribute('aria-current', 'page');
+    // Settings from another screen keeps its last page; opened on Appearance it does not light AI
+    await page.click('[data-testid=rail-broker]');
+    await expect(ai).not.toHaveAttribute('aria-current', /.*/);
+  });
+
+  test('M-18 labels in FR and DE', async ({ page }) => {
+    for (const [lang, text, label] of [['fr', 'IA', 'Assistant IA'], ['de', 'KI', 'KI-Assistent']] as const) {
+      await open(page, `mock=demo&lang=${lang}`);
+      await expect(page.locator('[data-testid=rail-ai]')).toHaveText(text);
+      await expect(page.locator('[data-testid=rail-ai]')).toHaveAttribute('aria-label', label);
+    }
+  });
 });

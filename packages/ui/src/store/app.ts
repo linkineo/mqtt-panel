@@ -54,6 +54,8 @@ interface AppState {
   /** Pending request from another screen (e.g. "Publish here"), consumed by the target screen. */
   publishPrefill: { topic: string; payload: string; format: 'json' | 'text' | 'hex' | 'base64'; nonce: number } | null;
   settingsPage: string;
+  /** Bumped by openSettings so Settings scrolls to the page again even when it is already the selected one. */
+  settingsNonce: number;
   /** Folds (change set 4): profile form "Security" and "Advanced", Broker "Advanced security". Closed when the app
    * starts, kept while it runs (not per profile, not saved). */
   folds: Record<Fold, boolean>;
@@ -72,6 +74,8 @@ interface AppState {
   setScreen(s: Screen): void;
   toggleFold(f: Fold): void;
   setSettingsPage(p: string): void;
+  /** Opens Settings on a page (the rail's AI item opens it on Assistant, 20 Oct 2026). */
+  openSettings(page: string): void;
   setPalette(open: boolean): void;
   refreshProfiles(): Promise<void>;
   selectProfile(id: string | null): void;
@@ -131,6 +135,7 @@ export const useApp = create<AppState>((set, get) => ({
   reducedMotion: false,
   publishPrefill: null,
   settingsPage: 'appearance',
+  settingsNonce: 0,
   folds: { security: false, advanced: false, brokerAdvanced: false },
   skipOnce: {},
   autoNamed: {},
@@ -141,6 +146,7 @@ export const useApp = create<AppState>((set, get) => ({
   setScreen: (screen) => set({ screen, paletteOpen: false }),
   toggleFold: (f) => set({ folds: { ...get().folds, [f]: !get().folds[f] } }),
   setSettingsPage: (settingsPage) => set({ settingsPage }),
+  openSettings: (settingsPage) => set({ settingsPage, settingsNonce: get().settingsNonce + 1, screen: 'settings', paletteOpen: false }),
   setPalette: (paletteOpen) => set({ paletteOpen }),
   refreshProfiles: async () => {
     const profiles = await engine().listProfiles();

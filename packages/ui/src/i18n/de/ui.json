@@ -23,6 +23,8 @@
  "rail.publish": "Senden",
  "rail.charts": "Kurven",
  "rail.broker": "Broker",
+ "rail.ai": "KI",
+ "rail.aiLabel": "KI-Assistent",
  "rail.settings": "Einstellungen",
  "rail.brokerRunning": "Broker läuft",
  "rail.brokerStarting": "Broker startet",

@@ -28,6 +28,8 @@ function Rail() {
   const { t } = useTranslation();
   const screen = useApp((s) => s.screen);
   const setScreen = useApp((s) => s.setScreen);
+  const settingsPage = useApp((s) => s.settingsPage);
+  const openSettings = useApp((s) => s.openSettings);
   const brokerState = useApp((s) => s.broker?.state ?? 'stopped');
   const open = useOpenTabs().length;
   const badge = (k: Screen) => {
@@ -49,12 +51,15 @@ function Rail() {
     if (k === 'connect' && open > 0) return `${t('rail.connect')}, ${t('rail.openCount', { count: open })}`;
     return undefined;
   };
+  // The AI item (20 Oct 2026) opens Settings on the Assistant page and is lit only there; Settings is lit otherwise.
+  const aiOn = screen === 'settings' && settingsPage === 'assistant';
+  const isOn = (k: Screen) => screen === k && !(k === 'settings' && aiOn);
   const item = (k: Screen) => (
     <button
       key={k}
       type="button"
-      className={screen === k ? 'on' : undefined}
-      aria-current={screen === k ? 'page' : undefined}
+      className={isOn(k) ? 'on' : undefined}
+      aria-current={isOn(k) ? 'page' : undefined}
       aria-label={label(k)}
       data-testid={`rail-${k}`}
       onClick={() => setScreen(k)}
@@ -67,6 +72,17 @@ function Rail() {
   return (
     <nav className="rail" aria-label={t('rail.label')}>
       {(['connect', 'explore', 'publish', 'charts', 'broker'] as Screen[]).map(item)}
+      <button
+        type="button"
+        className={aiOn ? 'on' : undefined}
+        aria-current={aiOn ? 'page' : undefined}
+        aria-label={t('rail.aiLabel')}
+        data-testid="rail-ai"
+        onClick={() => openSettings('assistant')}
+      >
+        <RailIcon name="sparkle" />
+        {t('rail.ai')}
+      </button>
       <span className="sp" />
       {item('settings')}
     </nav>

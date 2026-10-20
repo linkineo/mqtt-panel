@@ -23,6 +23,8 @@
  "rail.publish": "Publier",
  "rail.charts": "Courbes",
  "rail.broker": "Broker",
+ "rail.ai": "IA",
+ "rail.aiLabel": "Assistant IA",
  "rail.settings": "Réglages",
  "rail.brokerRunning": "broker en marche",
  "rail.brokerStarting": "broker en démarrage",

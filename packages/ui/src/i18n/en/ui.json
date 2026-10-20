@@ -23,6 +23,8 @@
  "rail.publish": "Publish",
  "rail.charts": "Charts",
  "rail.broker": "Broker",
+ "rail.ai": "AI",
+ "rail.aiLabel": "AI assistant",
  "rail.settings": "Settings",
  "rail.brokerRunning": "broker running",
  "rail.brokerStarting": "broker starting",

@@ -5,6 +5,8 @@ const paths: Record<string, string> = {
   publish: '<path d="M4 12l16-8-6 16-2-7z"/>',
   charts: '<path d="M3 20h18M5 16l4-6 4 3 6-8"/>',
   broker: '<rect x="4" y="4" width="16" height="7" rx="1.5"/><rect x="4" y="13" width="16" height="7" rx="1.5"/><path d="M8 7.5h.01M8 16.5h.01"/>',
+  // four-point sparkle with a small secondary star (rail item AI, 20 Oct 2026)
+  sparkle: '<path d="M10 5c.6 4.4 3.6 7.4 8 8-4.4.6-7.4 3.6-8 8-.6-4.4-3.6-7.4-8-8 4.4-.6 7.4-3.6 8-8z"/><path d="M18 3c.25 1.4.6 1.75 2 2-1.4.25-1.75.6-2 2-.25-1.4-.6-1.75-2-2 1.4-.25 1.75-.6 2-2z"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
 };
 

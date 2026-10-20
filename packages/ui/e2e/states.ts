@@ -498,6 +498,15 @@ export const STATES: UiState[] = [
     },
   },
   {
+    // rail item AI (20 Oct 2026): Settings opened on the Assistant page from the rail
+    id: '17g-rail-ai',
+    query: 'mock=demo&connect=plant&screen=explore',
+    steps: async (p) => {
+      await p.click('[data-testid=rail-ai]');
+      await p.waitForSelector('[data-testid=rail-ai][aria-current=page]');
+    },
+  },
+  {
     id: '18-palette',
     query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {
