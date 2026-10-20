@@ -10,6 +10,7 @@ mkdir -p "$OUT"
 command -v ffmpeg >/dev/null || { echo "ffmpeg not found (brew install ffmpeg)"; exit 1; }
 FPS=${FPS:-25}
 for json in "$RAW"/clip-*.json; do
+  [ -e "$json" ] || continue
   id=$(basename "$json" .json)
   start=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['start'])" "$json")
   dur=$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(min(15.0, round(d['end']-d['start'], 2)))" "$json")
@@ -23,7 +24,8 @@ for json in "$RAW"/clip-*.json; do
   ffmpeg -v error -y -ss "$pos" -i "$OUT/$id.mp4" -frames:v 1 -q:v 4 "$OUT/$id.jpg"
   printf '%s: %ss, webm %s KB, mp4 %s KB\n' "$id" "$dur" $(( $(wc -c < "$OUT/$id.webm") / 1024 )) $(( $(wc -c < "$OUT/$id.mp4") / 1024 ))
 done
-for png in "$RAW"/shot-*.png; do
+for png in "$RAW"/shot-*.png "$RAW"/look-*.png "$RAW"/hero-*.png; do
+  [ -e "$png" ] || continue
   id=$(basename "$png" .png)
   ffmpeg -v error -y -i "$png" -q:v 3 "$OUT/$id.jpg"
   printf '%s: %s KB\n' "$id" $(( $(wc -c < "$OUT/$id.jpg") / 1024 ))

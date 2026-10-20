@@ -63,54 +63,23 @@ T = {
         lead="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in.",
         platforms="Windows · macOS · Linux · open source, Apache 2.0",
         store=["Mac App Store", "Microsoft Store", "Source code on GitHub"], soon="coming soon",
-        icon_alt="MQTT Panel app icon",
-        demo_h="See it working",
-        demo_p="Short clips recorded from the app itself, with demo data.",
-        clips=[
-            ("clip-connections", "Several brokers at once", "Every open connection gets a tab with its live figures; the cards show which profiles are connected."),
-            ("clip-explorer", "A broker with many topics", "Unfold the tree, follow a value in its sparkline, open the payload with its history and the diff to the previous message."),
-            ("clip-charts", "Charts", "Pick fields from a payload for the topic chart, then send them to a dashboard chart with several series."),
-            ("clip-broker", "The built-in broker", "Listeners, users and client certificates on one screen. A port change applies at once."),
+        demo_h="A closer look",
+        demo_p="Screens from the app, with demo data.",
+        looks=[
+            ("look-connections", "Several brokers", "Every open connection gets a tab with its live figures; the cards show which profiles are connected.", "The Connect screen with three connected profiles and their tabs."),
+            ("look-table", "Table view", "The same topics as a flat table, sortable by any column.", "The Explorer as a table of topics."),
         ],
+        hero=dict(alt='MQTT Panel live with demo data: the topic tree, a JSON payload shown as a tree, and its chart.', hint='Live demo with sample data. Use the menu on the left to switch screens.'),
+        live=dict(pause='Pause the live view', play='Play the live view', soon='soon', dl='Download'),
+        theme=dict(label='Appearance', light='Light', dark='Dark'),
         features_h="What it does",
         features=[
-            ("shot-explorer", "Explorer", "The topic tree and the topic table on the Explorer screen, with the payload of a selected topic, its diff and its chart.", [
-                "Tree or table: thousands of topics stay fast to browse and search, with + # wildcards or a regular expression.",
-                "Every message shows its payload, with the changes from the previous one highlighted.",
-                "Sparklines next to each topic show how a value moved over its last messages.",
-                "A history list per topic, filterable by one field of a JSON payload.",
-                "JSON, text, binary, images, Sparkplug B, CBOR, MessagePack and Protobuf are decoded.",
-            ]),
-            ("shot-charts", "Charts", "A dashboard chart with three series from one topic.", [
-                "A series is one topic plus one field of its payload.",
-                "Numbers are plotted as they are, numeric text is read as a number, true and false become 1 and 0.",
-                "Two axes when units differ, for example °C on the left and % on the right.",
-                "A dashboard holds several charts with a shared time range, pause and hover values.",
-            ]),
-            ("shot-publish", "Publish", "The Publish screen with templates, the composer and the list of sent messages with a reply.", [
-                "A composer with topic, QoS, retain and the payload format (JSON, text, hex, Base64).",
-                "Templates for the messages you send often, with placeholders such as {room}.",
-                "Request and response on MQTT 5: set a response topic and see the reply next to the request.",
-                "Repeat a message every few seconds to simulate a sensor.",
-            ]),
-            ("shot-broker", "Built-in broker", "The built-in broker with its listeners, users, client certificates and connected clients.", [
-                "TCP, TLS, WebSocket and secure WebSocket listeners, switched on and off one by one.",
-                "Users with passwords, shared by all listeners.",
-                "Client certificates issued in one click, exported as PEM or PKCS#12.",
-                "A local certificate authority is created on first start.",
-                "Every change applies at once, without restarting the broker.",
-            ]),
-            ("shot-security", "Security", "A connection profile with its security settings: CA, client certificate and key.", [
-                "TLS with your own CA, client certificates and keys (PEM or PKCS#12).",
-                "A broker with a self-signed certificate can be trusted by pinning its certificate.",
-                "Passwords, keys and passphrases are stored encrypted on your computer, never in profile files.",
-                "Nothing leaves your computer: no telemetry, no account, no crash reports.",
-            ]),
-            ("cli", "Command line", "", [
-                "mqttpanel sub and mqttpanel pub, with the same profiles and secrets as the app.",
-                "mqttpanel broker starts the built-in broker without a window.",
-                "Text, JSON, NDJSON or raw output for scripts.",
-            ]),
+            ('explorer', 'look-history', 'Explorer', 'A temperature topic with its history list and the change from the previous message.', 'See every topic and value live, and what changed in each message.', 'Browse thousands of topics as a tree or a table, search with + # or a regular expression, and read JSON, Sparkplug B, CBOR, MessagePack and Protobuf decoded.'),
+            ('charts', 'shot-charts', 'Charts', 'A dashboard chart with three series from one topic.', 'Chart any field of any payload as it arrives.', 'Pick fields from a payload and plot them on a dashboard, with two axes when the units differ and one time range for every chart.'),
+            ('publish', 'shot-publish', 'Publish', 'The Publish screen with templates, the composer and the list of sent messages with a reply.', 'Send test messages, repeat them, and see the replies.', 'Templates with placeholders, QoS and retain, MQTT 5 request and response, and a repeat to simulate a sensor.'),
+            ('broker', 'shot-broker', 'Built-in broker', 'The built-in broker with its listeners, users, client certificates and connected clients.', 'A broker built in, for tests on your desk or devices on your network.', 'TCP, TLS and WebSocket listeners, users and client certificates on one screen. Every change applies at once.'),
+            ('security', 'shot-security', 'Security', 'A connection profile with its security settings: CA, client certificate and key.', 'Proper TLS, and nothing leaves your computer.', 'Your own CA, client certificates and certificate pinning. Passwords and keys are stored encrypted. No telemetry, no account.'),
+            ('cli', '', 'Command line', '', 'The same profiles and secrets, from the terminal.', 'mqttpanel sub, pub and broker use the same profiles as the app, with text, JSON or NDJSON output.'),
         ],
         cli_comment=["# watch a building, with a saved profile", "# send one message", "# run the broker on this computer"],
         privacy_h="Your data stays yours",
@@ -131,6 +100,7 @@ T = {
             ]),
             ("This website", [
                 "This website sets no cookies, runs no analytics and loads nothing from third parties: no fonts, no scripts, no images from other sites.",
+                "If you pick light or dark with the switch at the top, your browser keeps that choice on your device (local storage). It is never sent anywhere.",
                 "It is served by Cloudflare, which processes the technical data any web server needs to deliver a page, such as your IP address, for that purpose.",
             ]),
             ("Questions", [
@@ -157,54 +127,23 @@ T = {
         lead="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré.",
         platforms="Windows · macOS · Linux · open source, Apache 2.0",
         store=["Mac App Store", "Microsoft Store", "Code source sur GitHub"], soon="bientôt disponible",
-        icon_alt="Icône de l’app MQTT Panel",
-        demo_h="En action",
-        demo_p="De courtes séquences enregistrées dans l’app elle-même, avec des données de démonstration.",
-        clips=[
-            ("clip-connections", "Plusieurs brokers à la fois", "Chaque connexion ouverte a son onglet et ses chiffres en direct ; les cartes montrent les profils connectés."),
-            ("clip-explorer", "Un broker aux nombreux topics", "Dépliez l’arbre, suivez une valeur dans sa mini-courbe, ouvrez le message avec son historique et les écarts avec le précédent."),
-            ("clip-charts", "Courbes", "Choisissez des champs du message pour la courbe du topic, puis envoyez-les vers une courbe du tableau de bord à plusieurs séries."),
-            ("clip-broker", "Le broker intégré", "Points d’écoute, utilisateurs et certificats clients sur un seul écran. Un changement de port s’applique aussitôt."),
+        demo_h="Vu de plus près",
+        demo_p="Des écrans de l’app, avec des données de démonstration.",
+        looks=[
+            ("look-connections", "Plusieurs brokers", "Chaque connexion ouverte a son onglet et ses chiffres en direct ; les cartes montrent les profils connectés.", "L’écran Connexion avec trois profils connectés et leurs onglets."),
+            ("look-table", "Vue tableau", "Les mêmes topics dans un tableau, triable sur chaque colonne.", "L’écran Explorer en tableau de topics."),
         ],
+        hero=dict(alt='MQTT Panel en direct avec des données de démonstration : l’arbre des topics, un message JSON en arbre et sa courbe.', hint='Démo en direct avec des données d’exemple. Changez d’écran avec le menu de gauche.'),
+        live=dict(pause='Mettre la vue en direct en pause', play='Relancer la vue en direct', soon='bientôt', dl='Télécharger'),
+        theme=dict(label='Apparence', light='Clair', dark='Sombre'),
         features_h="Ce que fait l’app",
         features=[
-            ("shot-explorer", "Explorer", "L’arbre des topics sur l’écran Explorer, avec le message du topic choisi, ses écarts et sa courbe.", [
-                "Arbre ou tableau : des milliers de topics restent rapides à parcourir et à chercher, avec les jokers + # ou une expression régulière.",
-                "Chaque message s’affiche avec les changements par rapport au précédent mis en évidence.",
-                "À côté de chaque topic, une mini-courbe montre l’évolution de la valeur sur les derniers messages.",
-                "Un historique par topic, filtrable sur un champ d’un message JSON.",
-                "JSON, texte, binaire, images, Sparkplug B, CBOR, MessagePack et Protobuf sont décodés.",
-            ]),
-            ("shot-charts", "Courbes", "Une courbe du tableau de bord avec trois séries issues d’un même topic.", [
-                "Une série, c’est un topic et un champ de son message.",
-                "Les nombres sont tracés tels quels, un texte numérique est lu comme un nombre, true et false deviennent 1 et 0.",
-                "Deux axes quand les unités diffèrent, par exemple °C à gauche et % à droite.",
-                "Un tableau de bord réunit plusieurs courbes, avec une même plage de temps, une pause et les valeurs au survol.",
-            ]),
-            ("shot-publish", "Publier", "L’écran Publier avec les modèles, l’éditeur et la liste des messages envoyés avec une réponse.", [
-                "Un éditeur avec topic, QoS, retain et format du message (JSON, texte, hexa, Base64).",
-                "Des modèles pour les messages envoyés souvent, avec des variables comme {room}.",
-                "Requête et réponse en MQTT 5 : indiquez un topic de réponse et voyez la réponse à côté de la requête.",
-                "Répétez un message toutes les quelques secondes pour simuler un capteur.",
-            ]),
-            ("shot-broker", "Broker intégré", "Le broker intégré avec ses points d’écoute, ses utilisateurs, ses certificats clients et les clients connectés.", [
-                "Points d’écoute TCP, TLS, WebSocket et WebSocket sécurisé, activés un par un.",
-                "Des utilisateurs avec mot de passe, communs à tous les points d’écoute.",
-                "Des certificats clients émis en un clic, exportés en PEM ou PKCS#12.",
-                "Une autorité de certification locale est créée au premier démarrage.",
-                "Chaque changement s’applique aussitôt, sans redémarrer le broker.",
-            ]),
-            ("shot-security", "Sécurité", "Un profil de connexion avec ses réglages de sécurité : CA, certificat client et clé.", [
-                "TLS avec votre propre CA, certificats clients et clés (PEM ou PKCS#12).",
-                "Un broker au certificat auto-signé peut être approuvé en épinglant son certificat.",
-                "Mots de passe, clés et phrases secrètes sont stockés chiffrés sur votre ordinateur, jamais dans les fichiers de profil.",
-                "Rien ne quitte votre ordinateur : ni télémétrie, ni compte, ni rapport de plantage.",
-            ]),
-            ("cli", "Ligne de commande", "", [
-                "mqttpanel sub et mqttpanel pub, avec les mêmes profils et secrets que l’app.",
-                "mqttpanel broker lance le broker intégré sans fenêtre.",
-                "Sortie en texte, JSON, NDJSON ou brute pour vos scripts.",
-            ]),
+            ('explorer', 'look-history', 'Explorer', 'Un topic de température avec son historique et le changement par rapport au message précédent.', 'Tous les topics et leurs valeurs en direct, avec ce qui a changé à chaque message.', 'Parcourez des milliers de topics en arbre ou en tableau, cherchez avec + # ou une expression régulière, et lisez JSON, Sparkplug B, CBOR, MessagePack et Protobuf décodés.'),
+            ('charts', 'shot-charts', 'Courbes', 'Une courbe du tableau de bord à trois séries issues d’un même topic.', 'Tracez n’importe quel champ d’un message, au fil de son arrivée.', 'Choisissez des champs d’un message et tracez-les sur un tableau de bord, avec deux axes quand les unités diffèrent et une même plage de temps pour toutes les courbes.'),
+            ('publish', 'shot-publish', 'Publier', 'L’écran Publier avec les modèles, l’éditeur et la liste des messages envoyés avec une réponse.', 'Envoyez des messages de test, répétez-les et voyez les réponses.', 'Modèles avec variables, QoS et retain, requête et réponse MQTT 5, et répétition pour simuler un capteur.'),
+            ('broker', 'shot-broker', 'Broker intégré', 'Le broker intégré avec ses points d’écoute, ses utilisateurs, ses certificats clients et les clients connectés.', 'Un broker intégré, pour tester sur votre poste ou servir les appareils du réseau.', 'Points d’écoute TCP, TLS et WebSocket, utilisateurs et certificats clients sur un seul écran. Chaque changement s’applique aussitôt.'),
+            ('security', 'shot-security', 'Sécurité', 'Un profil de connexion avec ses réglages de sécurité : AC, certificat client et clé.', 'Un TLS soigné, et rien ne quitte votre ordinateur.', 'Votre propre AC, des certificats clients et l’épinglage de certificat. Mots de passe et clés sont stockés chiffrés. Ni télémétrie, ni compte.'),
+            ('cli', '', 'Ligne de commande', '', 'Les mêmes profils et secrets, depuis le terminal.', 'mqttpanel sub, pub et broker utilisent les mêmes profils que l’app, avec une sortie texte, JSON ou NDJSON.'),
         ],
         cli_comment=["# suivre un bâtiment avec un profil enregistré", "# envoyer un message", "# lancer le broker sur cet ordinateur"],
         privacy_h="Vos données restent les vôtres",
@@ -225,6 +164,7 @@ T = {
             ]),
             ("Ce site", [
                 "Ce site ne dépose aucun cookie, ne mesure pas l’audience et ne charge rien depuis des tiers : ni polices, ni scripts, ni images venant d’autres sites.",
+                "Si vous choisissez le mode clair ou sombre avec le sélecteur en haut, votre navigateur garde ce choix sur votre appareil (stockage local). Il n’est envoyé nulle part.",
                 "Il est servi par Cloudflare, qui traite les données techniques nécessaires à tout serveur web pour livrer une page, comme votre adresse IP, dans ce seul but.",
             ]),
             ("Questions", [
@@ -251,54 +191,23 @@ T = {
         lead="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker.",
         platforms="Windows · macOS · Linux · Open Source, Apache 2.0",
         store=["Mac App Store", "Microsoft Store", "Quellcode auf GitHub"], soon="bald verfügbar",
-        icon_alt="App-Symbol von MQTT Panel",
-        demo_h="So sieht es aus",
-        demo_p="Kurze Aufnahmen direkt aus der App, mit Demodaten.",
-        clips=[
-            ("clip-connections", "Mehrere Broker gleichzeitig", "Jede offene Verbindung hat einen Tab mit ihren Live-Werten; die Karten zeigen, welche Profile verbunden sind."),
-            ("clip-explorer", "Ein Broker mit vielen Topics", "Klapp den Baum auf, verfolge einen Wert in seiner Mini-Kurve, öffne die Nachricht mit Verlauf und den Unterschieden zur vorherigen."),
-            ("clip-charts", "Kurven", "Wähl Felder aus der Nachricht für die Kurve des Topics und schick sie an eine Dashboard-Kurve mit mehreren Reihen."),
-            ("clip-broker", "Der eingebaute Broker", "Listener, Benutzer und Client-Zertifikate auf einem Bildschirm. Ein geänderter Port gilt sofort."),
+        demo_h="Genauer hingeschaut",
+        demo_p="Bildschirme aus der App, mit Demodaten.",
+        looks=[
+            ("look-connections", "Mehrere Broker", "Jede offene Verbindung hat einen Tab mit ihren Live-Werten; die Karten zeigen, welche Profile verbunden sind.", "Der Bereich Verbinden mit drei verbundenen Profilen und ihren Tabs."),
+            ("look-table", "Tabellenansicht", "Dieselben Topics als Tabelle, nach jeder Spalte sortierbar.", "Erkunden als Tabelle der Topics."),
         ],
+        hero=dict(alt='MQTT Panel live mit Demodaten: der Topic-Baum, eine JSON-Nachricht als Baum und ihre Kurve.', hint='Live-Demo mit Beispieldaten. Wechsle den Bildschirm über das Menü links.'),
+        live=dict(pause='Live-Ansicht anhalten', play='Live-Ansicht fortsetzen', soon='bald', dl='Herunterladen'),
+        theme=dict(label='Darstellung', light='Hell', dark='Dunkel'),
         features_h="Was die App kann",
         features=[
-            ("shot-explorer", "Erkunden", "Der Topic-Baum im Bereich Erkunden, mit der Nachricht des gewählten Topics, ihren Unterschieden und ihrer Kurve.", [
-                "Baum oder Tabelle: Auch Tausende Topics lassen sich schnell durchsehen und durchsuchen, mit + # oder einem regulären Ausdruck.",
-                "Jede Nachricht zeigt, was sich gegenüber der vorherigen geändert hat.",
-                "Neben jedem Topic zeigt eine Mini-Kurve, wie sich der Wert zuletzt bewegt hat.",
-                "Ein Verlauf pro Topic, filterbar nach einem Feld einer JSON-Nachricht.",
-                "JSON, Text, Binärdaten, Bilder, Sparkplug B, CBOR, MessagePack und Protobuf werden dekodiert.",
-            ]),
-            ("shot-charts", "Kurven", "Eine Dashboard-Kurve mit drei Reihen aus einem Topic.", [
-                "Eine Reihe ist ein Topic plus ein Feld seiner Nachricht.",
-                "Zahlen werden direkt gezeichnet, Zahlen als Text werden gelesen, true und false werden zu 1 und 0.",
-                "Zwei Achsen, wenn die Einheiten verschieden sind, etwa °C links und % rechts.",
-                "Ein Dashboard fasst mehrere Kurven zusammen, mit gemeinsamem Zeitraum, Pause und Werten beim Darüberfahren.",
-            ]),
-            ("shot-publish", "Senden", "Der Bereich Senden mit Vorlagen, Editor und der Liste gesendeter Nachrichten samt Antwort.", [
-                "Ein Editor mit Topic, QoS, Retain und Format der Nachricht (JSON, Text, Hex, Base64).",
-                "Vorlagen für Nachrichten, die du oft sendest, mit Platzhaltern wie {room}.",
-                "Anfrage und Antwort mit MQTT 5: Gib ein Antwort-Topic an und sieh die Antwort direkt neben der Anfrage.",
-                "Wiederhol eine Nachricht alle paar Sekunden, um einen Sensor zu simulieren.",
-            ]),
-            ("shot-broker", "Eingebauter Broker", "Der eingebaute Broker mit Listenern, Benutzern, Client-Zertifikaten und verbundenen Clients.", [
-                "Listener für TCP, TLS, WebSocket und sicheres WebSocket, einzeln ein- und ausschaltbar.",
-                "Benutzer mit Passwort, gemeinsam für alle Listener.",
-                "Client-Zertifikate mit einem Klick ausstellen und als PEM oder PKCS#12 exportieren.",
-                "Beim ersten Start entsteht eine lokale Zertifizierungsstelle.",
-                "Jede Änderung gilt sofort, ohne den Broker neu zu starten.",
-            ]),
-            ("shot-security", "Sicherheit", "Ein Verbindungsprofil mit seinen Sicherheitseinstellungen: CA, Client-Zertifikat und Schlüssel.", [
-                "TLS mit deiner eigenen CA, Client-Zertifikaten und Schlüsseln (PEM oder PKCS#12).",
-                "Einem Broker mit selbstsigniertem Zertifikat kannst du vertrauen, indem du sein Zertifikat festlegst.",
-                "Passwörter, Schlüssel und Passphrasen liegen verschlüsselt auf deinem Computer, nie in Profildateien.",
-                "Nichts verlässt deinen Computer: keine Telemetrie, kein Konto, keine Absturzberichte.",
-            ]),
-            ("cli", "Kommandozeile", "", [
-                "mqttpanel sub und mqttpanel pub, mit denselben Profilen und Geheimnissen wie die App.",
-                "mqttpanel broker startet den eingebauten Broker ohne Fenster.",
-                "Ausgabe als Text, JSON, NDJSON oder roh für Skripte.",
-            ]),
+            ('explorer', 'look-history', 'Erkunden', 'Ein Temperatur-Topic mit Verlauf und der Änderung zur vorherigen Nachricht.', 'Alle Topics und Werte live, und was sich mit jeder Nachricht geändert hat.', 'Durchsuche Tausende Topics als Baum oder Tabelle, filtere mit + # oder einem regulären Ausdruck und lies JSON, Sparkplug B, CBOR, MessagePack und Protobuf dekodiert.'),
+            ('charts', 'shot-charts', 'Kurven', 'Eine Dashboard-Kurve mit drei Reihen aus einem Topic.', 'Zeichne jedes Feld jeder Nachricht, während sie ankommt.', 'Wähl Felder aus einer Nachricht und zeichne sie in ein Dashboard, mit zwei Achsen bei unterschiedlichen Einheiten und einem Zeitbereich für alle Kurven.'),
+            ('publish', 'shot-publish', 'Senden', 'Der Bereich Senden mit Vorlagen, Editor und der Liste gesendeter Nachrichten mit einer Antwort.', 'Schick Testnachrichten, wiederhole sie und sieh die Antworten.', 'Vorlagen mit Platzhaltern, QoS und Retain, Anfrage und Antwort mit MQTT 5 und Wiederholen, um einen Sensor zu simulieren.'),
+            ('broker', 'shot-broker', 'Eingebauter Broker', 'Der eingebaute Broker mit Listenern, Benutzern, Client-Zertifikaten und verbundenen Clients.', 'Ein eingebauter Broker, für Tests am Schreibtisch oder Geräte im Netzwerk.', 'TCP-, TLS- und WebSocket-Listener, Benutzer und Client-Zertifikate auf einem Bildschirm. Jede Änderung gilt sofort.'),
+            ('security', 'shot-security', 'Sicherheit', 'Ein Verbindungsprofil mit seinen Sicherheitseinstellungen: CA, Client-Zertifikat und Schlüssel.', 'Sauberes TLS, und nichts verlässt deinen Computer.', 'Eigene CA, Client-Zertifikate und Zertifikat-Pinning. Passwörter und Schlüssel werden verschlüsselt gespeichert. Keine Telemetrie, kein Konto.'),
+            ('cli', '', 'Kommandozeile', '', 'Dieselben Profile und Geheimnisse im Terminal.', 'mqttpanel sub, pub und broker nutzen dieselben Profile wie die App, mit Ausgabe als Text, JSON oder NDJSON.'),
         ],
         cli_comment=["# ein Gebäude beobachten, mit gespeichertem Profil", "# eine Nachricht senden", "# den Broker auf diesem Computer starten"],
         privacy_h="Deine Daten bleiben deine",
@@ -319,6 +228,7 @@ T = {
             ]),
             ("Diese Website", [
                 "Diese Website setzt keine Cookies, misst keine Besuche und lädt nichts von Dritten: keine Schriften, keine Skripte, keine Bilder von anderen Websites.",
+                "Wenn du oben hell oder dunkel wählst, merkt sich dein Browser diese Wahl auf deinem Gerät (lokaler Speicher). Sie wird nirgendwohin gesendet.",
                 "Sie wird von Cloudflare ausgeliefert. Cloudflare verarbeitet dabei die technischen Daten, die jeder Webserver zum Ausliefern einer Seite braucht, etwa deine IP-Adresse, und nur dafür.",
             ]),
             ("Fragen", [
@@ -383,13 +293,44 @@ def head(t, lang, page, title, desc):
 <meta name="theme-color" content="#161615" media="(prefers-color-scheme: dark)">
 <link rel="canonical" href="{SITE}{PREFIX[lang]}/{path}">{alts}
 <meta property="og:title" content="{e(title)}"><meta property="og:description" content="{e(desc)}">
-<meta property="og:image" content="{SITE}{MEDIA}/shot-explorer.jpg">
+<meta property="og:image" content="{SITE}{MEDIA}/look-tree.{lang}.light.jpg">
 <link rel="icon" href="/assets/favicon.png" type="image/png"><link rel="apple-touch-icon" href="/assets/icon-256.png">
+<script src="/theme.js"></script>
 <link rel="stylesheet" href="/style.css">
 <script src="/site.js" defer></script>
 </head>
 <body>
 <div class="wrap">"""
+
+
+ICON = {
+    "light": '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M3 13l1.4-1.4M11.6 4.4L13 3"/></svg>',
+    "dark": '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.5A5.5 5.5 0 1 1 6.5 3a4.5 4.5 0 0 0 6.5 6.5z"/></svg>',
+}
+
+
+def theme_switch(t):
+    """Light or dark. Until the visitor picks one, the system setting is the one shown as selected (site.js)."""
+    th = t["theme"]
+    btns = "".join(
+        f'<button type="button" data-theme-set="{k}" aria-pressed="false" aria-label="{e(th[k])}" title="{e(th[k])}">{ICON[k]}</button>'
+        for k in ("light", "dark")
+    )
+    return f'<span class="theme" role="group" aria-label="{e(th["label"])}">{btns}</span>'
+
+
+def downloads(t):
+    """The store and source links, in the sticky header (a bar at the bottom on small screens)."""
+    out = []
+    short = ("App Store", "Microsoft Store", "GitHub")  # small screens
+    for i, (label, url) in enumerate(zip(t["store"], (MAC_APP_STORE_URL, MICROSOFT_STORE_URL, GITHUB_URL))):
+        cls = "dl primary" if i == 0 else "dl"
+        text = f'<span class="full">{e(label)}</span><span class="short" aria-hidden="true">{e(short[i])}</span>'
+        if url:
+            out.append(f'<a class="{cls}" href="{e(url)}">{text}</a>')
+        else:
+            out.append(f'<a class="{cls}" href="#" aria-disabled="true">{text}<small>{e(t["live"]["soon"])}</small></a>')
+    return f'<div class="dls" role="group" aria-label="{e(t["live"]["dl"])}">{"".join(out)}</div>'
 
 
 def header(t, lang, page):
@@ -401,8 +342,10 @@ def header(t, lang, page):
     return f"""<header class="top">
   <a class="brand" href="{p}/"><img src="/assets/icon-64.png" alt="" width="32" height="32">MQTT Panel</a>
   <nav aria-label="Site">
-    <a href="{p}/#features">{e(t["nav_features"])}</a><a href="{p}/privacy">{e(t["nav_privacy"])}</a>
+    <a class="navl" href="{p}/#features">{e(t["nav_features"])}</a><a class="navl" href="{p}/privacy">{e(t["nav_privacy"])}</a>
+    {downloads(t)}
     <span class="lang" role="group" aria-label="{e(t["lang_label"])}">{langs}</span>
+    {theme_switch(t)}
   </nav>
 </header>"""
 
@@ -423,64 +366,116 @@ def footer(t, lang, page):
 """
 
 
-def store_buttons(t):
-    out = []
-    for i, (label, url) in enumerate(zip(t["store"], (MAC_APP_STORE_URL, MICROSOFT_STORE_URL, GITHUB_URL))):
-        cls = "btn primary" if i == 0 else "btn"
-        if url:
-            out.append(f'<a class="{cls}" href="{e(url)}">{e(label)}</a>')
-        else:
-            out.append(f'<a class="{cls}" href="#" aria-disabled="true">{e(label)} · {e(t["soon"])}</a>')
-    return "".join(out)
+def shot(id_, lang, alt, cls=""):
+    """One screenshot in both themes; CSS shows the one matching the page theme. The other is display:none and,
+    being lazy, is not fetched."""
+    c = f' class="{cls}"' if cls else ""
+    return (
+        f'<img class="tl" src="{MEDIA}/{id_}.{lang}.light.jpg" alt="{e(alt)}" width="1280" height="800" loading="lazy"{c}>'
+        f'<img class="td" src="{MEDIA}/{id_}.{lang}.dark.jpg" alt="{e(alt)}" width="1280" height="800" loading="lazy"{c}>'
+    )
 
 
-def clip(id_, title, caption):
-    return f"""<figure class="clip">
-  <div class="frame"><video muted loop playsinline preload="none" poster="{MEDIA}/{id_}.jpg" width="1280" height="800" aria-label="{e(title)}">
-    <source src="{MEDIA}/{id_}.webm" type="video/webm"><source src="{MEDIA}/{id_}.mp4" type="video/mp4">
-  </video></div>
-  <figcaption><b>{e(title)}</b> {e(caption)}</figcaption>
-</figure>"""
+# Live views: the app's own interface from /app/ (demo mode, mock data, nothing leaves the page), set up by a few
+# steps and shown scaled, without interaction; the screenshot stays as the poster and the fallback (no script,
+# reduced motion, small screens, off screen). Owner, 18 Oct 2026.
+ROW = '[data-testid=tree-row][data-path="{}"]'
+SCENES = {
+    # the hero is the interactive demo: a dashboard chart is prepared first, so the Charts screen has one
+    "hero": ("mock=demo&connect=plant,local&screen=explore", [
+        ["fill", "[data-testid=search]", "building/f2/ahu01"], ["click", ROW.format("building/f2/ahu01/state")], ["wait", 500],
+        ["click", "[data-testid=add-field]"], ["clickText", "[data-testid=picker-row]", "setpoint", 0],
+        ["select", "[data-testid=picker-also]", "new"], ["click", "[data-testid=picker-add]"], ["wait", 300],
+        ["click", "[data-testid=rail-charts]"], ["clickText", "[data-testid=chart-pane] .ph button", "15 min", 0], ["wait", 300],
+        ["click", "[data-testid=rail-explore]"], ["fill", "[data-testid=search]", "building/f2"], ["wait", 300],
+        ["click", ROW.format("building/f2/ahu01/state")], ["wait", 600], ["click", "[data-testid=payload-form-tree]"]]),
+    "look-history": ("mock=demo&connect=plant,local&screen=explore", [
+        ["fill", "[data-testid=search]", "building/f2/r204"], ["click", ROW.format("building/f2/r204/temperature")], ["wait", 1500],
+        ["clickText", "[data-testid=history-row]", "value", 1]]),
+    "shot-charts": ("mock=demo&connect=plant,local&screen=explore", [
+        ["fill", "[data-testid=search]", "building/f2/ahu01"], ["click", ROW.format("building/f2/ahu01/state")], ["wait", 500],
+        ["click", "[data-testid=add-field]"], ["clickText", "[data-testid=picker-row]", "setpoint", 0],
+        ["select", "[data-testid=picker-also]", "new"], ["click", "[data-testid=picker-add]"], ["wait", 300],
+        ["click", "[data-testid=rail-charts]"], ["clickText", "[data-testid=chart-pane] .ph button", "15 min", 0]]),
+    "shot-publish": ("mock=demo&connect=plant,local&screen=publish", [
+        ["clickNth", "[data-testid=template]", 2], ["click", "[data-testid=send]"]]),
+    "shot-broker": ("mock=demo&screen=broker", []),
+    "shot-security": ("mock=demo&connect=plant,local&screen=connect", [["click", "[data-testid=fold-security]"]]),
+    "look-connections": ("mock=demo&connect=plant,local&screen=connect", [["click", "[data-profile=lab] [data-testid=card-play]"]]),
+    "look-table": ("mock=demo&connect=plant,local&screen=explore", [
+        ["click", "[data-testid=layout-table]"], ["fill", "[data-testid=search]", "building/f2"]]),
+}
 
 
-def feature(t, i, f):
-    id_, title, alt, bullets = f
-    lis = "".join(f"<li>{e(b)}</li>" for b in bullets)
-    if id_ == "cli":
-        lines = "".join(
-            f'<span class="c">{e(c)}</span>\n<span class="p">$</span> {e(cmd)}\n' for c, cmd in zip(t["cli_comment"], CLI_LINES)
+def live(t, lang, scene, poster, alt, hero=False):
+    query, steps = SCENES[scene]
+    L = t["live"]
+    return (
+        f'<div class="live frame{" hero-live" if hero else ""}"{" data-interactive" if hero else ""} data-query="{e(query)}&amp;lang={lang}" data-steps="{e(json.dumps(steps))}">'
+        f'{shot(poster, lang, alt)}'
+        f'<button type="button" class="lpause" data-pause="{e(L["pause"])}" data-play="{e(L["play"])}" aria-label="{e(L["pause"])}" hidden><span aria-hidden="true">❚❚</span></button>'
+        f'</div>'
+    )
+
+
+# "A closer look": one still per tab, the first shown; without script every panel shows, one under the other.
+def looks(t, lang):
+    tabs, panels = [], []
+    for i, (id_, label, caption, alt) in enumerate(t["looks"]):
+        sel = "true" if i == 0 else "false"
+        tabindex = "" if i == 0 else ' tabindex="-1"'
+        tabs.append(
+            f'<button type="button" role="tab" id="tab-{id_}" aria-controls="panel-{id_}" aria-selected="{sel}"'
+            f'{tabindex}>{e(label)}</button>'
         )
-        visual = f'<pre class="term" aria-label="{e(title)}"><code>{lines.rstrip()}</code></pre>'
+        off = "" if i == 0 else " data-off"
+        panels.append(
+            f'<figure class="look" role="tabpanel" id="panel-{id_}" aria-labelledby="tab-{id_}"{off}>'
+            f'{live(t, lang, id_, id_, alt)}<figcaption>{e(caption)}</figcaption></figure>'
+        )
+    return f'<div class="looks"><div class="ltabs" role="tablist">{"".join(tabs)}</div>{"".join(panels)}</div>'
+
+
+# "What it does" as cards (owner, 18 Oct 2026): the feature name, a headline, a short text, then the view itself.
+WIDE = {"explorer", "broker"}
+
+
+def feature(t, lang, i, f):
+    anchor, img, title, alt, pitch, body = f
+    if anchor == "cli":
+        lines = "".join(
+            f'<span class="c">{e(c)}</span>\n<span class="ln"><span class="p">$</span> <span class="cmd">{e(cmd)}</span></span>\n'
+            for c, cmd in zip(t["cli_comment"], CLI_LINES)
+        )
+        visual = f'<pre class="term" data-type aria-label="{e(title)}"><code>{lines.rstrip()}</code></pre>'
     else:
-        visual = f'<div class="frame"><img src="{MEDIA}/{id_}.jpg" alt="{e(alt)}" width="1280" height="800" loading="lazy"></div>'
-    return f"""<section class="feature" id="{e(id_.replace("shot-", ""))}">
-  <div class="ftext"><p class="n">{i + 1:02d}</p><h3>{e(title)}</h3><ul>{lis}</ul></div>
-  <div class="fvisual">{visual}</div>
-</section>"""
+        visual = live(t, lang, img, img, alt)
+    wide = " wide" if anchor in WIDE else ""
+    return f"""<article class="card{wide}" id="{e(anchor)}">
+  <div class="ctext"><p class="eyebrow">{e(title)}</p><h3>{e(pitch)}</h3><p class="body">{e(body)}</p></div>
+  <div class="cvisual">{visual}</div>
+</article>"""
 
 
 def index(t, lang):
-    clips = "".join(clip(*c) for c in t["clips"])
-    feats = "".join(feature(t, i, f) for i, f in enumerate(t["features"]))
+    feats = "".join(feature(t, lang, i, f) for i, f in enumerate(t["features"]))
     p = PREFIX[lang]
     return head(t, lang, "", t["title"], t["meta"]) + header(t, lang, "") + f"""
 <main>
 <section class="hero">
-  <div class="htext">
-    <h1>MQTT Panel</h1>
-    <p class="lead">{e(t["lead"])}</p>
-    <div class="cta">{store_buttons(t)}</div>
-    <p class="meta">{e(t["platforms"])}</p>
-  </div>
-  <img class="appicon" src="/assets/icon-256.png" alt="{e(t["icon_alt"])}" width="256" height="256">
-</section>
-<section class="block" id="demo">
-  <div class="bhead"><h2>{e(t["demo_h"])}</h2><p>{e(t["demo_p"])}</p></div>
-  <div class="clips">{clips}</div>
+  <h1>MQTT Panel</h1>
+  <p class="lead">{e(t["lead"])}</p>
+  <p class="meta">{e(t["platforms"])}</p>
+  {live(t, lang, "hero", "look-tree", t["hero"]["alt"], hero=True)}
+  <p class="hint">{e(t["hero"]["hint"])}</p>
 </section>
 <section class="block" id="features">
   <div class="bhead"><h2>{e(t["features_h"])}</h2></div>
-  {feats}
+  <div class="cards">{feats}</div>
+</section>
+<section class="block" id="demo">
+  <div class="bhead"><h2>{e(t["demo_h"])}</h2><p>{e(t["demo_p"])}</p></div>
+  {looks(t, lang)}
 </section>
 <section class="block teaser" id="privacy">
   <h2>{e(t["privacy_h"])}</h2>
@@ -599,6 +594,11 @@ def build():
     shutil.copy(ICONS / "32x32.png", OUT / "assets" / "favicon.png")
     shutil.copy(ROOT / "style.css", OUT / "style.css")
     shutil.copy(ROOT / "site.js", OUT / "site.js")
+    shutil.copy(ROOT / "theme.js", OUT / "theme.js")
+    app = REPO / "packages" / "ui" / "dist-site"
+    if not (app / "index.html").exists():
+        sys.exit("packages/ui/dist-site missing: run npm run build:site -w @mqttpanel/ui")
+    shutil.copytree(app, OUT / "app")
     shutil.copy(REPO / "LICENSE", OUT / "LICENSE.txt")
     for lang in LANGS:
         t = T[lang]
@@ -608,7 +608,7 @@ def build():
         (d / "privacy.html").write_text(privacy(t, lang), encoding="utf-8")
         (d / "legal.html").write_text(legal(t, lang, third), encoding="utf-8")
     (OUT / "404.html").write_text(not_found(), encoding="utf-8")
-    (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n")
+    (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\nDisallow: /app/\nSitemap: {SITE}/sitemap.xml\n")
     urls = "".join(f"<url><loc>{SITE}{PREFIX[l]}/{p}</loc></url>" for l in LANGS for p in ("", "privacy", "legal"))
     (OUT / "sitemap.xml").write_text(
         f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'

@@ -54,3 +54,4 @@ __pycache__/
 # Website build output and raw recordings
 website/public/
 website/.media-raw/
+dist-site/

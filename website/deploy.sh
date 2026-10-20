@@ -3,5 +3,6 @@
 # WRANGLER: path to a wrangler binary (default: wrangler on PATH). See website/README.md.
 set -eu
 cd "$(dirname "$0")"
+(cd .. && npm run build:site -w @mqttpanel/ui)
 python3 build.py
 "${WRANGLER:-wrangler}" deploy
