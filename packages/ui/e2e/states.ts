@@ -450,6 +450,42 @@ export const STATES: UiState[] = [
     },
   },
   {
+    // docs/MCP.md section 6: Settings, Assistant with a host connected and two log rows
+    id: '17c-settings-assistant',
+    query: 'mock=demo&screen=settings',
+    steps: async (p) => {
+      await p.evaluate(() => {
+        const m = (window as any).__mqttpanelMock.engine;
+        m.assistantEvent({ kind: 'session', connected: true, host: 'Claude Code' });
+        m.addAssistantLog({ at: Date.now() - 60000, host: 'Claude Code', tool: 'create_connection', arguments: { host: 'broker.example.com', protocol: 'mqtts' }, outcome: 'ok', detail: 'Created the connection broker.' });
+        m.addAssistantLog({ at: Date.now(), host: 'Claude Code', tool: 'set_connection_password', arguments: { id: 'broker', password: '•••' }, outcome: 'refused', detail: 'Not yet allowed.', note: 'secret given through the assistant' });
+      });
+      await p.click('[data-testid=settings-nav-assistant]');
+    },
+  },
+  {
+    // the one-time acknowledgement dialog when a host connects
+    id: '17d-assistant-ack',
+    query: 'mock=demo&screen=connect',
+    steps: async (p) => {
+      await p.evaluate(() => {
+        const m = (window as any).__mqttpanelMock.engine;
+        m.assistantEvent({ kind: 'session', connected: true, host: 'Claude Desktop' });
+        m.assistantEvent({ kind: 'acknowledge' });
+      });
+      await p.waitForSelector('[data-testid=assistant-ack]');
+    },
+  },
+  {
+    // ask_in_app: the client certificate request (certificate, key, passphrase)
+    id: '17e-assistant-request',
+    query: 'mock=demo&screen=connect',
+    steps: async (p) => {
+      await p.evaluate(() => (window as any).__mqttpanelMock.engine.assistantEvent({ kind: 'request', id: 'r1', request: 'clientCert', profileId: 'plant', profileName: 'Plant broker' }));
+      await p.waitForSelector('[data-testid=assistant-request]');
+    },
+  },
+  {
     id: '18-palette',
     query: 'mock=demo&connect=plant,local&screen=explore',
     steps: async (p) => {

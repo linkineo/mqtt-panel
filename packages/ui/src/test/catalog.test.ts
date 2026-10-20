@@ -37,7 +37,10 @@ describe('Catalog completeness', () => {
   it('dynamic key families are complete', () => {
     const families: Record<string, string[]> = {
       rail: ['connect', 'explore', 'publish', 'charts', 'broker', 'settings'],
-      settings: ['appearance', 'language', 'data', 'security', 'updates', 'shortcuts', 'privacy', 'about'],
+      settings: ['appearance', 'language', 'data', 'security', 'assistant', 'updates', 'shortcuts', 'privacy', 'about'],
+      'assistant.outcome': ['ok', 'refused', 'failed', 'cancelled', 'timeout'],
+      'assistant.req': ['password', 'caCert', 'clientCert', 'signedCert'],
+      'assistant.host': ['claudeDesktop', 'claudeCode', 'chatgpt'],
       kind: ['tcp', 'tls', 'ws', 'wss'],
       preset: ['plain', 'encrypted', 'passwords', 'mtls'],
       bstate: ['running', 'stopped', 'starting', 'failed'],

@@ -33,6 +33,8 @@ export interface Settings {
   updateChannel: 'stable' | 'beta';
   /** The broker log is expanded in the Broker screen's right pane (collapsed by default). */
   brokerLogOpen: boolean;
+  /** The day (YYYY-MM-DD) the assistant acknowledgement was accepted (docs/MCP.md section 3); null until then. */
+  assistantAcknowledged: string | null;
 }
 
 /** Where the master key lives (change set 10): "file" on unsigned builds, "keychain" (the OS secret store) on signed ones. */
@@ -674,4 +676,82 @@ export interface MenuEvent {
   id: string;
 }
 
-export type EngineEvent = TickEvent | MenuEvent;
+// ---------------------------------------------------------------- assistant (MCP, docs/MCP.md)
+
+/** One host configuration file on Settings, Assistant ("Add to Claude", "Add to ChatGPT"). */
+export interface AssistantHostFile {
+  family: 'claude' | 'chatgpt';
+  host: 'claudeDesktop' | 'claudeCode' | 'chatgpt';
+  /** For display, the home folder as "~". */
+  path: string;
+  exists: boolean;
+  /** The file has the entry "mqttpanel" and it starts this app. */
+  configured: boolean;
+}
+
+export interface AssistantStatus {
+  /** The day the acknowledgement was accepted (YYYY-MM-DD), or null. */
+  acknowledged: string | null;
+  /** A host session is open. */
+  connected: boolean;
+  /** Its name, from the host's MCP client info. */
+  host: string | null;
+  /** The executable the hosts start, with the argument "mcp". */
+  executable: string;
+  /** "Other hosts": the usual JSON configuration of a stdio server. */
+  snippet: string;
+  hosts: AssistantHostFile[];
+}
+
+/** What "Add to Claude" or "Add to ChatGPT" wrote. */
+export interface AssistantWriteReport {
+  written: string[];
+  /** Files that do not exist on this computer (host not installed or never started). */
+  missing: string[];
+  failed: { path: string; error: UserMessage }[];
+}
+
+/** One row of the Assistant log (kept for the session, never on disk). Secret arguments read "•••". */
+export interface AssistantLogEntry {
+  at: number;
+  host: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+  outcome: 'ok' | 'refused' | 'failed' | 'cancelled' | 'timeout';
+  /** One sentence in the app language. */
+  detail: string;
+  /** "secret given through the assistant" when a secret came as a tool argument. */
+  note?: string;
+}
+
+/** What the assistant asks the user for in the app (ask_in_app). */
+export type AssistantRequestKind = 'password' | 'caCert' | 'clientCert' | 'signedCert';
+
+/** The app's answer to an assistant request; the secret stays in the app. */
+export interface AssistantAnswer {
+  cancelled?: boolean;
+  password?: string | null;
+  /** The picked certificate, bundle, CA or signed certificate. */
+  path?: string | null;
+  /** The picked key file (client certificate). */
+  keyPath?: string | null;
+  passphrase?: string | null;
+}
+
+export type AssistantEventBody =
+  | { kind: 'toast'; text: string }
+  | { kind: 'navigate'; screen: 'connect' | 'explore' | 'charts' | 'broker' | 'settings'; profileId?: string; topic?: string; chartId?: string; page?: string }
+  | { kind: 'changed'; what: 'profiles' | 'connections' | 'broker' }
+  | { kind: 'logChanged' }
+  | { kind: 'session'; connected: boolean; host: string | null }
+  | { kind: 'acknowledge' }
+  | { kind: 'acknowledgeDone' }
+  | { kind: 'request'; id: string; request: AssistantRequestKind; profileId: string; profileName: string }
+  | { kind: 'requestDone'; id: string };
+
+export interface AssistantEvent {
+  type: 'assistant';
+  event: AssistantEventBody;
+}
+
+export type EngineEvent = TickEvent | MenuEvent | AssistantEvent;

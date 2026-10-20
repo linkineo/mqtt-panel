@@ -1781,3 +1781,57 @@ test.describe('Change set 11', () => {
     await expect(page.locator('[data-testid=regen-extra]')).toHaveValue('broker.example.com, 203.0.113.7');
   });
 });
+
+test.describe('Assistant (docs/MCP.md section 6)', () => {
+  const hostFiles = (page: Page) => page.evaluate(() => (window as any).__mqttpanelMock.engine.hostFiles() as Record<string, string>);
+
+  test('M-10 "Add to Claude" and "Add to ChatGPT" write the files of the (virtual) home; the snippet copies', async ({ page }) => {
+    await open(page, 'mock=demo&screen=settings');
+    await page.click('[data-testid=settings-nav-assistant]');
+    const section = page.locator('[data-testid=settings-assistant]');
+    await expect(section).toContainText('Over this interface an assistant can change everything in MQTT Panel');
+    await expect(page.locator('[data-testid=assistant-claude-state]')).toHaveText('Not set up');
+    await page.click('[data-testid=assistant-add-claude]');
+    await expect(page.locator('[data-testid=assistant-confirm-files] li')).toHaveCount(2);
+    await page.click('[data-testid=confirm-ok]');
+    await expect(page.locator('[data-testid=assistant-claude-state]')).toHaveText('Set up in Claude Desktop, Claude Code');
+    let files = await hostFiles(page);
+    expect(JSON.parse(files['~/.claude.json']).numStartups).toBe(4);
+    expect(JSON.parse(files['~/.claude.json']).mcpServers.mqttpanel).toEqual({ type: 'stdio', command: expect.stringContaining('MQTT Panel'), args: ['mcp'], env: {} });
+    expect(JSON.parse(files['~/Library/Application Support/Claude/claude_desktop_config.json']).mcpServers.mqttpanel.args).toEqual(['mcp']);
+    await page.click('[data-testid=assistant-add-chatgpt]');
+    await expect(page.locator('[data-testid=assistant-confirm]')).toContainText('ChatGPT on the web cannot reach a program on this computer');
+    await page.click('[data-testid=confirm-ok]');
+    await expect(page.locator('[data-testid=assistant-chatgpt-state]')).toHaveText('Set up');
+    files = await hostFiles(page);
+    expect(files['~/.codex/config.toml']).toMatch(/^\[mcp_servers\.mqttpanel\]\ncommand = ".+"\nargs = \["mcp"\]\n$/);
+    await page.click('[data-testid=assistant-copy]');
+    expect(JSON.parse((await copied(page))!).mcpServers.mqttpanel.args).toEqual(['mcp']);
+  });
+
+  test('M-10 the acknowledgement: dialog on connect, Accept shows the date on the page', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    await page.evaluate(() => {
+      const m = (window as any).__mqttpanelMock.engine;
+      m.assistantEvent({ kind: 'session', connected: true, host: 'Claude Desktop' });
+      m.assistantEvent({ kind: 'acknowledge' });
+    });
+    await expect(page.locator('[data-testid=assistant-ack]')).toContainText('Claude Desktop is connected to MQTT Panel.');
+    await page.click('[data-testid=assistant-ack-accept]');
+    await expect(page.locator('[data-testid=assistant-ack]')).toHaveCount(0);
+    await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantEvent({ kind: 'navigate', screen: 'settings', page: 'assistant' }));
+    await expect(page.locator('[data-testid=toast]', { hasText: 'The assistant moved the view.' })).toBeVisible();
+    await expect(page.locator('[data-testid=assistant-accepted]')).toContainText('Accepted on');
+    await expect(page.locator('[data-testid=assistant-session]')).toHaveText('Claude Desktop');
+  });
+
+  test('M-10 a password asked in the app goes to the app, not the chat', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantEvent({ kind: 'request', id: 'r7', request: 'password', profileId: 'plant', profileName: 'Plant broker' }));
+    await page.fill('[data-testid=assistant-password]', 'typed-in-the-app');
+    await page.click('[data-testid=assistant-request-ok]');
+    await expect(page.locator('[data-testid=assistant-request]')).toHaveCount(0);
+    const answers = await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantAnswers());
+    expect(answers).toEqual([{ requestId: 'r7', answer: { password: 'typed-in-the-app' } }]);
+  });
+});

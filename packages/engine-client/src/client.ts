@@ -3,6 +3,10 @@ import type {
   AppBrokerStep,
   AppBrokerStepResult,
   AppInfo,
+  AssistantAnswer,
+  AssistantLogEntry,
+  AssistantStatus,
+  AssistantWriteReport,
   BrokerCerts,
   BrokerClient,
   BrokerBind,
@@ -213,6 +217,24 @@ export interface EngineClient {
   /** One step of "Connect to this app's broker" (user, cert, trust, broker, connect); the profile "Local broker" is
    * created once (named `profileName`) and updated in place. Errors are thrown as UserMessage. */
   appBrokerStep(listenerId: string, step: AppBrokerStep, profileName: string): Promise<AppBrokerStepResult>;
+
+  // assistant (MCP, docs/MCP.md sections 3 and 6)
+  /** The acknowledgement, the host session, the host configuration files and the snippet for Settings, Assistant. */
+  assistantStatus(): Promise<AssistantStatus>;
+  /** Accepts the acknowledgement once (persisted); writing tools work from then on. */
+  assistantAccept(): Promise<AssistantStatus>;
+  /** "Not now" in the acknowledgement dialog: a writing call waiting for it is refused at once. */
+  assistantDecline(): Promise<void>;
+  /** "Add to Claude": the entry "mqttpanel" in the Claude Desktop and Claude Code files that exist. */
+  assistantAddToClaude(): Promise<AssistantWriteReport>;
+  /** "Add to ChatGPT": [mcp_servers.mqttpanel] in ~/.codex/config.toml (the ChatGPT desktop app), created if missing. */
+  assistantAddToChatgpt(): Promise<AssistantWriteReport>;
+  assistantLog(): Promise<AssistantLogEntry[]>;
+  assistantClearLog(): Promise<void>;
+  /** "Export…": the log as a text file through the save dialog. */
+  assistantExportLog(): Promise<SaveOutcome>;
+  /** Answers an assistant request (password prompt, file picker); false when the call no longer waits. */
+  assistantAnswer(requestId: string, answer: AssistantAnswer): Promise<boolean>;
 
   // events
   /** Subscribes to batched events (<= 30 Hz). Returns an unsubscribe function. */

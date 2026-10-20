@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   AppInfo,
+  AssistantEventBody,
   BrokerConfig,
   BrokerStatus,
   ConnectionStatus,
@@ -29,6 +30,7 @@ export type Fold = 'security' | 'advanced' | 'brokerAdvanced';
 
 type SentListener = (updates: { connectionId: string; entry: SentEntry }[]) => void;
 type MenuListener = (id: string) => void;
+type AssistantListener = (e: AssistantEventBody) => void;
 
 interface AppState {
   ready: boolean;
@@ -61,6 +63,11 @@ interface AppState {
   /** Profiles created with "New broker…" in this run: their Name follows the host until the user types another name
    * (change set 6). Not saved: an existing profile is never renamed. */
   autoNamed: Record<string, boolean>;
+  /** The host connected over the assistant interface (docs/MCP.md), null when none. */
+  assistantHost: string | null;
+  assistantConnected: boolean;
+  /** Bumped when the Assistant log changes (Settings, Assistant reloads it). */
+  assistantLogSeq: number;
 
   setScreen(s: Screen): void;
   toggleFold(f: Fold): void;
@@ -77,6 +84,7 @@ interface AppState {
   handleEvent(e: EngineEvent): void;
   onSent(l: SentListener): () => void;
   onMenu(l: MenuListener): () => void;
+  onAssistant(l: AssistantListener): () => void;
   prefillPublish(topic: string, payload: string, format: 'json' | 'text' | 'hex' | 'base64'): void;
 }
 
@@ -95,10 +103,12 @@ export const DEFAULT_SETTINGS: Settings = {
   updateCheck: true,
   updateChannel: 'stable',
   brokerLogOpen: false,
+  assistantAcknowledged: null,
 };
 
 const sentListeners = new Set<SentListener>();
 const menuListeners = new Set<MenuListener>();
+const assistantListeners = new Set<AssistantListener>();
 let toastId = 1;
 
 export const useApp = create<AppState>((set, get) => ({
@@ -124,6 +134,9 @@ export const useApp = create<AppState>((set, get) => ({
   folds: { security: false, advanced: false, brokerAdvanced: false },
   skipOnce: {},
   autoNamed: {},
+  assistantHost: null,
+  assistantConnected: false,
+  assistantLogSeq: 0,
 
   setScreen: (screen) => set({ screen, paletteOpen: false }),
   toggleFold: (f) => set({ folds: { ...get().folds, [f]: !get().folds[f] } }),
@@ -166,6 +179,13 @@ export const useApp = create<AppState>((set, get) => ({
       menuListeners.forEach((l) => l(e.id));
       return;
     }
+    if (e.type === 'assistant') {
+      const a = e.event;
+      if (a.kind === 'session') set({ assistantConnected: a.connected, assistantHost: a.connected ? a.host : null });
+      if (a.kind === 'logChanged') set({ assistantLogSeq: get().assistantLogSeq + 1 });
+      assistantListeners.forEach((l) => l(a));
+      return;
+    }
     const st = get();
     const patch: Partial<AppState> = {
       connections: e.connections,
@@ -190,6 +210,10 @@ export const useApp = create<AppState>((set, get) => ({
   onMenu: (l) => {
     menuListeners.add(l);
     return () => menuListeners.delete(l);
+  },
+  onAssistant: (l) => {
+    assistantListeners.add(l);
+    return () => assistantListeners.delete(l);
   },
   prefillPublish: (topic, payload, format) =>
     set({ publishPrefill: { topic, payload, format, nonce: Date.now() + Math.random() }, screen: 'publish' }),

@@ -6,6 +6,7 @@ import { RailIcon, AppMark } from './components/icons';
 import { Toasts } from './components/ui';
 import { ConnectionBar, useOpenTabs } from './components/ConnectionBar';
 import { TrustDialog } from './components/TrustDialog';
+import { AssistantLayer } from './components/Assistant';
 import { CommandPalette } from './components/CommandPalette';
 import { FieldPicker } from './screens/explorer/FieldPicker';
 import { ConnectionsScreen } from './screens/connections/ConnectionsScreen';
@@ -206,6 +207,7 @@ export function App() {
         </div>
       </div>
       <TrustDialog />
+      <AssistantLayer />
       <FieldPicker />
       {palette && <CommandPalette />}
       <Toasts />

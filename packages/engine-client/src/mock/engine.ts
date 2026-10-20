@@ -2,6 +2,9 @@
 import type { EngineClient } from '../client';
 import type {
   AppInfo,
+  AssistantAnswer,
+  AssistantEventBody,
+  AssistantLogEntry,
   CertDetails,
   ConnState,
   AppBrokerStepResult,
@@ -28,6 +31,7 @@ import type {
   UserMessage,
 } from '../types';
 import { APP_USER, MockBroker } from './broker';
+import { MockAssistant } from './assistant';
 import {
   WORDS,
   buildDataset,
@@ -71,6 +75,15 @@ export interface MockControls {
   /** Another program holds (or frees) a port: validation refuses it, a listener switched on there fails alone
    * (e2e: B-25, change set 7). */
   takePort(port: number, taken?: boolean): void;
+  /** Plays the assistant side (e2e): a host session, the acknowledgement dialog, a request, navigation, a toast. */
+  assistantEvent(e: AssistantEventBody): void;
+  /** Adds a row to the Assistant log (e2e and tests; the real rows come from tool calls). */
+  addAssistantLog(entry: AssistantLogEntry): void;
+  /** What the app answered to assistant requests, oldest first. */
+  assistantAnswers(): { requestId: string; answer: AssistantAnswer }[];
+  /** The virtual home of "Add to Claude" and "Add to ChatGPT": path as displayed → content; null removes a file. */
+  hostFiles(): Record<string, string>;
+  setHostFile(path: string, content: string | null): void;
   tick(): void;
   dispose(): void;
 }
@@ -133,6 +146,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     updateCheck: true,
     updateChannel: 'stable',
     brokerLogOpen: false,
+    assistantAcknowledged: null,
   };
   let profiles: Profile[] = demo ? demoProfiles(lang, now()) : [];
   const templates = new Map<string, Template[]>();
@@ -147,6 +161,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
   const handlers = new Set<(e: EngineEvent) => void>();
   let pendingUpdates: { connectionId: string; entry: SentEntry }[] = [];
   const pendingTrust = new Map<string, TrustPrompt>();
+  const assistant = new MockAssistant((event) => emit({ type: 'assistant', event }));
   const dataset = buildDataset(lang);
   let sentN = 0;
   let corrN = 1041;
@@ -1319,6 +1334,42 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       throw um('broker.noListener');
     },
 
+    // assistant (MCP)
+    async assistantStatus() {
+      return assistant.status(settings.assistantAcknowledged);
+    },
+    async assistantAccept() {
+      if (!settings.assistantAcknowledged) settings = { ...settings, assistantAcknowledged: new Date(now()).toISOString().slice(0, 10) };
+      assistant.push({ kind: 'acknowledgeDone' });
+      return assistant.status(settings.assistantAcknowledged);
+    },
+    async assistantDecline() {
+      assistant.push({ kind: 'acknowledgeDone' });
+    },
+    async assistantAddToClaude() {
+      await delay(50);
+      return assistant.addToClaude();
+    },
+    async assistantAddToChatgpt() {
+      await delay(50);
+      return assistant.addToChatgpt();
+    },
+    async assistantLog() {
+      return clone(assistant.log);
+    },
+    async assistantClearLog() {
+      assistant.log = [];
+      assistant.push({ kind: 'logChanged' });
+    },
+    async assistantExportLog() {
+      return saved('mqttpanel-assistant-log.txt', assistant.logText().length);
+    },
+    async assistantAnswer(requestId, answer) {
+      assistant.answers.push({ requestId, answer: clone(answer) });
+      assistant.push({ kind: 'requestDone', id: requestId });
+      return true;
+    },
+
     onEvent(handler) {
       handlers.add(handler);
       return () => {
@@ -1350,6 +1401,23 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     takePort(port, taken = true) {
       if (taken) broker.takenPorts.add(port);
       else broker.takenPorts.delete(port);
+    },
+    assistantEvent(e) {
+      assistant.push(e);
+    },
+    addAssistantLog(entry) {
+      assistant.log.push(clone(entry));
+      assistant.push({ kind: 'logChanged' });
+    },
+    assistantAnswers() {
+      return clone(assistant.answers);
+    },
+    hostFiles() {
+      return Object.fromEntries(assistant.home);
+    },
+    setHostFile(path, content) {
+      if (content === null) assistant.home.delete(path);
+      else assistant.home.set(path, content);
     },
     tick,
     dispose() {

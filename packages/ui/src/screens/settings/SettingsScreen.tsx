@@ -7,8 +7,9 @@ import { run, saveProfile } from '../../lib/actions';
 import { shortcut } from '../../lib/keys';
 import { ConfirmDialog, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { fmtBytes, fmtNum } from '../../lib/format';
+import { AssistantSettings } from './AssistantSettings';
 
-const PAGES = ['appearance', 'language', 'data', 'security', 'updates', 'shortcuts', 'privacy', 'about'] as const;
+const PAGES = ['appearance', 'language', 'data', 'security', 'assistant', 'updates', 'shortcuts', 'privacy', 'about'] as const;
 type Page = (typeof PAGES)[number];
 
 /** Shortcut list shown in Settings › Shortcuts and used by the command palette. */
@@ -304,6 +305,7 @@ export function SettingsScreen() {
               </div>
             </div>,
           )}
+          {sec('assistant', <AssistantSettings />)}
           {sec(
             'updates',
             <div className="form">
