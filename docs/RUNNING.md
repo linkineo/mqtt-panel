@@ -6,7 +6,7 @@ How to start the desktop app, the UI alone and the command line on a development
 
 | Tool | Version | Notes |
 |---|---|---|
-| Rust (cargo) | 1.85 or newer | https://rustup.rs |
+| Rust (cargo) | 1.88 or newer | https://rustup.rs |
 | Node.js and npm | Node 20 or newer | https://nodejs.org |
 | Tauri CLI | 2.x | `cargo install tauri-cli --version "^2"` (gives `cargo tauri`); the npm workspace also provides `npm run tauri` |
 | macOS | Xcode command line tools | `xcode-select --install` |
@@ -152,3 +152,53 @@ Store provisioning profile kept outside the repository. The variant is defined b
 `tauri.conf.json`; the build number is the UTC time of the build. The sandboxed app keeps its data under
 `~/Library/Containers/com.remora-labs.mqttpanel/`, apart from the unsandboxed builds. Export compliance is answered
 in App Store Connect by the owner, not in the build. Pass `--no-upload` to stop after the package.
+
+## 10. Assistant (MCP)
+
+MQTT Panel is an MCP server for assistants (`docs/MCP.md`). Settings, Assistant does the setup with one button per host;
+this section is the same by hand. Every host starts the app's own executable with the single argument `mcp` (or the
+command line `mqttpanel mcp`). Settings, Assistant, "Other hosts" shows the exact path of the executable on this
+computer; on macOS it is `/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel`. The app must accept the
+acknowledgement once (Settings, Assistant) before an assistant may change anything.
+
+**Claude Desktop.** Edit `claude_desktop_config.json` (macOS `~/Library/Application Support/Claude/`, Windows
+`%APPDATA%\Claude\`, Linux `~/.config/Claude/`; Claude Desktop, Settings, Developer, Edit Config opens it) and add:
+
+```json
+{
+  "mcpServers": {
+    "mqttpanel": { "command": "/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel", "args": ["mcp"] }
+  }
+}
+```
+
+Quit and reopen Claude Desktop.
+
+**Claude Code.** `claude mcp add --scope user mqttpanel -- "/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel" mcp`
+(this writes `mcpServers.mqttpanel` into `~/.claude.json`). `claude mcp list` shows it; in a session `/mcp` shows its
+tools.
+
+**ChatGPT desktop app.** It uses the Codex configuration `~/.codex/config.toml` (shared with the Codex CLI and editor
+extension; also editable in the app under Settings, MCP servers):
+
+```toml
+[mcp_servers.mqttpanel]
+command = "/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel"
+args = ["mcp"]
+```
+
+ChatGPT on the web cannot reach a program on this computer.
+
+**Other hosts.** Any host that starts local stdio servers takes the JSON block of Claude Desktop above.
+
+**Check by hand.** With the app running:
+
+```
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"terminal","version":"1"}}}' | "/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel" mcp
+```
+
+prints the server's answer (name, version, capabilities). Only one assistant can be connected at a time.
+
+**Environment** (tests and portable use): `MQTTPANEL_HOME` (data folder, so also the socket `mcp.sock`),
+`MQTTPANEL_APP` (the program the shim starts when the app is not running), `MQTTPANEL_SHIM_WAIT_S` (how long it waits,
+default 20), `MQTTPANEL_HOSTS_HOME` (the home folder the Settings buttons write into).

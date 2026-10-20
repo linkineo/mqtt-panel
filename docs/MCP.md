@@ -1,7 +1,9 @@
 # MCP interface: mini spec for validation
 
-Status: draft for the owner's validation (20 Oct 2026). Nothing here is implemented. Decisions taken with the owner
-on 20 Oct 2026 are marked (owner); the rest are proposals to confirm or change.
+Status: validated by the owner on 20 Oct 2026; phases 1 and 2 implemented 20 Oct 2026 (transport, security model,
+Settings page "Assistant", the Connections and Navigation tools, two resources, two prompts; table in section 10).
+Decisions taken with the owner on 20 Oct 2026 are marked (owner); the implementing model's readings are in
+`docs/DECISIONS.md`, "20 Oct 2026, MCP interface (phases 1 and 2)".
 
 ## 1. Goal
 
@@ -154,3 +156,36 @@ Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude",
 - History reads are capped at 500 rows per call; bigger extracts go through `export_data` to a file picked in the app.
 - One host session at a time; a second host gets "another assistant is connected".
 - ChatGPT support means the ChatGPT desktop app through its Codex MCP configuration; ChatGPT on the web is out of scope.
+
+## 10. Implemented (phases 1 and 2, 20 Oct 2026)
+
+Code: `apps/desktop/src-tauri/src/mcp/` (server, registry, tools, hosts, Settings commands), `crates/shim` (the stdio
+shim used by `mqttpanel mcp` and by the app executable started with `mcp`). Tests: `docs/TESTPLAN.md` M-01 to M-10.
+
+| Tool | Group | Writes | Secret way | Notes |
+|---|---|---|---|---|
+| `list_connections` | Connections | no | | State (connected, connecting, reconnecting, failed, idle), host, port, protocol, security, last error and last test. |
+| `create_connection` | Connections | yes | | `host`, `protocol` required; the name follows the host; usual port per protocol. |
+| `update_connection` | Connections | yes | | Also `ws_path`, `keep_alive`, `clean_start`, `session_expiry`, `subscriptions`. |
+| `set_connection_password` | Connections | yes | `ask_in_app` or `password` | Empty password removes it. |
+| `set_ca_certificate` | Connections | yes | `ask_in_app` or `file` | |
+| `set_client_certificate` | Connections | yes | `ask_in_app` or `cert_file`, `key_file`, `passphrase` | Switches the profile to the imported way; PKCS#12 needs no key file. |
+| `generate_client_key` | Connections | yes | | ECDSA P-256 (default) or RSA 2048; returns the fingerprint. |
+| `get_client_csr` | Connections | no | | PEM text; common name defaults to the client ID. |
+| `import_signed_certificate` | Connections | yes | `ask_in_app` or `file` | Must match the generated key. |
+| `test_connection` | Connections | no | | Result, or the certificate details and the trust choices. Starts the built-in broker for "Local broker". |
+| `trust_certificate` | Connections | yes | | `pin`, `ca` (when offered), `skip_once` (connects at once), `skip_always`. |
+| `connect` | Connections | yes | | 20 s; starts the built-in broker for "Local broker". |
+| `disconnect` | Connections | yes | | |
+| `delete_connection` | Connections | yes | | Destructive hint for the host. |
+| `show_connection` | Navigation | no | | Connections screen, the profile selected. |
+| `show_topic` | Navigation | no | | Explorer of an open connection, the topic selected and revealed. |
+| `show_chart` | Navigation | no | | Charts screen, the chart when the id exists. |
+| `show_broker` | Navigation | no | | |
+| `show_settings` | Navigation | no | | `page`: appearance, language, data, security, assistant, updates, shortcuts, privacy, about. |
+
+Resources: `mqttpanel://connections` (JSON, no secrets), `mqttpanel://assistant-log` (text, as Export… writes it).
+Prompts: `connect_to_broker` ("Connect me to a broker", optional `address`), `why_cant_i_connect` ("Why can't I
+connect?", optional `connection`; carries the current state of the connections).
+Phase 3 adds the broker, data and chart groups as new tables in `mcp/tools/` and the remaining resources and prompts in
+`mcp/prompts.rs`; the server does not change.

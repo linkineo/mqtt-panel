@@ -298,6 +298,23 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | R-03 | M | manual | Beta builds (unsigned): install on each OS with the "how to run it" note | Note is accurate. |
 | R-04 | M | manual | Release build: Windows signed, macOS notarized; auto-update from the previous version | Signatures valid; update applies. |
 
+## 13. Assistant
+
+The assistant interface (`docs/MCP.md`). Rust tests in `apps/desktop/src-tauri/src/mcp/tests.rs` use an `rmcp` client over the app's socket against the real engine, client and embedded broker, on a temporary data folder with in-memory secrets.
+
+| ID | Level | Tag | Test | Expected |
+|---|---|---|---|---|
+| M-01 | E | auto | Over the socket: list the tools, `list_connections` (empty), `create_connection` (name from the host, usual port), `update_connection` (protocol, version, subscriptions), `connect` to the embedded broker through "Local broker", `disconnect`, `delete_connection`; the resources | Every tool of phases 1 and 2 listed; profile fields as asked; connected; a toast per writing call and a log row with the host name; refresh events; the log resource lists the calls. |
+| M-02 | E | auto | Writing tool before the acknowledgement; "Not now" while a call waits; Accept while a call waits | Refused with "Not yet allowed: accept the acknowledgement in MQTT Panel, Settings, Assistant.", dialog shown on connect, log row "refused"; reading tools work; Not now refuses at once; Accept lets the waiting call finish and is saved with the date. |
+| M-03 | E | auto | `set_connection_password` with the password as an argument, twice, then in a new session | Stored; the warning once per session; the log masks the password (•••) and notes "secret given through the assistant"; no result or log row contains it. |
+| M-04 | E | auto | `ask_in_app`: the app answers with a password, cancels, does not answer; `ask_in_app: false` without a value | A request event for the window; stored without warning; "cancelled", "Nobody answered…" after the user limit, "Give password, or set ask_in_app…"; log outcomes ok, cancelled, timeout, failed. |
+| M-05 | E | auto | Every tool, both resources, both prompts and the tool list after a password, a passphrase-protected key, a client certificate and a generated key were set | No result contains the password, the passphrase or any private key. |
+| M-06 | E | auto | Against the broker's TLS listener: `test_connection` reports the certificate question; `trust_certificate` pin, ca, skip_once (connects at once, nothing saved), skip_always (saved); trust without a pending question | Details and choices in the result; each mode does what the certificate prompt does; the call without a question explains to test or connect first. |
+| M-07 | E | auto | A second host connects while one is connected; after the first leaves, a new host | The second gets the JSON-RPC error "Another assistant is connected to MQTT Panel…"; the next host is served and named in the session. |
+| M-08 | E | auto | Navigation tools and the app language | Navigate events with the place, the window raised, nothing logged or toasted as a change; texts in French and German after a language switch. |
+| M-09 | E | auto | The shim (`crates/cli/tests/shim.rs`, `apps/desktop/src-tauri/tests/shim.rs`): socket present; socket missing (the shim starts the app and waits); the app does not come; the app executable with `mcp` | Bytes forwarded both ways, exit 0 when stdin closes; the app started and the socket used once it appears; exit 1 with a sentence on stderr and nothing on stdout; same forwarding from the app executable. |
+| M-10 | U, E | auto | Settings, Assistant and the window side (Vitest `assistant.test.tsx`, Playwright "Assistant", overflow states 17c to 17e): acknowledgement sentence and Accept, "Add to Claude" and "Add to ChatGPT" on the mock's home, snippet copy, log with Clear and Export…, ⓘ per row in EN/FR/DE, acknowledgement dialog, password and file requests, navigation toast | As specified in `docs/MCP.md` section 6; the files keep their other content; no row wraps in EN, FR, DE. Writing the real files is covered by the Rust tests of `mcp/hosts.rs` on a temporary home. |
+
 ---
 
 ## Running it
