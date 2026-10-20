@@ -64,7 +64,7 @@ T = {
         title="MQTT Panel: MQTT client and built-in broker for Windows, macOS and Linux",
         meta="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in.",
         nav_features="Features", nav_privacy="Privacy", lang_label="Language",
-        lead="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in.",
+        lead="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in. Your AI assistant can drive it too: Claude and ChatGPT connect through MCP to set up brokers, certificates and charts for you.",
         dl=dict(button="Download", h="Download", soon="coming soon", mas="Download on the Mac App Store",
                 ms="Get it from Microsoft", gh="View on GitHub",
                 files=["Windows executable (.msi)", "macOS executable (.dmg)", "Linux packages (.deb, .rpm, AppImage)"]),
@@ -84,9 +84,9 @@ T = {
             ('publish', 'shot-publish', 'Publish', 'The Publish screen with templates, the composer and the list of sent messages with a reply.', 'Send test messages, repeat them, and see the replies.', 'Templates with placeholders, QoS and retain, MQTT 5 request and response, and a repeat to simulate a sensor.'),
             ('broker', 'shot-broker', 'Built-in broker', 'The built-in broker with its listeners, users, client certificates and connected clients.', 'A broker built in, for tests on your desk or devices on your network.', 'TCP, TLS and WebSocket listeners, users and client certificates on one screen. Every change applies at once.'),
             ('security', 'shot-security', 'Security', 'A connection profile with its security settings: CA, client certificate and key.', 'Proper TLS, and nothing leaves your computer.', 'Your own CA, client certificates and certificate pinning. Passwords and keys are stored encrypted. No telemetry, no account.'),
-            ('assistant', '', 'Works with your assistant', '', 'Let your assistant do the setup.', 'Claude, ChatGPT or another assistant sets up connections, the built-in broker and charts in the running app. You accept once that an assistant may change things in MQTT Panel, and you see every change in the window. Passwords, keys and passphrases are typed in the app and never pass through the chat.'),
             ('cli', '', 'Command line', '', 'The same profiles and secrets, from the terminal.', 'mqttpanel sub, pub and broker use the same profiles as the app, with text, JSON or NDJSON output.'),
         ],
+        ai={'title': 'Works with your AI assistant', 'pitch': 'Ask in plain words. Watch it happen in the app.', 'body': 'MQTT Panel is an MCP server: Claude and ChatGPT can set up connections and certificates, configure the built-in broker, build charts and extract data, all through the running app. Every change shows in the window and is listed in the Assistant log. You accept once that the assistant may change anything in MQTT Panel. Secrets stay in the app: no tool ever returns a password or a key.', 'bullets': ['Connect to a broker: profile, TLS, CA and client certificate, test, connect, and plain answers when it fails.', 'Set up the built-in broker: listeners, users and client certificates for your devices.', 'Find topics, read values and history, add charts and export data to a file you pick.', 'Passwords and keys can be typed in MQTT Panel itself, so they never pass through the chat.', 'One button in Settings, Assistant adds MQTT Panel to Claude or to the ChatGPT desktop app.'], 'works': 'Works with', 'chat_label': 'A chat with an AI assistant that sets up MQTT Panel', 'chat_head': 'Your AI assistant', 'you': 'You', 'bot': 'Assistant', 'prompt': 'Connect MQTT Panel to broker.plant.example over TLS with my client certificate, then chart the temperature of room 204.', 'reply': ['Created the connection, imported the certificate, connected.', 'Topic chart added for building/f2/r204/temperature.', 'It is open in MQTT Panel.']},
         cli_comment=["# watch a building, with a saved profile", "# send one message", "# run the broker on this computer"],
         privacy_h="Your data stays yours",
         privacy_p="MQTT Panel collects nothing. It talks only to the brokers you configure.",
@@ -130,7 +130,7 @@ T = {
         title="MQTT Panel : client MQTT et broker intégré pour Windows, macOS et Linux",
         meta="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré.",
         nav_features="Fonctions", nav_privacy="Confidentialité", lang_label="Langue",
-        lead="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré.",
+        lead="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré. Votre assistant IA peut aussi piloter l’app : Claude et ChatGPT s’y connectent par MCP et préparent brokers, certificats et courbes à votre place.",
         dl=dict(button="Télécharger", h="Télécharger", soon="bientôt disponible", mas="Télécharger dans le Mac App Store",
                 ms="Obtenir auprès de Microsoft", gh="Voir sur GitHub",
                 files=["Programme d’installation Windows (.msi)", "Image disque macOS (.dmg)", "Paquets Linux (.deb, .rpm, AppImage)"]),
@@ -150,9 +150,9 @@ T = {
             ('publish', 'shot-publish', 'Publier', 'L’écran Publier avec les modèles, l’éditeur et la liste des messages envoyés avec une réponse.', 'Envoyez des messages de test, répétez-les et voyez les réponses.', 'Modèles avec variables, QoS et retain, requête et réponse MQTT 5, et répétition pour simuler un capteur.'),
             ('broker', 'shot-broker', 'Broker intégré', 'Le broker intégré avec ses points d’écoute, ses utilisateurs, ses certificats clients et les clients connectés.', 'Un broker intégré, pour tester sur votre poste ou servir les appareils du réseau.', 'Points d’écoute TCP, TLS et WebSocket, utilisateurs et certificats clients sur un seul écran. Chaque changement s’applique aussitôt.'),
             ('security', 'shot-security', 'Sécurité', 'Un profil de connexion avec ses réglages de sécurité : AC, certificat client et clé.', 'Un TLS soigné, et rien ne quitte votre ordinateur.', 'Votre propre AC, des certificats clients et l’épinglage de certificat. Mots de passe et clés sont stockés chiffrés. Ni télémétrie, ni compte.'),
-            ('assistant', '', 'Fonctionne avec votre assistant', '', 'Laissez votre assistant tout préparer.', 'Claude, ChatGPT ou un autre assistant prépare les connexions, le broker intégré et les courbes dans l’app ouverte. Vous acceptez une fois qu’un assistant puisse modifier MQTT Panel, et vous voyez chaque changement dans la fenêtre. Mots de passe, clés et phrases secrètes se saisissent dans l’app et ne passent jamais par la conversation.'),
             ('cli', '', 'Ligne de commande', '', 'Les mêmes profils et secrets, depuis le terminal.', 'mqttpanel sub, pub et broker utilisent les mêmes profils que l’app, avec une sortie texte, JSON ou NDJSON.'),
         ],
+        ai={'title': 'Fonctionne avec votre assistant IA', 'pitch': 'Demandez avec vos mots, et voyez le résultat dans l’app.', 'body': 'MQTT Panel est un serveur MCP : Claude et ChatGPT peuvent créer les connexions et les certificats, configurer le broker intégré, construire des courbes et extraire des données, toujours par l’app ouverte. Chaque changement apparaît dans la fenêtre et s’inscrit dans le journal de l’assistant. Vous acceptez une fois que l’assistant puisse tout modifier dans MQTT Panel. Les secrets restent dans l’app : aucun outil ne renvoie de mot de passe ni de clé.', 'bullets': ['Se connecter à un broker : profil, TLS, AC et certificat client, test, connexion, et une explication claire en cas d’échec.', 'Préparer le broker intégré : points d’écoute, utilisateurs et certificats clients pour vos appareils.', 'Trouver des topics, lire valeurs et historique, ajouter des courbes et exporter les données dans le fichier de votre choix.', 'Mots de passe et clés peuvent se saisir dans MQTT Panel même : ils ne passent jamais par la conversation.', 'Un bouton dans Réglages, Assistant ajoute MQTT Panel à Claude ou à l’app de bureau ChatGPT.'], 'works': 'Fonctionne avec', 'chat_label': 'Une conversation avec un assistant IA qui configure MQTT Panel', 'chat_head': 'Votre assistant IA', 'you': 'Vous', 'bot': 'Assistant', 'prompt': 'Connectez MQTT Panel à broker.plant.example en TLS avec mon certificat client, puis tracez la température de la salle 204.', 'reply': ['Connexion créée, certificat importé, MQTT Panel est connecté.', 'Courbe ajoutée pour le topic building/f2/r204/temperature.', 'Tout est ouvert dans MQTT Panel.']},
         cli_comment=["# suivre un bâtiment avec un profil enregistré", "# envoyer un message", "# lancer le broker sur cet ordinateur"],
         privacy_h="Vos données restent les vôtres",
         privacy_p="MQTT Panel ne collecte rien. L’app ne parle qu’aux brokers que vous configurez.",
@@ -196,7 +196,7 @@ T = {
         title="MQTT Panel: MQTT-Client und eingebauter Broker für Windows, macOS und Linux",
         meta="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker.",
         nav_features="Funktionen", nav_privacy="Datenschutz", lang_label="Sprache",
-        lead="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker.",
+        lead="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker. Auch dein KI-Assistent kann die App steuern: Claude und ChatGPT verbinden sich über MCP und richten Broker, Zertifikate und Kurven für dich ein.",
         dl=dict(button="Herunterladen", h="Herunterladen", soon="bald verfügbar", mas="Laden im Mac App Store",
                 ms="Bei Microsoft herunterladen", gh="Auf GitHub ansehen",
                 files=["Windows-Installationsprogramm (.msi)", "macOS-Image (.dmg)", "Linux-Pakete (.deb, .rpm, AppImage)"]),
@@ -216,9 +216,9 @@ T = {
             ('publish', 'shot-publish', 'Senden', 'Der Bereich Senden mit Vorlagen, Editor und der Liste gesendeter Nachrichten mit einer Antwort.', 'Schick Testnachrichten, wiederhole sie und sieh die Antworten.', 'Vorlagen mit Platzhaltern, QoS und Retain, Anfrage und Antwort mit MQTT 5 und Wiederholen, um einen Sensor zu simulieren.'),
             ('broker', 'shot-broker', 'Eingebauter Broker', 'Der eingebaute Broker mit Listenern, Benutzern, Client-Zertifikaten und verbundenen Clients.', 'Ein eingebauter Broker, für Tests am Schreibtisch oder Geräte im Netzwerk.', 'TCP-, TLS- und WebSocket-Listener, Benutzer und Client-Zertifikate auf einem Bildschirm. Jede Änderung gilt sofort.'),
             ('security', 'shot-security', 'Sicherheit', 'Ein Verbindungsprofil mit seinen Sicherheitseinstellungen: CA, Client-Zertifikat und Schlüssel.', 'Sauberes TLS, und nichts verlässt deinen Computer.', 'Eigene CA, Client-Zertifikate und Zertifikat-Pinning. Passwörter und Schlüssel werden verschlüsselt gespeichert. Keine Telemetrie, kein Konto.'),
-            ('assistant', '', 'Funktioniert mit deinem Assistenten', '', 'Lass deinen Assistenten einrichten.', 'Claude, ChatGPT oder ein anderer Assistent richtet Verbindungen, den eingebauten Broker und Diagramme in der laufenden App ein. Du bestätigst einmal, dass ein Assistent MQTT Panel ändern darf, und siehst jede Änderung im Fenster. Passwörter, Schlüssel und Passphrasen gibst du in der App ein; sie gehen nie durch den Chat.'),
             ('cli', '', 'Kommandozeile', '', 'Dieselben Profile und Geheimnisse im Terminal.', 'mqttpanel sub, pub und broker nutzen dieselben Profile wie die App, mit Ausgabe als Text, JSON oder NDJSON.'),
         ],
+        ai={'title': 'Funktioniert mit deinem KI-Assistenten', 'pitch': 'Sag in eigenen Worten, was du brauchst, und sieh zu, wie es in der App passiert.', 'body': 'MQTT Panel ist ein MCP-Server: Claude und ChatGPT können Verbindungen und Zertifikate einrichten, den eingebauten Broker konfigurieren, Kurven anlegen und Daten exportieren, immer über die laufende App. Jede Änderung siehst du im Fenster, und sie steht im Assistenten-Protokoll. Du bestätigst einmal, dass der Assistent in MQTT Panel alles ändern darf. Geheimnisse bleiben in der App: Kein Werkzeug gibt je ein Passwort oder einen Schlüssel zurück.', 'bullets': ['Mit einem Broker verbinden: Profil, TLS, CA und Client-Zertifikat, testen, verbinden und klare Antworten, wenn etwas nicht klappt.', 'Den eingebauten Broker einrichten: Listener, Benutzer und Client-Zertifikate für deine Geräte.', 'Topics finden, Werte und Verlauf lesen, Kurven anlegen und Daten in eine Datei deiner Wahl exportieren.', 'Passwörter und Schlüssel kannst du direkt in MQTT Panel eingeben, sie gehen dann nie durch den Chat.', 'Ein Klick in Einstellungen, Assistent fügt MQTT Panel zu Claude oder zur ChatGPT-Desktop-App hinzu.'], 'works': 'Funktioniert mit', 'chat_label': 'Ein Chat mit einem KI-Assistenten, der MQTT Panel einrichtet', 'chat_head': 'Dein KI-Assistent', 'you': 'Du', 'bot': 'Assistent', 'prompt': 'Verbinde MQTT Panel per TLS und mit meinem Client-Zertifikat mit broker.plant.example und zeig mir dann die Temperatur von Raum 204 als Kurve.', 'reply': ['Verbindung angelegt, Zertifikat importiert, verbunden.', 'Topic-Kurve für building/f2/r204/temperature hinzugefügt.', 'Sie ist in MQTT Panel geöffnet.']},
         cli_comment=["# ein Gebäude beobachten, mit gespeichertem Profil", "# eine Nachricht senden", "# den Broker auf diesem Computer starten"],
         privacy_h="Deine Daten bleiben deine",
         privacy_p="MQTT Panel sammelt nichts. Die App spricht nur mit den Brokern, die du einrichtest.",
@@ -474,8 +474,6 @@ def looks(t, lang):
 
 # "What it does" as cards (owner, 18 Oct 2026): the feature name, a headline, a short text, then the view itself.
 WIDE = {"explorer", "broker"}
-# The assistant card: tool calls of a session (the same in every language, tool names are English).
-ASSISTANT_LINES = ["connect_builtin_broker", "set_topic_chart r204/temp", "export_data r204/# csv"]
 
 
 def feature(t, lang, i, f):
@@ -486,10 +484,6 @@ def feature(t, lang, i, f):
             for c, cmd in zip(t["cli_comment"], CLI_LINES)
         )
         visual = f'<pre class="term" data-type aria-label="{e(title)}"><code>{lines.rstrip()}</code></pre>'
-    elif anchor == "assistant":
-        # No media (owner, 20 Oct 2026: text only): the tools an assistant calls, as a terminal-style list.
-        lines = "".join(f'<span class="ln"><span class="p">›</span> <span class="cmd">{e(x)}</span></span>\n' for x in ASSISTANT_LINES)
-        visual = f'<pre class="term" aria-label="{e(title)}"><code>{lines.rstrip()}</code></pre>'
     else:
         visual = live(t, lang, img, img, alt)
     wide = " wide" if anchor in WIDE else ""
@@ -499,8 +493,35 @@ def feature(t, lang, i, f):
 </article>"""
 
 
+# "Works with your AI assistant" (owner, 20 Oct 2026): a wide block after the others, so the two-column grid has no
+# gap (two wide blocks and four half blocks). The visual is a mock chat drawn in HTML, no vendor interface. The
+# Claude logo is Anthropic's file from its press kit, unaltered; ChatGPT is a plain text mark (see website/README.md).
+CLAUDE_LOGO = ('<img class="tl" src="/assets/brands/claude-logo-slate.svg" alt="Claude" width="92" height="20">'
+               '<img class="td" src="/assets/brands/claude-logo-ivory.svg" alt="Claude" width="92" height="20">')
+
+
+def assistant(t):
+    a = t["ai"]
+    bullets = "".join(f"<li>{e(b)}</li>" for b in a["bullets"])
+    works = (f'<ul class="works">'
+             f'<li><span class="wlabel">{e(a["works"])}</span><span class="wmark">{CLAUDE_LOGO}</span></li>'
+             f'<li><span class="wlabel">{e(a["works"])}</span><span class="wmark wtext">ChatGPT</span></li></ul>')
+    reply = "".join(f"<p>{e(r)}</p>" for r in a["reply"])
+    chat = (f'<figure class="chat" aria-label="{e(a["chat_label"])}">'
+            f'<div class="chathead" aria-hidden="true"><span class="dot"></span>{e(a["chat_head"])}</div>'
+            f'<div class="msgs">'
+            f'<div class="msg me"><span class="who">{e(a["you"])}</span><div class="bubble">{e(a["prompt"])}</div></div>'
+            f'<div class="msg bot"><span class="who">{e(a["bot"])}</span><div class="bubble">{reply}</div></div>'
+            f'</div></figure>')
+    return f"""<article class="card wide ai" id="assistant">
+  <div class="ctext"><p class="eyebrow">{e(a["title"])}</p><h3>{e(a["pitch"])}</h3><p class="body">{e(a["body"])}</p>
+  <ul class="ticks">{bullets}</ul>{works}</div>
+  <div class="cvisual">{chat}</div>
+</article>"""
+
+
 def index(t, lang):
-    feats = "".join(feature(t, lang, i, f) for i, f in enumerate(t["features"]))
+    feats = "".join(feature(t, lang, i, f) for i, f in enumerate(t["features"])) + assistant(t)
     p = PREFIX[lang]
     return head(t, lang, "", t["title"], t["meta"]) + header(t, lang, "") + f"""
 <main>

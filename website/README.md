@@ -10,12 +10,13 @@ resources.
 | File | Role |
 |---|---|
 | `build.py` | Generates `public/` from the texts in the file (EN, FR, DE). Fails if a forbidden word appears in the output. The download links are constants at the top (see Download section below). |
-| `style.css`, `site.js`, `theme.js` | Styles (light or dark: the system one until the visitor picks one in the header), the live views, the tabs, the typing terminal, and `theme.js`, which applies a stored choice before the page paints. |
+| `style.css`, `site.js`, `theme.js` | Styles (light or dark: the system one until the visitor picks one in the header), the live views, the tabs, the typing terminal, the mock chat, and `theme.js`, which applies a stored choice before the page paints. |
 | `/app/` (built) | The app's own interface in demo mode (`npm run build:site -w @mqttpanel/ui`, copied from `packages/ui/dist-site` by `build.py`). The live views load it in frames from the same site, run a few setup steps (`SCENES` in `build.py`) and show it scaled, without interaction; the screenshots are the posters and the fallback (no script, reduced motion, screens under 700 px except the hero, off screen). |
 | `worker.js`, `wrangler.jsonc` | The Worker, its routes (`mqtt-panel.com`, `www.mqtt-panel.com` as custom domains) and the assets binding. |
 | `third-party.json` | Licences of the shipped Rust crates and npm packages, shown on the legal page. Refresh with `python3 build.py --licences`. |
 | `assets/media/` | Screenshots per language and theme, `<id>.<lang>.<light|dark>.jpg`. |
 | `assets/badges/` | The official store badges and the GitHub mark, unaltered (see Download section below). |
+| `assets/brands/` | The Claude logo for the "Works with your AI assistant" block, unaltered (see Assistant block below). |
 | `encode-media.sh` | Turns the raw screenshots (and clips, when recorded) into `assets/media/` (needs `ffmpeg`). |
 
 ## Build and preview
@@ -64,6 +65,20 @@ The badges stay black, as published: Apple and Microsoft do not allow recolourin
 | `assets/badges/microsoft-store.svg` | Microsoft's badge page, https://apps.microsoft.com/badge, English, dark (the file the page links: `https://get.microsoft.com/images/en-us%20dark.svg`). Unaltered, shown 48 px high. |
 | `assets/badges/github-mark-white.svg` | GitHub's logo download, https://github.com/logos (`GitHub_Logos.zip`, file `SVG/GitHub_Invertocat_White.svg`). Unaltered, 24 px high in the "View on GitHub" button. |
 | `assets/badges/mac-app-store.svg` | **Not in the repository yet.** Apple's "Download on the Mac App Store" badge is only available from Apple's marketing resources after accepting Apple's licence, which the owner does. Save the official black badge, unaltered, at this path: the build then uses it (48 px high; Apple's minimum is 40 px). Until then the band shows a neutral black button with the words "Mac App Store" and no Apple logo. |
+
+## Assistant block
+
+The last block of "What it does" (`#assistant`, `assistant()` in `build.py`) is a wide block: text, bullets, the
+"Works with" marks and a mock chat drawn in HTML and CSS (no screenshot, no vendor interface). The grid has two wide
+blocks (Explorer, Built-in broker), four half blocks and this wide block last, so no cell stays empty at any width.
+
+- Claude: `assets/brands/claude-logo-slate.svg` (light theme) and `claude-logo-ivory.svg` (dark theme) are Anthropic's
+  files "Claude logo - Slate.svg" and "Claude logo - Ivory.svg" from its press kit (https://www.anthropic.com/press-kit,
+  folder `Anthropic logos/Claude logos/1 Claude logo/SVG`), unaltered, shown 20 px high. The kit has no usage guide.
+- ChatGPT: a plain text mark ("ChatGPT", system font, monochrome), no logo. OpenAI's brand page
+  (https://openai.com/brand/) offers the OpenAI logotype and the Blossom mark, not a ChatGPT logo, binds their use to
+  its trademark terms and asks for OpenAI's permission (partnercomms@openai.com). Ask before adding any OpenAI logo.
+- Brand use (both vendors) must be reviewed by the owner before the site goes public.
 
 ## Preview protection
 

@@ -122,6 +122,33 @@ html.js .looks { gap: 0 }
 .term .ln .cmd:empty::after, .term .ln:not(.done) .cmd::after { content: ""; display: inline-block; width: .55em; height: 1.1em; margin-left: 1px; vertical-align: text-bottom; background: #EDEBE6; opacity: .7 }
 html:not(.js) .term .cmd::after { content: none }
 
+/* "Works with your AI assistant": a wide block with bullets, the "works with" marks and a mock chat (HTML only) */
+.card.wide.ai { grid-template-columns: minmax(0, 6fr) minmax(0, 6fr) }
+/* the chat window fills the right column; the messages sit at its bottom, as in a chat */
+.card.wide.ai .cvisual { margin-top: 0; align-self: stretch; display: flex; flex-direction: column }
+.card.wide.ai .chat { flex: 1; display: flex; flex-direction: column }
+.card.wide.ai .msgs { margin-top: auto }
+.ticks { list-style: none; margin: calc(2.5 * var(--u)) 0 0; padding: 0; display: grid; gap: var(--u); font-size: 16px; color: var(--ink-2); max-width: 52ch }
+.ticks li { position: relative; padding-left: calc(2.5 * var(--u)) }
+.ticks li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 8px; height: 2px; border-radius: 1px; background: var(--clay) }
+.works { list-style: none; margin: calc(3.5 * var(--u)) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: calc(1.5 * var(--u)) calc(4 * var(--u)) }
+.works li { display: flex; align-items: center; gap: var(--u); white-space: nowrap }
+.wlabel { font-size: 14px; color: var(--ink-2) }
+.wmark { display: flex; align-items: center; height: 20px }
+.wmark img { height: 20px; width: auto }
+.wtext { font: 600 18px/20px var(--sans); letter-spacing: -.01em; color: var(--ink) }
+.chat { margin: 0; background: var(--paper); border-radius: 12px 0 0 0; box-shadow: 0 0 0 1px var(--line), 0 -6px 30px rgba(29, 29, 27, .08); font-family: var(--sans); overflow: hidden }
+.chathead { display: flex; align-items: center; gap: var(--u); padding: calc(1.5 * var(--u)) calc(2.5 * var(--u)); border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--ink-2) }
+.chathead .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--clay) }
+.msgs { display: grid; gap: calc(2 * var(--u)); padding: calc(3 * var(--u)) calc(2.5 * var(--u)) calc(4 * var(--u)) }
+.msg { display: grid; gap: 4px; max-width: 86%; min-width: 0 }
+.msg.me { justify-self: end; justify-items: end }
+.msg.bot { justify-self: start }
+.who { font-size: 12px; font-weight: 600; color: var(--ink-2) }
+.bubble { padding: calc(1.25 * var(--u)) calc(1.75 * var(--u)); font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; text-wrap: pretty }
+.msg.me .bubble { background: var(--accent); color: var(--accent-ink); border-radius: 18px 18px 4px 18px }
+.msg.bot .bubble { background: var(--surface); color: var(--ink); border-radius: 18px 18px 18px 4px; box-shadow: 0 0 0 1px var(--line); display: grid; gap: 4px }
+
 .teaser { display: grid; gap: calc(2 * var(--u)) }
 .teaser h2 { font-size: clamp(32px, 4.4vw, 52px); font-weight: 700 }
 .teaser p { font-size: 19px; color: var(--ink-2); max-width: 52ch }
@@ -176,7 +203,7 @@ footer a:hover { color: var(--ink); text-decoration: underline }
   .card, .card.wide { display: flex; flex-direction: column; padding: calc(3 * var(--u)) calc(3 * var(--u)) 0; border-radius: 20px }
   .card.wide .ctext { padding-bottom: 0 }
   .card.wide .cvisual { padding-top: calc(3 * var(--u)) }
-  .card.wide .cvisual > .frame { border-radius: 12px 12px 0 0 }
+  .card.wide .cvisual > .frame, .card.wide .cvisual > .chat { border-radius: 12px 12px 0 0 }
 }
 @media (max-width: 400px) {
   /* 320 px: the icon alone links home, so the language and theme switches fit */
