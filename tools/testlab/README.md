@@ -1,12 +1,13 @@
 # Test lab
 
-Two command-line scripts to test MQTT Panel by hand against the official mosquitto broker and
+Command-line scripts to test MQTT Panel by hand against the official mosquitto broker and
 the official Eclipse Paho client. Nothing here runs in CI.
 
 | Script | Direction | Use |
 |---|---|---|
 | `mosquitto_broker.py` | app → mosquitto | Start a mosquitto broker in one of five security modes; the script generates the certificates and prints what to enter and which files to pick in the app |
 | `load_client.py` | Paho → app's broker | Connect standard clients to the embedded broker with the certificates exported from the app; generate 500 messages/s over 50 topics for throughput, chart and export tests; report rates |
+| `external_clients.py` | Paho → `mqttpanel broker` | T-31: the external-client matrix (CA.pem only, issued certificates, revocation, CA rotation, extra names) against the command-line broker on a temporary home; prints PASS / FAIL / SKIP per case |
 
 ## Setup, once
 
@@ -68,6 +69,34 @@ Topic kinds (every 6th topic, 50 topics by default):
 | telemetry | `devices/<n>/telemetry` | nested JSON with counters; retained | counters.sent, device.rssi |
 
 Retained topics stay on the broker after a run: `py tools/testlab/load_client.py --clear-retained`.
+
+## C. External clients with the broker's own chain (T-31)
+
+```
+py tools/testlab/external_clients.py            # builds the CLI and the helper, runs the matrix, prints the table
+py tools/testlab/external_clients.py --keep     # keeps the temporary home (CA.pem, certificates, broker.json)
+py tools/testlab/external_clients.py --no-build # uses target/debug as it is
+```
+
+The script starts `mqttpanel broker` with `MQTTPANEL_HOME` on a new temporary folder, TLS and secure WebSocket
+listeners on free ports and secrets in memory (`MQTTPANEL_SECRETS=memory`, seeded from the helper). The command line
+cannot issue certificates, so the Rust helper `crates/broker/examples/lab_home.rs` prepares and changes that home
+between broker runs, exactly as the app would: setup, "Required" on, issue (PEM, or PKCS#12 with a passphrase),
+revoke, rotate the CA, regenerate with extra names; it writes `CA.pem`, `server-chain.pem` and the issued files
+there. The helper can be run alone:
+
+```
+cargo run -p mqttpanel-broker --example lab_home -- <home> setup <tls port> <wss port>
+cargo run -p mqttpanel-broker --example lab_home -- <home> issue device-1 p12 'passphrase'
+cargo run -p mqttpanel-broker --example lab_home -- <home> regen broker.example.com 203.0.113.7
+```
+
+Paho connects with `CA.pem` as its only trust anchor, by localhost, 127.0.0.1, the host name, its .local name and
+the first LAN address, over TLS and WSS, MQTT 3.1.1 and 5, with a QoS 0, 1 and 2 round trip each. Names that do
+not resolve (the extra name, sometimes the host name) are checked with a hosts-style override: the connection goes
+to 127.0.0.1 and TLS verifies the given name. A PKCS#12 bundle is opened with its passphrase (Python `cryptography`)
+as a device would. A broker change needs a restart of `mqttpanel broker`, so "the open session is dropped on
+revocation" is reported as SKIP here and covered live by `crates/broker/tests/external_chain.rs` (T-29) in CI.
 
 ## Public brokers
 

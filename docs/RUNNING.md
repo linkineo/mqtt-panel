@@ -135,6 +135,12 @@ scripts/check-forbidden-words.sh
 
 Tests that use public brokers are opt-in: `MQTTPANEL_PUBLIC_BROKERS=1 cargo test --workspace -- --ignored`.
 
+External clients with the broker's own chain (T-31, Paho against `mqttpanel broker`; setup in `tools/testlab/README.md`):
+
+```
+tools/testlab/.venv/bin/python tools/testlab/external_clients.py
+```
+
 ## 9. TestFlight build for macOS
 
 `scripts/release-mac-testflight.sh` builds the sandboxed Mac App Store variant, signs it, wraps it in a signed installer
