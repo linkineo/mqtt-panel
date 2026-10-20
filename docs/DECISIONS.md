@@ -130,7 +130,19 @@
   - The test-plan row asked as T-23 is T-27: T-23 is already the public EMQX row.
   - `tls.missingIntermediate` is no longer produced by the client; the key stays in the catalogs until the native review, so nothing else changes.
 
-### 18 Oct 2026, master key store by build (change set 10)
+### 19 Oct 2026, owner feedback on the tenth build and the website (change set 11)
+Owner, 19 Oct 2026, before going to bed, with four answers: round ⓘ buttons everywhere instead of the oval chip; accepted formats stated for client certificate, key and CA; an eye on the password field; a second, exclusive way to get a client certificate (generate a key, download a CSR, import the signed certificate) next to importing certificate and key, the CA row always staying; "0 = none" out of the session expiry field and into its ⓘ; the Start broker button in the accent colour like Connect; the Status tile with a play/stop control (answer: the tile, not the rail badge); website top bar with one accent "Download" button leading to a bottom section with the official Mac App Store and Microsoft Store badges unrecoloured and the official GitHub button on an accent section, plus links for Windows executable, macOS executable and Linux packages (answer); no "Apache 2.0" line in the hero; server certificate names to include the computer's LAN addresses, WAN names typed by the owner (answer); server CA and certificate exportable for external clients; tests for external clients using the broker's own chain, fixes if found; then refreshed website screenshots and a TestFlight build; export compliance declared as the standard-encryption exemption (answer, 3f2e2bf). Spec: `docs/FEATURES.md` (Connections, Broker), `docs/TESTPLAN.md` C-31 to C-34, B-27 to B-29, T-28 to T-31, mockups 02d and 12 adjusted by the implementer (owner asleep; noted here instead of a review round).
+
+Readings to confirm:
+- The ⓘ is one component, an 18 px circle; the bubbles themselves are unchanged.
+- Accepted formats are the picker's filters written out; DER is listed only where the app parses it.
+- The generated key never leaves the secret store; the CSR is a plain file; "Import signed certificate" checks the public key against the generated key.
+- Switching between the two client-certificate ways asks before discarding material; with nothing on the other side it switches silently.
+- The Status tile button and the header buttons are the same two actions; nothing else moves on the Broker screen.
+- SANs: LAN addresses are read at generation time; a changed address needs a regeneration, said in the ⓘ; link-local and loopback addresses are left out; "Extra names" are stored in the broker configuration and reused.
+- External-client tests use the Rust client crate as the outsider in CI and Paho in the lab script; both start a real broker on free ports.
+- Website: Apple's badge artwork is only available through Apple's marketing tools after accepting the licence, which the owner must do; until the file is dropped into `website/assets/`, the page shows a neutral black placeholder button with the words "Mac App Store" and a comment in `build.py`.
+
 Owner, 18 Oct 2026: unhappy with the keychain manager, it induces friction by asking for the system password; wants a state-of-the-art way of storing certificates and keys that does not bother the user unless they want to; after the rundown: "ok document it and add the data protection as a release gate in the doc". Decision: the store follows the build. Signed release builds use the silent OS store on every platform (macOS Data Protection keychain, Windows DPAPI, Linux Secret Service with a file fallback); unsigned builds use an owner-only key file and never show a dialog; the key is moved once, silently where possible; the Data Protection keychain is a release gate (SPEC 11, TESTPLAN V-12). Spec: `docs/SPEC.md` 6 and 11, `docs/TESTPLAN.md` V-09 rewritten, V-12, S-06, `docs/RUNNING.md`, `CLAUDE.md` product rule.
 
 Readings to confirm:

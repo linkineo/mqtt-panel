@@ -1,7 +1,7 @@
 # Progress
 
 Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 18 Oct 2026 (website and branding; phases 1 to 4, change sets 1 to 10 complete on macOS, the Data Protection keychain of change set 10 deferred to the signing step; change set 5 to 10 readings awaiting the owner; Windows and Linux through CI).
+Last update: 20 Oct 2026 (website and branding; phases 1 to 4, change sets 1 to 10 complete on macOS, the Data Protection keychain of change set 10 deferred to the signing step; change set 5 to 10 readings awaiting the owner; Windows and Linux through CI).
 
 ## Summary
 
@@ -11,6 +11,7 @@ Last update: 18 Oct 2026 (website and branding; phases 1 to 4, change sets 1 to 
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
+| Change set 11 | owner feedback on the tenth build: round ⓘ, file formats, password eye, generated key + CSR workflow, session expiry hint, accent Start and tile play/stop, LAN SANs with extra names, server certificate export, external-client tests; website download section | Specified 20 Oct 2026, implementation in progress. See below. |
 | Change set 10 | master key store by build: owner-only key file on unsigned builds (no dialog), OS store on signed builds, one silent move; macOS Data Protection keychain as a release gate | Done on macOS 18 Oct 2026 (file store, detection and move); Data Protection with the signing step (phase 5). V-09 is the owner's manual check. See below. |
 | Change set 9 | owner feedback on the eighth build: empty bar without text, one-second smoothed msg/s on tabs and tree rows, sparkline hidden by right-click, expandable History rows with a one-field filter, JSON / Tree toggle, aligned row columns | Done 15 Oct 2026. See below. |
 | Change set 8 | owner feedback on the seventh build: permanent connection bar beside the rail, tree rows with payload, sparkline, messages, throughput and subtopics, sparkline pick and click menu in the payload, Payload and Properties tabs only with "Show diff to previous", topic chart under the payload with "+ Add field…" and "Also add to", History section, in-place series editing and chart rename, icon buttons and boxed quick publish, no auto-capitalisation | Specified 15 Oct 2026, implementation in progress. See below. |
@@ -33,6 +34,21 @@ Last update: 18 Oct 2026 (website and branding; phases 1 to 4, change sets 1 to 
 | Forbidden-words check in `build.py` | Done |
 | Deploy: Worker `mqtt-panel-site`, custom domains `mqtt-panel.com` and `www.mqtt-panel.com` | Deployed 18 Oct 2026 |
 | Store and GitHub links, operator details on the legal page | Owner (placeholders) |
+
+## Change set 11 (20 Oct 2026, owner feedback on the tenth build): in progress
+
+Specified in `docs/FEATURES.md` (Connections, Broker), `docs/TESTPLAN.md` C-31 to C-34, B-27 to B-29, T-28 to T-31; mockups 02d and 12 adjusted by the implementer. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
+
+| Item | Status |
+|---|---|
+| Round ⓘ button everywhere | Specified |
+| Accepted formats after Browse; password eye | Specified |
+| Client certificate: "Import certificate and key" / "Generate key and request a certificate" (key, CSR, signed certificate) | Specified |
+| Session expiry without "0 = none"; ⓘ explains | Specified |
+| Broker: accent Start, Status tile play/stop | Specified |
+| Server certificate SANs with LAN addresses and "Extra names"; "Export…" of the served chain | Specified |
+| Tests T-28 to T-31 (external clients with the broker's chain), C-31 to C-34, B-27 to B-29 | Specified |
+| Website: top-bar Download button, bottom download section with official badges, no licence line in the hero; screenshots refreshed | Specified |
 
 ## Change set 10 (18 Oct 2026, master key store by build): implemented, Data Protection deferred
 
