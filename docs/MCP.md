@@ -1,9 +1,9 @@
 # MCP interface: mini spec for validation
 
-Status: validated by the owner on 20 Oct 2026; phases 1 and 2 implemented 20 Oct 2026 (transport, security model,
-Settings page "Assistant", the Connections and Navigation tools, two resources, two prompts; table in section 10).
+Status: validated by the owner on 20 Oct 2026; implemented 20 Oct 2026 (phases 1 to 4: transport, security model,
+Settings page "Assistant", every tool group of section 4, five resources, four prompts; complete table in section 10).
 Decisions taken with the owner on 20 Oct 2026 are marked (owner); the implementing model's readings are in
-`docs/DECISIONS.md`, "20 Oct 2026, MCP interface (phases 1 and 2)".
+`docs/DECISIONS.md`, "20 Oct 2026, MCP interface (phases 1 and 2)" and "(phases 3 and 4)".
 
 ## 1. Goal
 
@@ -157,10 +157,15 @@ Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude",
 - One host session at a time; a second host gets "another assistant is connected".
 - ChatGPT support means the ChatGPT desktop app through its Codex MCP configuration; ChatGPT on the web is out of scope.
 
-## 10. Implemented (phases 1 and 2, 20 Oct 2026)
+## 10. Implemented (20 Oct 2026)
 
-Code: `apps/desktop/src-tauri/src/mcp/` (server, registry, tools, hosts, Settings commands), `crates/shim` (the stdio
-shim used by `mqttpanel mcp` and by the app executable started with `mcp`). Tests: `docs/TESTPLAN.md` M-01 to M-10.
+Code: `apps/desktop/src-tauri/src/mcp/` (server, registry, one table per group in `tools/`, hosts, Settings commands),
+`apps/desktop/src-tauri/src/charts.rs` (the window's dashboard charts on the app side), `crates/shim` (the stdio shim
+used by `mqttpanel mcp` and by the app executable started with `mcp`). Tests: `docs/TESTPLAN.md` M-01 to M-17.
+Writing tools need the acknowledgement, show a toast and add a row to the Assistant log; "Secret way" fields are masked
+in the log and bring the once-per-session warning when given directly. Exports and new files are written to a place the
+user picks in the app (save dialog or folder dialog) or to an absolute path given by the host (not a secret, no
+warning); results give the paths, never a key.
 
 | Tool | Group | Writes | Secret way | Notes |
 |---|---|---|---|---|
@@ -178,14 +183,53 @@ shim used by `mqttpanel mcp` and by the app executable started with `mcp`). Test
 | `connect` | Connections | yes | | 20 s; starts the built-in broker for "Local broker". |
 | `disconnect` | Connections | yes | | |
 | `delete_connection` | Connections | yes | | Destructive hint for the host. |
+| `broker_status` | Broker | no | | State, listeners (kind, port, on, up, error), reachability, Anonymous, user names, client certificate rule, clients, retained. |
+| `broker_start` | Broker | yes | | Retries a listener that could not start. |
+| `broker_stop` | Broker | yes | | |
+| `broker_add_listener` | Broker | yes | | `kind` tcp, tls, ws, wss; `port`; `preset` plain, encrypted, passwords, mtls (as the Add listener dialog). Starts at once. |
+| `broker_update_listener` | Broker | yes | | `enabled`, `port`; live, only that listener's clients reconnect. |
+| `broker_remove_listener` | Broker | yes | | Destructive. |
+| `broker_set_reachability` | Broker | yes | | `this_computer` or `whole_network`. |
+| `broker_set_anonymous` | Broker | yes | | |
+| `broker_add_user` | Broker | yes | `ask_in_app` or `password` | Changes the password of an existing user. |
+| `broker_remove_user` | Broker | yes | | Destructive. |
+| `broker_client_certs` | Broker | no | | Name, expiry, key type, last seen, revoked. |
+| `broker_issue_client_cert` | Broker | yes | `ask_in_app` or `passphrase` | Folder always picked in the app (it is asked together with the passphrase); `format` pem (key encrypted when a passphrase is given) or pkcs12 (passphrase required); `valid_years` 1, 2, 5; `include_ca`. Returns the paths. |
+| `broker_revoke_client_cert` | Broker | yes | | Destructive; the device is disconnected at once. |
+| `broker_set_client_cert_rule` | Broker | yes | | `rule` optional or required; `verify_against` local or imported. |
+| `broker_export_ca` | Broker | yes | `ask_in_app` or `folder` | Writes CA.pem; returns the path. |
+| `broker_export_server_cert` | Broker | yes | `ask_in_app` or `folder` | Writes server-chain.pem. |
+| `broker_regenerate_server_cert` | Broker | yes | | `extra_names` replaces the kept list (omitted: kept); `key_type` (omitted: the current one). |
+| `broker_rotate_ca` | Broker | yes | | Destructive (issued certificates stop working). |
+| `broker_log` | Broker | no | | `level` (info), `limit` at most 500 (100). |
+| `connect_builtin_broker` | Broker | yes | | The "Built-in broker" flow: user, certificate, trust, start, connect; `listener` id or kind, the most secure one switched on by default (switched on when off). Returns the "Local broker" profile id. 20 s. |
+| `list_topics` | Data | no | | `filter` (text, MQTT filter, /regex/), at most 200; last value, rate, messages, QoS, retained, subtopics. |
+| `get_topic` | Data | no | | Last payload decoded (JSON, text or hex, cut at 16 KB), properties, counts, the fields that can be charted. |
+| `get_history` | Data | no | | Newest first, at most 500 rows (200), `before` = `nextBefore` of the previous page; payload cut at 2000 characters. |
+| `search_values` | Data | no | | Last values containing a text, at most 100. |
+| `publish` | Data | yes | | `format` text, json, hex, base64; `qos`, `retain`; in the sent log. |
+| `delete_retained` | Data | yes | | `subtree` deletes every retained message at and under the topic the Explorer knows. Destructive. |
+| `export_data` | Data | yes | `ask_in_app` or `file` | `scope` topic or subtree, `format` csv, json, ndjson, `from`, `to` (ms). Returns the path, messages, topics, bytes. |
+| `list_charts` | Charts | no | | Dashboard charts with their series, topic charts and sparklines of every connection. |
+| `create_chart` | Charts | yes | | `connection` (the only connected one when omitted), `range` 5m, 15m, 1h, session. |
+| `rename_chart` | Charts | yes | | |
+| `delete_chart` | Charts | yes | | Destructive. |
+| `add_series` | Charts | yes | | `field_path` ("$", "$.a", or "a"); name, colour, style (step for on/off values), axis, unit, cast. |
+| `update_series` | Charts | yes | | Also `enabled`. |
+| `remove_series` | Charts | yes | | |
+| `set_topic_chart` | Charts | yes | | `fields` paths or objects; kept fields keep their settings; empty removes. Saved in the profile. |
+| `set_sparkline` | Charts | yes | | `path`, or `off` true. Saved in the profile. |
+| `export_chart` | Charts | yes | `ask_in_app` or `file` | csv (the chart's range) or png (drawn by the window). |
 | `show_connection` | Navigation | no | | Connections screen, the profile selected. |
 | `show_topic` | Navigation | no | | Explorer of an open connection, the topic selected and revealed. |
-| `show_chart` | Navigation | no | | Charts screen, the chart when the id exists. |
+| `show_chart` | Navigation | no | | Charts screen, the chart and its connection when the id exists. |
 | `show_broker` | Navigation | no | | |
 | `show_settings` | Navigation | no | | `page`: appearance, language, data, security, assistant, updates, shortcuts, privacy, about. |
 
-Resources: `mqttpanel://connections` (JSON, no secrets), `mqttpanel://assistant-log` (text, as Export… writes it).
+Resources: `mqttpanel://connections` (JSON, no secrets), `mqttpanel://broker` (as `broker_status`),
+`mqttpanel://charts` (as `list_charts`), `mqttpanel://topics/{connection}` (template; also listed for every open
+connection; the first 200 topics), `mqttpanel://assistant-log` (text, as Export… writes it).
 Prompts: `connect_to_broker` ("Connect me to a broker", optional `address`), `why_cant_i_connect` ("Why can't I
-connect?", optional `connection`; carries the current state of the connections).
-Phase 3 adds the broker, data and chart groups as new tables in `mcp/tools/` and the remaining resources and prompts in
-`mcp/prompts.rs`; the server does not change.
+connect?", optional `connection`), `setup_builtin_broker` ("Set up the built-in broker for my devices", optional
+`devices`, `security`; carries the broker state; ends with `connect_builtin_broker`), `chart_this_value` ("Chart this
+value", optional `value`, `connection`; carries the connected connections and the charts).

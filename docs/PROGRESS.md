@@ -11,7 +11,7 @@ Last update: 20 Oct 2026 (MCP interface phases 1 and 2; website and branding; ph
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
-| MCP interface | assistants through MCP (`docs/MCP.md`): socket and stdio shim, acknowledgement, secrets in the app, toast and Assistant log, Settings page "Assistant", Connections and Navigation tools, two resources, two prompts | Phases 1 and 2 done 20 Oct 2026 (Rust 252, Vitest 169, Playwright 331). Phase 3 (broker, data, chart tools) open. See below. |
+| MCP interface | assistants through MCP (`docs/MCP.md`): socket and stdio shim, acknowledgement, secrets in the app, toast and Assistant log, Settings page "Assistant", Connections, Broker, Data, Charts and Navigation tools (56), five resources, four prompts | Phases 1 to 4 done 20 Oct 2026 (Rust 257, Vitest 177, Playwright 338). Native FR/DE review open. See below. |
 | Change set 11 | owner feedback on the tenth build: round ⓘ, file formats, password eye, generated key + CSR workflow, session expiry hint, accent Start and tile play/stop, LAN SANs with extra names, server certificate export, external-client tests; website download section | App part done 20 Oct 2026 (Rust 232, Vitest 159, Playwright 313, Paho lab 51 PASS); website part open. See below. |
 | Change set 10 | master key store by build: owner-only key file on unsigned builds (no dialog), OS store on signed builds, one silent move; macOS Data Protection keychain as a release gate | Done on macOS 18 Oct 2026 (file store, detection and move); Data Protection with the signing step (phase 5). V-09 is the owner's manual check. See below. |
 | Change set 9 | owner feedback on the eighth build: empty bar without text, one-second smoothed msg/s on tabs and tree rows, sparkline hidden by right-click, expandable History rows with a one-field filter, JSON / Tree toggle, aligned row columns | Done 15 Oct 2026. See below. |
@@ -24,10 +24,11 @@ Last update: 20 Oct 2026 (MCP interface phases 1 and 2; website and branding; ph
 | Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
 | Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
 
-## MCP interface (20 Oct 2026, phases 1 and 2)
+## MCP interface (20 Oct 2026, phases 1 to 4)
 
 Specified in `docs/MCP.md` (validated by the owner on 20 Oct 2026), summarised in `docs/FEATURES.md` "Assistant (MCP)";
-tests `docs/TESTPLAN.md` section 13; readings in `docs/DECISIONS.md` "20 Oct 2026, MCP interface (phases 1 and 2)".
+tests `docs/TESTPLAN.md` section 13; readings in `docs/DECISIONS.md` "20 Oct 2026, MCP interface (phases 1 and 2)" and
+"(phases 3 and 4)".
 
 | Item | Status |
 |---|---|
@@ -42,7 +43,13 @@ tests `docs/TESTPLAN.md` section 13; readings in `docs/DECISIONS.md` "20 Oct 202
 | Settings page "Assistant": acknowledgement, connected assistant, "Add to Claude", "Add to ChatGPT", "Other hosts" snippet, log; ⓘ per row; EN, FR, DE | Done (M-10; no mockup yet, see DECISIONS "Open") |
 | Real hosts on macOS (20 Oct 2026, temporary data folder): the debug app executable with `mcp` started the app and served a scripted session (list, create, connect to an embedded broker run by `mqttpanel broker`, show, disconnect); Claude Code (`claude -p` with a temporary `--mcp-config`) listed the connections and connected | Done. Claude Desktop and the ChatGPT desktop app not run (their configuration files were not touched); by hand per `docs/RUNNING.md` section 10 |
 | Native FR and DE review of the new texts | Open (phase 5, with the rest) |
-| Phase 3: broker, data and chart tools, the other resources and prompts, exports | Open |
+| Broker tools (18) and `connect_builtin_broker`, live apply, issuing into a folder picked in the app | Done (M-11, M-12, M-15) |
+| Data tools (7) with the bounds (200 topics, 500 history rows and the cursor, 100 search hits) and `export_data` | Done (M-13) |
+| Chart tools (10): dashboard charts mirrored on the app side (`sync_charts`, charts event), topic charts, sparklines, CSV and PNG export | Done (M-14, M-17) |
+| Resources `mqttpanel://broker`, `mqttpanel://charts`, `mqttpanel://topics/{connection}`; prompts "Set up the built-in broker for my devices", "Chart this value" | Done (M-14) |
+| In-app requests: broker password, save place, folder, new client certificate, chart image | Done (M-16, M-17) |
+| Scripted session against the real app (20 Oct 2026, debug build, temporary data folder, memory secrets, through `<app> mcp`): listeners moved, reachability, Anonymous off, client certificates required, CA.pem exported, `connect_builtin_broker` over TLS with the desktop certificate, 5 publishes, list, get, history, topic chart, sparkline, dashboard chart, CSV and PNG chart exports, a CSV data export | Done |
+| Website section "Works with your assistant" (EN, FR, DE text in `website/build.py`) | Done, not deployed |
 
 ## Website and branding (18 Oct 2026)
 
