@@ -23,6 +23,7 @@ p12-keystore = "0.4"
 # RSA key generation only (signing goes through rcgen/ring); ring cannot generate RSA keys.
 rsa = { version = "0.9", features = ["std", "pem"] }
 hostname = "0.4"
+if-addrs = "0.13"
 
 [dev-dependencies]
 serde_json.workspace = true

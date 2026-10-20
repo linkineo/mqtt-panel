@@ -119,6 +119,10 @@ pub struct BrokerConfig {
     pub require_client_cert: bool,
     pub verify_against: VerifyAgainst,
     pub max_clients: u32,
+    /// Names and addresses added to the generated server certificate by the owner (change set 11), on top of the
+    /// automatic names (localhost, the host name, the interface addresses).
+    #[serde(default)]
+    pub extra_sans: Vec<String>,
 }
 
 /// Runtime state.
@@ -208,6 +212,13 @@ pub struct BrokerCerts {
     pub server: CertDetails,
     pub imported: bool,
     pub imported_ca: Option<CertDetails>,
+    /// The names a generated server certificate gets automatically, read now (change set 11; shown read-only in the
+    /// Regenerate dialog).
+    #[serde(default)]
+    pub auto_sans: Vec<String>,
+    /// The extra names kept in the broker configuration.
+    #[serde(default)]
+    pub extra_sans: Vec<String>,
 }
 
 /// A connected client (TS `BrokerClient`).

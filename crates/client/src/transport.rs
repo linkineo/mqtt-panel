@@ -376,6 +376,13 @@ pub fn classify_tls_error(err: &rustls::Error, captured: &Arc<Mutex<Captured>>, 
                         trust(TrustReason::UnknownCa, msg!("tls.reason.unknownCa", issuer = issuer), false)
                     }
                 }
+                // Change set 11 (found by T-30): the chain names a CA with the same name as a trusted one but signed with
+                // another key, which is what a device with the old CA.pem sees after the broker's CA was rotated. Offer
+                // the prompt with a reason that says so, instead of "certificate not accepted".
+                CertificateError::BadSignature if opts.tls.ca.is_some() => {
+                    let issuer = chain.last().map(|c| c.issuer.clone()).unwrap_or_else(|| leaf.issuer.clone());
+                    trust(TrustReason::UnknownCa, msg!("tls.reason.caChanged", issuer = issuer), false)
+                }
                 CertificateError::Expired | CertificateError::ExpiredContext { .. } => {
                     trust(TrustReason::Expired, msg!("tls.expired", date = date_of(leaf.not_after_unix)), true)
                 }

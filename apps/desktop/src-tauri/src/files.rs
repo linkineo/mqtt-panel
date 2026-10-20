@@ -13,9 +13,11 @@ pub fn file_name(p: &Path) -> String {
 
 fn filters(kind: &str) -> (&'static str, &'static [&'static str]) {
     match kind {
-        "caCert" => ("Certificates", &["pem", "crt", "cer", "der"]),
-        "clientCert" => ("Certificates and PKCS#12", &["pem", "crt", "cer", "der", "p12", "pfx"]),
-        "clientKey" => ("Keys and PKCS#12", &["key", "pem", "der", "p12", "pfx"]),
+        // Change set 11: exactly the formats written after Browse ("PEM, CRT, DER", "PEM, CRT, DER, P12, PFX", "PEM, KEY").
+        "caCert" => ("Certificates", &["pem", "crt", "der"]),
+        "clientCert" => ("Certificates and PKCS#12", &["pem", "crt", "der", "p12", "pfx"]),
+        "clientKey" => ("Keys", &["pem", "key"]),
+        "signedCert" => ("Certificates", &["pem", "crt", "der"]),
         "proto" => ("Protobuf schemas", &["proto"]),
         "import" => ("Connection exports", &["json"]),
         "csr" => ("Certificate requests", &["csr", "pem", "der", "req"]),
@@ -76,7 +78,7 @@ pub fn tls_error(e: &TlsFileError, file: &str) -> UserMessage {
 }
 
 fn plain_summary(kind: &str) -> CertSummary {
-    CertSummary { kind: kind.into(), subject: None, cn: None, issuer: None, not_before: None, not_after: None, key_type: None, count: 0, self_signed: false, is_ca: false, encrypted: false }
+    CertSummary { kind: kind.into(), subject: None, cn: None, issuer: None, not_before: None, not_after: None, key_type: None, count: 0, self_signed: false, is_ca: false, encrypted: false, fingerprint: None }
 }
 
 /// Inspects a file for a field kind.
@@ -88,7 +90,7 @@ pub fn inspect(kind: &str, path: &Path, passphrase: Option<&str>) -> FileInspect
         Err(_) => return FileInspection::Err { ok: false, path: p, file_name: name.clone(), error: msg!("file.unreadable", file = name) },
     };
     let expect = match kind {
-        "caCert" => Some(FileExpect::Certificate),
+        "caCert" | "signedCert" => Some(FileExpect::Certificate),
         "clientCert" | "brokerCert" => Some(FileExpect::CertificateOrPkcs12),
         "clientKey" | "brokerKey" => Some(FileExpect::KeyOrPkcs12),
         _ => None,

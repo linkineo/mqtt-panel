@@ -104,6 +104,19 @@ fn s05_old_profile_verify_server_migrates() {
     assert!(!both.skip_verify);
 }
 
+/// Change set 11: `tls.clientKeyGenerated` defaults to false for profiles saved before it and round-trips.
+#[test]
+fn c33_client_key_generated_defaults_and_round_trips() {
+    let old: mqttpanel_profiles::model::TlsSettings = serde_json::from_str(r#"{"skipVerify":false,"caCert":null,"clientCert":null,"clientKey":null}"#).unwrap();
+    assert!(!old.client_key_generated);
+    let mut t = old.clone();
+    t.client_key_generated = true;
+    let json = serde_json::to_string(&t).unwrap();
+    assert!(json.contains("\"clientKeyGenerated\":true"), "{json}");
+    let back: mqttpanel_profiles::model::TlsSettings = serde_json::from_str(&json).unwrap();
+    assert!(back.client_key_generated);
+}
+
 #[test]
 fn templates_per_profile() {
     let (_d, s, _) = store();

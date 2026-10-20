@@ -32,4 +32,6 @@ toml = { version = "0.8", default-features = false, features = ["parse"] }
 socket2 = { version = "0.5", features = ["all"] }
 
 [dev-dependencies]
+# T-28 to T-30: the app's own client crate plays the external device (change set 11).
+mqttpanel-client.workspace = true
 tempfile = "3"

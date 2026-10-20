@@ -11,6 +11,12 @@ ignore = [
   { id = "RUSTSEC-2023-0071", reason = "rsa used for key generation only" },
   # proc-macro-error: unmaintained build-time macro crate pulled by the GTK bindings of Tauri on Linux.
   { id = "RUSTSEC-2024-0370", reason = "build-time only, Linux GTK bindings of Tauri; no safe upgrade upstream" },
+  # zbus_names, zvariant, zvariant_derive: unmaintained since their merge into zbus 6; pulled by the Linux Secret Service
+  # store of keyring (zbus 5). Local D-Bus types only, no network surface; revisit when keyring moves to zbus 6
+  # (change set 11, 20 Oct 2026).
+  { id = "RUSTSEC-2026-0370", reason = "zvariant: Linux Secret Service via keyring/zbus 5; no upgrade path yet" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names: Linux Secret Service via keyring/zbus 5; no upgrade path yet" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: Linux Secret Service via keyring/zbus 5; no upgrade path yet" },
 ]
 
 [licenses]

@@ -40,6 +40,7 @@
  "tls.reason.selfSigned": "Raison : le certificat est auto-signé. Personne ne s’en porte garant ; comparez l’empreinte avec celle affichée sur le broker avant de lui faire confiance.",
  "tls.reason.unknownCa": "Raison : le certificat est signé par une autorité inconnue de cet ordinateur ({issuer}). Comparez l’empreinte avec celle affichée sur le broker avant de lui faire confiance.",
  "tls.reason.unknownCaMaybeIntermediate": "Raison : le certificat est signé par {issuer}, qui n’est pas l’autorité (CA) indiquée dans ce profil. Il se peut aussi que le broker n’ait pas envoyé son certificat intermédiaire. Comparez l’empreinte avec celle affichée sur le broker avant de lui faire confiance.",
+ "tls.reason.caChanged": "Raison : le certificat est signé par une autorité qui porte le nom de la CA de ce profil ({issuer}), mais avec une autre clé : la CA du broker a sans doute été remplacée. Récupérez son nouveau certificat de CA, ou comparez l’empreinte avec celle affichée sur le broker avant de lui faire confiance.",
  "tls.reason.fingerprintChanged": "Le broker présente maintenant un autre certificat que celui que vous aviez accepté. Ancienne empreinte {old}, nouvelle empreinte {new}.",
  "tls.expired": "Le certificat du broker a expiré le {date}.",
  "tls.notYetValid": "Le certificat du broker n’est pas valable avant le {date}. Vérifiez l’horloge du broker ou de cet ordinateur.",
@@ -133,5 +134,9 @@
  "cli.broker.running": "Broker démarré. Appuyez sur Ctrl-C pour l’arrêter.",
  "cli.broker.stopped": "Broker arrêté.",
  "cli.profiles.none": "Aucun profil enregistré.",
- "cli.profiles.imported": "Importé : {name}"
+ "cli.profiles.imported": "Importé : {name}",
+ "certs.badName": "« {name} » n’est ni un nom d’hôte ni une adresse IP.",
+ "file.notGeneratedKey": "Ce certificat ne correspond pas à la clé générée.",
+ "file.noGeneratedKey": "Générez d’abord une clé.",
+ "file.csrNoName": "Indiquez un nom commun pour la demande."
 }

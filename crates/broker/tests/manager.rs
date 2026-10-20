@@ -1327,3 +1327,85 @@ fn b21_old_broker_json_migrates() {
             .all(|l| l.get("bind").is_none()));
     }
 }
+
+// ---------------------------------------------------------------- B-28, B-29 (change set 11)
+
+/// B-28: generated server certificates carry the automatic names (loopback names, host name, every usable interface
+/// address) plus the "Extra names", which are kept in broker.json, survive a reopen, a heal and a CA rotation; an invalid
+/// extra name is refused and changes nothing. B-29: "Export…" gives the served chain, whose leaf is the served certificate.
+#[tokio::test]
+async fn b28_server_names_lan_addresses_and_extra_names() {
+    let dir = tempfile::tempdir().unwrap();
+    let (m, secrets) = open(dir.path());
+    randomize_ports(&m).await;
+    let certs = m.broker_certs().unwrap();
+    let auto = mqttpanel_tls::kit::local_sans();
+    assert_eq!(certs.auto_sans, auto);
+    for ip in mqttpanel_tls::kit::interface_addresses() {
+        assert!(certs.server.san.contains(&ip.to_string()), "interface address {ip} in {:?}", certs.server.san);
+    }
+    assert!(!certs.server.san.iter().any(|s| s.starts_with("169.254.") || s.starts_with("fe80")));
+    assert!(certs.extra_sans.is_empty() && m.config().extra_sans.is_empty());
+
+    // Refused: nothing changes.
+    let fp = certs.server.fingerprint.clone();
+    let e = m.regenerate_with_extra(&["ok.example".into(), "bad_name".into()], KeyAlg::Ecdsa).unwrap_err();
+    assert_eq!(e.key(), "certs.badName");
+    assert_eq!(e.user_message().params["name"], "bad_name");
+    assert_eq!(m.broker_certs().unwrap().server.fingerprint, fp);
+    assert!(m.config().extra_sans.is_empty());
+
+    // Accepted: automatic names first, then the extra names; kept in broker.json.
+    let extra = vec!["Broker.Example.com".to_string(), "203.0.113.7, 2001:db8::7".to_string()];
+    let c = m.regenerate_with_extra(&extra, KeyAlg::Ecdsa).unwrap();
+    let want = ["broker.example.com", "203.0.113.7", "2001:db8::7"];
+    assert_eq!(c.extra_sans, want);
+    assert_eq!(m.config().extra_sans, want);
+    for n in auto.iter().map(String::as_str).chain(want) {
+        assert!(c.server.san.iter().any(|s| s == n), "{n} in {:?}", c.server.san);
+    }
+    let json = std::fs::read_to_string(dir.path().join("broker.json")).unwrap();
+    assert!(json.contains("\"extraSans\"") && json.contains("203.0.113.7"));
+
+    // B-29: the export is the served chain; its leaf is the served certificate.
+    let (name, chain) = m.export_server_chain();
+    assert_eq!(name, "server-chain.pem");
+    let certs_in = der(std::str::from_utf8(&chain).unwrap());
+    assert_eq!(certs_in.len(), 2, "leaf and local CA");
+    assert_eq!(mqttpanel_tls::fingerprint_sha256(certs_in[0].as_ref()), c.server.fingerprint);
+    assert_eq!(mqttpanel_tls::fingerprint_sha256(certs_in[1].as_ref()), c.ca.fingerprint);
+    let st = m.start().await;
+    assert_eq!(st.state, BrokerState::Running, "{:?}", st.error);
+    let served = served_leaf(port_of(&m, "tls"), &ca_roots(&m)).await;
+    assert_eq!(mqttpanel_tls::fingerprint_sha256(&served), c.server.fingerprint, "the exported leaf is the served one");
+    m.stop().await;
+
+    // A reopen keeps them; a heal (server key lost) issues a certificate with the same extra names.
+    drop(m);
+    secrets.delete("broker/server-key").unwrap();
+    let m = BrokerManager::open(dir.path(), Arc::new(secrets.clone())).unwrap();
+    assert_eq!(m.config().extra_sans, want);
+    assert_eq!(m.start().await.state, BrokerState::Running);
+    let healed = m.broker_certs().unwrap();
+    assert_ne!(healed.server.fingerprint, c.server.fingerprint);
+    for n in want {
+        assert!(healed.server.san.iter().any(|s| s == n), "after heal: {n}");
+    }
+    m.stop().await;
+    // A CA rotation too.
+    let rotated = m.rotate_ca().unwrap();
+    for n in want {
+        assert!(rotated.server.san.iter().any(|s| s == n), "after rotation: {n}");
+    }
+    // Clearing the field removes them at the next regeneration.
+    let cleared = m.regenerate_with_extra(&[], KeyAlg::Ecdsa).unwrap();
+    assert!(cleared.extra_sans.is_empty());
+    assert!(!cleared.server.san.iter().any(|s| s == "broker.example.com"));
+}
+
+/// The leaf certificate the TLS listener serves (verified with the given roots by name "localhost").
+async fn served_leaf(port: u16, roots: &[CertificateDer<'static>]) -> Vec<u8> {
+    let s = tls_stream(port, tls_cfg(roots, None)).await.expect("handshake");
+    let (_, conn) = s.get_ref();
+    conn.peer_certificates().expect("peer certificates")[0].as_ref().to_vec()
+}

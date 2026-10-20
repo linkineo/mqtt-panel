@@ -40,6 +40,7 @@
  "tls.reason.selfSigned": "Grund: Das Zertifikat ist selbst signiert. Niemand bürgt dafür; vergleiche den Fingerabdruck mit dem am Broker angezeigten, bevor du ihm vertraust.",
  "tls.reason.unknownCa": "Grund: Das Zertifikat ist von einer Stelle signiert, die dieser Computer nicht kennt ({issuer}). Vergleiche den Fingerabdruck mit dem am Broker angezeigten, bevor du ihm vertraust.",
  "tls.reason.unknownCaMaybeIntermediate": "Grund: Das Zertifikat ist von {issuer} signiert, nicht von der CA, die in diesem Profil eingetragen ist. Vielleicht hat der Broker auch sein Zwischenzertifikat nicht mitgeschickt. Vergleiche den Fingerabdruck mit dem am Broker angezeigten, bevor du ihm vertraust.",
+ "tls.reason.caChanged": "Grund: Das Zertifikat ist von einer Stelle signiert, die wie die CA dieses Profils heißt ({issuer}), aber einen anderen Schlüssel hat: Die CA des Brokers wurde wohl ersetzt. Hol dir ihr neues CA-Zertifikat oder vergleiche den Fingerabdruck mit dem auf dem Broker angezeigten, bevor du ihm vertraust.",
  "tls.reason.fingerprintChanged": "Der Broker zeigt jetzt ein anderes Zertifikat als das, dem du vertraut hast. Alter Fingerabdruck {old}, neuer Fingerabdruck {new}.",
  "tls.expired": "Das Zertifikat des Brokers ist am {date} abgelaufen.",
  "tls.notYetValid": "Das Zertifikat des Brokers gilt erst ab {date}. Prüfe die Uhr am Broker oder an diesem Computer.",
@@ -133,5 +134,9 @@
  "cli.broker.running": "Broker läuft. Drücke Ctrl-C, um ihn zu beenden.",
  "cli.broker.stopped": "Broker beendet.",
  "cli.profiles.none": "Keine gespeicherten Profile.",
- "cli.profiles.imported": "Importiert: {name}"
+ "cli.profiles.imported": "Importiert: {name}",
+ "certs.badName": "„{name}“ ist weder ein Hostname noch eine IP-Adresse.",
+ "file.notGeneratedKey": "Dieses Zertifikat passt nicht zum erzeugten Schlüssel.",
+ "file.noGeneratedKey": "Erzeuge zuerst einen Schlüssel.",
+ "file.csrNoName": "Gib einen Common Name für die Anfrage ein."
 }

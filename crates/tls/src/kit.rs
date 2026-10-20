@@ -316,6 +316,65 @@ pub fn make_csr(cn: &str, alg: KeyAlg) -> Result<(String, Vec<u8>), KitError> {
     Ok((csr.pem()?, key.serialize_der()))
 }
 
+/// A client key generated for a profile ("Generate key and request a certificate", change set 11).
+#[derive(Debug, Clone)]
+pub struct GeneratedKey {
+    /// PKCS#8 PEM, for the secret store.
+    pub key_pem: String,
+    /// "ECDSA P-256" or "RSA 2048".
+    pub algorithm: String,
+    /// SHA-256 over the SubjectPublicKeyInfo, "3F:9A:…".
+    pub fingerprint: String,
+}
+
+/// Generates a client key (ECDSA P-256 or RSA 2048).
+pub fn generate_client_key(alg: KeyAlg) -> Result<GeneratedKey, KitError> {
+    let key = gen_key(alg)?;
+    Ok(GeneratedKey { key_pem: key.serialize_pem(), algorithm: alg.label().to_string(), fingerprint: public_key_fingerprint_of(&key) })
+}
+
+fn key_pair_from_pem(key_pem: &str) -> Result<KeyPair, KitError> {
+    let der = crate::parse::parse_private_key(key_pem.as_bytes(), None).map_err(|e| KitError::Key(e.to_string()))?;
+    let pkcs8 = match der {
+        rustls_pki_types::PrivateKeyDer::Pkcs8(k) => k.secret_pkcs8_der().to_vec(),
+        _ => return Err(KitError::Key("a PKCS#8 key is expected".into())),
+    };
+    let pk = PrivatePkcs8KeyDer::from(pkcs8);
+    KeyPair::try_from(&pk).or_else(|_| KeyPair::from_pkcs8_der_and_sign_algo(&pk, &rcgen::PKCS_RSA_SHA256)).map_err(KitError::from)
+}
+
+fn public_key_fingerprint_of(key: &KeyPair) -> String {
+    use rcgen::PublicKeyData;
+    crate::parse::fingerprint_sha256(&key.subject_public_key_info())
+}
+
+/// Algorithm label and public-key fingerprint of a stored key (PKCS#8 PEM).
+pub fn describe_key(key_pem: &str) -> Result<(String, String), KitError> {
+    let key = key_pair_from_pem(key_pem)?;
+    let alg = if key.algorithm() == &rcgen::PKCS_RSA_SHA256 { KeyAlg::Rsa } else { KeyAlg::Ecdsa };
+    Ok((alg.label().to_string(), public_key_fingerprint_of(&key)))
+}
+
+/// A certificate signing request (PEM) for an existing key (PKCS#8 PEM) with the given common name.
+pub fn csr_for_key(key_pem: &str, cn: &str) -> Result<String, KitError> {
+    let key = key_pair_from_pem(key_pem)?;
+    let mut params = CertificateParams::default();
+    let mut d = DistinguishedName::new();
+    d.push(DnType::CommonName, cn);
+    params.distinguished_name = d;
+    Ok(params.serialize_request(&key)?.pem()?)
+}
+
+/// True when the certificate (DER) carries the public key of the key (PKCS#8 PEM).
+pub fn cert_matches_key(cert_der: &[u8], key_pem: &str) -> bool {
+    use rcgen::PublicKeyData;
+    let Ok(key) = key_pair_from_pem(key_pem) else { return false };
+    match x509_parser::parse_x509_certificate(cert_der) {
+        Ok((_, cert)) => cert.public_key().subject_public_key.data.as_ref() == key.der_bytes(),
+        Err(_) => false,
+    }
+}
+
 /// A PKCS#12 bundle with the certificate, its chain (issuer certificates) and the key.
 pub fn pkcs12(cert_der: &[u8], chain: &[Vec<u8>], key_der: &[u8], passphrase: &str, alias: &str) -> Result<Vec<u8>, KitError> {
     use p12_keystore::{Certificate, KeyStore, KeyStoreEntry, PrivateKey, PrivateKeyChain};
@@ -342,16 +401,103 @@ pub fn key_pem_with_passphrase(key_der: &[u8], passphrase: &str) -> Result<Strin
     Ok(to_pem("ENCRYPTED PRIVATE KEY", enc.as_bytes()))
 }
 
-/// Names for a local server certificate: localhost, 127.0.0.1, ::1 and the machine's host name.
+/// Names for a local server certificate: localhost, 127.0.0.1, ::1, the machine's host name and its .local name, and
+/// every address of the network interfaces at this moment (IPv4 and IPv6; loopback, link-local and unspecified
+/// addresses left out), so a client on the LAN verifies the address it connects to (change set 11).
 pub fn local_sans() -> Vec<String> {
     let mut sans = vec!["localhost".to_string(), "127.0.0.1".to_string(), "::1".to_string()];
+    let push = |sans: &mut Vec<String>, s: String| {
+        if !s.is_empty() && !sans.contains(&s) {
+            sans.push(s);
+        }
+    };
     if let Ok(h) = hostname::get() {
         let h = h.to_string_lossy().to_string();
-        if !h.is_empty() && !sans.contains(&h) {
-            sans.push(h.clone());
-            if !h.ends_with(".local") && !h.contains('.') {
-                sans.push(format!("{h}.local"));
+        if !h.is_empty() {
+            push(&mut sans, h.clone());
+            // The mDNS (Bonjour) name: the first label plus ".local", also when the host name carries a domain such as
+            // "name.localdomain" or "name.lan" (change set 11, found by T-28).
+            if !h.ends_with(".local") {
+                let first = h.split('.').next().unwrap_or(&h);
+                if !first.is_empty() {
+                    push(&mut sans, format!("{first}.local"));
+                }
             }
+        }
+    }
+    for ip in interface_addresses() {
+        push(&mut sans, ip.to_string());
+    }
+    sans
+}
+
+/// Addresses of the network interfaces that a client on another machine could use: no loopback, no link-local
+/// (169.254/16, fe80::/10), no unspecified or multicast address. Sorted, IPv4 first, without duplicates.
+pub fn interface_addresses() -> Vec<IpAddr> {
+    let mut out: Vec<IpAddr> = if_addrs::get_if_addrs()
+        .map(|ifs| ifs.into_iter().map(|i| i.ip()).filter(|ip| usable_lan_address(*ip)).collect())
+        .unwrap_or_default();
+    out.sort_by_key(|ip| (ip.is_ipv6(), *ip));
+    out.dedup();
+    out
+}
+
+/// True for an address worth naming in a server certificate (see [`interface_addresses`]).
+pub fn usable_lan_address(ip: IpAddr) -> bool {
+    if ip.is_loopback() || ip.is_unspecified() || ip.is_multicast() {
+        return false;
+    }
+    match ip {
+        IpAddr::V4(v4) => !v4.is_link_local() && !v4.is_broadcast(),
+        IpAddr::V6(v6) => (v6.segments()[0] & 0xffc0) != 0xfe80,
+    }
+}
+
+/// Checks one "extra name" typed by the owner: an IP address or a DNS host name (letters, digits, hyphens, dots, an
+/// optional leading "*." wildcard label). Returns the trimmed name, lower-cased for host names.
+pub fn valid_extra_name(s: &str) -> Option<String> {
+    let s = s.trim().trim_end_matches('.');
+    if s.is_empty() {
+        return None;
+    }
+    if let Ok(ip) = s.trim_start_matches('[').trim_end_matches(']').parse::<IpAddr>() {
+        return Some(ip.to_string());
+    }
+    if s.len() > 253 {
+        return None;
+    }
+    let body = s.strip_prefix("*.").unwrap_or(s);
+    let labels: Vec<&str> = body.split('.').collect();
+    let ok = labels.iter().all(|l| {
+        !l.is_empty() && l.len() <= 63 && !l.starts_with('-') && !l.ends_with('-') && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    });
+    // An all-numeric dotted name that is not a valid IP address (for example 300.1.1.1) is refused.
+    let numeric = labels.iter().all(|l| l.chars().all(|c| c.is_ascii_digit()));
+    (ok && !numeric).then(|| s.to_ascii_lowercase())
+}
+
+/// Splits a typed list of extra names (commas, spaces or new lines). Returns the valid names, or the first invalid one.
+pub fn parse_extra_names(text: &str) -> Result<Vec<String>, String> {
+    let mut out: Vec<String> = Vec::new();
+    for part in text.split(|c: char| c == ',' || c.is_whitespace()).filter(|p| !p.trim().is_empty()) {
+        match valid_extra_name(part) {
+            Some(n) => {
+                if !out.contains(&n) {
+                    out.push(n)
+                }
+            }
+            None => return Err(part.trim().to_string()),
+        }
+    }
+    Ok(out)
+}
+
+/// The names of a generated server certificate: [`local_sans`] followed by the extra names not already in it.
+pub fn server_sans(extra: &[String]) -> Vec<String> {
+    let mut sans = local_sans();
+    for e in extra {
+        if !sans.contains(e) {
+            sans.push(e.clone());
         }
     }
     sans

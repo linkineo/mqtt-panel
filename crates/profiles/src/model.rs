@@ -33,7 +33,7 @@ pub struct FileField {
     pub in_keychain: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", from = "TlsSettingsFile")]
 pub struct TlsSettings {
     /// Accept any broker certificate for this connection (change set 6; replaces `verifyServer`).
@@ -47,12 +47,11 @@ pub struct TlsSettings {
     pub sni: String,
     #[serde(default)]
     pub alpn: String,
-}
-
-impl Default for TlsSettings {
-    fn default() -> Self {
-        TlsSettings { skip_verify: false, ca_cert: None, client_cert: None, client_key: None, trusted_fingerprints: vec![], sni: String::new(), alpn: String::new() }
-    }
+    /// Change set 11: the client certificate comes from "Generate key and request a certificate" (the key was generated
+    /// by the app and never left the secret store) rather than "Import certificate and key". The connection uses the
+    /// same certificate blob and client-key secret either way.
+    #[serde(default)]
+    pub client_key_generated: bool,
 }
 
 /// On-disk shape of [`TlsSettings`], also accepting the field `verifyServer` of profiles saved before
@@ -76,6 +75,8 @@ struct TlsSettingsFile {
     sni: String,
     #[serde(default)]
     alpn: String,
+    #[serde(default)]
+    client_key_generated: bool,
 }
 
 impl From<TlsSettingsFile> for TlsSettings {
@@ -88,6 +89,7 @@ impl From<TlsSettingsFile> for TlsSettings {
             trusted_fingerprints: f.trusted_fingerprints,
             sni: f.sni,
             alpn: f.alpn,
+            client_key_generated: f.client_key_generated,
         }
     }
 }

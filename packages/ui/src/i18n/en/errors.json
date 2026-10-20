@@ -40,6 +40,7 @@
  "tls.reason.selfSigned": "Reason: the certificate is self-signed. Nobody vouches for it, so compare the fingerprint with the one shown on the broker before trusting it.",
  "tls.reason.unknownCa": "Reason: the certificate is signed by an authority this computer does not know ({issuer}). Compare the fingerprint with the one shown on the broker before trusting it.",
  "tls.reason.unknownCaMaybeIntermediate": "Reason: the certificate is signed by {issuer}, which is not the CA set in this profile. The broker may also have left out its intermediate certificate. Compare the fingerprint with the one shown on the broker before trusting it.",
+ "tls.reason.caChanged": "Reason: the certificate is signed by an authority named like the CA set in this profile ({issuer}), but with a different key: the broker's CA was probably replaced. Get its new CA certificate, or compare the fingerprint with the one shown on the broker before trusting it.",
  "tls.reason.fingerprintChanged": "The broker now presents a different certificate from the one you trusted. Old fingerprint {old}, new fingerprint {new}.",
  "tls.expired": "The broker's certificate expired on {date}.",
  "tls.notYetValid": "The broker's certificate is not valid before {date}. Check the clock on the broker or this computer.",
@@ -133,5 +134,9 @@
  "cli.broker.running": "Broker running. Press Ctrl-C to stop it.",
  "cli.broker.stopped": "Broker stopped.",
  "cli.profiles.none": "No saved profiles.",
- "cli.profiles.imported": "Imported {name}"
+ "cli.profiles.imported": "Imported {name}",
+ "certs.badName": "\"{name}\" is not a host name or an IP address.",
+ "file.notGeneratedKey": "This certificate does not match the generated key.",
+ "file.noGeneratedKey": "Generate a key first.",
+ "file.csrNoName": "Enter a common name for the request."
 }

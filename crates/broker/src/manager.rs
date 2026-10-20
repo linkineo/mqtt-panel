@@ -125,6 +125,9 @@ struct Stored {
     server_pem: String,
     server_imported: bool,
     imported_ca_pem: Option<String>,
+    /// Extra names of the generated server certificate (change set 11), typed in the Regenerate dialog.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    extra_sans: Vec<String>,
 }
 
 fn default_listener(id: &str, kind: ListenerKind, port: u16, enabled: bool) -> StoredListener {
@@ -366,7 +369,7 @@ impl BrokerManager {
             let server = ca
                 .issue(
                     SERVER_CERT_NAME,
-                    &kit::local_sans(),
+                    &kit::server_sans(&[]),
                     Usage::Server,
                     KeyAlg::Ecdsa,
                     Validity::years(2),
@@ -398,6 +401,7 @@ impl BrokerManager {
                 server_pem: format!("{}{}", server.cert_pem, ca.cert_pem),
                 server_imported: false,
                 imported_ca_pem: None,
+                extra_sans: Vec::new(),
             }
         };
         let revoked = RevocationList::new(stored.revoked_serials.iter());
@@ -522,8 +526,8 @@ impl BrokerManager {
     }
 
     /// Before a start (SPEC 6, change set 3): a server key missing from the secret store issues a new server
-    /// certificate from the local CA; a CA key missing too regenerates the local CA first. Same SANs and key type as
-    /// the current server certificate (localhost and the host name after an imported one). A store error is returned,
+    /// certificate from the local CA; a CA key missing too regenerates the local CA first. Same key type as the current
+    /// server certificate; the names are the automatic ones read now plus the extra names (change set 11). A store error is returned,
     /// so the start fails with its reason. Nothing is read when no TLS or WSS listener is enabled.
     fn heal_tls(&self) -> Result<(), BrokerError> {
         let mut inner = self.lock();
@@ -535,11 +539,8 @@ impl BrokerManager {
         } else {
             details_of_pem(&inner.stored.server_pem).ok()
         };
-        let sans = current
-            .as_ref()
-            .map(|d| d.san.clone())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(kit::local_sans);
+        // Change set 11: the automatic names read now (interface addresses may have changed) plus the extra names.
+        let sans = kit::server_sans(&inner.stored.extra_sans);
         let key_type = match &current {
             Some(d) if d.key_type.starts_with("RSA") => KeyAlg::Rsa,
             _ => KeyAlg::Ecdsa,
@@ -643,6 +644,7 @@ impl BrokerManager {
                 .collect(),
             verify_against: st.verify_against,
             max_clients: st.max_clients,
+            extra_sans: st.extra_sans.clone(),
         }
     }
 
@@ -1748,7 +1750,36 @@ impl BrokerManager {
                 .as_deref()
                 .map(details_of_pem)
                 .transpose()?,
+            auto_sans: kit::local_sans(),
+            extra_sans: st.extra_sans.clone(),
         })
+    }
+
+    /// The served server certificate chain as PEM ("Export…" on the Server certificate line, change set 11), named
+    /// "server-chain.pem".
+    pub fn export_server_chain(&self) -> SaveFile {
+        (
+            "server-chain.pem".to_string(),
+            self.lock().stored.server_pem.clone().into_bytes(),
+        )
+    }
+
+    /// Regenerates the server certificate with the automatic names and the given extra names (change set 11). The extra
+    /// names are checked (host names or IP literals; the first invalid one is refused with `certs.badName`) and kept
+    /// in the configuration for every later generation.
+    pub fn regenerate_with_extra(
+        &self,
+        extra: &[String],
+        key_type: KeyAlg,
+    ) -> Result<BrokerCerts, BrokerError> {
+        let extra = kit::parse_extra_names(&extra.join(" "))
+            .map_err(|bad| BrokerError::new("certs.badName", &[("name", s(bad))]))?;
+        let before = std::mem::replace(&mut self.lock().stored.extra_sans, extra.clone());
+        let r = self.regenerate(&kit::server_sans(&extra), key_type);
+        if r.is_err() {
+            self.lock().stored.extra_sans = before;
+        }
+        r
     }
 
     /// The local CA certificate as "CA.pem".
@@ -1764,7 +1795,8 @@ impl BrokerManager {
         self.lock().stored.ca_pem.clone()
     }
 
-    /// Regenerates the server certificate from the local CA (empty `sans`: localhost and the host name).
+    /// Regenerates the server certificate from the local CA with exactly these names (empty `sans`: the automatic
+    /// names and the stored extra names). The UI uses [`BrokerManager::regenerate_with_extra`].
     pub fn regenerate(
         &self,
         sans: &[String],
@@ -1779,7 +1811,7 @@ impl BrokerManager {
                 .filter(|s| !s.is_empty())
                 .collect();
             let sans = if sans.is_empty() {
-                kit::local_sans()
+                kit::server_sans(&inner.stored.extra_sans)
             } else {
                 sans
             };
@@ -1861,13 +1893,8 @@ impl BrokerManager {
     pub fn rotate_ca(&self) -> Result<BrokerCerts, BrokerError> {
         {
             let mut inner = self.lock();
-            let sans = if inner.stored.server_imported {
-                kit::local_sans()
-            } else {
-                details_of_pem(&inner.stored.server_pem)
-                    .map(|d| d.san)
-                    .unwrap_or_else(|_| kit::local_sans())
-            };
+            // Change set 11: the automatic names read now plus the extra names, as for every generation.
+            let sans = kit::server_sans(&inner.stored.extra_sans);
             let ca = Ca::new_root(LOCAL_CA_NAME, KeyAlg::Ecdsa, Validity::years(5))
                 .map_err(|e| BrokerError::kit(&e))?;
             let server = ca
