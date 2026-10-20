@@ -84,6 +84,7 @@ T = {
             ('publish', 'shot-publish', 'Publish', 'The Publish screen with templates, the composer and the list of sent messages with a reply.', 'Send test messages, repeat them, and see the replies.', 'Templates with placeholders, QoS and retain, MQTT 5 request and response, and a repeat to simulate a sensor.'),
             ('broker', 'shot-broker', 'Built-in broker', 'The built-in broker with its listeners, users, client certificates and connected clients.', 'A broker built in, for tests on your desk or devices on your network.', 'TCP, TLS and WebSocket listeners, users and client certificates on one screen. Every change applies at once.'),
             ('security', 'shot-security', 'Security', 'A connection profile with its security settings: CA, client certificate and key.', 'Proper TLS, and nothing leaves your computer.', 'Your own CA, client certificates and certificate pinning. Passwords and keys are stored encrypted. No telemetry, no account.'),
+            ('assistant', '', 'Works with your assistant', '', 'Let your assistant do the setup.', 'Claude, ChatGPT or another assistant sets up connections, the built-in broker and charts in the running app. You accept once that an assistant may change things in MQTT Panel, and you see every change in the window. Passwords, keys and passphrases are typed in the app and never pass through the chat.'),
             ('cli', '', 'Command line', '', 'The same profiles and secrets, from the terminal.', 'mqttpanel sub, pub and broker use the same profiles as the app, with text, JSON or NDJSON output.'),
         ],
         cli_comment=["# watch a building, with a saved profile", "# send one message", "# run the broker on this computer"],
@@ -149,6 +150,7 @@ T = {
             ('publish', 'shot-publish', 'Publier', 'L’écran Publier avec les modèles, l’éditeur et la liste des messages envoyés avec une réponse.', 'Envoyez des messages de test, répétez-les et voyez les réponses.', 'Modèles avec variables, QoS et retain, requête et réponse MQTT 5, et répétition pour simuler un capteur.'),
             ('broker', 'shot-broker', 'Broker intégré', 'Le broker intégré avec ses points d’écoute, ses utilisateurs, ses certificats clients et les clients connectés.', 'Un broker intégré, pour tester sur votre poste ou servir les appareils du réseau.', 'Points d’écoute TCP, TLS et WebSocket, utilisateurs et certificats clients sur un seul écran. Chaque changement s’applique aussitôt.'),
             ('security', 'shot-security', 'Sécurité', 'Un profil de connexion avec ses réglages de sécurité : AC, certificat client et clé.', 'Un TLS soigné, et rien ne quitte votre ordinateur.', 'Votre propre AC, des certificats clients et l’épinglage de certificat. Mots de passe et clés sont stockés chiffrés. Ni télémétrie, ni compte.'),
+            ('assistant', '', 'Fonctionne avec votre assistant', '', 'Laissez votre assistant tout préparer.', 'Claude, ChatGPT ou un autre assistant prépare les connexions, le broker intégré et les courbes dans l’app ouverte. Vous acceptez une fois qu’un assistant puisse modifier MQTT Panel, et vous voyez chaque changement dans la fenêtre. Mots de passe, clés et phrases secrètes se saisissent dans l’app et ne passent jamais par la conversation.'),
             ('cli', '', 'Ligne de commande', '', 'Les mêmes profils et secrets, depuis le terminal.', 'mqttpanel sub, pub et broker utilisent les mêmes profils que l’app, avec une sortie texte, JSON ou NDJSON.'),
         ],
         cli_comment=["# suivre un bâtiment avec un profil enregistré", "# envoyer un message", "# lancer le broker sur cet ordinateur"],
@@ -214,6 +216,7 @@ T = {
             ('publish', 'shot-publish', 'Senden', 'Der Bereich Senden mit Vorlagen, Editor und der Liste gesendeter Nachrichten mit einer Antwort.', 'Schick Testnachrichten, wiederhole sie und sieh die Antworten.', 'Vorlagen mit Platzhaltern, QoS und Retain, Anfrage und Antwort mit MQTT 5 und Wiederholen, um einen Sensor zu simulieren.'),
             ('broker', 'shot-broker', 'Eingebauter Broker', 'Der eingebaute Broker mit Listenern, Benutzern, Client-Zertifikaten und verbundenen Clients.', 'Ein eingebauter Broker, für Tests am Schreibtisch oder Geräte im Netzwerk.', 'TCP-, TLS- und WebSocket-Listener, Benutzer und Client-Zertifikate auf einem Bildschirm. Jede Änderung gilt sofort.'),
             ('security', 'shot-security', 'Sicherheit', 'Ein Verbindungsprofil mit seinen Sicherheitseinstellungen: CA, Client-Zertifikat und Schlüssel.', 'Sauberes TLS, und nichts verlässt deinen Computer.', 'Eigene CA, Client-Zertifikate und Zertifikat-Pinning. Passwörter und Schlüssel werden verschlüsselt gespeichert. Keine Telemetrie, kein Konto.'),
+            ('assistant', '', 'Funktioniert mit deinem Assistenten', '', 'Lass deinen Assistenten einrichten.', 'Claude, ChatGPT oder ein anderer Assistent richtet Verbindungen, den eingebauten Broker und Diagramme in der laufenden App ein. Du bestätigst einmal, dass ein Assistent MQTT Panel ändern darf, und siehst jede Änderung im Fenster. Passwörter, Schlüssel und Passphrasen gibst du in der App ein; sie gehen nie durch den Chat.'),
             ('cli', '', 'Kommandozeile', '', 'Dieselben Profile und Geheimnisse im Terminal.', 'mqttpanel sub, pub und broker nutzen dieselben Profile wie die App, mit Ausgabe als Text, JSON oder NDJSON.'),
         ],
         cli_comment=["# ein Gebäude beobachten, mit gespeichertem Profil", "# eine Nachricht senden", "# den Broker auf diesem Computer starten"],
@@ -471,6 +474,8 @@ def looks(t, lang):
 
 # "What it does" as cards (owner, 18 Oct 2026): the feature name, a headline, a short text, then the view itself.
 WIDE = {"explorer", "broker"}
+# The assistant card: tool calls of a session (the same in every language, tool names are English).
+ASSISTANT_LINES = ["connect_builtin_broker", "set_topic_chart r204/temp", "export_data r204/# csv"]
 
 
 def feature(t, lang, i, f):
@@ -481,6 +486,10 @@ def feature(t, lang, i, f):
             for c, cmd in zip(t["cli_comment"], CLI_LINES)
         )
         visual = f'<pre class="term" data-type aria-label="{e(title)}"><code>{lines.rstrip()}</code></pre>'
+    elif anchor == "assistant":
+        # No media (owner, 20 Oct 2026: text only): the tools an assistant calls, as a terminal-style list.
+        lines = "".join(f'<span class="ln"><span class="p">›</span> <span class="cmd">{e(x)}</span></span>\n' for x in ASSISTANT_LINES)
+        visual = f'<pre class="term" aria-label="{e(title)}"><code>{lines.rstrip()}</code></pre>'
     else:
         visual = live(t, lang, img, img, alt)
     wide = " wide" if anchor in WIDE else ""
