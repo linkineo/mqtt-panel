@@ -10,7 +10,8 @@
     "preview": "vite preview --port 1420 --strictPort",
     "test": "vitest run",
     "e2e": "playwright test",
-    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p ../engine-client"
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p ../engine-client",
+    "build:site": "vite build --base /app/ --outDir dist-site --emptyOutDir"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

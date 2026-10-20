@@ -3,7 +3,10 @@
 // Output (git-ignored): website/.media-raw/<id>.webm (untrimmed Playwright recordings, with <id>.json
 // holding the trim window) and website/.media-raw/<id>.png (2x screenshots). website/encode-media.sh then
 // writes the published WebM/MP4 clips, posters and screenshots to website/assets/media/.
-// Light theme, English; the FR and DE pages reuse the EN media.
+// Screenshots are taken in English, French and German (the demo data is localised per language) and in the light and
+// dark themes, file names <id>.<lang>.<theme>.png; the clips stay English and are not on the website (owner,
+// 18 Oct 2026). LANGS=en THEMES=light node e2e/website-media.mjs limits them. The website shows these as
+// posters of its live views (the app itself in demo mode, website/site.js).
 import { chromium } from '@playwright/test';
 import { mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -119,12 +122,41 @@ const CLIPS = {
 };
 
 const SHOT_STATES = {
-  'shot-explorer': {
+  // "A closer look" tabs (owner, 18 Oct 2026): one still each, distinct from the feature pictures.
+  'look-connections': {
+    query: 'mock=demo&connect=plant,local&screen=connect',
+    async run(p) {
+      await p.click('[data-profile=lab] [data-testid=card-play]');
+      await wait(p, 1800);
+    },
+  },
+  'look-history': {
+    query: 'mock=demo&connect=plant,local&screen=explore',
+    async run(p) {
+      await p.fill('[data-testid=search]', 'building/f2/r204');
+      await p.click(row('building/f2/r204/temperature'));
+      await wait(p, 2500);
+      // an earlier message whose value changed, so the diff shows
+      await p.locator('[data-testid=history-row]', { hasText: 'value' }).nth(1).click();
+      await wait(p, 800);
+    },
+  },
+  'look-table': {
+    query: 'mock=demo&connect=plant,local&screen=explore',
+    async run(p) {
+      await p.click('[data-testid=layout-table]');
+      await p.fill('[data-testid=search]', 'building/f2');
+      await wait(p, 2500);
+    },
+  },
+  'look-tree': {
     query: 'mock=demo&connect=plant,local&screen=explore',
     async run(p) {
       await p.fill('[data-testid=search]', 'building/f2');
       await p.click(row('building/f2/ahu01/state'));
-      await wait(p, 2500);
+      await wait(p, 1500);
+      await p.click('[data-testid=payload-form-tree]');
+      await wait(p, 1000);
     },
   },
   'shot-charts': {
@@ -137,6 +169,8 @@ const SHOT_STATES = {
       await p.selectOption('[data-testid=picker-also]', 'new');
       await p.click('[data-testid=picker-add]');
       await p.click('[data-testid=rail-charts]');
+      // 15 min: the demo session holds about half an hour, so the whole width carries data
+      await p.locator('[data-testid=chart-pane] .ph button', { hasText: '15 min' }).click();
       await wait(p, 4000);
     },
   },
@@ -186,22 +220,27 @@ async function recordClip(browser, id, clip) {
   console.log(`${id}: ${(end - start).toFixed(1)} s`);
 }
 
-async function shoot(browser, id, s) {
-  const ctx = await browser.newContext({ viewport: SIZE, deviceScaleFactor: 2, colorScheme: 'light' });
+async function shoot(browser, id, s, lang, theme) {
+  const ctx = await browser.newContext({ viewport: SIZE, deviceScaleFactor: 2, colorScheme: theme });
   const p = await ctx.newPage();
-  await p.goto(`${BASE}?${s.query}&lang=en&theme=light`);
+  await p.goto(`${BASE}?${s.query}&lang=${lang}&theme=${theme}`);
   await p.waitForSelector('#app-root');
   await wait(p, 1200);
   await s.run(p);
-  await p.screenshot({ path: join(SHOTS, id + '.png') });
+  await p.screenshot({ path: join(SHOTS, `${id}.${lang}.${theme}.png`) });
   await ctx.close();
-  console.log(`${id}: ok`);
+  console.log(`${id}.${lang}.${theme}: ok`);
 }
 
 mkdirSync(RAW, { recursive: true });
 mkdirSync(SHOTS, { recursive: true });
 const only = process.argv.slice(2);
 const browser = await chromium.launch();
-for (const [id, c] of Object.entries(CLIPS)) if (!only.length || only.includes(id)) await recordClip(browser, id, c);
-for (const [id, s] of Object.entries(SHOT_STATES)) if (!only.length || only.includes(id)) await shoot(browser, id, s);
+// clips only on request: node e2e/website-media.mjs clip-explorer
+for (const [id, c] of Object.entries(CLIPS)) if (only.includes(id)) await recordClip(browser, id, c);
+const LANGS = (process.env.LANGS ?? 'en,fr,de').split(',');
+const THEMES = (process.env.THEMES ?? 'light,dark').split(',');
+for (const [id, s] of Object.entries(SHOT_STATES))
+  if (!only.length || only.includes(id))
+    for (const lang of LANGS) for (const theme of THEMES) await shoot(browser, id, s, lang, theme);
 await browser.close();
