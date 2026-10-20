@@ -11,9 +11,7 @@
       "files": {
         "embedded.provisionprofile": "signing/embedded.provisionprofile"
       },
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "infoPlist": "Info.mas.plist"
     }
   }
 }
