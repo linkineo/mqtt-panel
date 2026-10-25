@@ -29,8 +29,6 @@ export interface Settings {
   pointsPerSeries: number; // default 5000
   memoryBudgetMb: number; // default 256
   payloadRenderLimitKb: number; // default 256
-  updateCheck: boolean;
-  updateChannel: 'stable' | 'beta';
   /** The broker log is expanded in the Broker screen's right pane (collapsed by default). */
   brokerLogOpen: boolean;
   /** The day (YYYY-MM-DD) the assistant acknowledgement was accepted (docs/MCP.md section 3); null until then. */
@@ -685,6 +683,8 @@ export interface AssistantHostFile {
   /** For display, the home folder as "~". */
   path: string;
   exists: boolean;
+  /** The host is on this computer, so "Add to …" can write its file (created when missing for Claude Desktop and ChatGPT). */
+  installed: boolean;
   /** The file has the entry "mqttpanel" and it starts this app. */
   configured: boolean;
 }
@@ -701,14 +701,21 @@ export interface AssistantStatus {
   /** "Other hosts": the usual JSON configuration of a stdio server. */
   snippet: string;
   hosts: AssistantHostFile[];
+  /** Mac App Store variant (App Sandbox): the buttons cannot write the hosts' files; the snippet is the way. */
+  sandboxed: boolean;
 }
 
 /** What "Add to Claude" or "Add to ChatGPT" wrote. */
 export interface AssistantWriteReport {
   written: string[];
-  /** Files that do not exist on this computer (host not installed or never started). */
+  /** The hosts whose files were written, in the same order. */
+  writtenHosts: AssistantHostFile['host'][];
+  /** Files of hosts that are not on this computer (nothing written). */
   missing: string[];
-  failed: { path: string; error: UserMessage }[];
+  missingHosts: AssistantHostFile['host'][];
+  failed: { host: AssistantHostFile['host']; path: string; error: UserMessage }[];
+  /** Nothing was tried: the App Sandbox forbids writing other apps' files. */
+  sandboxed: boolean;
 }
 
 /** One row of the Assistant log (kept for the session, never on disk). Secret arguments read "•••". */

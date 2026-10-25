@@ -1,5 +1,13 @@
 MQTT Panel
+Copyright 2026 Patrick Wieder
 Copyright 2026 mqtt-panel.com
 
 This product includes software developed for MQTT Panel (https://mqtt-panel.com).
-Licensed under the Apache License, Version 2.0; see the LICENSE file.
+Licensed under the Apache License, Version 2.0, with the "Commons Clause" License
+Condition v1.0; see the LICENSE file. You may use MQTT Panel for free, at home or at
+work, including for your own commercial activities, change it and build it yourself.
+You may not sell MQTT Panel, nor sell a product or service whose value comes
+substantially from it. This applies to every version and commit of this repository.
+This is a summary; the text in the LICENSE file is authoritative. MQTT Panel is
+source-available, not OSI open source. Third-party dependencies keep their own
+licences.

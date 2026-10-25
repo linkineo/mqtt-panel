@@ -15,6 +15,7 @@ describe('Settings, Assistant', () => {
   it('shows the acknowledgement sentence of the spec and accepts it once', async () => {
     const { engine } = await boot();
     render(<AssistantSettings />);
+    expect(screen.getByTestId('assistant-beta').textContent).toBe('Beta: tools and texts may still change; tell us what you need.');
     expect(screen.getByTestId('assistant-ack-sentence').textContent).toBe(ACK);
     fireEvent.click(screen.getByTestId('assistant-accept'));
     const dlg = await screen.findByTestId('assistant-ack');
@@ -41,7 +42,11 @@ describe('Settings, Assistant', () => {
     expect(files.textContent).toContain('~/.claude.json');
     await act(async () => fireEvent.click(screen.getByTestId('confirm-ok')));
     await waitFor(() => expect(screen.getByTestId('assistant-claude-state').textContent).toBe('Set up in Claude Desktop, Claude Code'));
-    expect(screen.getAllByTestId('toast').map((t) => t.textContent).join(' ')).toContain('Added to ~/Library/Application Support/Claude/claude_desktop_config.json, ~/.claude.json');
+    const toast = screen.getAllByTestId('toast').map((t) => t.textContent).join(' ');
+    expect(toast).toContain('Added to Claude Desktop and Claude Code.');
+    expect(toast).toContain('Quit and reopen Claude Desktop so it loads MQTT Panel.');
+    expect(toast).toContain('Claude Code picks it up at its next start.');
+    expect(toast).not.toMatch(/\bhost\b/);
     const code = JSON.parse(engine.hostFiles()['~/.claude.json']);
     expect(code.numStartups).toBe(4);
     expect(code.mcpServers.mqttpanel.args).toEqual(['mcp']);
@@ -63,6 +68,53 @@ describe('Settings, Assistant', () => {
     expect(screen.getAllByTestId('toast').map((t) => t.textContent).join(' ')).toContain('Neither Claude Desktop nor Claude Code');
   });
 
+  it('"Add to Claude" names the app that is not installed', async () => {
+    const { engine } = await boot();
+    engine.setHostFile('~/.claude.json', null);
+    render(
+      <>
+        <AssistantSettings />
+        <Toasts />
+      </>,
+    );
+    await waitFor(() => expect(screen.getByTestId('assistant-claude-state').textContent).toBe('Not set up'));
+    fireEvent.click(screen.getByTestId('assistant-add-claude'));
+    const files = await screen.findByTestId('assistant-confirm-files');
+    expect(files.textContent).not.toContain('~/.claude.json');
+    await act(async () => fireEvent.click(screen.getByTestId('confirm-ok')));
+    await waitFor(() => expect(screen.getAllByTestId('toast').map((t) => t.textContent).join(' ')).toContain('Added to Claude Desktop. Claude Code is not installed.'));
+  });
+
+  it('"Add to Claude" reads the files again at the click', async () => {
+    const { engine } = await boot();
+    engine.setHostFile('~/.claude.json', null);
+    engine.setHostFile('~/Library/Application Support/Claude/claude_desktop_config.json', null);
+    render(<AssistantSettings />);
+    await waitFor(() => expect(screen.getByTestId('assistant-claude-state').textContent).toBe('Not set up'));
+    // Claude Code is installed while the page is open
+    engine.setHostFile('~/.claude.json', '{}');
+    fireEvent.click(screen.getByTestId('assistant-add-claude'));
+    const files = await screen.findByTestId('assistant-confirm-files');
+    expect(files.textContent).toContain('~/.claude.json');
+  });
+
+  it('the App Store copy writes nothing, copies the configuration and says so', async () => {
+    const { engine, platform } = await boot();
+    engine.setAssistantSandboxed(true);
+    render(
+      <>
+        <AssistantSettings />
+        <Toasts />
+      </>,
+    );
+    await waitFor(() => expect(screen.getByTestId('assistant-snippet')).toBeTruthy());
+    await act(async () => fireEvent.click(screen.getByTestId('assistant-add-claude')));
+    await waitFor(() => expect(screen.getAllByTestId('toast').map((t) => t.textContent).join(' ')).toContain('comes from the App Store'));
+    expect(screen.queryByTestId('assistant-confirm')).toBeNull();
+    expect(platform.lastCopied()).toContain('"mqttpanel"');
+    expect(JSON.parse(engine.hostFiles()['~/.claude.json']).mcpServers).toBeUndefined();
+  });
+
   it('"Add to ChatGPT" notes the desktop app and creates the Codex file', async () => {
     const { engine } = await boot();
     render(<AssistantSettings />);
@@ -70,6 +122,7 @@ describe('Settings, Assistant', () => {
     const dlg = await screen.findByTestId('assistant-confirm');
     expect(dlg.textContent).toContain('~/.codex/config.toml');
     expect(dlg.textContent).toContain('ChatGPT on the web cannot reach a program on this computer');
+    expect(dlg.textContent).toContain('quit and reopen the ChatGPT app so it loads MQTT Panel.');
     await act(async () => fireEvent.click(screen.getByTestId('confirm-ok')));
     await waitFor(() => expect(screen.getByTestId('assistant-chatgpt-state').textContent).toBe('Set up'));
     expect(engine.hostFiles()['~/.codex/config.toml']).toContain('[mcp_servers.mqttpanel]\ncommand = "');
@@ -167,5 +220,19 @@ describe('Assistant layer', () => {
     const texts = screen.getAllByTestId('toast').map((t) => t.textContent);
     expect(texts.some((t) => t?.includes('The assistant moved the view.'))).toBe(true);
     expect(texts.some((t) => t?.includes('Assistant: Connected Plant broker'))).toBe(true);
+  });
+});
+
+describe('Assistant texts name the application, never "the host" (25 Oct 2026)', () => {
+  it('no assistant, info or mcp text says host, hôte or Host outside placeholders', () => {
+    for (const lang of ['en', 'fr', 'de'] as const) {
+      const all = resources[lang] as unknown as Record<string, Record<string, string>>;
+      for (const ns of Object.values(all)) {
+        for (const [k, v] of Object.entries(ns)) {
+          if (!/^(assistant\.|info\.assistant\.|rail\.ai|mcp\.(?!prompt\.))/.test(k)) continue;
+          expect(v.replace(/\{hosts?\}/g, ''), `${lang} ${k}`).not.toMatch(/\bhosts?\b|hôte/i);
+        }
+      }
+    }
   });
 });

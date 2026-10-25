@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MemoryEstimate, Settings } from '@mqttpanel/engine-client';
-import { engine } from '../../services';
+import { engine, platform } from '../../services';
+import { toMessage } from '../../i18n';
 import { useApp } from '../../store/app';
 import { run, saveProfile } from '../../lib/actions';
 import { shortcut } from '../../lib/keys';
@@ -309,36 +310,22 @@ export function SettingsScreen() {
           {sec('assistant', <AssistantSettings />)}
           {sec(
             'updates',
-            <div className="form">
-              <div className="f">
-                <span className="lbl">{t('settings.checkAuto')}</span>
-                <span className="row2">
-                  <Switch on={s.updateCheck} label={t('settings.checkAuto')} onChange={(updateCheck) => save({ updateCheck })} />
-                  <span className="hint">{t('settings.checkHint')}</span>
-                </span>
-              </div>
-              <div className="f">
-                <span className="lbl">{t('settings.channel')}</span>
-                <Seg
-                  label={t('settings.channel')}
-                  value={s.updateChannel}
-                  onChange={(updateChannel) => save({ updateChannel })}
-                  options={[
-                    { value: 'stable', label: t('settings.stable') },
-                    { value: 'beta', label: t('settings.beta') },
-                  ]}
-                />
-              </div>
-              <div className="f">
-                <span className="lbl">{t('settings.current')}</span>
-                <span className="row2">
-                  <span className="hint">{t('settings.version', { version: info.version })}</span>
-                  <button type="button" className="btn sm" onClick={() => useApp.getState().toast({ kind: 'info', text: t('settings.noUpdates') })}>
-                    {t('settings.checkNow')}
-                  </button>
-                </span>
-              </div>
-            </div>,
+            <>
+              <p className="small muted" data-testid="updates-store" style={{ maxWidth: '90ch', margin: 0 }}>
+                {t('settings.updatesStore')}
+              </p>
+              <p className="small" style={{ margin: '6px 0 0' }}>
+                <button
+                  type="button"
+                  className="btn link"
+                  style={{ textDecoration: 'underline', fontWeight: 400 }}
+                  data-testid="updates-release-notes"
+                  onClick={() => void platform().openReleaseNotes().catch((e) => useApp.getState().toast({ kind: 'err', msg: toMessage(e) }))}
+                >
+                  {t('settings.releaseNotes')}
+                </button>
+              </p>
+            </>,
           )}
           {sec(
             'shortcuts',

@@ -985,3 +985,14 @@ pub fn encode_payload(format: String, payload: String) -> EncodeResult {
         Err(error) => EncodeResult::Err { ok: false, error },
     }
 }
+
+/// The public repository; Settings, Updates links to its releases (no update check in the app, owner 25 Oct 2026).
+pub const RELEASES_URL: &str = "https://github.com/linkineo/mqtt-panel/releases";
+
+/// "Release notes and source code on GitHub": opens the releases page in the default browser. The URL is fixed
+/// here; the WebView cannot open arbitrary addresses.
+#[tauri::command]
+pub fn open_release_notes(app: AppHandle) -> Result<(), UserMessage> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_url(RELEASES_URL, None::<&str>).map_err(|e| msg!("app.openLinkFailed", url = RELEASES_URL, detail = e.to_string()))
+}

@@ -104,8 +104,6 @@ export const DEFAULT_SETTINGS: Settings = {
   pointsPerSeries: 5000,
   memoryBudgetMb: 256,
   payloadRenderLimitKb: 256,
-  updateCheck: true,
-  updateChannel: 'stable',
   brokerLogOpen: false,
   assistantAcknowledged: null,
 };

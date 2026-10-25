@@ -110,6 +110,7 @@ html.js .looks { gap: 0 }
 .card .eyebrow { font-size: 15px; font-weight: 600; color: var(--clay) }
 .card h3 { margin-top: var(--u); font-size: clamp(24px, 2.6vw, 34px); line-height: 1.12; letter-spacing: -.025em; font-weight: 700; text-wrap: balance }
 .card .body { margin-top: calc(2 * var(--u)); font-size: 17px; color: var(--ink-2); max-width: 46ch; text-wrap: pretty }
+.card .body.beta { margin-top: var(--u); font-size: 15px }
 .card .cvisual { margin-top: auto; padding-top: calc(4 * var(--u)) }
 .card .cvisual > .frame, .card .cvisual > .term { border-radius: 12px 12px 0 0; box-shadow: 0 0 0 1px var(--line), 0 -6px 30px rgba(29, 29, 27, .08) }
 .card.wide .ctext { padding-bottom: calc(5 * var(--u)) }
@@ -165,18 +166,18 @@ html:not(.js) .term .cmd::after { content: none }
 .badge img { height: 48px; width: auto }
 .badge.plain { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 18px; background: #000; color: #FFF; border: 1px solid #A6A6A6; font-size: 17px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap }
 .badge.gh img { height: 24px; width: auto }
-.badge:focus-visible, .file:focus-visible { outline: 2px solid var(--slate-ink); outline-offset: 3px }
+.badge:focus-visible { outline: 2px solid var(--slate-ink); outline-offset: 3px }
 a[aria-disabled="true"] { cursor: default }
 .soon { font-size: 13px; color: var(--slate-ink) }
-.files { margin-top: calc(4 * var(--u)) !important; padding-top: calc(3 * var(--u)) !important; border-top: 1px solid rgba(255, 255, 255, .35); gap: var(--u) calc(4 * var(--u)) }
-.files .dlitem { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 0 var(--u) }
-.file { color: var(--slate-ink); font-size: 16px; font-weight: 600 }
+.dlnote { margin-top: calc(2 * var(--u)); font-size: 16px; color: var(--slate-ink) }
+.build { margin-top: calc(4 * var(--u)) !important; padding-top: calc(3 * var(--u)) !important; border-top: 1px solid rgba(255, 255, 255, .35) }
+.dlcap { font-size: 14px; color: var(--slate-ink) }
 
 /* text pages */
 .doc { max-width: 720px; padding-block: calc(6 * var(--u)) calc(8 * var(--u)); display: grid; gap: calc(3 * var(--u)) }
 .doc h1 { font-size: clamp(36px, 5vw, 56px); font-weight: 800 }
 .doc .lead { font-size: 20px; color: var(--ink-2) }
-.doc section { display: grid; gap: var(--u); padding-top: calc(3 * var(--u)); border-top: 1px solid var(--line) }
+.doc section { display: grid; min-width: 0; gap: var(--u); padding-top: calc(3 * var(--u)); border-top: 1px solid var(--line) }
 .doc h2 { font-size: 22px; letter-spacing: -.01em }
 .doc h3 { margin-top: calc(2 * var(--u)); font-size: 16px }
 .doc section p { color: var(--ink-2) }
@@ -184,6 +185,7 @@ a[aria-disabled="true"] { cursor: default }
 .lic { display: grid; gap: var(--u); font-size: 13px }
 .lic dt { font-weight: 600; font-family: var(--mono) }
 .lic dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere }
+.lictext { margin: 0; min-width: 0; max-height: 420px; overflow: auto; padding: calc(2 * var(--u)); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2) }
 
 footer { display: flex; justify-content: space-between; align-items: center; gap: calc(2 * var(--u)); flex-wrap: wrap; padding-block: calc(4 * var(--u)) calc(6 * var(--u)); font-size: 14px; color: var(--ink-2) }
 footer a { text-decoration: none }

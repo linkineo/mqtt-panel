@@ -24,6 +24,8 @@ export class MockAssistant {
   session: string | null = null;
   charts: AssistantChart[] = [];
   pickCancelled = false;
+  /** Simulates the Mac App Store variant (App Sandbox). */
+  sandboxed = false;
 
   constructor(private emit: (e: AssistantEventBody) => void) {}
 
@@ -40,9 +42,9 @@ export class MockAssistant {
   hosts(): AssistantHostFile[] {
     const codex = this.home.get(FILES.chatgpt) ?? '';
     return [
-      { family: 'claude', host: 'claudeDesktop', path: FILES.claudeDesktop, exists: this.home.has(FILES.claudeDesktop), configured: this.jsonConfigured(FILES.claudeDesktop) },
-      { family: 'claude', host: 'claudeCode', path: FILES.claudeCode, exists: this.home.has(FILES.claudeCode), configured: this.jsonConfigured(FILES.claudeCode) },
-      { family: 'chatgpt', host: 'chatgpt', path: FILES.chatgpt, exists: this.home.has(FILES.chatgpt), configured: codex.includes('[mcp_servers.mqttpanel]') && codex.includes(MOCK_EXECUTABLE) },
+      { family: 'claude', host: 'claudeDesktop', path: FILES.claudeDesktop, exists: this.home.has(FILES.claudeDesktop), installed: this.home.has(FILES.claudeDesktop), configured: this.jsonConfigured(FILES.claudeDesktop) },
+      { family: 'claude', host: 'claudeCode', path: FILES.claudeCode, exists: this.home.has(FILES.claudeCode), installed: this.home.has(FILES.claudeCode), configured: this.jsonConfigured(FILES.claudeCode) },
+      { family: 'chatgpt', host: 'chatgpt', path: FILES.chatgpt, exists: this.home.has(FILES.chatgpt), installed: true, configured: codex.includes('[mcp_servers.mqttpanel]') && codex.includes(MOCK_EXECUTABLE) },
     ];
   }
 
@@ -54,33 +56,38 @@ export class MockAssistant {
       executable: MOCK_EXECUTABLE,
       snippet: JSON.stringify({ mcpServers: { mqttpanel: { command: MOCK_EXECUTABLE, args: ['mcp'] } } }, null, 2),
       hosts: this.hosts(),
+      sandboxed: this.sandboxed,
     };
   }
 
   addToClaude(): AssistantWriteReport {
-    const r: AssistantWriteReport = { written: [], missing: [], failed: [] };
-    for (const [path, entry] of [
-      [FILES.claudeDesktop, { command: MOCK_EXECUTABLE, args: ['mcp'] }],
-      [FILES.claudeCode, { type: 'stdio', command: MOCK_EXECUTABLE, args: ['mcp'], env: {} }],
+    const r: AssistantWriteReport = { written: [], writtenHosts: [], missing: [], missingHosts: [], failed: [], sandboxed: this.sandboxed };
+    if (this.sandboxed) return r;
+    for (const [host, path, entry] of [
+      ['claudeDesktop', FILES.claudeDesktop, { command: MOCK_EXECUTABLE, args: ['mcp'] }],
+      ['claudeCode', FILES.claudeCode, { type: 'stdio', command: MOCK_EXECUTABLE, args: ['mcp'], env: {} }],
     ] as const) {
       const text = this.home.get(path);
       if (text === undefined) {
         r.missing.push(path);
+        r.missingHosts.push(host);
         continue;
       }
       const v = JSON.parse(text || '{}');
       v.mcpServers = { ...(v.mcpServers ?? {}), mqttpanel: entry };
       this.home.set(path, JSON.stringify(v, null, 2) + '\n');
       r.written.push(path);
+      r.writtenHosts.push(host);
     }
     return r;
   }
 
   addToChatgpt(): AssistantWriteReport {
+    if (this.sandboxed) return { written: [], writtenHosts: [], missing: [], missingHosts: [], failed: [], sandboxed: true };
     const before = (this.home.get(FILES.chatgpt) ?? '').replace(/\n?\[mcp_servers\.mqttpanel\]\n(?:[^[\n].*\n?)*/g, '');
     const entry = `[mcp_servers.mqttpanel]\ncommand = "${MOCK_EXECUTABLE}"\nargs = ["mcp"]\n`;
     this.home.set(FILES.chatgpt, before ? `${before.replace(/\n*$/, '')}\n\n${entry}` : entry);
-    return { written: [FILES.chatgpt], missing: [], failed: [] };
+    return { written: [FILES.chatgpt], writtenHosts: ['chatgpt'], missing: [], missingHosts: [], failed: [], sandboxed: false };
   }
 
   logText(): string {

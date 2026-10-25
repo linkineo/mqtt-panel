@@ -89,6 +89,8 @@ export interface MockControls {
   /** The virtual home of "Add to Claude" and "Add to ChatGPT": path as displayed → content; null removes a file. */
   hostFiles(): Record<string, string>;
   setHostFile(path: string, content: string | null): void;
+  /** Simulates the Mac App Store variant (App Sandbox) for "Add to Claude" and "Add to ChatGPT". */
+  setAssistantSandboxed(on: boolean): void;
   tick(): void;
   dispose(): void;
 }
@@ -148,8 +150,6 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     pointsPerSeries: 5000,
     memoryBudgetMb: 256,
     payloadRenderLimitKb: 256,
-    updateCheck: true,
-    updateChannel: 'stable',
     brokerLogOpen: false,
     assistantAcknowledged: null,
   };
@@ -1440,6 +1440,9 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     setHostFile(path, content) {
       if (content === null) assistant.home.delete(path);
       else assistant.home.set(path, content);
+    },
+    setAssistantSandboxed(on) {
+      assistant.sandboxed = on;
     },
     tick,
     dispose() {

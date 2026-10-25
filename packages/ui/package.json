@@ -1,8 +1,8 @@
 {
   "name": "@mqttpanel/ui",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN ../../LICENSE",
   "type": "module",
   "scripts": {
     "dev": "vite --port 1420 --strictPort",
@@ -20,7 +20,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.14",
     "@lezer/highlight": "^1.2.5",
-    "@mqttpanel/engine-client": "0.1.0",
+    "@mqttpanel/engine-client": "1.0.0",
     "@tanstack/react-virtual": "^3.14.17",
     "i18next": "^26.4.4",
     "react": "^18.3.1",

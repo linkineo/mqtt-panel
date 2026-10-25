@@ -6,12 +6,15 @@ export interface MockPlatform extends Platform {
   lastCopied(): string | null;
   /** Language of the (simulated) native menu bar. */
   menuLanguage(): string | null;
+  /** How many times the release notes were opened (the mock opens nothing). */
+  releaseNotesOpened(): number;
 }
 
 export function createMockPlatform(): MockPlatform {
   const dropHandlers = new Set<(paths: string[], x: number, y: number) => void>();
   let copied: string | null = null;
   let menuLang: string | null = null;
+  let releaseNotes = 0;
   let closeCurrent: (() => void) | null = null;
   let listening = false;
 
@@ -218,6 +221,12 @@ export function createMockPlatform(): MockPlatform {
     },
     menuLanguage() {
       return menuLang;
+    },
+    async openReleaseNotes() {
+      releaseNotes += 1;
+    },
+    releaseNotesOpened() {
+      return releaseNotes;
     },
     simulateDrop(paths, x, y) {
       dropHandlers.forEach((h) => h(paths, x, y));

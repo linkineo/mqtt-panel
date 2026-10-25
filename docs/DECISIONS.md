@@ -5,7 +5,7 @@
 | Topic | Decision |
 |---|---|
 | Name | MQTT Panel, by mqtt-panel.com. No personal names in app, site or repo. The predecessor tool is never named in public material. |
-| Platforms | Desktop only for v1.0: Windows, macOS, Linux. Web version deferred (12 Oct 2026). |
+| Platforms | Desktop only for v1.0: Windows, macOS, Linux. Web version deferred (12 Oct 2026). Distribution (25 Oct 2026): Mac App Store and Microsoft Store only, updated by the stores; no installers, no updater; Linux from source. |
 | Core | Rust engine (topic store, history, decoders, export) with a C ABI, and a Rust broker, independent of the UI toolkit. |
 | UI toolkit | Tauri 2 with a React UI, hardened for native feel (12 Oct 2026). Comparison and checklist in `SPEC.md` section 1. |
 | History | In memory only, with export of selected data (CSV, JSON, NDJSON; chart CSV and PNG). Any JSON attribute can be charted, cast to a plottable value. |
@@ -15,9 +15,9 @@
 | Languages | EN (source), FR, DE from v1.0. |
 | Look | Action buttons slightly bigger than the first build (13 Oct 2026). Developer-tool density, identical on all platforms, light and dark, mqtt-panel palette with Sage (default), Slate and Clay accents. Native menus, shortcuts, dialogs and window chrome on each OS. Rail labels are verbs: Connect, Explore, Publish, Charts, Broker, Settings. Sent log in the right column of Publish. Tree rows show values and sparklines by default. Plain words in user-facing labels, never jargon; form rows never wrap (helper text short, explanation in the ⓘ bubble). |
 | Mockups | `docs/mockups/mqtt-panel-mockups.html` is the validated UI reference (22 screens validated by the owner on 12 Oct 2026, 1280×700; change set 1 of 13 Oct 2026 added 02b and 12c and edited 02, 12, 12b, 14, 19). The UI must match it. |
-| Licence | Apache 2.0, confirmed by the owner (12 Oct 2026). Dependencies: MIT, BSD, Apache 2.0, ISC, MPL 2.0; no GPL or AGPL. |
+| Licence | Apache 2.0 with the Commons Clause License Condition v1.0 (owner): free use, including in commercial environments; no sale or resale of the software or of a product or service built substantially on it; source-available, not OSI open source. Dependencies: MIT, BSD, Apache 2.0, ISC, MPL 2.0; no GPL or AGPL. |
 | Repository | github.com/linkineo/mqtt-panel, private until release. Website: mqtt-panel.com. |
-| Signing | Beta builds are not signed on Windows or macOS. Signing (Windows) and signing plus notarization (macOS) are the final step before a release. Windows: the cheapest option that stays hassle-free for end users; candidate Azure Trusted Signing, eligibility and price to verify. |
+| Signing | Beta builds are not signed on Windows or macOS. Signing (Windows) and signing plus notarization (macOS) are the final step before a release. Since 25 Oct 2026: the Microsoft Store signs the MSIX, no Windows code-signing certificate; macOS signed for the Mac App Store. |
 | Model split | Spec model writes specs, architecture and reviews; implementing model builds the code. |
 | Assistant (MCP) | The app is the MCP server (`rmcp`) on a same-user local socket; hosts start the stdio shim `mqttpanel mcp` or the app executable with `mcp`. Enabled by default; writing tools after a one-time acknowledgement; secrets asked in the app by default; toast plus Assistant log; one host at a time (owner, 20 Oct 2026; `docs/MCP.md`). |
 
@@ -74,10 +74,14 @@
 - Broker certificate defaults confirmed: ECDSA P-256, CA valid 5 years, server and client certificates 2 years. Lab-only skip-verification off by default, visible in the connection pill while active.
 - Workflow: after the Markdown, a detailed mockup artifact is reviewed; validated mockups are committed as HTML before implementation starts.
 
+### 25 Oct 2026, licence, distribution and Windows builds
+- **Licence.** Apache License 2.0 with the "Commons Clause" License Condition v1.0 (Software: MQTT Panel, License: Apache License 2.0, Licensor: mqtt-panel.com). Anyone may use, copy, modify and run MQTT Panel, including inside companies and for their own commercial purposes; selling the software, or a product or service whose value derives entirely or substantially from it, is not allowed. The licence applies to every version and every commit of this repository. Third-party dependencies keep their own permissive licences. MQTT Panel is source-available, not OSI open source. The owner reviews the legal text before release.
+- **Distribution.** Microsoft Store and Mac App Store only. No downloadable installers, no auto-updater: the stores update the app. The GitHub repository is for people who build MQTT Panel themselves. No Linux builds are published; Linux users build from source.
+- **Windows builds.** Made on a Windows machine by another implementing instance, following `docs/WINDOWS_BUILD.md`. The Store signs the MSIX; no code-signing certificate is bought.
+
 ## Needs human review (owner timing)
-- Licence Apache 2.0: confirmed 12 Oct 2026.
+- Licence Apache 2.0 with the Commons Clause: the owner reviews the text in `LICENSE`, `NOTICE` and the `README.md` summary before the repository goes public.
 - Export compliance for TLS code in signed builds: before the first release.
-- Windows signing certificate or Azure Trusted Signing setup (procurement and IT): at the end, before the first signed release.
 - Public copy (README, site, release notes) must not name the predecessor tool: checked by `scripts/check-forbidden-words.sh` before each release.
 
 ## Open
@@ -474,6 +478,15 @@ Decisions:
 - **Fix, desktop.** `save_local_profile` saves that CA and sets `trusted_fingerprints` to the pin (empty otherwise, as before); the step reads "trusted" for a CA or a pin. `local_fingerprint` includes the pins and `server_imported`, so a re-import, Regenerate or a CA rotation makes "Local broker" follow and reconnect (change set 7).
 - **Fix, client.** An unknown issuer is never a hard failure: with a single-cert chain and a configured CA the client offers the trust prompt (`UnknownCa`) with `tls.reason.unknownCaMaybeIntermediate` ("signed by {issuer}, which is not the CA set in this profile. The broker may also have left out its intermediate certificate."), so the user can pin the certificate or fix the CA. FR and DE written natively; native review pending.
 - **Tests.** Broker B-12 `b12_local_connection_trust_follows_served_identity` (generated, PKCS#12 with CA, PEM leaf + CA, leaf only, plain listener, Regenerate); desktop C-17 `c17_imported_server_identity_trust_and_follow` (flow connects with the imported CA and with a pin; re-imports, Regenerate and CA rotation change the follow fingerprint and stay connected); client T-03 (now a trust prompt) and T-03b (leaf from another CA, pin then connects). Harness `tests/connectivity/extended.py`: the four `app-imported-*-local` cases pass.
+
+### 25 Oct 2026, "Add to Claude" said Claude was missing; assistant beta; GitHub link
+- **Reproduction.** In the unsandboxed debug app (started by `npm run tauri dev`, and as its own app bundle through `open`), `assistant_status` reported the Claude Desktop, Claude Code and Codex files as present on the owner's Mac, so the message did not come from the home folder (`HOME` and `dirs` agree outside the sandbox) or from the JSON parser (both files parse).
+- **Root causes.** (1) The UI decided "not found" from the status read when Settings opened and never read the files again at the click: once Claude was installed or started with Settings open, the button kept saying "not found", although the message itself asked to start Claude "then try again". (2) Claude Desktop counted as installed only when `claude_desktop_config.json` existed, and Claude Desktop creates that file only when its developer settings are opened (on the owner's Mac its folder predates the file by a month). (3) In the Mac App Store copy `HOME` is the container (`~/Library/Containers/<id>/Data`), so every file looked missing and the same "not found" came up instead of a plain sandbox message.
+- **Fix.** The button reads the status again before deciding. Claude Desktop counts as installed when its app (`/Applications/Claude.app`, `~/Applications/Claude.app`; Windows `%LOCALAPPDATA%\AnthropicClaude`) or its settings folder exists, and its file is created when missing. A file that cannot be read (permissions) is a failure, never "missing". A UTF-8 byte order mark is accepted. In the App Sandbox (`APP_SANDBOX_CONTAINER_ID`) the home is taken outside the container, nothing is written, the configuration is copied and the message says where to paste it (`WriteReport.sandboxed`, `AssistantStatus.sandboxed`). The report carries `writtenHosts` and `missingHosts`; the toast names the apps ("Added to Claude Desktop and Claude Code.", "Added to Claude Desktop. Claude Code is not installed.") and what to do next per app.
+- **Wording.** No assistant or tool text says "host" any more: the application is named ("Quit and reopen the ChatGPT app so it loads MQTT Panel.") or "your assistant app"; "Other hosts" is "Other assistant apps" (FR « Autres assistants », DE „Andere Assistenten-Apps“). The log export header says "Assistant".
+- **Beta.** Rail tooltip and aria-label "AI assistant (beta)", Settings page "Assistant (beta)" with one sentence; README, website, `docs/MCP.md`, `docs/FEATURES.md`.
+- **Updates.** Settings, Updates adds "Release notes and source code on GitHub"; the Rust command `open_release_notes` opens the fixed URL https://github.com/linkineo/mqtt-panel/releases through `tauri-plugin-opener` (MIT or Apache 2.0); the WebView gets no opener permission, so it cannot open other addresses. No update check exists anywhere.
+- **Licence.** `LICENSE` and `NOTICE` carry the owner's copyright line (the only place the name appears; the guard skips those two files for the name patterns only). The plain summaries (README, NOTICE, website) read: free to use, at home or at work, including for your own commercial activities; change it and build it yourself; no selling MQTT Panel, nor a product or service whose value comes substantially from it. The licence text stays authoritative.
 
 ### 20 Oct 2026, rail item AI
 - **Request.** Owner, 20 Oct 2026: a rail item with a sparkle icon after Broker, labelled "AI" (FR « IA », DE „KI“, aria-label "AI assistant", « Assistant IA », „KI-Assistent“), that opens Settings on the Assistant page.

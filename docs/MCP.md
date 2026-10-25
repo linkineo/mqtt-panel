@@ -1,6 +1,6 @@
 # MCP interface: mini spec for validation
 
-Status: validated by the owner on 20 Oct 2026; implemented 20 Oct 2026 (phases 1 to 4: transport, security model,
+Status: **beta** (owner, 25 Oct 2026: tools and texts may still change). Validated by the owner on 20 Oct 2026; implemented 20 Oct 2026 (phases 1 to 4: transport, security model,
 Settings page "Assistant", every tool group of section 4, five resources, four prompts; complete table in section 10).
 Decisions taken with the owner on 20 Oct 2026 are marked (owner); the implementing model's readings are in
 `docs/DECISIONS.md`, "20 Oct 2026, MCP interface (phases 1 and 2)" and "(phases 3 and 4)".
@@ -27,12 +27,14 @@ The assistant acts through the running app. The user sees every change in the wi
   shared with the Codex CLI and IDE extension, per OpenAI's documentation. ChatGPT on the web only takes remote
   servers over HTTPS; that is out of scope (no tunnel, no relay, no outbound connection). No HTTP endpoint in the app.
 - "Seamless" setup, Settings page **Assistant**, one button per host family:
-  - **"Add to Claude"**: writes the `mqttpanel mcp` entry into the Claude Desktop and Claude Code configuration files
-    that exist on this machine, after a confirmation that names the files, and reports which ones it wrote.
+  - **"Add to Claude"**: writes the `mqttpanel mcp` entry for Claude Desktop when it is installed (its file is created
+    if Claude Desktop has not made it yet) and for Claude Code when `~/.claude.json` exists, after a confirmation that
+    names the files, and reports by name which apps it set up and which are not installed (25 Oct 2026). The Mac App
+    Store copy (App Sandbox) writes nothing; it copies the configuration and says where to paste it.
   - **"Add to ChatGPT"**: writes `[mcp_servers.mqttpanel]` into `~/.codex/config.toml` (created if missing), same
     confirmation; the page notes that this is for the ChatGPT desktop app and that ChatGPT on the web cannot reach a
     local server.
-  - **Other hosts**: the generic configuration snippet to copy.
+  - **Other assistant apps** (earlier "Other hosts"): the generic configuration snippet to copy.
 - The MCP server is **enabled by default** (owner): a configured host can launch the shim at any time; nothing listens
   until it does.
 
@@ -126,7 +128,7 @@ devices" (asks what devices, picks the preset, issues certificates, exports CA.p
 
 ## 6. Settings page "Assistant"
 
-Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude", "Add to ChatGPT", "Other hosts"
+Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude", "Add to ChatGPT", "Other assistant apps"
 (snippet, copy), each reporting what is configured; the Assistant log (table, Clear, Export…). Every row has an ⓘ.
 
 ## 7. Tests

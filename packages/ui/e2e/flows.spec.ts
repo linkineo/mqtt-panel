@@ -423,6 +423,29 @@ test.describe('Export, settings, palette', () => {
     await seg.locator('button', { hasText: 'English' }).click();
     await expect(page.locator('[data-testid=rail-settings]')).toHaveText(/Settings/);
   });
+
+  test('S-04 Updates: the store sentence and a link to the GitHub releases, no switch, channel or "Check now"; licence line in About (EN, FR, DE)', async ({ page }) => {
+    const texts = {
+      en: ['Updates come from the store this copy was installed from.', 'Release notes and source code on GitHub', 'Apache 2.0 with the Commons Clause · free to use, not for sale.'],
+      fr: ['Les mises à jour viennent de la boutique d’applications depuis laquelle cette copie a été installée.', 'Notes de version et code source sur GitHub', 'Apache 2.0 avec la Commons Clause · libre d’utilisation, vente interdite.'],
+      de: ['Updates kommen aus dem Store, aus dem du diese Kopie installiert hast.', 'Versionshinweise und Quellcode auf GitHub', 'Apache 2.0 mit der Commons Clause · frei nutzbar, nicht zum Verkauf.'],
+    } as const;
+    for (const lang of ['en', 'fr', 'de'] as const) {
+      await page.goto(`/?mock=demo&screen=settings&lang=${lang}&theme=light`);
+      await page.waitForSelector('#app-root');
+      await page.click('[data-testid=settings-nav-updates]');
+      const sec = page.locator('[data-testid=settings-updates]');
+      await expect(sec.locator('[data-testid=updates-store]')).toHaveText(texts[lang][0]);
+      await expect(sec.locator('input, [role=switch], .seg')).toHaveCount(0);
+      await expect(sec.locator('button')).toHaveCount(1);
+      const link = sec.locator('[data-testid=updates-release-notes]');
+      await expect(link).toHaveText(texts[lang][1]);
+      await link.click();
+      await expect.poll(() => page.evaluate(() => (window as any).__mqttpanelMock.platform.releaseNotesOpened())).toBe(1);
+      await expect(page.locator('[data-testid=settings-privacy]')).not.toContainText(/feed|flux|Feed/);
+      await expect(page.locator('[data-testid=settings-about]')).toContainText(texts[lang][2]);
+    }
+  });
 });
 
 test.describe('Broker', () => {
@@ -1790,11 +1813,15 @@ test.describe('Assistant (docs/MCP.md section 6)', () => {
     await page.click('[data-testid=settings-nav-assistant]');
     const section = page.locator('[data-testid=settings-assistant]');
     await expect(section).toContainText('Over this interface an assistant can change everything in MQTT Panel');
+    await expect(section.locator('.sec')).toHaveText('Assistant (beta)');
+    await expect(page.locator('[data-testid=assistant-beta]')).toHaveText('Beta: tools and texts may still change; tell us what you need.');
     await expect(page.locator('[data-testid=assistant-claude-state]')).toHaveText('Not set up');
     await page.click('[data-testid=assistant-add-claude]');
     await expect(page.locator('[data-testid=assistant-confirm-files] li')).toHaveCount(2);
+    await expect(page.locator('[data-testid=assistant-confirm]')).toContainText('quit and reopen Claude Desktop so it loads MQTT Panel. Claude Code picks it up at its next start.');
     await page.click('[data-testid=confirm-ok]');
     await expect(page.locator('[data-testid=assistant-claude-state]')).toHaveText('Set up in Claude Desktop, Claude Code');
+    await expect(page.locator('[data-testid=toast]').first()).toContainText('Added to Claude Desktop and Claude Code. Quit and reopen Claude Desktop so it loads MQTT Panel. Claude Code picks it up at its next start.');
     let files = await hostFiles(page);
     expect(JSON.parse(files['~/.claude.json']).numStartups).toBe(4);
     expect(JSON.parse(files['~/.claude.json']).mcpServers.mqttpanel).toEqual({ type: 'stdio', command: expect.stringContaining('MQTT Panel'), args: ['mcp'], env: {} });
@@ -1803,6 +1830,7 @@ test.describe('Assistant (docs/MCP.md section 6)', () => {
     await expect(page.locator('[data-testid=assistant-confirm]')).toContainText('ChatGPT on the web cannot reach a program on this computer');
     await page.click('[data-testid=confirm-ok]');
     await expect(page.locator('[data-testid=assistant-chatgpt-state]')).toHaveText('Set up');
+    await expect(page.locator('[data-testid=toast]', { hasText: 'Added to ChatGPT.' })).toContainText('Quit and reopen the ChatGPT app so it loads MQTT Panel.');
     files = await hostFiles(page);
     expect(files['~/.codex/config.toml']).toMatch(/^\[mcp_servers\.mqttpanel\]\ncommand = ".+"\nargs = \["mcp"\]\n$/);
     await page.click('[data-testid=assistant-copy]');
@@ -1899,7 +1927,8 @@ test.describe('Assistant (docs/MCP.md section 6)', () => {
     const ai = page.locator('[data-testid=rail-ai]');
     const settings = page.locator('[data-testid=rail-settings]');
     await expect(page.locator('.rail button')).toHaveText(['Connect1', 'Explore', 'Publish', 'Charts', 'Broker', 'AI', 'Settings']);
-    await expect(ai).toHaveAttribute('aria-label', 'AI assistant');
+    await expect(ai).toHaveAttribute('aria-label', 'AI assistant (beta)');
+    await expect(ai).toHaveAttribute('title', 'AI assistant (beta)');
     await expect(ai).not.toHaveAttribute('aria-current', /.*/);
     // keyboard: focus it and press Enter
     await ai.focus();
@@ -1922,10 +1951,16 @@ test.describe('Assistant (docs/MCP.md section 6)', () => {
   });
 
   test('M-18 labels in FR and DE', async ({ page }) => {
-    for (const [lang, text, label] of [['fr', 'IA', 'Assistant IA'], ['de', 'KI', 'KI-Assistent']] as const) {
+    for (const [lang, text, label] of [['fr', 'IA', 'Assistant IA (bêta)'], ['de', 'KI', 'KI-Assistent (Beta)']] as const) {
       await open(page, `mock=demo&lang=${lang}`);
       await expect(page.locator('[data-testid=rail-ai]')).toHaveText(text);
       await expect(page.locator('[data-testid=rail-ai]')).toHaveAttribute('aria-label', label);
+      await expect(page.locator('[data-testid=rail-ai]')).toHaveAttribute('title', label);
+      await page.click('[data-testid=rail-ai]');
+      await expect(page.locator('[data-testid=settings-assistant] .sec')).toHaveText(lang === 'fr' ? 'Assistant (bêta)' : 'Assistent (Beta)');
+      await expect(page.locator('[data-testid=assistant-beta]')).toHaveText(
+        lang === 'fr' ? 'Bêta\u202f: les outils et les textes peuvent encore changer\u202f; dites-nous ce dont vous avez besoin.' : 'Beta: Werkzeuge und Texte können sich noch ändern. Sag uns, was du brauchst.',
+      );
     }
   });
 });

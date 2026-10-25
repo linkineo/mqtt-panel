@@ -318,7 +318,8 @@ pub mod secret_keys {
 }
 
 /// App settings (see the TS type Settings). An old settings file with `skipVerify` still loads; the field
-/// is ignored (skipping verification is per connection since change set 6).
+/// is ignored (skipping verification is per connection since change set 6). The same holds for `updateCheck` and
+/// `updateChannel` (removed 25 Oct 2026: the stores update the app).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -333,8 +334,6 @@ pub struct Settings {
     pub points_per_series: u32,
     pub memory_budget_mb: u32,
     pub payload_render_limit_kb: u32,
-    pub update_check: bool,
-    pub update_channel: String,
     /// The broker log is expanded in the right pane of the Broker screen (collapsed by default, change set 2).
     pub broker_log_open: bool,
     /// The day (YYYY-MM-DD) the user accepted the assistant acknowledgement (docs/MCP.md section 3); until then the
@@ -356,8 +355,6 @@ impl Default for Settings {
             points_per_series: 5000,
             memory_budget_mb: 256,
             payload_render_limit_kb: 256,
-            update_check: true,
-            update_channel: "stable".into(),
             broker_log_open: false,
             assistant_acknowledged: None,
         }

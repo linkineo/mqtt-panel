@@ -3,7 +3,7 @@ name = "mqttpanel-cli"
 description = "Command line of MQTT Panel: sub, pub, broker and profiles"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 authors.workspace = true
 publish = false
 

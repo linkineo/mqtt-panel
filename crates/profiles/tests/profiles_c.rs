@@ -80,6 +80,20 @@ fn s05_old_settings_skip_verify_ignored() {
     assert!(!raw.contains("skipVerify"));
 }
 
+/// S-04: an old settings file with the removed update switches (`updateCheck`, `updateChannel`) loads; they are
+/// ignored and not written back (25 Oct 2026: the stores update the app).
+#[test]
+fn s04_old_settings_update_switches_ignored() {
+    let (d, s, _) = store();
+    std::fs::write(d.path().join("settings.json"), br#"{"theme":"dark","updateCheck":false,"updateChannel":"beta"}"#).unwrap();
+    let set = s.settings();
+    assert_eq!(set.theme, "dark");
+    s.save_settings(&set).unwrap();
+    let raw = std::fs::read_to_string(d.path().join("settings.json")).unwrap();
+    assert!(!raw.contains("updateCheck"));
+    assert!(!raw.contains("updateChannel"));
+}
+
 /// S-05: an old profile with `verifyServer: false` loads with the per-connection skip switch on;
 /// `verifyServer: true` (or absent) loads with it off; the file is written back with `skipVerify` only.
 #[test]

@@ -10,7 +10,7 @@ import { toMessage } from '../../i18n';
 
 /**
  * Settings, Assistant (docs/MCP.md section 6): the acknowledgement, the host session, "Add to Claude", "Add to
- * ChatGPT", "Other hosts" (snippet to copy) and the Assistant log (Clear, Export…). Every row has its ⓘ.
+ * ChatGPT", "Other assistant apps" (snippet to copy) and the Assistant log (Clear, Export…). Every row has its ⓘ.
  */
 export function AssistantSettings() {
   const { t } = useTranslation();
@@ -40,13 +40,34 @@ export function AssistantSettings() {
   const configured = (family: AssistantHostFile['family']) => files(family).filter((h) => h.configured);
   const hostName = (h: AssistantHostFile) => t(`assistant.host.${h.host}`);
 
+  const names = (hosts: AssistantHostFile['host'][]) => {
+    const n = hosts.map((h) => t(`assistant.host.${h}`));
+    return n.length === 2 ? t('assistant.and', { a: n[0], b: n[1] }) : n.join(', ');
+  };
+  /** Says which assistant apps got MQTT Panel, which are not installed, and what to do next. */
   const report = (r: AssistantWriteReport) => {
     const st = useApp.getState();
-    if (r.written.length) st.toast({ kind: 'info', text: t('assistant.written', { files: r.written.join(', ') }) });
-    else if (!r.failed.length) st.toast({ kind: 'warn', text: t('assistant.nothingWritten') });
+    if (r.sandboxed) {
+      sandboxed(r.writtenHosts.length ? r.writtenHosts : ['claudeDesktop']);
+      return;
+    }
+    if (r.writtenHosts.length) {
+      const parts = [t('assistant.added', { hosts: names(r.writtenHosts) })];
+      if (r.missingHosts.length === 1) parts.push(t('assistant.notInstalled', { host: t(`assistant.host.${r.missingHosts[0]}`) }));
+      else if (r.missingHosts.length > 1) parts.push(t('assistant.notInstalledPlural', { hosts: names(r.missingHosts) }));
+      for (const h of r.writtenHosts) parts.push(t(`assistant.reopen.${h}`));
+      st.toast({ kind: 'info', text: parts.join(' ') });
+    } else if (!r.failed.length) {
+      st.toast({ kind: 'warn', text: r.missingHosts.some((h) => h !== 'chatgpt') ? t('assistant.noClaude') : t('assistant.nothingWritten') });
+    }
     for (const f of r.failed) st.toast({ kind: 'err', msg: f.error });
     refresh();
   };
+  /** The Mac App Store copy cannot write other apps' files: copy the configuration and say where to paste it. */
+  const sandboxed = (hosts: AssistantHostFile['host'][], snippet = status?.snippet ?? '') =>
+    void platform()
+      .copyText(snippet)
+      .then(() => useApp.getState().toast({ kind: 'warn', text: t('assistant.sandboxed', { app: names(hosts) }) }));
   const write = async (family: 'claude' | 'chatgpt') => {
     try {
       report(family === 'claude' ? await engine().assistantAddToClaude() : await engine().assistantAddToChatgpt());
@@ -54,12 +75,24 @@ export function AssistantSettings() {
       useApp.getState().toast({ kind: 'err', msg: toMessage(e) });
     }
   };
-  const addToClaude = () => {
-    if (!files('claude').some((h) => h.exists)) {
+  /** Reads the files again at the click (an assistant app may have been installed since the page opened). */
+  const add = async (family: 'claude' | 'chatgpt') => {
+    let s = status;
+    try {
+      s = await engine().assistantStatus();
+      setStatus(s);
+    } catch {
+      /* keep what the page has */
+    }
+    if (s?.sandboxed) {
+      sandboxed(family === 'claude' ? ['claudeDesktop'] : ['chatgpt'], s.snippet);
+      return;
+    }
+    if (family === 'claude' && !(s?.hosts ?? []).some((h) => h.family === 'claude' && (h.exists || h.installed))) {
       useApp.getState().toast({ kind: 'warn', text: t('assistant.noClaude') });
       return;
     }
-    setConfirm('claude');
+    setConfirm(family);
   };
 
   const setUp = (family: AssistantHostFile['family']) => {
@@ -69,6 +102,9 @@ export function AssistantSettings() {
 
   return (
     <>
+      <p className="small muted" style={{ maxWidth: '90ch', margin: '0 0 6px' }} data-testid="assistant-beta">
+        {t('assistant.beta')}
+      </p>
       <p className="small muted" style={{ maxWidth: '90ch', margin: '0 0 10px' }} data-testid="assistant-ack-sentence">
         {t('assistant.ackText')}
       </p>
@@ -105,7 +141,7 @@ export function AssistantSettings() {
             Claude <Info id="assistant.claude" title="Claude" />
           </span>
           <span className="row2">
-            <button type="button" className="btn sm" data-testid="assistant-add-claude" onClick={addToClaude}>
+            <button type="button" className="btn sm" data-testid="assistant-add-claude" onClick={() => void add('claude')}>
               {t('assistant.addToClaude')}
             </button>
             <span className="hint" data-testid="assistant-claude-state">
@@ -118,7 +154,7 @@ export function AssistantSettings() {
             ChatGPT <Info id="assistant.chatgpt" title="ChatGPT" />
           </span>
           <span className="row2">
-            <button type="button" className="btn sm" data-testid="assistant-add-chatgpt" onClick={() => setConfirm('chatgpt')}>
+            <button type="button" className="btn sm" data-testid="assistant-add-chatgpt" onClick={() => void add('chatgpt')}>
               {t('assistant.addToChatgpt')}
             </button>
             <span className="hint" data-testid="assistant-chatgpt-state">
@@ -216,7 +252,7 @@ export function AssistantSettings() {
           <div className="small">{t('assistant.confirmBody')}</div>
           <ul className="small mono" style={{ margin: '8px 0', paddingLeft: 18 }} data-testid="assistant-confirm-files">
             {files(confirm)
-              .filter((h) => confirm === 'chatgpt' || h.exists)
+              .filter((h) => confirm === 'chatgpt' || h.exists || h.installed)
               .map((h) => (
                 <li key={h.path}>
                   {h.path} <span className="muted">({hostName(h)})</span>
@@ -224,7 +260,7 @@ export function AssistantSettings() {
               ))}
           </ul>
           {confirm === 'chatgpt' && <div className="small muted">{t('assistant.chatgptNote')}</div>}
-          <div className="small muted">{t('assistant.restart')}</div>
+          <div className="small muted">{t(`assistant.restart.${confirm}`)}</div>
         </ConfirmDialog>
       )}
     </>

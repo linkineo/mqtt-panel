@@ -270,6 +270,8 @@ export interface Platform {
   prefersReducedMotion(): boolean;
   /** Relabels the native menu bar in the app language (en, fr, de). */
   setMenuLanguage(lang: string): Promise<void>;
+  /** Opens the release notes on GitHub (https://github.com/linkineo/mqtt-panel/releases) in the default browser. */
+  openReleaseNotes(): Promise<void>;
 }
 
 // (UserMessage is exported from ./types; re-exporting it here made index.ts ambiguous. Fixed by UI.)

@@ -14,7 +14,8 @@ describe('Rail item AI (M-18)', () => {
     expect(ids).toEqual(['rail-connect', 'rail-explore', 'rail-publish', 'rail-charts', 'rail-broker', 'rail-ai', 'rail-settings']);
     const ai = screen.getByTestId('rail-ai');
     expect(ai.textContent).toBe('AI');
-    expect(ai.getAttribute('aria-label')).toBe('AI assistant');
+    expect(ai.getAttribute('aria-label')).toBe('AI assistant (beta)');
+    expect(ai.getAttribute('title')).toBe('AI assistant (beta)');
     expect(ai.tagName).toBe('BUTTON');
     expect(ai.querySelector('svg path')).not.toBeNull();
     expect(ai.querySelector('.badge, .cnt')).toBeNull();
@@ -58,6 +59,6 @@ describe('Rail item AI (M-18)', () => {
   it('labels in FR and DE', () => {
     const ui = (l: 'en' | 'fr' | 'de') => (resources[l] as Record<string, Record<string, string>>).ui;
     expect([ui('en')['rail.ai'], ui('fr')['rail.ai'], ui('de')['rail.ai']]).toEqual(['AI', 'IA', 'KI']);
-    expect([ui('en')['rail.aiLabel'], ui('fr')['rail.aiLabel'], ui('de')['rail.aiLabel']]).toEqual(['AI assistant', 'Assistant IA', 'KI-Assistent']);
+    expect([ui('en')['rail.aiLabel'], ui('fr')['rail.aiLabel'], ui('de')['rail.aiLabel']]).toEqual(['AI assistant (beta)', 'Assistant IA (bêta)', 'KI-Assistent (Beta)']);
   });
 });

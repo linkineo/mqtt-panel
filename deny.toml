@@ -40,6 +40,11 @@ allow = [
 ]
 confidence-threshold = 0.9
 
+# MQTT Panel's own crates (publish = false) carry the project licence through license-file
+# (Apache 2.0 with the Commons Clause); the allow-list applies to dependencies only.
+[licenses.private]
+ignore = true
+
 [bans]
 multiple-versions = "allow"
 wildcards = "allow"

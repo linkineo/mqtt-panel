@@ -36,7 +36,7 @@ fn item<R: Runtime>(app: &AppHandle<R>, id: &str, text: &str, accel: Option<&str
 }
 
 /// Copyright line of the About dialog: the website only, no company name (owner, 18 Oct 2026).
-pub const ABOUT_COPYRIGHT: &str = "© 2026 mqtt-panel.com · https://mqtt-panel.com · Apache License 2.0";
+pub const ABOUT_COPYRIGHT: &str = "© 2026 mqtt-panel.com · https://mqtt-panel.com · Apache License 2.0 with the Commons Clause";
 
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>, lang: &str) -> tauri::Result<Menu<R>> {
     let l = |k: &str| label(lang, k);
@@ -193,6 +193,7 @@ mod tests {
         let c = super::ABOUT_COPYRIGHT;
         assert!(c.contains("mqtt-panel.com"));
         assert!(!c.to_lowercase().contains("mqtt-panel"));
+        assert!(c.contains("Apache License 2.0 with the Commons Clause"));
         let conf = include_str!("../tauri.conf.json");
         assert!(conf.contains("\"copyright\": \"mqtt-panel.com\""));
         assert!(!conf.to_lowercase().contains("mqtt-panel labs"));

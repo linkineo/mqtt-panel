@@ -3,7 +3,7 @@ name = "mqttpanel-shim"
 description = "The MCP stdio shim of MQTT Panel: forwards a host's stdio to the running app's local socket"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 authors.workspace = true
 publish = false
 

@@ -1,6 +1,6 @@
 # Running MQTT Panel from source
 
-How to start the desktop app, the UI alone and the command line on a development machine. Installers and auto-update come with phase 5; until then the app is built from the repository.
+How to start the desktop app, the UI alone and the command line on a development machine. MQTT Panel is distributed through the Mac App Store and the Microsoft Store only (25 Oct 2026); there are no installers and no updater. Anyone else builds it from the public repository https://github.com/linkineo/mqtt-panel as described here; Linux users always do. Release notes are on its Releases page, which Settings, Updates links to.
 
 ## Requirements
 
@@ -18,7 +18,7 @@ No Docker, no broker and no account are needed. The embedded broker is part of t
 ## 1. One-time setup
 
 ```
-git clone git@github.com:linkineo/mqtt-panel.git
+git clone https://github.com/linkineo/mqtt-panel.git
 cd mqtt-panel
 npm install
 ```
@@ -49,12 +49,12 @@ cd apps/desktop/src-tauri
 cargo tauri build
 ```
 
-The bundle lands under `target/release/bundle/` at the repository root:
+The bundle lands under `target/release/bundle/` at the repository root. These are developer builds for your own machine, not distributed; the Microsoft Store package is made by `scripts/build-msix.ps1` (`docs/WINDOWS_BUILD.md`):
 
 | OS | Result |
 |---|---|
 | macOS | `macos/MQTT Panel.app` and a `.dmg` under `dmg/` |
-| Windows | `msi/MQTT Panel_<version>_x64_en-US.msi` and `nsis/` |
+| Windows | none needed: build with `npm run tauri -- build --no-bundle`; the Store package comes from `scripts/build-msix.ps1` (`docs/WINDOWS_BUILD.md`) |
 | Linux | `appimage/`, `deb/`, `rpm/` |
 
 Start it:
@@ -65,7 +65,7 @@ open "target/release/bundle/macos/MQTT Panel.app"          # macOS
 
 On Windows and Linux open the bundle from the file manager or run the installer.
 
-Beta builds are not signed. On macOS Gatekeeper may refuse a build that was downloaded from elsewhere; a bundle built locally opens without a prompt. A downloaded unsigned build opens with right-click, Open, then Open again. On Windows SmartScreen shows "Windows protected your PC"; choose More info, then Run anyway. Release builds will be signed (see `docs/SPEC.md` section 11).
+Developer builds are not signed. On macOS Gatekeeper may refuse a build that was downloaded from elsewhere; a bundle built locally opens without a prompt. A downloaded unsigned build opens with right-click, Open, then Open again. On Windows SmartScreen shows "Windows protected your PC"; choose More info, then Run anyway. Release builds will be signed (see `docs/SPEC.md` section 11).
 
 Where the master key lives (change set 10, 18 Oct 2026): an unsigned build (dev, `npm run tauri dev`, CI, an unsigned beta) keeps the master key in `master.key` (owner-only) in the app data folder and never shows a keychain dialog. A build that still finds the old login-keychain item reads it once, writes the file and deletes the item: that is the last dialog you see. A build signed with a real identity (Developer ID, or a local signing identity for testing that path; ad-hoc does not count) keeps the key in the OS secret store (macOS: Data Protection keychain once the signing step is done, login keychain before that; Windows: DPAPI; Linux: Secret Service or the file fallback), which is silent for end users. `MQTTPANEL_KEYSTORE=file` or `=keychain` forces the store for tests. With `MQTTPANEL_LOG=1` the chosen store and a move are printed once. A `master.key` that other users can read is not used (fix it with `chmod 600`). The CLI follows the same rule on the same data folder.
 
@@ -153,11 +153,11 @@ Store provisioning profile kept outside the repository. The variant is defined b
 `~/Library/Containers/com.remora-labs.mqttpanel/`, apart from the unsandboxed builds. Export compliance is answered
 in App Store Connect by the owner, not in the build. Pass `--no-upload` to stop after the package.
 
-## 10. Assistant (MCP)
+## 10. Assistant (MCP, beta)
 
-MQTT Panel is an MCP server for assistants (`docs/MCP.md`). Settings, Assistant does the setup with one button per host;
-this section is the same by hand. Every host starts the app's own executable with the single argument `mcp` (or the
-command line `mqttpanel mcp`). Settings, Assistant, "Other hosts" shows the exact path of the executable on this
+MQTT Panel is an MCP server for assistants (`docs/MCP.md`; beta, tools and texts may still change). Settings, Assistant
+does the setup with one button per assistant app; this section is the same by hand. Every assistant app starts the app's own executable with the single argument `mcp` (or the
+command line `mqttpanel mcp`). Settings, Assistant, "Other assistant apps" shows the exact path of the executable on this
 computer; on macOS it is `/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel`. The app must accept the
 acknowledgement once (Settings, Assistant) before an assistant may change anything.
 
@@ -172,7 +172,13 @@ acknowledgement once (Settings, Assistant) before an assistant may change anythi
 }
 ```
 
-Quit and reopen Claude Desktop.
+Quit and reopen Claude Desktop so it loads MQTT Panel.
+
+"Add to Claude" writes this entry when Claude Desktop is installed (its app or its settings folder exists), creating the
+file when Claude Desktop has not made it yet, and adds the Claude Code entry below when `~/.claude.json` exists. Its
+message names what it did ("Added to Claude Desktop and Claude Code.", "Added to Claude Desktop. Claude Code is not
+installed."). The Mac App Store copy runs in the App Sandbox and may not change other apps' files: there the button
+writes nothing, copies the configuration and says where to paste it.
 
 **Claude Code.** `claude mcp add --scope user mqttpanel -- "/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel" mcp`
 (this writes `mcpServers.mqttpanel` into `~/.claude.json`). `claude mcp list` shows it; in a session `/mcp` shows its
@@ -189,7 +195,7 @@ args = ["mcp"]
 
 ChatGPT on the web cannot reach a program on this computer.
 
-**Other hosts.** Any host that starts local stdio servers takes the JSON block of Claude Desktop above.
+**Other assistant apps.** Any assistant app that starts local stdio servers takes the JSON block of Claude Desktop above.
 
 **Check by hand.** With the app running:
 

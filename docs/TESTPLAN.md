@@ -285,7 +285,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | S-01 | E | auto | Export selected topic, subtree, visible rows; last hour, session, custom; CSV, JSON, NDJSON; MQTT 5 properties on/off; base64 raw | Files parse; row counts match the estimate ± 0; CSV expands numeric JSON fields. |
 | S-02 | E | auto | Nothing is written to disk by default: run a session, inspect the app data folder | Only profiles, templates, views, settings and broker config present; no message data. |
 | S-03 | E | auto | Clear all history; memory estimate drops | As specified. |
-| S-04 | E | auto | Update check on/off: network calls observed with a proxy | Only broker traffic, plus the release feed when enabled. |
+| S-04 | E | auto | Updates page and network calls (25 Oct 2026: the stores update the app): the page shows the one store sentence in EN, FR, DE with no switch, channel or button; network calls observed with a proxy | Only broker traffic; no update check. |
 | S-06 | U | auto | Master key store selection (change set 10): unsigned signature → file store, Developer ID signature → OS store, `MQTTPANEL_KEYSTORE` override wins; the file store creates `master.key` with 0600 and its folder 0700, round-trips the key, refuses a world-readable file with a plain error; the move from a fake keychain source reads once, writes the file, deletes the item, and keeps the old behaviour when the source refuses | As specified. |
 | S-05 | E | auto | No app-wide "Skip verification" in Settings; an old settings file with `skipVerify: true` loads and the flag is ignored; an old profile with `verifyServer: false` loads with the skip switch on | As specified (change set 6). |
 
@@ -296,7 +296,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | R-01 | U | auto | `cargo deny` licence allow-list and advisories; `npm audit` | Clean. |
 | R-02 | U | auto | `scripts/check-forbidden-words.sh` on the tree and on the built app strings | Clean. |
 | R-03 | M | manual | Beta builds (unsigned): install on each OS with the "how to run it" note | Note is accurate. |
-| R-04 | M | manual | Release build: Windows signed, macOS notarized; auto-update from the previous version | Signatures valid; update applies. |
+| R-04 | M | manual | Store builds (25 Oct 2026): the Mac App Store build passes App Store Connect validation and installs from TestFlight; the MSIX passes the Windows App Certification Kit and Partner Center validation; a store update installs over the previous version | Validation clean; the update keeps profiles and secrets. |
 
 ## 13. Assistant
 

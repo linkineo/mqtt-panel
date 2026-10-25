@@ -198,5 +198,8 @@ export function createTauriPlatform(): Platform {
     async setMenuLanguage(lang: string) {
       await invoke('set_menu_language', { lang });
     },
+    async openReleaseNotes() {
+      await invoke('open_release_notes', {});
+    },
   };
 }

@@ -11,6 +11,7 @@ Last update: 20 Oct 2026 (MCP interface phases 1 and 2; website and branding; ph
 | 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
 | 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
 | 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
+| 5 Polish and release | native FR and DE review, accessibility, native-feel walks, Mac App Store package (`scripts/release-mac-testflight.sh`), Microsoft Store MSIX (`docs/WINDOWS_BUILD.md`, `scripts/build-msix.ps1`), website; no installers, no updater (25 Oct 2026) | Open. Settings "Updates" reduced to the store sentence and the update settings removed (25 Oct 2026; Rust 258, Vitest 185, Playwright 346, all green). Assistant marked beta, "Add to Claude" fixed (re-read at the click, Claude Desktop detected by its app, App Store copy says it cannot write), host texts name the app, Updates links to the GitHub releases, licence summaries reworded, copyright line in LICENSE and NOTICE (25 Oct 2026; Rust 265, Vitest 189, Playwright 346, all green). MSIX build on Windows pending. |
 | MCP interface | assistants through MCP (`docs/MCP.md`): socket and stdio shim, acknowledgement, secrets in the app, toast and Assistant log, Settings page "Assistant", Connections, Broker, Data, Charts and Navigation tools (56), five resources, four prompts | Phases 1 to 4 done 20 Oct 2026 (Rust 257, Vitest 177, Playwright 338). Native FR/DE review open. See below. |
 | Change set 11 | owner feedback on the tenth build: round ⓘ, file formats, password eye, generated key + CSR workflow, session expiry hint, accent Start and tile play/stop, LAN SANs with extra names, server certificate export, external-client tests; website download section | App part done 20 Oct 2026 (Rust 232, Vitest 159, Playwright 313, Paho lab 51 PASS); website part open. See below. |
 | Change set 10 | master key store by build: owner-only key file on unsigned builds (no dialog), OS store on signed builds, one silent move; macOS Data Protection keychain as a release gate | Done on macOS 18 Oct 2026 (file store, detection and move); Data Protection with the signing step (phase 5). V-09 is the owner's manual check. See below. |
@@ -310,7 +311,7 @@ Change set 4 adds the flows C-17 (broker starts on Connect and Test, a failing s
 | Scrollbars per platform | Pass | macOS keeps WebKit's overlay scrollbars; classic styled scrollbars on Windows and Linux only |
 | Theme follows the OS live; reduced motion; high contrast | Pass | `prefers-color-scheme`, `prefers-reduced-motion` and `prefers-contrast: more` (flow tests); OS accent colour not used (optional in the spec) |
 | Keyboard-first, focus rings, command palette | Pass | `:focus-visible` rings, ⌘K palette (V-04), tree and table keyboard navigation |
-| Runtime prerequisites documented | n/a on macOS | WebView2 and WebKitGTK checks belong to the Windows and Linux installers (phase 5) |
+| Runtime prerequisites documented | n/a on macOS | WebView2 on Windows: `docs/WINDOWS_BUILD.md`; WebKitGTK for Linux source builds: `docs/RUNNING.md` (phase 5) |
 | Visual regression on three OSes | Partial | Screenshots for every state in light and dark; baselines and the Windows and Linux runs are phase 5 (CI) |
 | Walk of the real window by a person (V-03) | Pending | Manual step; see "Running the real app" |
 
@@ -324,7 +325,7 @@ Change set 4 adds the flows C-17 (broker starts on Connect and Test, a failing s
 - Persistence flows not covered with the mock engine: X-07 (pinned topics and saved views survive a restart) and C-01 at UI level; covered in Rust only.
 - Mockup details: "since connect" wording on the tree root row (04); "n s left when received" on Message expiry (07).
 - Owner confirmations: licence allow-list additions, the change set 1 points under "Open" in `docs/DECISIONS.md`, the three small layout deviations listed under "Open" in `docs/DECISIONS.md`.
-- Installers (DMG, MSI, AppImage, deb, rpm), auto-update, Homebrew cask, winget manifest; signing and notarization last.
+- Store packages only (25 Oct 2026): Mac App Store upload through `scripts/release-mac-testflight.sh`; Microsoft Store MSIX built on a Windows machine (`docs/WINDOWS_BUILD.md`, `scripts/build-msix.ps1`). No DMG, MSI, AppImage, deb or rpm, no auto-update, no Homebrew cask or winget manifest; signing last.
 - Website at https://mqtt-panel.com (EN, FR, DE, no trackers) with screenshots and demo clips: see "Website and branding (18 Oct 2026)".
 - `scripts/check-testplan-coverage.sh` (listed in TESTPLAN) is not written yet.
 - The memory budget is reported but not enforced (engine).

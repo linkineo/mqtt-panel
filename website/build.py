@@ -2,7 +2,7 @@
 
 Run:  python3 website/build.py              build the site
       python3 website/build.py --licences   refresh third-party.json from Cargo and npm metadata, then build
-Deploy with website/deploy.sh. Static files only: no cookies, no trackers, nothing loaded from third parties.
+Deploy: see website/README.md. Static files only: no cookies, no trackers, nothing loaded from third parties.
 """
 import html
 import json
@@ -12,14 +12,12 @@ import shutil
 import subprocess
 import sys
 
-# ---- The owner fills these when the listings and files exist. Empty: the link goes nowhere (href="#",
-# aria-disabled) and shows "coming soon". They appear in the Download section at the bottom of the home page.
+# ---- The owner fills the store links when the listings exist (the GitHub repository is public). Empty: the link goes nowhere (href="#", aria-disabled) and
+# shows "coming soon". They appear in the Download section at the bottom of the home page. The app is distributed
+# through the two stores only (owner, 25 Oct 2026); GitHub holds the source for people who build it themselves.
 MAC_APP_STORE_URL = ""
 MICROSOFT_STORE_URL = ""
-GITHUB_URL = ""
-WINDOWS_MSI_URL = ""
-MACOS_DMG_URL = ""
-LINUX_PACKAGES_URL = ""
+GITHUB_URL = "https://github.com/linkineo/mqtt-panel"
 
 ROOT = pathlib.Path(__file__).resolve().parent
 REPO = ROOT.parent
@@ -61,13 +59,13 @@ def fr_typo(s):
 
 T = {
     "en": dict(
-        title="MQTT Panel: MQTT client and built-in broker for Windows, macOS and Linux",
+        title="MQTT Panel: MQTT client and built-in broker for Windows and macOS",
         meta="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in.",
         nav_features="Features", nav_privacy="Privacy", lang_label="Language",
         lead="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in. Your AI assistant can drive it too: Claude and ChatGPT connect through MCP to set up brokers, certificates and charts for you.",
         dl=dict(button="Download", h="Download", soon="coming soon", mas="Download on the Mac App Store",
-                ms="Get it from Microsoft", gh="View on GitHub",
-                files=["Windows executable (.msi)", "macOS executable (.dmg)", "Linux packages (.deb, .rpm, AppImage)"]),
+                ms="Get it from Microsoft", stores="MQTT Panel is installed and updated through the Microsoft Store and the Mac App Store.",
+                gh="Build it yourself", gh_note="Source code for developers; no installers are published there."),
         demo_h="A closer look",
         demo_p="Screens from the app, with demo data.",
         looks=[
@@ -86,7 +84,7 @@ T = {
             ('security', 'shot-security', 'Security', 'A connection profile with its security settings: CA, client certificate and key.', 'Proper TLS, and nothing leaves your computer.', 'Your own CA, client certificates and certificate pinning. Passwords and keys are stored encrypted. No telemetry, no account.'),
             ('cli', '', 'Command line', '', 'The same profiles and secrets, from the terminal.', 'mqttpanel sub, pub and broker use the same profiles as the app, with text, JSON or NDJSON output.'),
         ],
-        ai={'title': 'Works with your AI assistant', 'pitch': 'Ask in plain words. Watch it happen in the app.', 'body': 'MQTT Panel is an MCP server: Claude and ChatGPT can set up connections and certificates, configure the built-in broker, build charts and extract data, all through the running app. Every change shows in the window and is listed in the Assistant log. You accept once that the assistant may change anything in MQTT Panel. Secrets stay in the app: no tool ever returns a password or a key.', 'bullets': ['Connect to a broker: profile, TLS, CA and client certificate, test, connect, and plain answers when it fails.', 'Set up the built-in broker: listeners, users and client certificates for your devices.', 'Find topics, read values and history, add charts and export data to a file you pick.', 'Passwords and keys can be typed in MQTT Panel itself, so they never pass through the chat.', 'One button in Settings, Assistant adds MQTT Panel to Claude or to the ChatGPT desktop app.'], 'works': 'Works with', 'chat_label': 'A chat with an AI assistant that sets up MQTT Panel', 'chat_head': 'Your AI assistant', 'you': 'You', 'bot': 'Assistant', 'prompt': 'Connect MQTT Panel to broker.plant.example over TLS with my client certificate, then chart the temperature of room 204.', 'reply': ['Created the connection, imported the certificate, connected.', 'Topic chart added for building/f2/r204/temperature.', 'It is open in MQTT Panel.']},
+        ai={'title': 'Works with your AI assistant (beta)', 'beta': 'Beta: the tools and their texts may still change; tell us what you need.', 'pitch': 'Ask in plain words. Watch it happen in the app.', 'body': 'MQTT Panel is an MCP server: Claude and ChatGPT can set up connections and certificates, configure the built-in broker, build charts and extract data, all through the running app. Every change shows in the window and is listed in the Assistant log. You accept once that the assistant may change anything in MQTT Panel. Secrets stay in the app: no tool ever returns a password or a key.', 'bullets': ['Connect to a broker: profile, TLS, CA and client certificate, test, connect, and plain answers when it fails.', 'Set up the built-in broker: listeners, users and client certificates for your devices.', 'Find topics, read values and history, add charts and export data to a file you pick.', 'Passwords and keys can be typed in MQTT Panel itself, so they never pass through the chat.', 'One button in Settings, Assistant adds MQTT Panel to Claude or to the ChatGPT desktop app.'], 'works': 'Works with', 'chat_label': 'A chat with an AI assistant that sets up MQTT Panel', 'chat_head': 'Your AI assistant', 'you': 'You', 'bot': 'Assistant', 'prompt': 'Connect MQTT Panel to broker.plant.example over TLS with my client certificate, then chart the temperature of room 204.', 'reply': ['Created the connection, imported the certificate, connected.', 'Topic chart added for building/f2/r204/temperature.', 'It is open in MQTT Panel.']},
         cli_comment=["# watch a building, with a saved profile", "# send one message", "# run the broker on this computer"],
         privacy_h="Your data stays yours",
         privacy_p="MQTT Panel collects nothing. It talks only to the brokers you configure.",
@@ -98,7 +96,7 @@ T = {
         privacy_sections=[
             ("The app", [
                 "MQTT Panel has no telemetry, no crash reporting, no analytics and no account.",
-                "The app makes no network connections except to the brokers you configure and, if you turn it on, to the update feed that tells you about new versions.",
+                "The app makes no network connections except to the brokers you configure. Updates come through the Microsoft Store or the Mac App Store.",
                 "Profiles, templates, views and the message history stay on your computer.",
             ]),
             ("Secrets", [
@@ -118,8 +116,11 @@ T = {
         legal_notice_h="Legal notice",
         operator="Operator details: to be completed by the owner.",
         licence_h="MQTT Panel licence",
-        licence_p="MQTT Panel is open-source software, licensed under the Apache License, Version 2.0.",
-        licence_link="Read the licence text",
+        licence_p=["MQTT Panel is source-available software, licensed under the Apache License 2.0 with the Commons Clause.",
+                   "You may use it for free, at home or at work, including for your own commercial activities, change it and build it yourself. You may not sell MQTT Panel, nor sell a product or service whose value comes substantially from it.",
+                   "This is a summary: the licence text below is the authoritative one."],
+        licence_cc="Licence condition (Commons Clause)", licence_apache="Apache License, Version 2.0",
+        licence_link="Licence text as a plain file",
         third_h="Third-party software",
         third_p="MQTT Panel includes the following open-source components, each under its own licence:",
         third_rust="Engine and command line (Rust crates)",
@@ -127,13 +128,13 @@ T = {
         not_found="Page not found",
     ),
     "fr": dict(
-        title="MQTT Panel : client MQTT et broker intégré pour Windows, macOS et Linux",
+        title="MQTT Panel : client MQTT et broker intégré pour Windows et macOS",
         meta="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré.",
         nav_features="Fonctions", nav_privacy="Confidentialité", lang_label="Langue",
         lead="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré. Votre assistant IA peut aussi piloter l’app : Claude et ChatGPT s’y connectent par MCP et préparent brokers, certificats et courbes à votre place.",
         dl=dict(button="Télécharger", h="Télécharger", soon="bientôt disponible", mas="Télécharger dans le Mac App Store",
-                ms="Obtenir auprès de Microsoft", gh="Voir sur GitHub",
-                files=["Programme d’installation Windows (.msi)", "Image disque macOS (.dmg)", "Paquets Linux (.deb, .rpm, AppImage)"]),
+                ms="Obtenir auprès de Microsoft", stores="MQTT Panel s’installe et se met à jour par le Microsoft Store et le Mac App Store.",
+                gh="Compilez-le vous-même", gh_note="Le code source, pour les développeurs ; aucun programme d’installation n’y est publié."),
         demo_h="Vu de plus près",
         demo_p="Des écrans de l’app, avec des données de démonstration.",
         looks=[
@@ -152,7 +153,7 @@ T = {
             ('security', 'shot-security', 'Sécurité', 'Un profil de connexion avec ses réglages de sécurité : AC, certificat client et clé.', 'Un TLS soigné, et rien ne quitte votre ordinateur.', 'Votre propre AC, des certificats clients et l’épinglage de certificat. Mots de passe et clés sont stockés chiffrés. Ni télémétrie, ni compte.'),
             ('cli', '', 'Ligne de commande', '', 'Les mêmes profils et secrets, depuis le terminal.', 'mqttpanel sub, pub et broker utilisent les mêmes profils que l’app, avec une sortie texte, JSON ou NDJSON.'),
         ],
-        ai={'title': 'Fonctionne avec votre assistant IA', 'pitch': 'Demandez avec vos mots, et voyez le résultat dans l’app.', 'body': 'MQTT Panel est un serveur MCP : Claude et ChatGPT peuvent créer les connexions et les certificats, configurer le broker intégré, construire des courbes et extraire des données, toujours par l’app ouverte. Chaque changement apparaît dans la fenêtre et s’inscrit dans le journal de l’assistant. Vous acceptez une fois que l’assistant puisse tout modifier dans MQTT Panel. Les secrets restent dans l’app : aucun outil ne renvoie de mot de passe ni de clé.', 'bullets': ['Se connecter à un broker : profil, TLS, AC et certificat client, test, connexion, et une explication claire en cas d’échec.', 'Préparer le broker intégré : points d’écoute, utilisateurs et certificats clients pour vos appareils.', 'Trouver des topics, lire valeurs et historique, ajouter des courbes et exporter les données dans le fichier de votre choix.', 'Mots de passe et clés peuvent se saisir dans MQTT Panel même : ils ne passent jamais par la conversation.', 'Un bouton dans Réglages, Assistant ajoute MQTT Panel à Claude ou à l’app de bureau ChatGPT.'], 'works': 'Fonctionne avec', 'chat_label': 'Une conversation avec un assistant IA qui configure MQTT Panel', 'chat_head': 'Votre assistant IA', 'you': 'Vous', 'bot': 'Assistant', 'prompt': 'Connectez MQTT Panel à broker.plant.example en TLS avec mon certificat client, puis tracez la température de la salle 204.', 'reply': ['Connexion créée, certificat importé, MQTT Panel est connecté.', 'Courbe ajoutée pour le topic building/f2/r204/temperature.', 'Tout est ouvert dans MQTT Panel.']},
+        ai={'title': 'Fonctionne avec votre assistant IA (bêta)', 'beta': 'Bêta : les outils et leurs textes peuvent encore changer ; dites-nous ce dont vous avez besoin.', 'pitch': 'Demandez avec vos mots, et voyez le résultat dans l’app.', 'body': 'MQTT Panel est un serveur MCP : Claude et ChatGPT peuvent créer les connexions et les certificats, configurer le broker intégré, construire des courbes et extraire des données, toujours par l’app ouverte. Chaque changement apparaît dans la fenêtre et s’inscrit dans le journal de l’assistant. Vous acceptez une fois que l’assistant puisse tout modifier dans MQTT Panel. Les secrets restent dans l’app : aucun outil ne renvoie de mot de passe ni de clé.', 'bullets': ['Se connecter à un broker : profil, TLS, AC et certificat client, test, connexion, et une explication claire en cas d’échec.', 'Préparer le broker intégré : points d’écoute, utilisateurs et certificats clients pour vos appareils.', 'Trouver des topics, lire valeurs et historique, ajouter des courbes et exporter les données dans le fichier de votre choix.', 'Mots de passe et clés peuvent se saisir dans MQTT Panel même : ils ne passent jamais par la conversation.', 'Un bouton dans Réglages, Assistant ajoute MQTT Panel à Claude ou à l’app de bureau ChatGPT.'], 'works': 'Fonctionne avec', 'chat_label': 'Une conversation avec un assistant IA qui configure MQTT Panel', 'chat_head': 'Votre assistant IA', 'you': 'Vous', 'bot': 'Assistant', 'prompt': 'Connectez MQTT Panel à broker.plant.example en TLS avec mon certificat client, puis tracez la température de la salle 204.', 'reply': ['Connexion créée, certificat importé, MQTT Panel est connecté.', 'Courbe ajoutée pour le topic building/f2/r204/temperature.', 'Tout est ouvert dans MQTT Panel.']},
         cli_comment=["# suivre un bâtiment avec un profil enregistré", "# envoyer un message", "# lancer le broker sur cet ordinateur"],
         privacy_h="Vos données restent les vôtres",
         privacy_p="MQTT Panel ne collecte rien. L’app ne parle qu’aux brokers que vous configurez.",
@@ -164,7 +165,7 @@ T = {
         privacy_sections=[
             ("L’app", [
                 "MQTT Panel n’a ni télémétrie, ni rapport de plantage, ni mesure d’audience, ni compte.",
-                "L’app ne se connecte qu’aux brokers que vous configurez et, si vous l’activez, au flux de mises à jour qui annonce les nouvelles versions.",
+                "L’app ne se connecte qu’aux brokers que vous configurez. Les mises à jour arrivent par le Microsoft Store ou le Mac App Store.",
                 "Profils, modèles, vues et historique des messages restent sur votre ordinateur.",
             ]),
             ("Secrets", [
@@ -184,8 +185,11 @@ T = {
         legal_notice_h="Mentions légales",
         operator="Coordonnées de l’exploitant : à compléter par le propriétaire.",
         licence_h="Licence de MQTT Panel",
-        licence_p="MQTT Panel est un logiciel open source, sous licence Apache, version 2.0.",
-        licence_link="Lire le texte de la licence (en anglais)",
+        licence_p=["MQTT Panel est un logiciel à code source disponible (« source available »), sous licence Apache 2.0 assortie de la Commons Clause.",
+                   "Vous pouvez l’utiliser gratuitement, chez vous ou au travail, y compris pour vos propres activités commerciales, le modifier et le compiler vous-même. Vous ne pouvez pas vendre MQTT Panel, ni vendre un produit ou un service dont la valeur repose pour l’essentiel sur lui.",
+                   "Ceci n’est qu’un résumé : seul le texte de la licence ci-dessous, en anglais, fait foi."],
+        licence_cc="Condition de licence (Commons Clause, en anglais)", licence_apache="Apache License, version 2.0 (en anglais)",
+        licence_link="Texte de la licence en fichier texte",
         third_h="Logiciels tiers",
         third_p="MQTT Panel inclut les composants open source suivants, chacun sous sa propre licence :",
         third_rust="Moteur et ligne de commande (crates Rust)",
@@ -193,13 +197,13 @@ T = {
         not_found="Page introuvable",
     ),
     "de": dict(
-        title="MQTT Panel: MQTT-Client und eingebauter Broker für Windows, macOS und Linux",
+        title="MQTT Panel: MQTT-Client und eingebauter Broker für Windows und macOS",
         meta="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker.",
         nav_features="Funktionen", nav_privacy="Datenschutz", lang_label="Sprache",
         lead="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker. Auch dein KI-Assistent kann die App steuern: Claude und ChatGPT verbinden sich über MCP und richten Broker, Zertifikate und Kurven für dich ein.",
         dl=dict(button="Herunterladen", h="Herunterladen", soon="bald verfügbar", mas="Laden im Mac App Store",
-                ms="Bei Microsoft herunterladen", gh="Auf GitHub ansehen",
-                files=["Windows-Installationsprogramm (.msi)", "macOS-Image (.dmg)", "Linux-Pakete (.deb, .rpm, AppImage)"]),
+                ms="Bei Microsoft herunterladen", stores="MQTT Panel wird über den Microsoft Store und den Mac App Store installiert und aktualisiert.",
+                gh="Selbst bauen", gh_note="Quellcode für Entwickler; dort werden keine Installationsprogramme veröffentlicht."),
         demo_h="Genauer hingeschaut",
         demo_p="Bildschirme aus der App, mit Demodaten.",
         looks=[
@@ -218,7 +222,7 @@ T = {
             ('security', 'shot-security', 'Sicherheit', 'Ein Verbindungsprofil mit seinen Sicherheitseinstellungen: CA, Client-Zertifikat und Schlüssel.', 'Sauberes TLS, und nichts verlässt deinen Computer.', 'Eigene CA, Client-Zertifikate und Zertifikat-Pinning. Passwörter und Schlüssel werden verschlüsselt gespeichert. Keine Telemetrie, kein Konto.'),
             ('cli', '', 'Kommandozeile', '', 'Dieselben Profile und Geheimnisse im Terminal.', 'mqttpanel sub, pub und broker nutzen dieselben Profile wie die App, mit Ausgabe als Text, JSON oder NDJSON.'),
         ],
-        ai={'title': 'Funktioniert mit deinem KI-Assistenten', 'pitch': 'Sag in eigenen Worten, was du brauchst, und sieh zu, wie es in der App passiert.', 'body': 'MQTT Panel ist ein MCP-Server: Claude und ChatGPT können Verbindungen und Zertifikate einrichten, den eingebauten Broker konfigurieren, Kurven anlegen und Daten exportieren, immer über die laufende App. Jede Änderung siehst du im Fenster, und sie steht im Assistenten-Protokoll. Du bestätigst einmal, dass der Assistent in MQTT Panel alles ändern darf. Geheimnisse bleiben in der App: Kein Werkzeug gibt je ein Passwort oder einen Schlüssel zurück.', 'bullets': ['Mit einem Broker verbinden: Profil, TLS, CA und Client-Zertifikat, testen, verbinden und klare Antworten, wenn etwas nicht klappt.', 'Den eingebauten Broker einrichten: Listener, Benutzer und Client-Zertifikate für deine Geräte.', 'Topics finden, Werte und Verlauf lesen, Kurven anlegen und Daten in eine Datei deiner Wahl exportieren.', 'Passwörter und Schlüssel kannst du direkt in MQTT Panel eingeben, sie gehen dann nie durch den Chat.', 'Ein Klick in Einstellungen, Assistent fügt MQTT Panel zu Claude oder zur ChatGPT-Desktop-App hinzu.'], 'works': 'Funktioniert mit', 'chat_label': 'Ein Chat mit einem KI-Assistenten, der MQTT Panel einrichtet', 'chat_head': 'Dein KI-Assistent', 'you': 'Du', 'bot': 'Assistent', 'prompt': 'Verbinde MQTT Panel per TLS und mit meinem Client-Zertifikat mit broker.plant.example und zeig mir dann die Temperatur von Raum 204 als Kurve.', 'reply': ['Verbindung angelegt, Zertifikat importiert, verbunden.', 'Topic-Kurve für building/f2/r204/temperature hinzugefügt.', 'Sie ist in MQTT Panel geöffnet.']},
+        ai={'title': 'Funktioniert mit deinem KI-Assistenten (Beta)', 'beta': 'Beta: Die Werkzeuge und ihre Texte können sich noch ändern. Sag uns, was du brauchst.', 'pitch': 'Sag in eigenen Worten, was du brauchst, und sieh zu, wie es in der App passiert.', 'body': 'MQTT Panel ist ein MCP-Server: Claude und ChatGPT können Verbindungen und Zertifikate einrichten, den eingebauten Broker konfigurieren, Kurven anlegen und Daten exportieren, immer über die laufende App. Jede Änderung siehst du im Fenster, und sie steht im Assistenten-Protokoll. Du bestätigst einmal, dass der Assistent in MQTT Panel alles ändern darf. Geheimnisse bleiben in der App: Kein Werkzeug gibt je ein Passwort oder einen Schlüssel zurück.', 'bullets': ['Mit einem Broker verbinden: Profil, TLS, CA und Client-Zertifikat, testen, verbinden und klare Antworten, wenn etwas nicht klappt.', 'Den eingebauten Broker einrichten: Listener, Benutzer und Client-Zertifikate für deine Geräte.', 'Topics finden, Werte und Verlauf lesen, Kurven anlegen und Daten in eine Datei deiner Wahl exportieren.', 'Passwörter und Schlüssel kannst du direkt in MQTT Panel eingeben, sie gehen dann nie durch den Chat.', 'Ein Klick in Einstellungen, Assistent fügt MQTT Panel zu Claude oder zur ChatGPT-Desktop-App hinzu.'], 'works': 'Funktioniert mit', 'chat_label': 'Ein Chat mit einem KI-Assistenten, der MQTT Panel einrichtet', 'chat_head': 'Dein KI-Assistent', 'you': 'Du', 'bot': 'Assistent', 'prompt': 'Verbinde MQTT Panel per TLS und mit meinem Client-Zertifikat mit broker.plant.example und zeig mir dann die Temperatur von Raum 204 als Kurve.', 'reply': ['Verbindung angelegt, Zertifikat importiert, verbunden.', 'Topic-Kurve für building/f2/r204/temperature hinzugefügt.', 'Sie ist in MQTT Panel geöffnet.']},
         cli_comment=["# ein Gebäude beobachten, mit gespeichertem Profil", "# eine Nachricht senden", "# den Broker auf diesem Computer starten"],
         privacy_h="Deine Daten bleiben deine",
         privacy_p="MQTT Panel sammelt nichts. Die App spricht nur mit den Brokern, die du einrichtest.",
@@ -230,7 +234,7 @@ T = {
         privacy_sections=[
             ("Die App", [
                 "MQTT Panel hat keine Telemetrie, keine Absturzberichte, keine Nutzungsstatistik und kein Konto.",
-                "Die App verbindet sich nur mit den Brokern, die du einrichtest, und, wenn du es einschaltest, mit dem Update-Feed, der neue Versionen meldet.",
+                "Die App verbindet sich nur mit den Brokern, die du einrichtest. Updates kommen über den Microsoft Store oder den Mac App Store.",
                 "Profile, Vorlagen, Ansichten und der Nachrichtenverlauf bleiben auf deinem Computer.",
             ]),
             ("Geheimnisse", [
@@ -250,8 +254,11 @@ T = {
         legal_notice_h="Impressum",
         operator="Angaben zum Betreiber: vom Inhaber zu ergänzen.",
         licence_h="Lizenz von MQTT Panel",
-        licence_p="MQTT Panel ist Open-Source-Software unter der Apache License, Version 2.0.",
-        licence_link="Lizenztext lesen (Englisch)",
+        licence_p=["MQTT Panel ist Software mit offengelegtem Quellcode (Source Available), lizenziert unter der Apache License 2.0 mit der Commons Clause.",
+                   "Du darfst es kostenlos nutzen, zu Hause oder bei der Arbeit, auch für deine eigenen geschäftlichen Zwecke, es ändern und selbst bauen. Du darfst MQTT Panel nicht verkaufen und auch kein Produkt und keine Dienstleistung, deren Wert im Wesentlichen auf MQTT Panel beruht.",
+                   "Dies ist nur eine Zusammenfassung: Maßgeblich ist der Lizenztext unten (auf Englisch)."],
+        licence_cc="Lizenzbedingung (Commons Clause, Englisch)", licence_apache="Apache License, Version 2.0 (Englisch)",
+        licence_link="Lizenztext als Textdatei",
         third_h="Software von Dritten",
         third_p="MQTT Panel enthält die folgenden Open-Source-Komponenten, jeweils unter ihrer eigenen Lizenz:",
         third_rust="Engine und Kommandozeile (Rust-Crates)",
@@ -336,12 +343,13 @@ BADGES = ROOT / "assets" / "badges"
 MAS_BADGE = "mac-app-store.svg"
 
 
-def dl_link(t, url, inner, cls):
-    """A download link; without a URL it goes nowhere and says "coming soon" under it."""
+def dl_link(t, url, inner, cls, note=""):
+    """A download link; without a URL it goes nowhere and says "coming soon" under it. An optional caption follows."""
+    note = f'<small class="dlcap">{e(note)}</small>' if note else ""
     if url:
-        return f'<li class="dlitem"><a class="{cls}" href="{e(url)}">{inner}</a></li>'
+        return f'<li class="dlitem"><a class="{cls}" href="{e(url)}">{inner}</a>{note}</li>'
     return (f'<li class="dlitem"><a class="{cls}" href="#" aria-disabled="true">{inner}</a>'
-            f'<small class="soon">{e(t["dl"]["soon"])}</small></li>')
+            f'<small class="soon">{e(t["dl"]["soon"])}</small>{note}</li>')
 
 
 GH_MARK = '<img src="/assets/badges/github-mark-white.svg" alt="" width="25" height="24">'
@@ -349,7 +357,8 @@ GH_MARK = '<img src="/assets/badges/github-mark-white.svg" alt="" width="25" hei
 
 def download_section(t):
     """The Download band at the bottom of the home page: the official store badges (black, never recoloured), the
-    GitHub button, then plain links to the installers."""
+    sentence that the stores install and update the app, then the GitHub button for people who build it themselves.
+    No installers are offered (owner, 25 Oct 2026)."""
     d = t["dl"]
     if (BADGES / MAS_BADGE).exists():
         mas = f'<img src="/assets/badges/{MAS_BADGE}" alt="{e(d["mas"])}" height="48">'
@@ -359,13 +368,13 @@ def download_section(t):
         mas_cls = "badge plain"
     ms = f'<img src="/assets/badges/microsoft-store.svg" alt="{e(d["ms"])}" width="175" height="48">'
     gh = f'{GH_MARK}<span>{e(d["gh"])}</span>'
-    badges = (dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge")
-              + dl_link(t, GITHUB_URL, gh, "badge plain gh"))
-    files = "".join(dl_link(t, u, e(label), "file") for label, u in zip(d["files"], (WINDOWS_MSI_URL, MACOS_DMG_URL, LINUX_PACKAGES_URL)))
+    badges = dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge")
+    build = dl_link(t, GITHUB_URL, gh, "badge plain gh", d["gh_note"])
     return f"""<section class="dlband" id="download" aria-labelledby="download-h">
   <h2 id="download-h">{e(d["h"])}</h2>
   <ul class="badges">{badges}</ul>
-  <ul class="files">{files}</ul>
+  <p class="dlnote">{e(d["stores"])}</p>
+  <ul class="build">{build}</ul>
 </section>"""
 
 
@@ -514,7 +523,7 @@ def assistant(t):
             f'<div class="msg bot"><span class="who">{e(a["bot"])}</span><div class="bubble">{reply}</div></div>'
             f'</div></figure>')
     return f"""<article class="card wide ai" id="assistant">
-  <div class="ctext"><p class="eyebrow">{e(a["title"])}</p><h3>{e(a["pitch"])}</h3><p class="body">{e(a["body"])}</p>
+  <div class="ctext"><p class="eyebrow">{e(a["title"])}</p><h3>{e(a["pitch"])}</h3><p class="body">{e(a["body"])}</p><p class="body beta">{e(a["beta"])}</p>
   <ul class="ticks">{bullets}</ul>{works}</div>
   <div class="cvisual">{chat}</div>
 </article>"""
@@ -576,9 +585,19 @@ def licence_list(items):
     return "<dl class=\"lic\">" + "".join(out) + "</dl>"
 
 
+# The licence of MQTT Panel (owner, 25 Oct 2026): the Commons Clause header as published at https://commonsclause.com/
+# with its three fields filled in, then the Apache License 2.0 as published at
+# https://www.apache.org/licenses/LICENSE-2.0.txt. Both unaltered otherwise; LICENSE.txt is the two joined.
+LIC_CC = (ROOT / "licence" / "commons-clause.txt").read_text(encoding="utf-8").strip()
+LIC_APACHE = (ROOT / "licence" / "apache-2.0.txt").read_text(encoding="utf-8").strip("\n")
+
+
 def legal(t, lang, third):
     body = f"""<section><h2>{e(t["legal_notice_h"])}</h2><p class="placeholder">{e(t["operator"])}</p></section>
-<section><h2>{e(t["licence_h"])}</h2><p>{e(t["licence_p"])}</p><p><a class="more" href="/LICENSE.txt">{e(t["licence_link"])} →</a></p></section>
+<section id="licence"><h2>{e(t["licence_h"])}</h2>{"".join(f"<p>{e(x)}</p>" for x in t["licence_p"])}
+<h3>{e(t["licence_cc"])}</h3><pre class="lictext" lang="en">{e(LIC_CC)}</pre>
+<h3>{e(t["licence_apache"])}</h3><pre class="lictext" lang="en">{e(LIC_APACHE)}</pre>
+<p><a class="more" href="/LICENSE.txt">{e(t["licence_link"])} →</a></p></section>
 <section id="licences"><h2>{e(t["third_h"])}</h2><p>{e(t["third_p"])}</p>
 <h3>{e(t["third_rust"])}</h3>{licence_list(third["rust"])}
 <h3>{e(t["third_npm"])}</h3>{licence_list(third["npm"])}</section>"""
@@ -662,7 +681,7 @@ def build():
     if not (app / "index.html").exists():
         sys.exit("packages/ui/dist-site missing: run npm run build:site -w @mqttpanel/ui")
     shutil.copytree(app, OUT / "app")
-    shutil.copy(REPO / "LICENSE", OUT / "LICENSE.txt")
+    (OUT / "LICENSE.txt").write_text(LIC_CC + "\n\n" + "-" * 75 + "\n\n\n" + LIC_APACHE + "\n", encoding="utf-8")
     for lang in LANGS:
         t = T[lang]
         d = OUT / PREFIX[lang].strip("/")

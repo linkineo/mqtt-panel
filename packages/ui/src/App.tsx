@@ -77,6 +77,7 @@ function Rail() {
         className={aiOn ? 'on' : undefined}
         aria-current={aiOn ? 'page' : undefined}
         aria-label={t('rail.aiLabel')}
+        title={t('rail.aiLabel')}
         data-testid="rail-ai"
         onClick={() => openSettings('assistant')}
       >

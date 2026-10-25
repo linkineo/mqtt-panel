@@ -12,8 +12,8 @@ Target users: automation and IoT engineers commissioning devices (building autom
 
 | Deliverable | Form | Capabilities |
 |---|---|---|
-| Desktop app | Windows (MSI, winget), macOS (DMG, Homebrew cask), Linux (AppImage, deb, rpm) | Everything: TCP, TLS, mTLS, WebSocket, keychain, embedded broker, export, CLI companion |
-| CLI | Single binary `mqttpanel`, bundled with the desktop app and downloadable alone | `sub`, `pub`, `broker`, `profiles`, using the same saved connection profiles |
+| Desktop app | Microsoft Store (Windows, MSIX) and Mac App Store (macOS); Linux from source only (25 Oct 2026) | Everything: TCP, TLS, mTLS, WebSocket, keychain, embedded broker, export, CLI companion |
+| CLI | Single binary `mqttpanel`, bundled with the desktop app; built from source when wanted alone | `sub`, `pub`, `broker`, `profiles`, using the same saved connection profiles |
 | Web app | Deferred | Not in v1.0. The engine stays I/O-free so a browser build remains possible later (section 9). |
 
 ### Non-goals for v1.0
@@ -37,7 +37,7 @@ With the web version deferred, the question is "what gives the best desktop expe
 | Fit with the Rust engine and broker | 5 (same process) | 2 (C ABI, or MQTTnet instead) | 2 (cxx-qt or C ABI) | 3 (flutter_rust_bridge) | 5 |
 | Build and contributor cost, packaging | 5 | 4 | 2 | 3 | 3 |
 | Binary size and startup | 5 (about 10 MB) | 3 (50 to 70 MB) | 3 | 3 | 5 |
-| Licence fit with an Apache 2.0 application | 5 | 5 | 3 (LGPL core fine; Qt Charts and QCustomPlot are GPL) | 5 | 5 |
+| Licence fit with an Apache 2.0 based application | 5 | 5 | 3 (LGPL core fine; Qt Charts and QCustomPlot are GPL) | 5 | 5 |
 | **Total** | **40** | **35** | **33** | **34** | **33** |
 
 ### 1.1 Decision (adopted 12 Oct 2026)
@@ -65,7 +65,7 @@ One rule: the UI never touches sockets, parsing or storage. It talks to an **eng
 UI layer (React in Tauri 2): views, state, i18n, charts; talks only to EngineClient
         |  EngineClient: commands in, batched events out (<= 30 Hz), view slices on request
 Desktop adapter (Tauri 2 IPC: commands + channels). Engine runs in the Rust process.
-        Keychain, file dialogs, broker control, auto-update live here.
+        Keychain, file dialogs, broker control live here (no auto-update: the stores update the app).
 Other adapters (not built in v1.0): C ABI for Avalonia or Qt; WASM in a Worker for a later web build.
         |
 crates/engine (Rust, pure): topic store (radix tree + flat index), per-topic ring buffers,
@@ -84,7 +84,7 @@ crates/profiles Profile storage, OS keychain (keyring), import and export withou
 ```
 mqtt-panel/
   apps/
-    desktop/          Tauri 2 app (Rust shell, menus, bundling, updater)
+    desktop/          Tauri 2 app (Rust shell, menus, bundling, store packaging)
   packages/
     ui/               React components, routes, state, i18n catalogs (en, fr, de)
     engine-client/    EngineClient interface + the Tauri adapter (+ a mock for UI tests)
@@ -131,10 +131,10 @@ mqtt-panel/
   - **Unsigned builds** (dev, CI, an unsigned beta; on macOS detected at the first secret use by the absence of a Developer ID team identifier in the code signature, i.e. ad-hoc or none) keep the key in an owner-only file, `master.key` (mode 0600, folder 0700) in the app data folder, so no dialog ever appears in a test cycle. The ⓘ next to the password and key fields says where the key lives.
   - **Moving the key** (first start after this change, or the first signed start later): the key is read once from the old place, written to the new one and the old item deleted; nobody is asked twice. On an unsigned build with an existing login-keychain item this is the last dialog that build family ever shows; a refused keychain keeps the `keychain.refused` behaviour and the move is tried again at the next start. The CLI follows the same rule on the same data folder. `MQTTPANEL_SECRETS=memory` is unchanged; `MQTTPANEL_KEYSTORE=file|keychain` forces the store for tests.
   - **Security trade-off, stated plainly:** the key file is readable by any program running as the user, the same level as an ssh key without a passphrase, a kubeconfig or the AWS CLI credentials; the OS stores restrict access to the app. That is why the release keeps the OS store and the file is for unsigned builds only.
-- **Shell hardening (Tauri):** strict Content Security Policy, capabilities limited to the commands the UI needs, no shell or arbitrary file access from the WebView, updater signed with a mqtt-panel.com key.
+- **Shell hardening (Tauri):** strict Content Security Policy, capabilities limited to the commands the UI needs, no shell or arbitrary file access from the WebView, no updater (the stores update the app).
 - **Embedded broker:** anonymous access off by default, TLS listener generated with a local CA on first start, client certificates optionally required. The broker binds to all interfaces by default (one broker-wide choice since change set 4, "This computer only / Whole network") so devices on the network can connect without extra steps; the Broker screen shows a clear warning and an explainer, and every listener can be switched to localhost in one click. The plain TCP listener carries an extra warning when reachable from the network.
 - **Assistant interface (MCP, `docs/MCP.md`):** the running app owns a same-user local socket (`mcp.sock`, mode 0600, in the data folder; a named pipe on Windows), no network port; hosts reach it through the stdio shim `mqttpanel mcp` (or the app executable with `mcp`). Writing tools work only after the one-time acknowledgement was accepted; secrets are asked in the app by default (`ask_in_app`), a secret given as an argument is warned about and logged, and no tool result ever returns a password, a private key or a passphrase.
-- **Privacy:** no telemetry, no crash reporting, no network calls other than to brokers the user configured and the GitHub release feed for updates (which the user can turn off).
+- **Privacy:** no telemetry, no crash reporting, no network calls except to the brokers the user configured. There is no update check; the stores update the app (25 Oct 2026).
 - **Supply chain:** `cargo deny` and `npm audit` in CI, licence allow-list (MIT, Apache 2.0, BSD, ISC, MPL 2.0), lockfiles committed, release builds reproducible from CI only.
 
 Needs human review: export compliance for shipping TLS code in signed builds (owner, before the first release).
@@ -284,7 +284,7 @@ Facts verified on 12 Oct 2026 from the projects' own pages are marked Verified. 
 | Code and payload editor | CodeMirror 6 | MIT | Standard |
 | i18n | Lingui or i18next with ICU messages | MIT | Pick one |
 | State | Zustand | MIT | Standard |
-| Windows signing | Azure Trusted Signing | n/a | Verify: eligibility and price; cheapest option that stays hassle-free for end users. |
+| Windows signing | Microsoft Store (signs the MSIX) | n/a | Decided 25 Oct 2026: no code-signing certificate; a self-signed certificate only for local MSIX tests (`docs/WINDOWS_BUILD.md`). |
 
 ## 11. Quality and release
 
@@ -295,7 +295,12 @@ Facts verified on 12 Oct 2026 from the projects' own pages are marked Verified. 
 - **Performance gate:** a benchmark fixture with 100k topics and a 5k msg/s replay; the UI must keep frame time under 16 ms on the CI runner's baseline.
 - **Native-feel review:** the section 1.2 checklist walked through on each OS before every release.
 - **Secrets gate (release, change set 10):** the signed macOS build stores the master key in the Data Protection keychain and shows no keychain dialog at install, first start, first secret use, after an update or from the CLI, checked on a fresh user account; Windows uses DPAPI and Linux Secret Service with the file fallback, checked the same way. A build that shows a keychain dialog to an end user does not ship (TESTPLAN V-12).
-- **Release:** GitHub Actions matrix, tauri-action. **Beta builds are not signed** on Windows or macOS; signing is the final step before a release. Releases: macOS signed and notarized with the mqtt-panel.com Developer ID; Windows MSI signed in CI with the key in the CI secret store, never in the repo, using the cheapest option that stays hassle-free for end users (candidate: Azure Trusted Signing; reputation builds over time, so the download page keeps an optional "how to run it" note for early releases); Linux AppImage, deb, rpm. Auto-update through the shell's updater reading a signed manifest on GitHub Releases.
+- **Release (owner, 25 Oct 2026):** two stores and the source, nothing else.
+  - **Mac App Store:** the sandboxed variant (`tauri.mas.conf.json`, `Entitlements.mas.plist`), built, signed with the mqtt-panel.com Apple distribution identity and uploaded to App Store Connect by `scripts/release-mac-testflight.sh`; TestFlight first, then review.
+  - **Microsoft Store:** an MSIX package built on a Windows machine from the Tauri release executable and `apps/desktop/windows/AppxManifest.xml` by `scripts/build-msix.ps1`, uploaded unsigned to Partner Center; the Store signs it, so no code-signing certificate is bought. Steps in `docs/WINDOWS_BUILD.md`.
+  - **GitHub:** the repository is the source for people who build MQTT Panel themselves. No downloadable installers (no DMG, MSI, NSIS, AppImage, deb or rpm, no Homebrew cask or winget manifest), no auto-updater, no Linux packages; Linux users build from source. A local `.dmg` or `.app` from `cargo tauri build` stays a developer build for the owner's own testing.
+  - **Signing:** beta builds are not signed; signing is the final step before a store upload. Signing keys stay in the OS keychain or the CI secret store, never in the repository.
+- **Licence:** Apache License 2.0 with the Commons Clause License Condition v1.0 (owner, 25 Oct 2026), for every version and commit: free to use, copy, modify and build, including in companies; not for resale. Source-available, not OSI open source. Manifests point to `LICENSE` (`license-file` in Cargo, `SEE LICENSE IN` in npm). Dependencies keep their own licences (allow-list above).
 - **Website:** https://mqtt-panel.com, one Cloudflare Worker, EN/FR/DE, no cookies or third-party resources (owner, 18 Oct 2026; built in `website/`).
 
 ## 12. Implementation phases
@@ -304,4 +309,4 @@ Facts verified on 12 Oct 2026 from the projects' own pages are marked Verified. 
 2. **Core desktop:** profiles + keychain, connection form with TLS, Explorer tree and table, inspection with JSON, diff, properties, and the decoders (Sparkplug B, CBOR, MessagePack, Protobuf with user .proto files).
 3. **Publish and history:** composer, templates, sent log, delete retained, series and chart screen, export.
 4. **Broker:** embedded broker screen, Add listener flow with presets, client certificates, authentication, clients, log. CLI.
-5. **Polish and release:** FR and DE catalogs with native review, accessibility pass, native-feel review, installers, auto-update, website.
+5. **Polish and release:** FR and DE catalogs with native review, accessibility pass, native-feel review, Mac App Store and Microsoft Store packages (no installers, no auto-update, 25 Oct 2026), website.

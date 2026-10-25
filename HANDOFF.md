@@ -1,6 +1,7 @@
 # Handoff
 
-How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules.
+How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules. Public repository:
+https://github.com/linkineo/mqtt-panel (`git clone https://github.com/linkineo/mqtt-panel.git`).
 
 ## Status (20 Oct 2026)
 - MCP interface, phases 3 and 4 are implemented: Broker (19 tools, including `connect_builtin_broker`), Data (7, bounded) and Charts (10) groups in `apps/desktop/src-tauri/src/mcp/tools/`, resources `mqttpanel://broker`, `mqttpanel://charts`, `mqttpanel://topics/{connection}`, prompts "Set up the built-in broker for my devices" and "Chart this value". The window's dashboard charts are mirrored on the app side (`src/charts.rs`, command `sync_charts`, event `charts`); new in-app requests `brokerPassword`, `saveFile`, `folder`, `issueCert`, `chartPng`; commands `assistant_pick_save`, `assistant_pick_folder`. Website text "Works with your assistant" (not deployed). Tests: Rust 257, Vitest 177, Playwright 338, all green. Readings under "20 Oct 2026, MCP interface (phases 3 and 4)" in `docs/DECISIONS.md`; full tool table in `docs/MCP.md` section 10. Next: native FR/DE review of the assistant texts; a session from Claude Desktop and the ChatGPT desktop app.
@@ -17,7 +18,7 @@ How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules
 - Change set 2 (owner feedback on the second build, 13 Oct 2026) is implemented: connected cards in the accent colour, card menu and visible Delete, connection bar under the title bar, the "Local broker" profile follows every broker change, broker-wide client certificate setting, live clients and collapsed log, Send top right, bigger buttons, macOS title alignment, secrets in `secrets.enc` with one keychain master key. Manual checks V-08 (title bar) and V-09 (keychain prompts) are the owner's. See `docs/PROGRESS.md` "Change set 2" and the open points in `docs/DECISIONS.md`.
 - Change set 1 (owner feedback, 13 Oct 2026) is implemented: "New connection" menu, "Connect to this app's broker" (02b), restart prompt (12c; replaced by live apply in change set 7), shared users only (no per-listener login anywhere), eye and copy on app-owned secrets, "Test". See `docs/PROGRESS.md` "Change set 1"; readings awaiting the owner are under "Open" in `docs/DECISIONS.md`. Test lab scripts for manual testing live in `tools/testlab/` (README there); B-17 is the owner's manual run.
 - Tests: Rust 200 passed (4 opt-in ignored), Vitest 65, Playwright 221 (V-02 overflow check in EN, FR, DE on 36 states; screenshots light and dark; 41 end-to-end flows with the mock engine). All green.
-- Next: phase 5 (native FR and DE review, accessibility pass, native-feel walk of the real window on all three OSes, visual regression baselines in CI, installers, auto-update, website).
+- Next: phase 5 (native FR and DE review, accessibility pass, native-feel walk of the real window on all three OSes, visual regression baselines in CI, Mac App Store and Microsoft Store packages, website). Distribution (25 Oct 2026): the two stores only, no installers, no updater; Windows packages are built on a Windows machine per `docs/WINDOWS_BUILD.md`.
 - Specification and mockups (12 Oct 2026, change sets 1 to 4 on 13 Oct 2026, change sets 5 to 7 on 14 Oct 2026, change sets 8 and 9 on 15 Oct 2026, change set 10 on 18 Oct 2026): `docs/SPEC.md`, `docs/FEATURES.md`, `docs/DECISIONS.md`, `docs/mockups/mqtt-panel-mockups.html` (27 screens and states). Implementation decisions and the small mockup deviations awaiting the owner are in `docs/DECISIONS.md`.
 
 ## Ground rules for the implementer
@@ -26,11 +27,12 @@ How to pick up MQTT Panel. Read `CLAUDE.md` first; it carries the standing rules
 - Native feel is a requirement (feature N1, `docs/SPEC.md` 1.2). Walk the checklist on all three OSes in the spike.
 - UI rules from the mockup review: plain words in every user-facing label (for example "New broker…" / "Built-in broker", "Server name (SNI)", "Protocol tag (ALPN)"); form rows never wrap, helper text stays short and the full explanation lives in the ⓘ bubble; every file field is a native picker with drag-and-drop; every security option has an info bubble in EN, FR and DE.
 - Keep the forbidden-words guard green and never commit secrets.
+- Project licence: Apache 2.0 with the Commons Clause (`LICENSE`). MQTT Panel is source-available; never call it "open source".
 
 ## Architecture map
 ```
 UI (React + TypeScript, in Tauri 2)  <-- EngineClient (commands in, batched events out, view slices)
-Desktop adapter (Tauri IPC, keychain, dialogs, broker control, updater)
+Desktop adapter (Tauri IPC, keychain, dialogs, broker control)
 crates/engine   pure state machine: topic store, ring buffers, series with casting, decoders, diff, search, views, export
 crates/client   MQTT 3.1.1 and 5 over TCP, TLS (rustls), WebSocket (candidate: rumqttc)
 crates/broker   embedded broker (candidate: rmqtt library mode; fallback rumqttd), cert generation (rcgen), presets
@@ -43,7 +45,7 @@ crates/profiles profile storage, OS keychain (keyring), import and export withou
 2. Core desktop: profiles and keychain, connection form with TLS, Explorer tree and table, inspection with JSON, diff, properties, decoders.
 3. Publish and history: composer, templates, sent log, delete retained, series and charts, export.
 4. Broker: embedded broker screen, Add listener flow with presets, client certificates, authentication, clients, log. CLI.
-5. Polish and release: FR and DE catalogs with native review, accessibility, native-feel review, installers, auto-update, website.
+5. Polish and release: FR and DE catalogs with native review, accessibility, native-feel review, Mac App Store and Microsoft Store packages, website.
 
 ## Commands
 Step by step in `docs/RUNNING.md`.
@@ -53,7 +55,7 @@ npm install && npm test                     # UI component tests (Vitest)
 npm run e2e                                 # Playwright flows and the V-02 overflow check (mock engine)
 npm run dev                                 # UI in a browser with the mock engine (http://localhost:1420)
 cd apps/desktop/src-tauri && cargo tauri dev     # run the desktop app (or: npm run tauri dev)
-cd apps/desktop/src-tauri && cargo tauri build   # macOS .app and .dmg under target/release/bundle
+cd apps/desktop/src-tauri && cargo tauri build   # developer build: macOS .app and .dmg under target/release/bundle (not distributed)
 cargo deny check                            # licences, advisories, sources
 scripts/check-forbidden-words.sh            # must pass before every commit
 "<app executable>" mcp                      # the MCP stdio shim (or: mqttpanel mcp); see docs/RUNNING.md section 10
@@ -80,6 +82,6 @@ New clips and screenshots: `npm run dev`, then `node e2e/website-media.mjs` in `
 
 ## Open items
 - Verify library candidates at kick-off (`docs/SPEC.md` section 10): rumqttc TLS and WebSocket flags, rmqtt library API and client-cert hooks, prost-reflect and protox, keyring on Linux without Secret Service, uPlot theming.
-- Windows signing: cheapest hassle-free option for end users; candidate Azure Trusted Signing (verify eligibility and price). Betas are unsigned on Windows and macOS; signing and notarization are the last step before a release.
+- Windows signing: the Microsoft Store signs the MSIX (25 Oct 2026); no certificate to buy. Developer builds are unsigned on Windows and macOS; signing is the last step before a store upload.
 - Export compliance review before the first release (owner).
 - Website at https://mqtt-panel.com (static, EN/FR/DE, no cookies or trackers): built 18 Oct 2026 in `website/`; see "Website" below.

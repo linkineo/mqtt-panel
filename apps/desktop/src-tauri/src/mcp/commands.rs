@@ -46,17 +46,21 @@ pub struct AssistantStatus {
     pub executable: String,
     pub snippet: String,
     pub hosts: Vec<HostFile>,
+    /// App Sandbox (Mac App Store variant): the buttons cannot write the hosts' files; the snippet is the way.
+    pub sandboxed: bool,
 }
 
 pub fn status_of(state: &AppState) -> AssistantStatus {
     let exe = hosts::executable();
     let session = state.assistant.session();
+    let homes = Homes::detect();
     AssistantStatus {
         acknowledged: lock(&state.settings).assistant_acknowledged.clone(),
         connected: session.is_some(),
         host: session.map(|s| s.host).filter(|h| !h.is_empty()),
         snippet: hosts::snippet(&exe),
-        hosts: hosts::host_files(&Homes::detect(), &exe),
+        hosts: hosts::host_files(&homes, &exe),
+        sandboxed: homes.sandboxed,
         executable: exe,
     }
 }

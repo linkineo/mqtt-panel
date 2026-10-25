@@ -3,7 +3,7 @@ name = "mqttpanel-broker"
 description = "Embedded MQTT broker of MQTT Panel: listeners, sessions, certificates, presets and configuration"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 authors.workspace = true
 publish = false
 

@@ -3,7 +3,7 @@ name = "mqttpanel-profiles"
 description = "Connection profiles, settings, templates and OS keychain access for MQTT Panel"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 authors.workspace = true
 publish = false
 

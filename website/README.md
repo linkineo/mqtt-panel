@@ -13,6 +13,7 @@ resources.
 | `style.css`, `site.js`, `theme.js` | Styles (light or dark: the system one until the visitor picks one in the header), the live views, the tabs, the typing terminal, the mock chat, and `theme.js`, which applies a stored choice before the page paints. |
 | `/app/` (built) | The app's own interface in demo mode (`npm run build:site -w @mqttpanel/ui`, copied from `packages/ui/dist-site` by `build.py`). The live views load it in frames from the same site, run a few setup steps (`SCENES` in `build.py`) and show it scaled, without interaction; the screenshots are the posters and the fallback (no script, reduced motion, screens under 700 px except the hero, off screen). |
 | `worker.js`, `wrangler.jsonc` | The Worker, its routes (`mqtt-panel.com`, `www.mqtt-panel.com` as custom domains) and the assets binding. |
+| `licence/` | The licence of MQTT Panel as shown on the legal page and served as `/LICENSE.txt`: `commons-clause.txt` (the Commons Clause header as published at https://commonsclause.com/, with Software "MQTT Panel", License "Apache License 2.0", Licensor "mqtt-panel.com") and `apache-2.0.txt` (https://www.apache.org/licenses/LICENSE-2.0.txt, unaltered). Keep them in step with the repository's `LICENSE`. |
 | `third-party.json` | Licences of the shipped Rust crates and npm packages, shown on the legal page. Refresh with `python3 build.py --licences`. |
 | `assets/media/` | Screenshots per language and theme, `<id>.<lang>.<light|dark>.jpg`. |
 | `assets/badges/` | The official store badges and the GitHub mark, unaltered (see Download section below). |
@@ -51,11 +52,13 @@ The page shows no video since 18 Oct 2026. The clip recordings still exist on re
 ## Download section
 
 The top bar has one Download button (slate `#56697A`, white text) that scrolls to the Download band at the bottom of
-the home page (`#download`). The band holds the store badges, the GitHub button and three plain links to the
-installers (Windows `.msi`, macOS `.dmg`, Linux `.deb`, `.rpm`, AppImage).
+the home page (`#download`). MQTT Panel is distributed through the Microsoft Store and the Mac App Store only
+(owner, 25 Oct 2026): the band holds the two store badges, one sentence that the stores install and update the app,
+then, under a rule, the "Build it yourself" button (GitHub mark) with the caption "Source code for developers; no
+installers are published there." No installer links are offered, and Linux packages are not mentioned.
 
-All six targets are constants at the top of `build.py`: `MAC_APP_STORE_URL`, `MICROSOFT_STORE_URL`, `GITHUB_URL`,
-`WINDOWS_MSI_URL`, `MACOS_DMG_URL`, `LINUX_PACKAGES_URL`. While a constant is empty, its link is `href="#"` with
+The three targets are constants at the top of `build.py`: `MAC_APP_STORE_URL`, `MICROSOFT_STORE_URL`, `GITHUB_URL`
+(the installer constants were removed). While a constant is empty, its link is `href="#"` with
 `aria-disabled="true"` and a "coming soon" caption (EN, FR, DE).
 
 The badges stay black, as published: Apple and Microsoft do not allow recolouring. Badge files and sources:
@@ -63,7 +66,7 @@ The badges stay black, as published: Apple and Microsoft do not allow recolourin
 | File | Source |
 |---|---|
 | `assets/badges/microsoft-store.svg` | Microsoft's badge page, https://apps.microsoft.com/badge, English, dark (the file the page links: `https://get.microsoft.com/images/en-us%20dark.svg`). Unaltered, shown 48 px high. |
-| `assets/badges/github-mark-white.svg` | GitHub's logo download, https://github.com/logos (`GitHub_Logos.zip`, file `SVG/GitHub_Invertocat_White.svg`). Unaltered, 24 px high in the "View on GitHub" button. |
+| `assets/badges/github-mark-white.svg` | GitHub's logo download, https://github.com/logos (`GitHub_Logos.zip`, file `SVG/GitHub_Invertocat_White.svg`). Unaltered, 24 px high in the "Build it yourself" button. |
 | `assets/badges/mac-app-store.svg` | **Not in the repository yet.** Apple's "Download on the Mac App Store" badge is only available from Apple's marketing resources after accepting Apple's licence, which the owner does. Save the official black badge, unaltered, at this path: the build then uses it (48 px high; Apple's minimum is 40 px). Until then the band shows a neutral black button with the words "Mac App Store" and no Apple logo. |
 
 ## Assistant block
@@ -89,6 +92,15 @@ site public, delete the secret:
 ```
 wrangler secret delete SITE_PASSWORD
 ```
+
+## Licence wording
+
+The site calls MQTT Panel "source available" (never "open source"): Apache License 2.0 with the Commons Clause, free to
+use, also inside companies and for one's own commercial purposes, to modify and to build oneself, not to be sold or
+resold as a product or service built substantially on it. The legal page gives that summary, says the licence text is
+the authoritative one, and shows the Commons Clause header and the Apache 2.0 text from `licence/`. The third-party
+notices are unchanged. The privacy page states that the app connects only to the configured brokers; updates come
+from the stores.
 
 ## Deploy
 

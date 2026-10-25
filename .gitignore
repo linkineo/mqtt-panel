@@ -55,3 +55,6 @@ __pycache__/
 website/public/
 website/.media-raw/
 dist-site/
+
+# README demo recordings (source WebM)
+docs/media/raw/

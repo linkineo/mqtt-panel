@@ -107,6 +107,7 @@ fn main() {
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let dir = mqttpanel_profiles::default_dir();
             let _ = std::fs::create_dir_all(&dir);
@@ -155,6 +156,7 @@ fn main() {
         })
         .invoke_handler(logged(tauri::generate_handler![
             menu::set_menu_language,
+            commands::open_release_notes,
             commands::app_info,
             commands::key_store_kind,
             commands::get_settings,
