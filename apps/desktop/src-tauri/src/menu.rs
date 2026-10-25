@@ -192,10 +192,11 @@ mod tests {
     fn about_names_the_website_only() {
         let c = super::ABOUT_COPYRIGHT;
         assert!(c.contains("mqtt-panel.com"));
-        assert!(!c.to_lowercase().contains("mqtt-panel"));
+        let former = ["rem", "ora"].concat();
+        assert!(!c.to_lowercase().contains(&former));
         assert!(c.contains("Apache License 2.0 with the Commons Clause"));
         let conf = include_str!("../tauri.conf.json");
         assert!(conf.contains("\"copyright\": \"mqtt-panel.com\""));
-        assert!(!conf.to_lowercase().contains("mqtt-panel labs"));
+        assert!(!conf.to_lowercase().contains(&format!("{former} labs")));
     }
 }

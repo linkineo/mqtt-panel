@@ -14,7 +14,7 @@ Produce the **Microsoft Store package (MSIX)** of MQTT Panel, version from `apps
 
 - Read `CLAUDE.md` at the repository root first; it applies to you.
 - Never commit secrets: no `.pfx`, `.p12`, `.cer`, private keys, passwords, Partner Center values filled into files, or a filled `AppxManifest.xml`. The Partner Center identity values are passed as script parameters only.
-- Never write personal names, personal e-mail addresses, employer names or local paths (for example `C:\Users\<name>\...`) into any file of the repository, a commit message or a report meant for the repository. The brand is **mqtt-panel.com**, the website **mqtt-panel.com**; do not change either. The predecessor tool is never named.
+- Never write personal names, personal e-mail addresses, employer names or local paths (for example `C:\Users\<name>\...`) into any file of the repository, a commit message or a report meant for the repository. No company or other brand name appears anywhere; the app and the docs reference the website **mqtt-panel.com** only. The predecessor tool is never named.
 - Never skip `scripts/check-forbidden-words.sh`. It is a POSIX shell script: run it through **Git Bash**, never through WSL (`C:\Windows\System32\bash.exe` is WSL):
   ```powershell
   & "$env:ProgramFiles\Git\bin\bash.exe" scripts/check-forbidden-words.sh

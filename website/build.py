@@ -29,7 +29,7 @@ ICONS = REPO / "apps" / "desktop" / "src-tauri" / "icons"
 YEAR = 2026
 
 # Words that must never appear on the site: the patterns of scripts/check-forbidden-words.sh (split so the
-# repository guard does not trip on this file) plus the former company name.
+# repository guard does not trip on this file), the former brand pattern included.
 FORBIDDEN = [
     # (pattern removed)
     # (pattern removed)
@@ -39,7 +39,7 @@ FORBIDDEN = [
     # (pattern removed)
     # (pattern removed)
     # (pattern removed)
-    "mqtt-panel[ -]labs",
+    # (pattern removed)
 ]
 
 

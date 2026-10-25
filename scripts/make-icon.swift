@@ -1,4 +1,4 @@
-// Renders the MQTT Panel app icon (1024 x 1024, transparent corners) in the mqtt-panel.com family:
+// Renders the MQTT Panel app icon (1024 x 1024, transparent corners):
 // a flat slate tile, two paper cards and a three-row topic tree with a clay dot as the live value.
 // Run from the repo root:  xcrun swift scripts/make-icon.swift
 // Then:  cd apps/desktop/src-tauri && cargo tauri icon icons/app-icon.png
@@ -15,7 +15,7 @@ func hex(_ v: UInt32, _ a: CGFloat = 1) -> CGColor {
 }
 func rr(_ r: CGRect, _ c: CGFloat) -> CGPath { CGPath(roundedRect: r, cornerWidth: c, cornerHeight: c, transform: nil) }
 
-// mqtt-panel.com family: paper #F3F1EC, sage #5E7A6E (Image Simple), clay #9A6E43 (PDF Simple), slate #56697A (this app)
+// Palette: paper #F3F1EC, sage #5E7A6E (Image Simple), clay #9A6E43 (PDF Simple), slate #56697A (this app)
 let slate = hex(0x56697A), paper = hex(0xF3F1EC), node = hex(0x3F4F5C), pill = hex(0xB9C3CB), clay = hex(0x9A6E43)
 
 let cs = CGColorSpace(name: CGColorSpace.sRGB)!

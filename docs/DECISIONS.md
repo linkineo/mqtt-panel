@@ -4,7 +4,7 @@
 
 | Topic | Decision |
 |---|---|
-| Name | MQTT Panel, by mqtt-panel.com. No personal names in app, site or repo. The predecessor tool is never named in public material. |
+| Name | MQTT Panel. No personal names in app, site or repo. The predecessor tool is never named in public material. |
 | Platforms | Desktop only for v1.0: Windows, macOS, Linux. Web version deferred (12 Oct 2026). Distribution (25 Oct 2026): Mac App Store and Microsoft Store only, updated by the stores; no installers, no updater; Linux from source. |
 | Core | Rust engine (topic store, history, decoders, export) with a C ABI, and a Rust broker, independent of the UI toolkit. |
 | UI toolkit | Tauri 2 with a React UI, hardened for native feel (12 Oct 2026). Comparison and checklist in `SPEC.md` section 1. |
@@ -13,10 +13,10 @@
 | Broker | Embedded broker managed in the same UI. Setup presets offered when adding a listener (plain lab, encrypted, encrypted with passwords, mutual TLS with issued client certificates), each explained in an info bubble. Client certificate management is the prominent section; broker certificates are collapsed. Listeners default to all interfaces with a warning and a one-click switch to localhost. Active configuration selectable as a target in the Connections form. Desktop and CLI only. |
 | CLI | Simple: sub, pub, broker, profiles. No capture or export command in v1. |
 | Languages | EN (source), FR, DE from v1.0. |
-| Look | Action buttons slightly bigger than the first build (13 Oct 2026). Developer-tool density, identical on all platforms, light and dark, mqtt-panel palette with Sage (default), Slate and Clay accents. Native menus, shortcuts, dialogs and window chrome on each OS. Rail labels are verbs: Connect, Explore, Publish, Charts, Broker, Settings. Sent log in the right column of Publish. Tree rows show values and sparklines by default. Plain words in user-facing labels, never jargon; form rows never wrap (helper text short, explanation in the ⓘ bubble). |
+| Look | Action buttons slightly bigger than the first build (13 Oct 2026). Developer-tool density, identical on all platforms, light and dark, app palette with Sage (default), Slate and Clay accents. Native menus, shortcuts, dialogs and window chrome on each OS. Rail labels are verbs: Connect, Explore, Publish, Charts, Broker, Settings. Sent log in the right column of Publish. Tree rows show values and sparklines by default. Plain words in user-facing labels, never jargon; form rows never wrap (helper text short, explanation in the ⓘ bubble). |
 | Mockups | `docs/mockups/mqtt-panel-mockups.html` is the validated UI reference (22 screens validated by the owner on 12 Oct 2026, 1280×700; change set 1 of 13 Oct 2026 added 02b and 12c and edited 02, 12, 12b, 14, 19). The UI must match it. |
 | Licence | Apache 2.0 with the Commons Clause License Condition v1.0 (owner): free use, including in commercial environments; no sale or resale of the software or of a product or service built substantially on it; source-available, not OSI open source. Dependencies: MIT, BSD, Apache 2.0, ISC, MPL 2.0; no GPL or AGPL. |
-| Repository | github.com/linkineo/mqtt-panel, private until release. Website: mqtt-panel.com. |
+| Repository | github.com/linkineo/mqtt-panel, private until release. Website: https://mqtt-panel.com. |
 | Signing | Beta builds are not signed on Windows or macOS. Signing (Windows) and signing plus notarization (macOS) are the final step before a release. Since 25 Oct 2026: the Microsoft Store signs the MSIX, no Windows code-signing certificate; macOS signed for the Mac App Store. |
 | Model split | Spec model writes specs, architecture and reviews; implementing model builds the code. |
 | Assistant (MCP) | The app is the MCP server (`rmcp`) on a same-user local socket; hosts start the stdio shim `mqttpanel mcp` or the app executable with `mcp`. Enabled by default; writing tools after a one-time acknowledgement; secrets asked in the app by default; toast plus Assistant log; one host at a time (owner, 20 Oct 2026; `docs/MCP.md`). |
@@ -27,7 +27,7 @@
 - Rust core with a TypeScript UI; React.
 - History not persisted to disk; export of selected data instead.
 - Publish as an independent function with a sent-message log, QoS, retain, delete.
-- Name: MQTT Panel. mqtt-panel.com branding.
+- Name: MQTT Panel.
 - Added scope: embedded MQTT broker with certificates managed in the same interface; simple CLI (subscribe, publish, run the broker).
 - Deliverable flow: review artifact first, then Markdown and HTML in the repo.
 
@@ -67,7 +67,7 @@
 - Mockups validated: `docs/mockups/mqtt-panel-mockups.html`, 22 screens at 1280×700, is the implementation reference.
 
 ### 12 Oct 2026, final answers
-- Repository `linkineo/mqtt-panel`, website `mqtt-panel.com`.
+- Repository `linkineo/mqtt-panel`, website https://mqtt-panel.com.
 - Windows signing: cheapest hassle-free option; betas unsigned on both desktop platforms; signing is the last step before release.
 - Import sources in v1.0: the predecessor tool's settings file and MQTTX; MQTT.fx later.
 - Design defaults confirmed: verb rail labels, sent log right column, values and sparklines in the tree, Sage accent.
@@ -405,7 +405,7 @@ Log of decisions taken by the implementing model where the specs leave room. Eac
 - **Screenshot states.** Five new states (02 menu, 02b, 02b with running steps, 12c, 12d pending) and 12 with a revealed password. The mock accepts `latency=<ms>` in the URL so the running steps can be captured.
 
 ### 13 Oct 2026, app icon
-Owner: "change the icon to something inspired from my other simple apps, not the other logo." The app icon is now in the mqtt-panel.com family of the owner's other apps (flat solid tile, paper cards in plain geometry, one clay dot, no gradients): a slate tile (`#56697A`, the family accent not yet used by another app), a muted rear card, a paper front card with a three-row topic tree and the clay dot as the live value. Source: `scripts/make-icon.swift` renders `apps/desktop/src-tauri/icons/app-icon.png` (1024 px, transparent corners, macOS rounded-square margin); `cargo tauri icon icons/app-icon.png -o icons` makes the platform set. The app mark stays in the title bar; only the icon changed.
+The app icon follows the plain style of the owner's other apps (flat solid tile, paper cards in plain geometry, one clay dot, no gradients): a slate tile (`#56697A`, the family accent not yet used by another app), a muted rear card, a paper front card with a three-row topic tree and the clay dot as the live value. Source: `scripts/make-icon.swift` renders `apps/desktop/src-tauri/icons/app-icon.png` (1024 px, transparent corners, macOS rounded-square margin); `cargo tauri icon icons/app-icon.png -o icons` makes the platform set. The app mark stays in the title bar; only the icon changed.
 
 ### 13 Oct 2026, keychain prompts (change set 3)
 Owner, third build: "it keeps prompting many times for the keychain password: I entered it several times, even clicked on always allow, and it keeps prompting. It's only ok to ask exactly once and the user can then click on always allow and it shall never pop up again."
@@ -460,7 +460,7 @@ Decisions:
 - **Tests.** Rust: S-05 (old profile and settings files), `connect_options` with `skip_once`, E-08 wording. Vitest `changeset6.test.tsx` (helpers, C-26 to C-30), the trust dialog tests rewritten, earlier change-set tests moved to the new wording. Playwright: flows C-26 to C-30, earlier flows updated (C-12, C-13, B-12, C-19, C-20, V-10, C-24 reduced to the "this app's broker" check), new state `02d-skip-prompt`, state 17 shows the ⚠ on a tab; overflow check green in EN, FR, DE on 38 states.
 
 ### 18 Oct 2026, website mqtt-panel.com and brand references
-- **Decision (owner).** The official website is https://mqtt-panel.com. The app and the website reference the website only; the words "mqtt-panel.com" appear nowhere user-facing (copyright, About, Settings, website, store texts). The app mark stays as a decorative icon in the app's title bar, with no text naming it. Recorded in `CLAUDE.md` "Brand and public material".
+- **Decision (owner).** The official website is https://mqtt-panel.com. The app and the website reference the website only; no company or other brand name appears anywhere (copyright, About, Settings, website, store texts). The app mark stays as a decorative icon in the app's title bar, with no text naming it. Recorded in `CLAUDE.md` "Brand and public material".
 - **App.** `bundle.copyright` is "mqtt-panel.com"; the About dialog reads "© 2026 mqtt-panel.com · https://mqtt-panel.com · Apache License 2.0" (`menu.rs` `ABOUT_COPYRIGHT`, unit tested together with `tauri.conf.json`); Settings "About and licences" shows `settings.copyright` and `settings.website` (the URL) in place of `settings.madeBy`. `AppMark` keeps its drawing, `aria-hidden` and not focusable. `README.md`, `NOTICE` and the workspace `authors` name the website.
 - **Website.** `website/build.py` writes EN, FR and DE (`/`, `/fr/`, `/de/`), each with `privacy` and `legal`; one Worker (`mqtt-panel-site`) serves the assets, redirects `www.` to the apex and sets CSP, HSTS, nosniff and no-referrer. Clips and screenshots are recorded from the real UI with the mock engine (`packages/ui/e2e/website-media.mjs`, light, EN, 1280 x 800) and encoded with ffmpeg (`website/encode-media.sh`).
 - **Readings (implementing model, awaiting the owner).**
@@ -470,7 +470,7 @@ Decisions:
   - The legal page lists the licences of the shipped Rust crates (normal dependencies of the workspace members, all target platforms) and npm packages (non-dev lockfile entries) from `website/third-party.json`; it was generated from the working tree, whose `Cargo.lock` carried uncommitted dependency changes at the time. Refresh with `python3 website/build.py --licences`.
   - The legal notice holds the placeholder "Operator details: to be completed by the owner." An imprint (German Impressum, French mentions légales) usually requires the operator's identity and contact details; what to publish is the owner's legal decision and needs human review.
   - The privacy page says Cloudflare serves the site and processes the technical data needed to deliver it; wording to be reviewed by the owner (and legal review where required) before relying on it.
-  - The site build checks its output for the repository guard's patterns plus "mqtt-panel labs"; internal identifiers such as the bundle ID `com.remora-labs.mqttpanel` and the history in this file are unchanged.
+  - The site build checks its output for the repository guard's patterns plus the former brand pattern; the store-bound bundle ID is unchanged.
 
 ### 18 Oct 2026, CONN-001: imported server identity and the built-in broker flow
 - **Root cause.** `BrokerManager::local_connection` always returned the broker's generated local CA, also after a server certificate from another issuer was imported, and the desktop "trust" step copied it into "Local broker". The client then saw an unknown issuer: with the leaf-only PEM import (single-cert chain and a configured CA) it reported a hard `tls.missingIntermediate` failure with no way to recover; with a PKCS#12 that carried its CA it stopped at a trust prompt. Over TLS and WSS alike. Independent clients with the external CA connected, so the broker side was right.
