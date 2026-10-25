@@ -12,7 +12,7 @@ The App Store Connect API cannot set the privacy labels ("nutrition labels"). Th
 
 - No telemetry, no analytics, no crash reporting, no advertising, no third-party SDK that sends data.
 - No accounts and no sign-in.
-- The only network connections go to the MQTT brokers the user configures (and, in builds outside the Mac App Store, the update feed if the user enables it). Messages, profiles and history stay on the user's computer.
+Messages, profiles and history stay on the user's computer.
 - Passwords, private keys and passphrases are stored in the macOS keychain, on the computer.
 - The AI assistant feature (beta) runs as a local MCP server for an assistant the user installs; MQTT Panel itself sends nothing to any AI service.
 
