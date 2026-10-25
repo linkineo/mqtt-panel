@@ -58,6 +58,8 @@ The standing decisions behind MQTT Panel. The detailed behaviour is in `docs/SPE
 | Broker certificates | ECDSA P-256 by default; local CA valid 5 years, server and client certificates 2 years. The server certificate names include localhost, the host name, its `.local` name and the LAN addresses, plus "Extra names". |
 | Broker limits | Built-in limits instead of settings: 128 topic levels, 64 waiting connections per listener and 8 per address, 64 KiB CONNECT before login, 1 s delay on a refused login, 4 password checks at once, in-flight resend after 30 s and disconnect after 60 s (values in `docs/SPEC.md` 6). |
 | | Why: one client, or anyone who can reach a listener, must not be able to stop or exhaust the app that hosts the broker; the values stay far above what devices need. |
+| Long topics | Topics are kept cut at 1024 bytes by default (per profile, `maxTopicBytes`); levels share one string per topic. |
+| | Why: a broker the user explores can send any topic; memory per topic must stay linear and bounded. |
 
 ## Assistant (MCP)
 

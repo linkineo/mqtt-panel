@@ -69,6 +69,58 @@ pub mod flags {
     pub const SORTED: u8 = 8;
 }
 
+/// The full path of a node: a prefix of a shared topic string. Every node created for one topic points into the same
+/// allocation, so a topic costs memory linear in its length (not one copy per level).
+#[derive(Clone)]
+pub struct PathRef {
+    full: Arc<str>,
+    len: u32,
+}
+
+impl PathRef {
+    /// The first `len` bytes of `full` (`len` on a character boundary).
+    pub fn new(full: Arc<str>, len: usize) -> Self {
+        debug_assert!(full.is_char_boundary(len));
+        PathRef {
+            full,
+            len: len as u32,
+        }
+    }
+}
+
+impl std::ops::Deref for PathRef {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.full[..self.len as usize]
+    }
+}
+
+impl std::borrow::Borrow<str> for PathRef {
+    fn borrow(&self) -> &str {
+        self
+    }
+}
+
+impl std::hash::Hash for PathRef {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (**self).hash(state)
+    }
+}
+
+impl PartialEq for PathRef {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl Eq for PathRef {}
+
+impl std::fmt::Debug for PathRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&**self, f)
+    }
+}
+
 /// Data of a node that received at least one message.
 #[derive(Debug, Default)]
 pub struct TopicData {
@@ -91,8 +143,8 @@ pub struct TopicData {
 /// A segment of the topic tree.
 #[derive(Debug)]
 pub struct Node {
-    /// Full topic path of this node.
-    pub path: Arc<str>,
+    /// Full topic path of this node (shared with the other levels of the same topic).
+    pub path: PathRef,
     /// Byte offset of the last segment in `path`.
     pub name_start: u32,
     pub parent: NodeId,
@@ -113,7 +165,7 @@ pub struct Node {
 
 impl Node {
     /// A new node.
-    pub fn new(path: Arc<str>, parent: NodeId, depth: u16) -> Self {
+    pub fn new(path: PathRef, parent: NodeId, depth: u16) -> Self {
         let name_start = path.rfind('/').map_or(0, |i| i + 1) as u32;
         Node {
             path,

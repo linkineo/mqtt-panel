@@ -217,6 +217,9 @@ pub struct Profile {
     pub last_test: Option<serde_json::Value>,
     #[serde(default)]
     pub is_local_broker: bool,
+    /// Longest topic kept in the tree, in bytes (absent: 1024). Longer topics are shown cut, followed by "…".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_topic_bytes: Option<u32>,
 }
 
 fn target_other() -> String {
@@ -266,6 +269,7 @@ impl Profile {
             last_used: None,
             last_test: None,
             is_local_broker: false,
+            max_topic_bytes: None,
         }
     }
 }

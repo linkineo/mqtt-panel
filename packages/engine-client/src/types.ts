@@ -184,6 +184,8 @@ export interface Profile {
   lastUsed: number | null;
   lastTest: TestResult | null;
   isLocalBroker: boolean; // the single profile "Local broker" made by "Connect to this app's broker"
+  /** Longest topic kept in the tree, in bytes (absent: 1024); longer topics are shown cut, followed by "…". */
+  maxTopicBytes?: number;
 }
 
 export interface ImportSummary {

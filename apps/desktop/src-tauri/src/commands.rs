@@ -50,7 +50,10 @@ pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> R<Settin
     *lock(&state.settings) = saved.clone();
     let cfg = engine_config(&saved);
     for c in lock(&state.conns).values() {
-        lock(&c.engine).set_config(cfg.clone());
+        let mut e = lock(&c.engine);
+        // The topic length limit belongs to the profile, not to the settings.
+        let cfg = mqttpanel_engine::EngineConfig { max_topic_len: e.config().max_topic_len, ..cfg.clone() };
+        e.set_config(cfg);
     }
     Ok(saved)
 }

@@ -252,6 +252,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | Q-03 | I | nightly | 10 MB payload | Received and shown paged; no freeze > 200 ms. |
 | Q-04 | I | auto | Startup to first interactive frame | < 1 s warm, < 2 s cold on the baseline machine. |
 | Q-05 | U | auto | Memory estimate vs. real allocation after a known replay | Within 10 %. |
+| Q-06 | U | auto | One message on a 32 000-byte topic of "/" (32 001 levels), counting allocator (`crates/engine/tests/topic_memory.rs`): default limit, then a limit of 65 535 bytes with a 16 000-byte topic for comparison; a multibyte character at the cut | Default: under 2 MB, shown cut after 1 024 bytes with "…", counted once; no limit: under 16 MB and about twice the 16 000-byte cost (linear); the estimate within 20 %; a character is never cut in half. |
 
 ## 9. User interface, native feel, localisation
 

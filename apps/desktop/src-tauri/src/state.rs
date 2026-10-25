@@ -84,7 +84,11 @@ pub fn engine_config(s: &Settings) -> EngineConfig {
 
 impl Conn {
     pub fn new(p: &StoredProfile, settings: &Settings) -> Conn {
-        let mut engine = Engine::new(engine_config(settings));
+        let mut cfg = engine_config(settings);
+        if let Some(n) = p.profile.max_topic_bytes {
+            cfg.max_topic_len = (n as usize).clamp(64, 65_535);
+        }
+        let mut engine = Engine::new(cfg);
         apply_proto(&mut engine, p);
         engine.set_sparkline_paths(p.profile.sparkline_paths());
         Conn {
@@ -260,6 +264,7 @@ fn ingest(conn: &Conn, msgs: Vec<Incoming>, now: i64) {
         let subs = lock(&conn.response_subs).clone();
         let mut reqs = lock(&conn.requests);
         let mut e = lock(&conn.engine);
+        let long_before = e.long_topics();
         for m in msgs {
             if !subs.is_empty() && subs.contains(&m.topic) {
                 if let Some(cd) = m.props.as_ref().and_then(|p| p.correlation_data.as_ref()) {
@@ -282,6 +287,13 @@ fn ingest(conn: &Conn, msgs: Vec<Incoming>, now: i64) {
                 received_at: now,
                 props: m.props.as_ref().map(props_to_engine),
             });
+        }
+        if long_before == 0 && e.long_topics() > 0 {
+            eprintln!(
+                "[mqttpanel] connection {}: a topic longer than {} bytes is shown cut in the tree",
+                conn.id,
+                e.config().max_topic_len
+            );
         }
     }
     for (id, reply) in replies {

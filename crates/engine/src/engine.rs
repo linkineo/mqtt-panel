@@ -9,7 +9,7 @@ use crate::message::UserMessage;
 use crate::path;
 use crate::search::natural_cmp;
 use crate::series::Series;
-use crate::store::{flags, Node, NodeId, RateWindow, TopicData, NONE, ROOT};
+use crate::store::{flags, Node, NodeId, PathRef, RateWindow, TopicData, NONE, ROOT};
 use crate::types::{MemoryEstimate, Mqtt5Props, PayloadFormat};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -24,6 +24,10 @@ pub const MAX_AUTO_DEPTH: usize = 8;
 pub const MAX_LEAVES: usize = 256;
 /// Values in a sparkline.
 pub const SPARK_POINTS: usize = 10;
+/// Default longest topic kept in the tree, in bytes.
+pub const DEFAULT_MAX_TOPIC_LEN: usize = 1024;
+/// Marker appended to a topic cut at [`EngineConfig::max_topic_len`].
+pub const TRUNCATED_MARK: &str = "…";
 
 /// Engine settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -41,6 +45,9 @@ pub struct EngineConfig {
     pub memory_budget: usize,
     /// A gap starts when an interval exceeds this factor times the median interval.
     pub gap_factor: f64,
+    /// Longest topic kept in the tree, in bytes (per profile, default 1024). A longer topic is counted under its
+    /// first bytes followed by "…" ([`Engine::long_topics`] counts such messages).
+    pub max_topic_len: usize,
 }
 
 impl Default for EngineConfig {
@@ -52,6 +59,7 @@ impl Default for EngineConfig {
             max_kept_payload: 1024 * 1024,
             memory_budget: 256 * 1024 * 1024,
             gap_factor: 5.0,
+            max_topic_len: DEFAULT_MAX_TOPIC_LEN,
         }
     }
 }
@@ -106,7 +114,11 @@ pub(crate) struct TableCache {
 pub struct Engine {
     pub(crate) cfg: EngineConfig,
     pub(crate) nodes: Vec<Node>,
-    pub(crate) index: HashMap<Arc<str>, NodeId>,
+    pub(crate) index: HashMap<PathRef, NodeId>,
+    /// Bytes of the shared topic strings behind the node paths (memory estimate).
+    pub(crate) path_bytes: usize,
+    /// Messages whose topic was longer than the limit and was cut.
+    pub(crate) long_topics: u64,
     pub(crate) msg_seq: u64,
     pub(crate) change_seq: u64,
     pub(crate) structure_ver: u64,
@@ -139,8 +151,10 @@ impl Engine {
         cfg.points_per_series = cfg.points_per_series.max(1);
         Engine {
             cfg,
-            nodes: vec![Node::new(Arc::from(""), NONE, 0)],
+            nodes: vec![Node::new(PathRef::new(Arc::from(""), 0), NONE, 0)],
             index: HashMap::new(),
+            path_bytes: 0,
+            long_topics: 0,
             msg_seq: 0,
             change_seq: 0,
             structure_ver: 0,
@@ -212,10 +226,18 @@ impl Engine {
         self.index.get(topic).copied()
     }
 
+    /// Messages received on a topic longer than [`EngineConfig::max_topic_len`] (shown cut).
+    pub fn long_topics(&self) -> u64 {
+        self.long_topics
+    }
+
     fn get_or_create(&mut self, topic: &str) -> NodeId {
         if let Some(&id) = self.index.get(topic) {
             return id;
         }
+        // One allocation for the whole topic; every new level points into it.
+        let full: Arc<str> = Arc::from(topic);
+        self.path_bytes += 16 + ((topic.len() + 7) & !7);
         let mut parent = ROOT;
         let ends = topic
             .match_indices('/')
@@ -233,8 +255,8 @@ impl Engine {
             } else {
                 self.nodes[parent as usize].depth.saturating_add(1)
             };
-            let arc: Arc<str> = Arc::from(prefix);
-            let mut node = Node::new(arc.clone(), parent, depth);
+            let path = PathRef::new(full.clone(), end);
+            let mut node = Node::new(path.clone(), parent, depth);
             if !self.pending_expanded.is_empty() && self.pending_expanded.remove(prefix) {
                 node.set(flags::EXPANDED, true);
             }
@@ -243,7 +265,7 @@ impl Engine {
             }
             let name = node.name().to_string();
             self.nodes.push(node);
-            self.index.insert(arc, id);
+            self.index.insert(path, id);
             let p = &self.nodes[parent as usize];
             let needs_sort = p.has(flags::SORTED)
                 && p.children.last().is_some_and(|&last| {
@@ -287,7 +309,19 @@ impl Engine {
         self.change_seq += 1;
         let seq = self.msg_seq;
         let t = msg.received_at;
-        let id = self.get_or_create(&msg.topic);
+        let max = self.cfg.max_topic_len.max(1);
+        let id = if msg.topic.len() > max {
+            // Kept under its first bytes: memory per topic stays bounded whatever the broker sends.
+            self.long_topics += 1;
+            let mut cut = max;
+            while !msg.topic.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            let shown = format!("{}{TRUNCATED_MARK}", &msg.topic[..cut]);
+            self.get_or_create(&shown)
+        } else {
+            self.get_or_create(&msg.topic)
+        };
 
         // Sparkplug: births establish the alias map of the edge node.
         let edge_key = sparkplug::parse_topic(&msg.topic).map(|sp| {
@@ -541,10 +575,10 @@ impl Engine {
         bytes += self.nodes.capacity() * size_of::<Node>();
         // Path index: hashbrown stores (key, value) plus one control byte per bucket.
         let buckets = hash_buckets(self.index.capacity());
-        bytes += buckets * (size_of::<(Arc<str>, NodeId)>() + 1) + 16;
+        bytes += buckets * (size_of::<(PathRef, NodeId)>() + 1) + 16;
+        // Shared topic strings (Arc<str>: two counters plus the bytes), once per topic.
+        bytes += self.path_bytes;
         for n in &self.nodes {
-            // Arc<str>: two counters plus the bytes.
-            bytes += 16 + ((n.path.len() + 7) & !7);
             bytes += n.children.capacity() * size_of::<NodeId>();
             if let Some(td) = &n.topic {
                 bytes += size_of::<TopicData>();
