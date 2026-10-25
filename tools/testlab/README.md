@@ -7,6 +7,7 @@ the official Eclipse Paho client. Nothing here runs in CI.
 |---|---|---|
 | `mosquitto_broker.py` | app → mosquitto | Start a mosquitto broker in one of five security modes; the script generates the certificates and prints what to enter and which files to pick in the app |
 | `load_client.py` | Paho → app's broker | Connect standard clients to the embedded broker with the certificates exported from the app; generate 500 messages/s over 50 topics for throughput, chart and export tests; report rates |
+| `mcp_prompts/run.py` | Claude Code → app (MCP) | Plain English prompts to Claude Code with MQTT Panel as its MCP server, against Mosquitto and the built-in broker; each outcome checked by machine (M-19 to M-35, `docs/MCP_PROMPTS.md`) |
 | `external_clients.py` | Paho → `mqttpanel broker` | T-31: the external-client matrix (CA.pem only, issued certificates, revocation, CA rotation, extra names) against the command-line broker on a temporary home; prints PASS / FAIL / SKIP per case |
 
 ## Setup, once
@@ -97,6 +98,35 @@ not resolve (the extra name, sometimes the host name) are checked with a hosts-s
 to 127.0.0.1 and TLS verifies the given name. A PKCS#12 bundle is opened with its passphrase (Python `cryptography`)
 as a device would. A broker change needs a restart of `mqttpanel broker`, so "the open session is dropped on
 revocation" is reported as SKIP here and covered live by `crates/broker/tests/external_chain.rs` (T-29) in CI.
+
+## D. Prompts to an assistant (MCP, Claude Code as the host)
+
+```
+py tools/testlab/mcp_prompts/run.py                    # builds the debug app, runs every case, writes the report
+py tools/testlab/mcp_prompts/run.py --case C07 C08     # some cases
+py tools/testlab/mcp_prompts/run.py --no-build --keep  # target/debug as it is; keep the temporary folders
+```
+
+Needs Claude Code (`claude`, signed in) and mosquitto. Each case and each attempt gets new certificates, a Mosquitto
+in the mode it needs on free ports, and the debug app (`target/debug/mqtt-panel`) on a new temporary
+`MQTTPANEL_HOME` with `MQTTPANEL_SECRETS=memory`, English, and the assistant acknowledgement already accepted in its
+`settings.json` (except case C15). Claude Code runs `claude -p "<prompt>"` with a temporary `--mcp-config` (the app
+executable with the argument `mcp`), `--strict-mcp-config`, only `mcp__mqttpanel__*` allowed and no built-in tools,
+so nothing asks for permission and nothing outside MQTT Panel is touched; the real app data folder, the keychain and
+the real assistant configurations are never used.
+
+After the session the runner reads the app through its own MCP socket (`list_connections`, `broker_status`,
+`list_charts`), looks at what a Paho subscriber on `lab/#` received, the Mosquitto log, the files written and the tool
+calls Claude made, and runs the case's check (`mcp_prompts/cases.py`). A failed case runs once more with the same
+prompt; both attempts are kept. Results: `tools/testlab/mcp_prompts/results/<timestamp>/` (git-ignored) with
+`REPORT.md` (case, prompt, PASS/FAIL, retries, tool calls, notes, every answer) and per attempt `transcript.jsonl`
+(Claude's stream-json output), `verify.json`, `mosquitto.log` and `app.log`. Passwords and passphrases are replaced by
+••• in every result file. The built-in broker cases use its default ports (1883, 8883, 8083): stop any other broker on
+them first.
+
+The debug build loads its window from the dev server, which the runner does not start: the window stays blank and
+the cases use only the app side. The in-app way of giving secrets (`ask_in_app`) needs a person in the window, so
+every case gives passwords and files directly in the prompt.
 
 ## Public brokers
 

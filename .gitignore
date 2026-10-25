@@ -49,6 +49,7 @@ packages/ui/playwright-report/
 # Test lab
 tools/testlab/.venv/
 tools/testlab/out/
+tools/testlab/mcp_prompts/results/
 __pycache__/
 
 # Website build output and raw recordings

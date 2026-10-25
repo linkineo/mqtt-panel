@@ -137,7 +137,8 @@ Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude",
   real engine on temporary homes; the secrets rules (no secret in any result; warning on direct secrets; refusal
   before the acknowledgement) have their own tests; bounds on history.
 - Hosts: Claude Code configured by the Settings button, one scripted session that connects to the built-in broker,
-  charts a value and exports a CSV; ChatGPT checked by hand in the spike.
+  charts a value and exports a CSV; ChatGPT checked by hand in the spike. The prompts lab (`docs/MCP_PROMPTS.md`,
+  `tools/testlab/mcp_prompts/`) runs 17 plain English prompts through Claude Code and checks each outcome.
 - The forbidden-words guard covers the new strings; FR and DE need the native review like everything else.
 
 ## 8. Phases
@@ -153,6 +154,9 @@ Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude",
 - "Enabled by default" plus the one-time acknowledgement means: a host can connect at any time, but writing tools
   work only after the sentence was accepted once.
 - Direct secrets are allowed but every such tool result carries the warning once per session, and the log says so.
+  When the user has already written the secret in the chat, the tool descriptions tell the model to use it directly
+  rather than asking again in the window (prompts lab, 25 Oct 2026: the model otherwise sometimes asked in the window
+  and the user would have typed it twice).
 - Navigation tools bring the window forward; they never steal focus while the user is typing in another app (the
   window is raised without activation when MQTT Panel is not frontmost; a toast says the assistant moved the view).
 - History reads are capped at 500 rows per call; bigger extracts go through `export_data` to a file picked in the app.
@@ -163,7 +167,9 @@ Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude",
 
 Code: `apps/desktop/src-tauri/src/mcp/` (server, registry, one table per group in `tools/`, hosts, Settings commands),
 `apps/desktop/src-tauri/src/charts.rs` (the window's dashboard charts on the app side), `crates/shim` (the stdio shim
-used by `mqttpanel mcp` and by the app executable started with `mcp`). Tests: `docs/TESTPLAN.md` M-01 to M-17.
+used by `mqttpanel mcp` and by the app executable started with `mcp`). Tests: `docs/TESTPLAN.md` M-01 to M-17; plain English
+prompts to Claude Code against Mosquitto and the built-in broker, checked by machine: M-19 to M-35, listed with their
+prompts in `docs/MCP_PROMPTS.md`.
 Writing tools need the acknowledgement, show a toast and add a row to the Assistant log; "Secret way" fields are masked
 in the log and bring the once-per-session warning when given directly. Exports and new files are written to a place the
 user picks in the app (save dialog or folder dialog) or to an absolute path given by the host (not a secret, no

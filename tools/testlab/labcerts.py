@@ -107,10 +107,11 @@ class Lab:
         self.ca_cert, self.ca_key = cert, key
         return cert
 
-    def _signed(self, cn: str, server: bool, hosts: list[str] | None, days: int):
+    def _signed(self, cn: str, server: bool, hosts: list[str] | None, days: int,
+                start: dt.datetime | None = None):
         assert self.ca_cert is not None and self.ca_key is not None, "make_ca() first"
         key = ec.generate_private_key(ec.SECP256R1())
-        now = dt.datetime.now(dt.timezone.utc) - ONE_DAY
+        now = start or dt.datetime.now(dt.timezone.utc) - ONE_DAY
         b = (
             x509.CertificateBuilder()
             .subject_name(_name(cn))
@@ -135,8 +136,10 @@ class Lab:
         cert = b.sign(self.ca_key, hashes.SHA256())
         return cert, key
 
-    def make_server(self, hosts: list[str] | None = None, days: int = 730):
-        cert, key = self._signed("MQTT Panel test lab broker", True, hosts, days)
+    def make_server(self, hosts: list[str] | None = None, days: int = 730, expired: bool = False):
+        """A server certificate from the lab CA; `expired` makes one that ended yesterday (valid for 30 days before)."""
+        start = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=31) if expired else None
+        cert, key = self._signed("MQTT Panel test lab broker", True, hosts, 30 if expired else days, start)
         _write(self.out / "server.pem", cert.public_bytes(serialization.Encoding.PEM))
         _write(self.out / "server-key.pem", _key_pem(key), private=True)
         return cert
