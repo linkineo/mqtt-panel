@@ -6,7 +6,7 @@ Written for an implementing model (a Claude instance) running on a Windows PC wi
 
 Produce the **Microsoft Store package (MSIX)** of MQTT Panel, version from `apps/desktop/src-tauri/tauri.conf.json` (1.0.0 gives package version `1.0.0.0`), and check it on this machine.
 
-- Distribution is the Microsoft Store and the Mac App Store only (owner, 25 Oct 2026). No MSI, no NSIS installer, no winget, no updater.
+- Distribution is the Microsoft Store and the Mac App Store only. No MSI, no NSIS installer, no winget, no updater.
 - **No code-signing certificate is needed.** The MSIX is uploaded **unsigned** to Partner Center; the Store signs it. A self-signed certificate is used only to install the package on this machine for testing.
 - The package is built from the Tauri release executable plus `apps/desktop/windows/AppxManifest.xml`, by `scripts/build-msix.ps1`.
 

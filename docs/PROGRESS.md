@@ -1,331 +1,52 @@
 # Progress
 
-Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Updated at the end of each phase.
-Last update: 20 Oct 2026 (MCP interface phases 1 and 2; website and branding; phases 1 to 4, change sets 1 to 10 and the app part of change set 11 complete on macOS, the Data Protection keychain of change set 10 deferred to the signing step; change set 5 to 10 readings awaiting the owner; Windows and Linux through CI).
+Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Version 1.0.0.
 
-## Summary
+## Status per area
 
-| Phase | Scope | Status |
+| Area | Implemented and tested | Remaining |
 |---|---|---|
-| 1 Spike | engine, client, broker with TLS and mTLS, benchmark, Tauri shell, native-feel walk | Done on macOS. Windows and Linux builds and walks pending (CI). |
-| 2 Core desktop | profiles and keychain, Connections with TLS form and trust prompt, Explorer tree and table, inspection, decoders | Done on macOS (UI with the mock engine and the desktop shell). See "UI" below. |
-| 3 Publish and history | composer, templates, sent log, delete retained, repeat, request and response, charts, export | Done on macOS. See "UI" below. |
-| 4 Broker and CLI | Broker screen, Add listener, client certificates, authentication, clients, log, CLI | Done on macOS. See "UI" below. |
-| 5 Polish and release | native FR and DE review, accessibility, native-feel walks, Mac App Store package (`scripts/release-mac-testflight.sh`), Microsoft Store MSIX (`docs/WINDOWS_BUILD.md`, `scripts/build-msix.ps1`), website; no installers, no updater (25 Oct 2026) | Open. Settings "Updates" reduced to the store sentence and the update settings removed (25 Oct 2026; Rust 258, Vitest 185, Playwright 346, all green). Assistant marked beta, "Add to Claude" fixed (re-read at the click, Claude Desktop detected by its app, App Store copy says it cannot write), host texts name the app, Updates links to the GitHub releases, licence summaries reworded, copyright line in LICENSE and NOTICE (25 Oct 2026; Rust 265, Vitest 189, Playwright 346, all green). MSIX build on Windows pending. |
-| MCP interface | assistants through MCP (`docs/MCP.md`): socket and stdio shim, acknowledgement, secrets in the app, toast and Assistant log, Settings page "Assistant", Connections, Broker, Data, Charts and Navigation tools (56), five resources, four prompts | Phases 1 to 4 done 20 Oct 2026 (Rust 257, Vitest 177, Playwright 338). Native FR/DE review open. See below. |
-| Change set 11 | owner feedback on the tenth build: round ⓘ, file formats, password eye, generated key + CSR workflow, session expiry hint, accent Start and tile play/stop, LAN SANs with extra names, server certificate export, external-client tests; website download section | App part done 20 Oct 2026 (Rust 232, Vitest 159, Playwright 313, Paho lab 51 PASS); website part open. See below. |
-| Change set 10 | master key store by build: owner-only key file on unsigned builds (no dialog), OS store on signed builds, one silent move; macOS Data Protection keychain as a release gate | Done on macOS 18 Oct 2026 (file store, detection and move); Data Protection with the signing step (phase 5). V-09 is the owner's manual check. See below. |
-| Change set 9 | owner feedback on the eighth build: empty bar without text, one-second smoothed msg/s on tabs and tree rows, sparkline hidden by right-click, expandable History rows with a one-field filter, JSON / Tree toggle, aligned row columns | Done 15 Oct 2026. See below. |
-| Change set 8 | owner feedback on the seventh build: permanent connection bar beside the rail, tree rows with payload, sparkline, messages, throughput and subtopics, sparkline pick and click menu in the payload, Payload and Properties tabs only with "Show diff to previous", topic chart under the payload with "+ Add field…" and "Also add to", History section, in-place series editing and chart rename, icon buttons and boxed quick publish, no auto-capitalisation | Specified 15 Oct 2026, implementation in progress. See below. |
-| Change set 7 | live apply of broker changes, no restart: listeners start, stop and rebind one by one, TLS material swapped live, only invalidated sessions dropped, Restart button, prompt and pending state removed | Specified 14 Oct 2026, implementation in progress. See below. |
-| Change set 6 | owner feedback on the fifth build: "New broker…" and "Built-in broker", three-line cards with a protocol chip and the ⚠ icon, fixed field widths, "Generate", « Connecter », auto name from the host, per-connection skip of certificate verification with the reworked certificate prompt | Done 14 Oct 2026. See below. |
-| Change set 5 | owner feedback on the fourth build: play button on idle cards, Protocol and MQTT version rows before the host, address prefiller, Security disabled for mqtt and ws, "MQTT Panel broker", import hidden from the UI | Specified 14 Oct 2026, implementation in progress. See below. |
-| Change set 1 | "New connection" menu, "Connect to this app's broker", restart prompt, shared users only, password reveal, "Test" | Done on macOS (13 Oct 2026). See below. |
-| Change set 4 | owner feedback on the third build: broker starts on Connect, stop button on cards, no parsed chips, no "mTLS", Security and Advanced folds, rail badges instead of the title bar pill, Broker screen reorganised | Done on macOS (13 Oct 2026). See below. |
-| Change set 3 | keychain prompts: no migration, the master key is the only keychain item, a refusal is asked once per session (`keychain.refused`), the broker issues a missing server key again | Done on macOS (13 Oct 2026). V-09 is the owner's manual check. See below. |
-| Change set 2 | connected cards, card menu and visible Delete, connection bar, "Local broker" follows the broker, broker-wide client certificate, live log collapsed, Send top right, bigger buttons, macOS title alignment, one keychain master key | Done on macOS (13 Oct 2026). V-08 and V-09 are the owner's manual checks. See below. |
+| Engine (`crates/engine`) | Topic store, ring buffers, series with casting, decoders (JSON, CBOR, MessagePack, Sparkplug B, Protobuf with user `.proto`), diff, search, views, export; C ABI | The memory budget is reported, not enforced |
+| Client (`crates/client`) | MQTT 3.1.1 and 5 over TCP, TLS and WebSocket; SNI and ALPN; trust prompt with pinning or CA; per-connection skip of verification; client certificate by import or by generated key and CSR | |
+| Profiles and secrets (`crates/profiles`) | Profiles without secrets; `secrets.enc` with one master key; key file on unsigned builds, OS store on signed builds, one silent move between them | macOS Data Protection keychain for signed builds (release gate V-12) |
+| Broker (`crates/broker`) | Listeners TCP, TLS, WS, WSS; presets; shared users and Anonymous; client certificates (issue, import CSR, revoke, export); local CA and server certificate with LAN names; live apply; clients list; live log | |
+| CLI (`crates/cli`) | `sub`, `pub`, `broker`, `profiles`, `mcp` | |
+| Desktop app (Tauri 2, React) | Every mockup screen: Connections, Explorer (tree, table, inspection, History, topic chart), Publish, Charts, Export, Broker, Settings, command palette; native menus in EN, FR, DE | Native-feel walk of the real window on Windows and Linux (V-03) |
+| Assistant (MCP) | Same-user socket, stdio shim, acknowledgement, secrets in the app, toast and Assistant log; 56 tools (Connections, Broker, Data, Charts, Navigation), five resources, four prompts; "Add to Claude" and "Add to ChatGPT" | A session from Claude Desktop and the ChatGPT desktop app; tighter DACL on the Windows named pipe |
+| Languages | EN, FR and DE catalogs complete; catalog tests (keys, placeholders, ⓘ bubbles, blocked words, French typography, German "du") | Native FR and DE review (V-06) |
+| Website | https://mqtt-panel.com from `website/` (EN, FR, DE, no cookies or trackers) | Store links, official App Store badge, operator details on the legal page (owner) |
+| Mac App Store | Sandboxed variant, `scripts/release-mac-testflight.sh`, TestFlight build, listing set through the API (`docs/store/README.md`) | Owner steps in the web UI: App Privacy, review contact, copyright line, submission |
+| Microsoft Store | `docs/WINDOWS_BUILD.md`, `scripts/build-msix.ps1` | MSIX built and tested on a Windows machine; Store listing |
 
-## MCP interface (20 Oct 2026, phases 1 to 4)
+## Last test run (25 Oct 2026, macOS 27)
 
-Specified in `docs/MCP.md` (validated by the owner on 20 Oct 2026), summarised in `docs/FEATURES.md` "Assistant (MCP)";
-tests `docs/TESTPLAN.md` section 13; readings in `docs/DECISIONS.md` "20 Oct 2026, MCP interface (phases 1 and 2)" and
-"(phases 3 and 4)".
-
-| Item | Status |
+| Suite | Result |
 |---|---|
-| Transport: same-user socket owned by the app (`mcp.sock` 0600; named pipe on Windows), `rmcp` 3.6 server, one host session at a time, limits 30 s / 20 s / 120 s | Done (macOS tested; Windows pipe code through CI) |
-| Shim: `crates/shim`, `mqttpanel mcp` and `<app> mcp`, starts the app when the socket is missing and waits 20 s | Done (M-09) |
-| Tool registry `apps/desktop/src-tauri/src/mcp/tools/` (table per group, handlers call the same functions as the Tauri commands) | Done; phase 3 adds groups |
-| Connections tools (14) and Navigation tools (5) | Done (M-01, M-06, M-08) |
-| Acknowledgement (setting `assistantAcknowledged`, dialog on connect, 60 s wait, refusal sentence) | Done (M-02, M-10) |
-| Secrets: `ask_in_app` prompts and pickers in the window, direct way with the once-per-session warning and the log note, no secret in any result | Done (M-03, M-04, M-05) |
-| Audit: toast per writing call, Assistant log (Clear, Export…), resource `mqttpanel://assistant-log` | Done (M-01, M-10) |
-| Resources `mqttpanel://connections`, `mqttpanel://assistant-log`; prompts "Connect me to a broker", "Why can't I connect?" | Done (M-01, M-05) |
-| Settings page "Assistant": acknowledgement, connected assistant, "Add to Claude", "Add to ChatGPT", "Other hosts" snippet, log; ⓘ per row; EN, FR, DE | Done (M-10; no mockup yet, see DECISIONS "Open") |
-| Real hosts on macOS (20 Oct 2026, temporary data folder): the debug app executable with `mcp` started the app and served a scripted session (list, create, connect to an embedded broker run by `mqttpanel broker`, show, disconnect); Claude Code (`claude -p` with a temporary `--mcp-config`) listed the connections and connected | Done. Claude Desktop and the ChatGPT desktop app not run (their configuration files were not touched); by hand per `docs/RUNNING.md` section 10 |
-| Native FR and DE review of the new texts | Open (phase 5, with the rest) |
-| Broker tools (18) and `connect_builtin_broker`, live apply, issuing into a folder picked in the app | Done (M-11, M-12, M-15) |
-| Data tools (7) with the bounds (200 topics, 500 history rows and the cursor, 100 search hits) and `export_data` | Done (M-13) |
-| Chart tools (10): dashboard charts mirrored on the app side (`sync_charts`, charts event), topic charts, sparklines, CSV and PNG export | Done (M-14, M-17) |
-| Resources `mqttpanel://broker`, `mqttpanel://charts`, `mqttpanel://topics/{connection}`; prompts "Set up the built-in broker for my devices", "Chart this value" | Done (M-14) |
-| In-app requests: broker password, save place, folder, new client certificate, chart image | Done (M-16, M-17) |
-| Scripted session against the real app (20 Oct 2026, debug build, temporary data folder, memory secrets, through `<app> mcp`): listeners moved, reachability, Anonymous off, client certificates required, CA.pem exported, `connect_builtin_broker` over TLS with the desktop certificate, 5 publishes, list, get, history, topic chart, sparkline, dashboard chart, CSV and PNG chart exports, a CSV data export | Done |
-| Website section "Works with your assistant" (EN, FR, DE text in `website/build.py`) | Done, not deployed |
+| Rust workspace (`cargo test --workspace`) | 265 passed, 4 opt-in ignored |
+| Vitest (`npm test`) | 189 passed |
+| Playwright (`npm run e2e`: V-02 overflow in EN, FR, DE, V-01 screenshots light and dark, end-to-end flows with the mock engine) | 346 passed |
+| `scripts/check-forbidden-words.sh`, `python3 website/build.py` | OK |
 
-## Website and branding (18 Oct 2026)
+Opt-in tests (`-- --ignored`, nightly): public brokers (`MQTTPANEL_PUBLIC_BROKERS=1`), performance (B-14, Q-02).
 
-| Item | Status |
-|---|---|
-| Brand references in the app (bundle copyright, About dialog, Settings "About and licences"), `README.md`, `NOTICE`, workspace `authors` | Done: website only, no company name. The title-bar mark is decorative (`aria-hidden`). |
-| `CLAUDE.md` rule (website, mark as icon only, commit identity, website check) | Done |
-| `website/`: EN, FR, DE single page with privacy and legal pages, light and dark, phone width without horizontal scroll | Done (checked at 1280, 375 and 320 px) |
-| Demo clips (4, WebM and MP4, posters, reduced motion) and feature screenshots from the real UI with the mock engine | Done, English media on all pages |
-| Forbidden-words check in `build.py` | Done |
-| Deploy: Worker `mqtt-panel-site`, custom domains `mqtt-panel.com` and `www.mqtt-panel.com` | Deployed 18 Oct 2026 |
-| Store and GitHub links, operator details on the legal page | Owner (placeholders) |
-
-## Change set 11 (20 Oct 2026, owner feedback on the tenth build): app done, website open
-
-Specified in `docs/FEATURES.md` (Connections, Broker), `docs/TESTPLAN.md` C-31 to C-34, B-27 to B-29, T-28 to T-31; mockups 02d and 12 adjusted by the implementer. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`; implementation notes in "20 Oct 2026, change set 11 (implementation)".
-
-| Item | Status |
-|---|---|
-| Round ⓘ button everywhere | Done 20 Oct 2026. One `Info` component (`.info-btn`, 18 px circle, "i"); mockups use the same marker. C-31 (Vitest, Playwright light and dark) |
-| Accepted formats after Browse; password eye | Done 20 Oct 2026. Picker filters equal the written formats; press-and-hold eye on every profile, stored password read on demand. C-32 |
-| Client certificate: "Import certificate and key" / "Generate key and request a certificate" (key, CSR, signed certificate) | Done 20 Oct 2026. `tls.clientKeyGenerated`; commands `set_client_cert_way`, `profile_generate_client_key`, `profile_client_csr`, `profile_import_signed_cert`. C-33 (adapter test against the embedded broker with client certificates required, Vitest, Playwright) |
-| Session expiry without "0 = none"; ⓘ explains | Done 20 Oct 2026. C-34 |
-| Broker: accent Start, Status tile play/stop | Done 20 Oct 2026. B-27 |
-| Server certificate SANs with LAN addresses and "Extra names"; "Export…" of the served chain | Done 20 Oct 2026. `extraSans` in `broker.json`, used by first generation, heal, Regenerate and CA rotation; `export_server_cert`. B-28 (manager test), B-29 |
-| Tests T-28 to T-31 (external clients with the broker's chain), C-31 to C-34, B-27 to B-29 | Done 20 Oct 2026. `crates/broker/tests/external_chain.rs` (T-28 to T-30) found and fixed two product issues (.local name, rotated-CA message); `tools/testlab/external_clients.py` (T-31) 51 PASS, 0 FAIL, 1 SKIP. Rust 232, Vitest 159, Playwright 313, all green |
-| Website: top-bar Download button, bottom download section with official badges, no licence line in the hero; screenshots refreshed | Specified (not part of this implementation run) |
-
-## Change set 10 (18 Oct 2026, master key store by build): implemented, Data Protection deferred
-
-Specified in `docs/SPEC.md` 6 and 11 (release gate), `docs/TESTPLAN.md` V-09, V-12, S-06, `docs/RUNNING.md`, `CLAUDE.md`. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
-
-| Item | Status |
-|---|---|
-| Store selection by build: macOS signature check, `MQTTPANEL_KEYSTORE` override | Done 18 Oct 2026. Keychain when the signature has a certificate chain (any real identity), key file when ad-hoc or unsigned; read through the Security framework once per process; Linux falls back to the file without a Secret Service (see Open) |
-| File master key store: `master.key` 0600 in a 0700 folder, plain error on bad permissions | Done 18 Oct 2026. Base64 text; never replaces an existing file; a readable file gives `keychain.keyFile` |
-| One-time move from the login keychain to the file (and back on the first signed start), old item deleted | Done 18 Oct 2026. Old store read once, a refusal leaves everything in place for the next start, a fresh key only when no store holds one |
-| CLI follows the same rule; ⓘ texts say where the key lives | Done 18 Oct 2026. Both go through `open_app_secrets`; `key_store_kind` command, the client key ⓘ adds `info.keyStore.file` or `info.keyStore.keychain` |
-| Tests S-06 (crate), V-09 (manual, owner) | S-06 done 18 Oct 2026. Rust 218 (11 new), Vitest 147, Playwright 287, all green; V-09 is the owner's |
-| macOS Data Protection keychain for signed builds, release gate V-12 | Deferred to the signing step (phase 5) |
-| CONN-001: "Built-in broker" flow after a server certificate from another issuer was imported | CONN-001 fixed 18 Oct 2026. The trust step saves what the broker serves (imported CA, or a pin of the served certificate when the import had no CA); "Local broker" follows re-imports; an unknown issuer with a configured CA is a trust prompt, never a hard failure. Tests B-12, C-17, T-03, T-03b, T-27; Rust 221 (3 new), Vitest 147, Playwright 287, all green; `tests/connectivity/extended.py` 22 PASS, 0 FAIL, the four `app-imported-*-local` cases included. See `docs/DECISIONS.md` |
-
-## Change set 9 (15 Oct 2026, owner feedback on the eighth build): implemented
-
-Specified in `docs/FEATURES.md` (Connections bar, Explorer, Message inspection), `docs/SPEC.md` 4, mockups 01, 04, 06, `docs/TESTPLAN.md` X-23 to X-28. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
-
-| Item | Status |
-|---|---|
-| Empty connection bar: no text, no button | Done 15 Oct 2026. `cbar.empty` and `cbar-new` removed; the strip keeps its height |
-| Rates on tabs and tree rows: one-second average refreshed once a second, unit "msg/s" | Done 15 Oct 2026. Engine and mock report the count of the last completed second (`RateWindow::rate`, `lastSecondRate`); tree and table re-read just after every whole second; the table Rate column uses the same figure |
-| Right-click on a sparkline hides it (`sparklineOff` saved); "Show sparkline" in the topic menu; a new pick shows it | Done 15 Oct 2026. Rust `TopicPrefs.sparkline_off`, hidden in the UI (tree and table) |
-| History rows expand to the full payload; one-field filter from the click menu or the filter button, chip with ✕ | Done 15 Oct 2026. Filter kept per connection and topic while the app runs |
-| JSON / Tree segment for payloads, also for expanded History rows | Done 15 Oct 2026. `JsonTree` with the diff colours and the click menu on its rows |
-| Tree rows: sparkline, messages, rate and subtopics in fixed right-aligned columns shared by every row | Done 15 Oct 2026. Grid 42, 56, 72 and 44 px; every row renders the four cells |
-| Tests X-23 to X-28; screenshots re-recorded | Done 15 Oct 2026. Rust 207, Vitest 145, Playwright 287 (overflow 132 on 44 states × EN, FR, DE; screenshots 88; flows 67), all green; new states 04b-sparkline-menu, 06b-history-filter, 06c-history-filter-list, 06d-payload-tree; 19b-empty-bar-menu removed |
-
-## Change set 8 (15 Oct 2026, owner feedback on the seventh build): implemented
-
-Specified in `docs/FEATURES.md` (Connections bar, Explorer, Message inspection, History and charts, Localisation rules), `docs/SPEC.md` 1 and 4, mockups 04, 06, 07, 10, 10b and the bar on every screen, `docs/TESTPLAN.md` X-15 to X-22, D-24, V-11. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
-
-| Item | Status |
-|---|---|
-| No auto-capitalisation, auto-correct or spell-check in any input or textarea | Done 15 Oct 2026. Shared `NO_AUTO` spread, enforced by a Vitest source scan; the payload editor too |
-| Connection bar always shown, first row of the main column; rail from the title bar down; empty strip "Choose a connection" with + | Done 15 Oct 2026. The + opens the same New connection menu |
-| Tree rows: name, payload on the available width, R marker, sparkline, messages, throughput, subtopics with tooltips; no age text | Done 15 Oct 2026. Activity dot removed too (see Open) |
-| Sparkline rule: bare number by itself, JSON value picked with "Use as sparkline", one per topic, saved per topic | Done 15 Oct 2026. Profile `topics`, engine `set_sparkline_paths` |
-| Payload click menu (sparkline, chart, copy path, copy value); no hover icon, no trailing menu | Done 15 Oct 2026. In-page menu, also on right-click |
-| Tabs Payload and Properties; "Show diff to previous" switch on by default; History section with selection and buffer size | Done 15 Oct 2026 |
-| Topic chart under the payload with chips, "+ Add field…" and the picker's "Also add to" dropdown; saved per topic | Done 15 Oct 2026 |
-| Charts screen: in-place series editing without edit mode; chart title renamed in place | Done 15 Oct 2026. Series pane 400 px as in mockup 10 |
-| Detail header icon buttons (star, Publish icon, ⋯); boxed quick publish row with separators | Done 15 Oct 2026 |
-| Tests X-15 to X-22, D-24, V-11; screenshots re-recorded | Done 15 Oct 2026. Rust 205, Vitest 134, Playwright 266 (overflow 123 on 41 states × EN, FR, DE; screenshots 82; flows 61), all green; new states 10c-chart-rename, 19b-empty-bar-menu |
-
-## Change set 7 (14 Oct 2026, live apply, no restart): implemented
-
-Specified in `docs/FEATURES.md` (Broker: live apply; Connections), `docs/SPEC.md` 6, mockups 02b, 12, 12b, 12c, 14, `docs/TESTPLAN.md` B-15, B-25, C-06, C-13, C-16, B-12, B-22. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
-
-| Item | Status |
-|---|---|
-| Runtime: one task per listener (start, stop, rebind alone), swappable TLS material, live client-certificate rule and CA, session registry with drops by listener, login kind and issuer | Done 14 Oct 2026. `RwLock` slots, no new dependency (Cargo.lock unchanged) |
-| Manager: diff-and-apply on every change while running; `restart_needed` and `restart()` removed; per-listener error in the status | Done 14 Oct 2026. Listener changes and reachability are `async` (they wait for the old socket to close) |
-| Drops exactly as listed in FEATURES (port/kind, remove/off, CA rotation, Required, Verify against, revoke, user removed or password changed, Anonymous off); one log line per applied change | Done 14 Oct 2026. Crate test B-15 with real clients (two tests) |
-| UI: Restart button, restart prompt, "Later", pending state, "restart pending" chip and pulsing button removed; Start and Stop only; listener row error; "Local broker" reconnects only when touched | Done 14 Oct 2026. Error as a short brick word after the port, reason in the tooltip |
-| Client certificate rows: one ↓ download button with the menu PEM / PKCS#12… instead of two pills | Done 14 Oct 2026. Same menu component as the card menu |
-| Built-in broker dialog: no restart step; Add listener: no restart note; strings without "restart" | Done 14 Oct 2026. Only `keychain.refused` still says "Restart MQTT Panel" |
-| Tests B-15 (crate level), B-25, updated C-06, C-13, C-16, B-12, B-22; screenshots re-recorded | Done 14 Oct 2026. Rust 203, Vitest 115, Playwright 248 (overflow 117 on 39 states × EN, FR, DE; screenshots 78; flows 53), all green; new states 12c-live-change, 12d-cert-export-menu, 12f-listener-error |
-
-## Change set 6 (14 Oct 2026, owner feedback on the fifth build): implemented
-
-Specified in `docs/FEATURES.md` (Connections, Settings, Localisation rules, B5), `docs/SPEC.md` 4 and 6, mockups 02, 02b, 02c, 02d, 02e, 03, 17 and 19, `docs/TESTPLAN.md` C-26 to C-30, T-20, S-05. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
-
-| Item | Status |
-|---|---|
-| "New broker…", "Built-in broker", "Connect to the built-in broker" in EN, FR, DE | Done 14 Oct 2026 |
-| Cards: name line, protocol chip with the ⚠ icon, "host:port" line, nothing else; taller | Done 14 Oct 2026. The connection-bar tab shows the same icon |
-| Text fields with four fixed widths in every form; label column unchanged | Done 14 Oct 2026. Connection form, Broker dialogs, Settings, prompts; fields the spec does not list are under "Open" |
-| "Generate" (FR « Générer », DE „Generieren“); FR « Connecter » everywhere | Done 14 Oct 2026. Also the rejected-client-ID error |
-| New profile named from the host until the user types a name | Done 14 Oct 2026. Pure helper `nameFromHost` with unit tests |
-| Per-connection skip: `tls.skipVerify` replaces `verifyServer` (migration), app-wide setting removed and ignored on load, Advanced switch with the prompt, "only this time" for one attempt, ⚠ with tooltips on cards and tabs | Done 14 Oct 2026. The switch label follows the switch (see Open) |
-| Certificate prompt reworked: choice list (pin, skip once, skip always, CA) with one Connect button | Done 14 Oct 2026 |
-| Tests C-26 to C-30, T-20, S-05; screenshots re-recorded | Done 14 Oct 2026. Rust 201, Vitest 107, Playwright 241 (overflow 114 on 38 states × EN, FR, DE; screenshots 76; flows 51), all green; new state 02d-skip-prompt |
-
-## Change set 5 (14 Oct 2026, owner feedback on the fourth build): implemented
-
-Specified in `docs/FEATURES.md` (Connections, X2, B5), `docs/SPEC.md` 4 and 6, mockups 01, 02, 02b, 02c, 02d, 02e, 03 and 19, `docs/TESTPLAN.md` C-21 to C-25. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
-
-| Item | Status |
-|---|---|
-| Round play button (▶, "Connect") on idle cards, same place as ■; starts the broker first for "Local broker" | Done 14 Oct 2026. Stays on the Connections screen (see Open) |
-| Basics order: Name, Protocol, MQTT version, Host and port, WebSocket path, Client ID, Username, Password | Done 14 Oct 2026 |
-| Address prefiller: scheme prefix always shown, prefix selects the protocol, ":port" and the port box mirror each other, pasted full address fills everything | Done 14 Oct 2026. Pure module `lib/address.ts` with unit tests; profile model unchanged |
-| Security fold disabled with mqtt or ws, reason in place of the summary, values kept | Done 14 Oct 2026. `conn.tlsUnused` removed |
-| "MQTT Panel broker" (menu, dialog title, card meta line) in EN, FR, DE | Done 14 Oct 2026. Also the "Verify against" ⓘ in EN and DE |
-| Import hidden from the UI (list line, drop zone, welcome card, native menu, palette); code and crate tests kept | Done 14 Oct 2026. The palette had no import entry |
-| Tests C-21 to C-25; screenshots re-recorded | Done 14 Oct 2026. Rust 200, Vitest 90, Playwright 231, all green; new state 02e |
-
-## Change set 4 (13 Oct 2026, owner feedback on the third build): implemented
-
-Specified in `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` 1.2, 4 and 6, mockups 02, 02b, 02c, 02d, 12, 12b, 12c, 13, 14, 17 and the title bar of every screen, `docs/TESTPLAN.md` C-17 to C-20, B-21 to B-24, V-10. Readings awaiting the owner are under "Open" in `docs/DECISIONS.md`.
-
-| Item | Status |
-|---|---|
-| Connect and Test on "Local broker" start a stopped broker first ("starting broker…", then "connecting"); a broker that cannot start fails the connection with its reason | Done 13 Oct 2026, from every entry point (form, card menu, palette, "Choose a connection") |
-| Round stop button (■, "Disconnect") on connected, connecting and reconnecting cards; disconnects that connection only | Done 13 Oct 2026 |
-| No parsed chips next to CA, client certificate, client key, password or PKCS#12; the plain error for a wrong file stays | Done 13 Oct 2026. `file.keychain` and `file.until` removed |
-| No "mTLS" or "Mutual TLS": cards TLS, WSS, no TLS; preset "Encrypted + client certificates" (FR, DE as specified); 02b chip "client certificate" | Done 13 Oct 2026. Also the client certificate ⓘ and the "Add a listener…" ⓘ (see Open) |
-| Form: Basics open; "Security" and "Advanced" folds closed at start, state kept while the app runs, summaries; no helper sentences; every ⓘ kept | Done 13 Oct 2026 |
-| Title bar pill removed; play badge on Broker (clay while starting), count bubble on Connect; "unverified" chip on tab and card | Done 13 Oct 2026. Connection bar and ⌘⇧L switch menu kept |
-| Broker screen: tiles Status (uptime), In, Out, Retained; Listeners line with "restart pending", "This computer only / Whole network" + ⓘ and "+ Add listener…"; table On, Kind, Port, Setup, ✕ (removes at once, restart prompt follows) | Done 13 Oct 2026 |
-| Users panel (Anonymous + ⓘ, "+ Add user"; ✎ and ✕; "Local broker" tag) and Client certificates panel (ⓘ, "Import CSR…", "Issue…"; PEM, PKCS#12, ✕ revoke with confirmation; "Local broker" tag) | Done 13 Oct 2026 |
-| "Advanced security" fold: client-certificate requirement, Verify against (with Import CA…), Local CA (Export CA.pem, Rotate…), Server certificate (Import…, Regenerate…) | Done 13 Oct 2026 |
-| Right pane: "Clients" (no count, no "live"); "▸ Log" with "· n warnings" only when n > 0 | Done 13 Oct 2026 |
-| Reachability broker-wide: `BrokerConfig.bind` in the model, `broker.json` (old per-listener values migrate, network wins), the TOML file (top-level `bind`, the listener key refused), the runtime, the adapter (`set_broker_bind`), Add listener step 2 (kind and port only) | Done 13 Oct 2026. CLI `--bind` override unchanged |
-| Every explanation on the Broker screen in an ⓘ; the permanent sentences removed | Done 13 Oct 2026 |
-| Tests: C-17 to C-20, B-21 to B-24, V-10 (Playwright and Vitest), Rust B-21 (manager, old `broker.json`, TOML, runtime binding, CLI, adapter follow); screenshots re-recorded | Done 13 Oct 2026. Rust 200, Vitest 65, Playwright 221, all green |
-
-## Change set 1 (13 Oct 2026, owner feedback after the first run): implemented
-
-Specified in `docs/FEATURES.md` (Connections, Broker), `docs/SPEC.md` section 7, mockups 02, 02b, 12, 12b, 12c, 14, 19 and `docs/TESTPLAN.md` C-12, C-13, B-06, B-12, B-15, B-16, B-17. Status per item:
-
-| Item | Status |
-|---|---|
-| "New connection" menu (Another broker… / This app's broker > Use an existing listener / Add a listener…); Target row removed from the form; first-launch cards routed | Done 13 Oct 2026. Native submenu in the desktop shell (Tauri `Submenu`), DOM submenu with keyboard (arrows, Enter, Escape) in the mock |
-| "Connect to this app's broker" dialog (02b): listener list, explainer, steps, user "mqtt-panel", certificate "mqttpanel-desktop" when required, CA trust, start or restart, connect, single profile "Local broker" | Done 13 Oct 2026. Adapter command `app_broker_step` (user, cert, trust, broker, connect); steps tick off in the dialog, an error stops the list with the reason |
-| Restart prompt (12c): "Restart now" / "Later"; pulsing "Restart broker and apply changes"; pill and heading "restart pending"; reduced motion | Done 13 Oct 2026. Pending changes listed in the prompt ("Pending: TLS listener port 8883 → 8884."), port cell marked "pending" |
-| Broker screen: "Connect Explorer here" and the row menu entry removed; Authentication above Client certificates; users table with eye and copy; per-listener login removed from UI, model, TOML config and broker runtime | Done 13 Oct 2026. TOML `login` key now refused like any unknown key; plain user passwords in the keychain beside the argon2 hash |
-| Eye and copy on every password and passphrase field the app owns | Done 13 Oct 2026: users table, "mqtt-panel" password in the dialog, generated and typed PKCS#12 passphrases (issue and export), add-user and change-password dialogs, the "Local broker" profile password |
-| "Test" / « Tester » / „Testen“ | Done 13 Oct 2026 |
-| Tests updated: Vitest, Playwright states and overflow check (EN, FR, DE), Rust broker tests (B-06, B-12), new flows (C-12, C-13, B-15, B-16) | Done 13 Oct 2026. Rust 183, Vitest 44, Playwright 189, all green |
-| Test lab scripts `tools/testlab/` (mosquitto in five modes, Paho load client) | Done, verified on macOS 13 Oct 2026 (B-17 manual run by the owner pending) |
-
-## Change set 2 (13 Oct 2026, owner feedback on the second build): implemented
-
-Specified in `docs/FEATURES.md` (Connections, Publish, Broker), `docs/SPEC.md` 1.2 and 6, mockups 02, 02c, 04 to 11, 12, 12c, 13, 14, 18, 19, `docs/TESTPLAN.md` C-14 to C-16, P-11, B-18, B-19, V-08, V-09.
-
-| Item | Status |
-|---|---|
-| Connected card in the accent colour with "connected"; chip on the address line; reconnecting outline | Done 13 Oct 2026. A connecting card is outlined in clay too ("connecting"); dark theme uses dark text on the light accent for contrast |
-| Card context menu (Connect/Disconnect, Test, Duplicate, Delete…); visible Delete in the header; Duplicate header button removed | Done 13 Oct 2026. Menu also keeps Move up / Move down; opens with right-click, the context-menu key or Shift+F10; Delete asks "Delete the connection "X"?"; a connected profile is disconnected first |
-| Connection bar under the title bar; title bar pill limited to broker state and lab flags | Done 13 Oct 2026. ✕ on the active tab, on the others when hovered or focused; ⌘⇧L and the palette "Switch connection" open the Explorer on the chosen connection; the pill opens the Broker screen (or Connections when it reads "Not connected") |
-| "Local broker" profile follows every broker change at once | Done 13 Oct 2026. Listener kind, port, reachability, enable state, client-certificate requirement, CA rotation and regeneration, "mqtt-panel" password, Anonymous; reconnects after every broker start or restart when it was open |
-| Broker-wide client certificate control under Client certificates, with "Verify against"; read-only per listener; preset and step 2 texts | Done 13 Oct 2026. Per-listener `requireClientCert` removed from the model, `broker.json`, the TOML file (`[tls] require_client_cert`, the old listener key is refused) and the runtime |
-| Live clients and log, no Refresh; log collapsed to a title strip, expands on click | Done 13 Oct 2026. State kept in the settings (`brokerLogOpen`) |
-| Send top right in the Publish composer header | Done 13 Oct 2026 |
-| Action buttons slightly bigger | Done 13 Oct 2026: 13 px text, 6 × 13 px padding; panel headers 46 px so all columns line up |
-| macOS title bar: app name aligned with the traffic lights | Done 13 Oct 2026: `trafficLightPosition` x 16, y 24 in `tauri.conf.json` (corrected 13 Oct 2026, measured centre 22 px), title row inset 84 px on macOS only. Visual check V-08 by the owner |
-| Secrets: one keychain master key, encrypted secrets file, lazy read, no keychain access on restart or start-up; no migration, refusal asked once per session, broker regenerates a missing server key (change set 3) | Done 13 Oct 2026. `secrets.enc` (XChaCha20-Poly1305, record name as associated data, nonce per record, version 1); server key kept in memory by the broker manager. Change set 3: `migrate_from`, the `migrated` field, the per-secret keychain store and the legacy key lists are gone (an old file with the field still loads); `FileSecrets` remembers a refused master key for the session and answers `keychain.refused` at once (EN, FR, DE); a broker start (app and `mqttpanel broker`) issues a missing server key again or regenerates a CA whose key is missing, logged, and fails with the reason when the store refuses; a TLS or WSS listener never starts without its material. Manual check V-09 by the owner |
-| Tests: C-14 to C-16, P-11, B-18, B-19, Vitest, Playwright states and overflow check, Rust | Done 13 Oct 2026. Rust 190, Vitest 54, Playwright 207, all green |
-| Tests change set 3: V-09 at crate level (refusal asked once, old `migrated` field loads, opening the store reads nothing), B-20 (server key missing, CA key missing too, refusing store, no TLS listener reads no key) | Done 13 Oct 2026. Rust 196, Vitest 54, Playwright 207, all green |
-
-## What works
-
-### Rust crates (`cargo test --workspace`)
-
-| Crate | What | Tests (passed / failed / opt-in ignored) |
-|---|---|---|
-| `crates/engine` | Pure state machine: topic store (radix tree + flat index), ring buffers, series with casting rules, decoders (JSON, text, hex, base64, image, Sparkplug B with aliases, CBOR, MessagePack, Protobuf with user `.proto` and imports), diff, search (substring, wildcard, regex), filters, export (CSV, JSON, NDJSON, chart CSV), memory estimate, C ABI with header | 57 / 0 / 1 |
-| `crates/tls` | Certificate, key and PKCS#12 parsing, fingerprints, generation (local CA, server and client certificates, CSR signing, PKCS#12 and encrypted PEM export), the F-01 test kit | 12 / 0 / 0 |
-| `crates/client` | MQTT 3.1.1 and 5 over TCP, TLS, WebSocket and secure WebSocket; auto version negotiation; QoS 0 to 2; keep-alive; reconnect with subscription restore; MQTT 5 properties; plain-word errors (TESTPLAN section 7) and trust prompts (self-signed, private CA, expired, not yet valid, fingerprint changed) | 45 / 0 / 0 |
-| `crates/profiles` | Profiles, settings, templates, the secrets file `secrets.enc` with one keychain master key (lazy, cached, refusal remembered for the session), export without secrets or with passphrase (Argon2id + XChaCha20-Poly1305), import from MQTT Panel, MQTTX and the predecessor tool | 15 / 0 / 0 |
-| `crates/broker` | In-process broker: TCP, TLS, WS, WSS listeners (one broker-wide reachability: whole network or this computer only), presets, shared users for every listener (argon2 at rest, plain password in the keychain for reveal), the app user "mqtt-panel" and certificate "mqttpanel-desktop", anonymous gating, client certificates with revocation and one broker-wide requirement, CA rotation, CSR import, clients, counters, log, TOML config for the CLI; the server key is kept in memory across restarts; a missing server or CA key is made again on start | 46 / 0 / 1 |
-| `crates/cli` | `mqttpanel sub`, `pub`, `broker`, `profiles`; SPEC 8 help texts byte for byte; exit codes 0/1/2/3 | 16 / 0 / 1 |
-| `apps/desktop` | Tauri 2 shell: native menu bar (macOS conventions, labels in the app language), 94 commands, 20 Hz event ticker, native dialogs, "Connect to this app's broker" steps, the "Local broker" follow-up and reconnect | 9 / 0 / 1 |
-
-Total: 200 passed, 0 failed, 4 opt-in ignored (13 Oct 2026, after change set 4). `cargo deny check`: advisories, bans, licences and sources ok. `npm audit`: 0 vulnerabilities.
-
-Opt-in tests (`-- --ignored`, nightly): public brokers (`MQTTPANEL_PUBLIC_BROKERS=1`), performance (B-14, Q-02), corpus regeneration.
-
-## Measured numbers (MacBook, macOS 27.0.1, release builds)
+## Measured numbers (MacBook, release builds)
 
 | Measure | Result | Target |
 |---|---|---|
 | Engine ingest (nested JSON, 2 000 topics) | 1.7 million msg/s | 5 000 msg/s |
-| Build 100 000 topics | 60 ms | |
 | Tree slice, 60 rows of 100 927 visible | 3.3 ms first, 0.009 ms cached | < 2 ms (X-01) |
-| Table slice sorted by rate, 100 000 topics | 3.0 ms | |
-| Search substring / wildcard / regex over 100 000 topics | 1.7 / 3.2 / 1.0 ms | < 50 ms |
-| Memory estimate accuracy (Q-05) | ratio 1.000 (estimate within 8 bytes of 38.9 MB measured) | within 10 % |
-| Full pipeline: Mosquitto, client, adapter, engine at 5 000 msg/s for 10 s | 50 000 / 50 000 delivered, 0 ms backlog after the last send | no backlog > 1 s (Q-02) |
-| Embedded broker, 1 000 publishers + 4 subscribers, QoS 1 (B-14) | 4 600 msg/s in, 18 400 msg/s fan-out, 0 dropped | 5 000 in, 20 000 out, no drops |
-| macOS app bundle size | 14 MB | about 10 MB |
+| Search over 100 000 topics (substring / wildcard / regex) | 1.7 / 3.2 / 1.0 ms | < 50 ms |
+| Full pipeline at 5 000 msg/s for 10 s (Mosquitto, client, adapter, engine) | 50 000 / 50 000, no backlog | no backlog > 1 s (Q-02) |
+| Embedded broker, 1 000 publishers + 4 subscribers, QoS 1 (B-14) | 4 600 msg/s in, 18 400 msg/s out, 0 dropped | 5 000 in, 20 000 out |
+| Memory estimate accuracy (Q-05) | within 8 bytes of 38.9 MB | within 10 % |
 
-The first tree slice after a structural change rebuilds the visible list (3.3 ms for 100 927 rows); cached slices are far below the 2 ms target. The UI frame-time measurement (Q-01) runs in the nightly job.
+## Open items
 
-## How to run and test
-
-See `docs/RUNNING.md` and `HANDOFF.md` section "Commands". The macOS app is built with `cd apps/desktop/src-tauri && cargo tauri build` (bundle under `target/release/bundle/macos/MQTT Panel.app`).
-
-## UI (React in Tauri 2, `packages/ui`)
-
-Every screen of `docs/mockups/mqtt-panel-mockups.html` was compared side by side with the app at 1280 × 700 (Playwright screenshots of the 36 states in `packages/ui/e2e/states.ts`, light and dark; after change set 4 the title bar holds the name and the mark only, the rail carries the broker badge and the count bubble). Deviations are listed in `docs/DECISIONS.md` ("13 Oct 2026, phases 2 to 4 UI").
-
-| Mockup | Screen | Works | Not yet / differs |
-|---|---|---|---|
-| 01 | First launch | Empty profile list, welcome cards ("Create…" opens the New connection menu, "Start and connect" opens 02b, import), ⌘K hint | |
-| 02, 02c, 02d, 19 | Connections (EN, FR) | Profile cards with search and drag reorder, state word and round stop button, chips TLS, WSS, no TLS, "unverified" when verification is skipped; "New connection ▾" menu with the "This app's broker" submenu; form with Basics open and the "Security" and "Advanced" folds (closed at start, summaries, state kept while the app runs); file pickers with Browse and drop, no parsed chips, plain error for a wrong file; every security field has its ⓘ bubble (EN, FR, DE); SNI and ALPN rows; subscription chips with X and the "no subscriptions" notice; "Test" with latency, certificate and version; Connect and Test on "Local broker" start the broker first; the "Local broker" password with eye and copy; import from other tools with a summary | |
-| 02b | Connect to this app's broker | Enabled listeners, most secure first and preselected, chips (client certificate, Encrypted, unencrypted), "Add a listener…" with ⓘ; explainer (Anonymous variant); steps ticking off with the "mqtt-panel" password behind eye and copy; error stops the list | The explainer is one generic text ("if the listener requires one", "if needed") instead of the mockup's listener-specific wording |
-| 03 | Trust prompt | Reason, subject, issuer, SAN, validity, SHA-256 fingerprint, key; risk sentence; one choice list (trust this certificate, preselected; skip once; skip always; "Trust anything this CA signs" only for a private CA) and one Connect button (change set 6); expired marked unsafe; Connect and Test open the same prompt | |
-| 04 | Explorer tree | Virtualised tree, child count, messages since connect, rate, inline value, retained marker, activity dot, sparkline with hover values, highlight on the row and collapsed ancestors (reduced motion: dot only), expand menu, pinned chips, views, follow and pause with missed counter, quick publish row, native context menu (pin, publish here, add to chart, copy topic / payload / CLI, export subtree, delete retained, delete retained in subtree with preview, clear history) | The root row shows the count without the words "since connect" (the tooltip says it) |
-| 05 | Explorer table | Sortable, hideable, reorderable columns; "Value · last 10" sparkline; pinned rows grouped at the top; filters (retained, changed in last n min, payload contains, QoS, has value); footer counts | |
-| 06 | Diff | Current against previous or any history entry, change count, highlight toggle, history with changed keys and Baseline; right-click or hover icon on a field: add to chart, copy path, copy value | |
-| 07 | Properties | Negotiated version first, standard fields, MQTT 5 block only when present, reply box for request and response | Message expiry does not show "n s left when received" |
-| 08 | Publish | Templates (saved on request only, folders, placeholders), composer with topic autocomplete, QoS, retain, format, CodeMirror payload with JSON validation, MQTT 5 properties, request and response with ⓘ bubble (hidden with the one-line note on 3.1.1), sent log with status, re-send, load, save as template, copy as CLI, export | The "How this works" text is in the ⓘ bubble, not an inline callout (as FEATURES asks) |
-| 09 | Delete retained, repeat | Confirmation with the current retained value; repeat every n s with count, running indicator and Stop, stops on disconnect | |
-| 10, 10b | Charts, field picker | Charts with several series, left and right axes, units, line / step / points, time range, pause, hover readout, CSV and PNG export, rename, duplicate, remove, other charts strip; series editor with click-to-pick in the last message; field picker with plottable fields first, text greyed, other path, target chart | |
-| 11 | Export | Selected topic, subtree or visible rows; time range; CSV, JSON, NDJSON with description; MQTT 5 properties and base64 options; size estimate; native save dialog | |
-| 12, 12b | Broker | Start, stop, restart; tiles Status (uptime), ↓ In, ↑ Out, Retained; Listeners line with "restart pending", the broker-wide "This computer only / Whole network" choice with ⓘ and "+ Add listener…"; listener table On, Kind ("unencrypted" only on the whole network), Port with validation, Setup, ✕; Users panel (Anonymous with confirmation and gating, ⓘ, "+ Add user", eye, copy, ✎, ✕, "Local broker" tag); Client certificates panel (ⓘ, Import CSR…, Issue…, PEM, PKCS#12, ✕ revoke, last seen, "Local broker" tag); "Advanced security" fold (requirement, Verify against, Local CA, Server certificate); Clients with disconnect; "▸ Log" strip with warnings, live log with level; one-sentence Anonymous strip | |
-| 12c | Restart prompt | "Restart the broker to apply the change?" with the pending list, "Later" / "Restart now"; pulsing clay "Restart broker and apply changes" (static highlight under reduced motion or Motion off); "restart pending" on the Listeners line; "pending" on a changed port; Advanced security open, log expanded | |
-| 13, 14 | Add listener | Step 1 setup with ⓘ per preset and explanation; step 2 kind and port only (refuses below 1024 with the exact message); closing note depends on context (asks to restart / starts with the broker / the Connections flow restarts and connects) | |
-| 15 | Issue client certificate | Name, validity, ECDSA or RSA, PEM or PKCS#12, passphrase with Generate, eye, copy and ⓘ bubble, save CA.pem too | |
-| 16, 17, 20 | Settings (EN, DE) | Appearance, language (runtime switch), data and memory with live estimate and Clear all history, security (trusted fingerprints; skipping verification is per connection since change set 6), updates, shortcuts (searchable), privacy, about and licences | |
-| 18 | Command palette | Commands, topics and connections, fuzzy match, keyboard only | |
-
-Empty states: "Choose a connection" on Explorer, Publish and Charts without an active connection; Charts without a chart.
-
-Running the real app: `cargo tauri build` produces `MQTT Panel.app` (16.0 MB after change set 2); it starts, loads the UI and answers every IPC call used at start (checked with `MQTTPANEL_LOG=1`). Screen capture and accessibility automation are not available to the build agent, so the visual walk of the real window is a manual step (V-03).
-
-## Test results (13 Oct 2026, macOS 27, after change set 4)
-
-| Suite | Passed | Failed | Skipped |
-|---|---|---|---|
-| Rust workspace (`cargo test --workspace`, 7 crates, 29 test binaries) | 200 | 0 | 4 opt-in (`--ignored`) |
-| UI unit and component tests (Vitest, 13 files) | 65 | 0 | 0 |
-| Playwright, V-02 overflow check, 36 states × EN, FR, DE | 108 | 0 | 0 |
-| Playwright, V-01 screenshots, 36 states × light, dark (EN) | 72 | 0 | 0 |
-| Playwright, end-to-end flows with the mock engine | 41 | 0 | 0 |
-
-Change set 4 adds the flows C-17 (broker starts on Connect and Test, a failing start fails the connection), C-18 (stop button), C-19 (folds), C-20 (no parsed chips, no "mTLS" in EN, FR, DE), B-21 (broker-wide reachability), B-22 (listener table), B-23 (panels, Advanced security, Add listener step 2), B-24 (verbosity) and V-10 (title bar, rail badges, "unverified"), the same items at component level in Vitest, and Rust B-21 (manager value and restart flag, runtime binding checked against a LAN address, old `broker.json` migration, TOML top-level `bind` and the refused listener key, CLI `--config` with `--bind`, the adapter's "Local broker" reconnecting after a reachability change). The Playwright flows cover C-05 with C-15 (connection bar), C-14, P-11, B-18 with B-19, C-07, C-12, C-13, X-05, X-06, X-08, X-09, X-10, X-11, X-14, D-18, D-19, D-20, D-21, P-03, P-04, S-01, S-03, V-04, V-05, B-02, B-12, B-15 (two tests, one under reduced motion), B-16 and three native-feel checks. Rust covers B-18 (broker-wide requirement in the manager, the runtime and the TOML file; plain listeners unaffected), C-16 at adapter level (the "Local broker" profile follows port, requirement, password, CA rotation, Anonymous and a switched-off listener, and reconnects after restarts), V-09 at crate level (secrets file: encryption, nonce per record, lazy key read once, a refusal asked once and answered with `keychain.refused`, an old file with the `migrated` field loads, no keychain read when the store opens; broker restarts never read the secret store), B-20 (a missing server key issues a new server certificate, a missing CA key regenerates the CA, a refusing store fails the start with no listener up), B-06 (shared users on TCP, TLS, WS and WSS; TOML `login` refused) and B-12 and C-13 at adapter level (`app_broker_step` three runs without duplicates, connected within 5 s from a stopped broker, restart only when pending, Anonymous on). Vitest covers C-14, C-15, C-16 (mock engine), P-11, B-18, B-19, C-08, C-12, D-16, D-17, D-22, P-06, P-07, T-04, T-06, T-26, X-04, X-13, B-03, B-07, B-15 and B-16 at component level, the catalogs (keys, placeholders, info bubbles, blocked words, French typography, German "du") and the formatters. V-01 produces screenshots; comparing them against stored baselines per OS is not wired yet (phase 5).
-
-## Native-feel checklist (SPEC 1.2), macOS
-
-| Item | Result | Evidence |
-|---|---|---|
-| Native menu bar, context menus, shortcuts with platform conventions | Pass | Tauri menu API: app menu with About, Settings (⌘,), Services, Hide, Quit; File, Edit, View (⌘1 to ⌘5, ⌘K), Connection, Window, Help; labels in the app language. Context menus are native popups (`Menu.popup`). Windows and Linux put Settings under Edit and Quit under File |
-| Native window chrome, traffic lights, dialogs, notifications on request only | Pass | `titleBarStyle: Overlay`, native open and save dialogs (`tauri-plugin-dialog`), no notifications |
-| System font, platform text rendering, tabular figures, no web fonts | Pass | `-apple-system` stack, `font-variant-numeric: tabular-nums`, no font files |
-| No web-isms: no text cursor or selection on chrome, no drag images, no rubber band; data selectable | Pass | `user-select: none` and `cursor: default` on chrome, `-webkit-user-drag: none`, `overscroll-behavior: none`; tree names, payloads, tables and inputs selectable (flow test) |
-| Scrollbars per platform | Pass | macOS keeps WebKit's overlay scrollbars; classic styled scrollbars on Windows and Linux only |
-| Theme follows the OS live; reduced motion; high contrast | Pass | `prefers-color-scheme`, `prefers-reduced-motion` and `prefers-contrast: more` (flow tests); OS accent colour not used (optional in the spec) |
-| Keyboard-first, focus rings, command palette | Pass | `:focus-visible` rings, ⌘K palette (V-04), tree and table keyboard navigation |
-| Runtime prerequisites documented | n/a on macOS | WebView2 on Windows: `docs/WINDOWS_BUILD.md`; WebKitGTK for Linux source builds: `docs/RUNNING.md` (phase 5) |
-| Visual regression on three OSes | Partial | Screenshots for every state in light and dark; baselines and the Windows and Linux runs are phase 5 (CI) |
-| Walk of the real window by a person (V-03) | Pending | Manual step; see "Running the real app" |
-
-## Open tasks for phase 5
-
-- FR and DE: native review of every string (V-06, `docs/COPY_REVIEW.md`); the implementing model's drafts include shortened labels listed in `docs/DECISIONS.md`.
-- Accessibility pass (V-07): axe-core in the Playwright suite, screen-reader labels on every icon button, AA contrast measured in both themes, VoiceOver and NVDA spot checks.
-- Native-feel walk of the real window on macOS, Windows and Linux (V-03), including menus in FR and DE.
-- V-01 visual regression: store baselines per OS and compare in CI; run the Playwright suites on Windows and Linux.
-- `npm run e2e:app` (tauri-driver smoke on Windows and Linux) and the Q-01 frame-time measurement in the nightly job.
-- Persistence flows not covered with the mock engine: X-07 (pinned topics and saved views survive a restart) and C-01 at UI level; covered in Rust only.
-- Mockup details: "since connect" wording on the tree root row (04); "n s left when received" on Message expiry (07).
-- Owner confirmations: licence allow-list additions, the change set 1 points under "Open" in `docs/DECISIONS.md`, the three small layout deviations listed under "Open" in `docs/DECISIONS.md`.
-- Store packages only (25 Oct 2026): Mac App Store upload through `scripts/release-mac-testflight.sh`; Microsoft Store MSIX built on a Windows machine (`docs/WINDOWS_BUILD.md`, `scripts/build-msix.ps1`). No DMG, MSI, AppImage, deb or rpm, no auto-update, no Homebrew cask or winget manifest; signing last.
-- Website at https://mqtt-panel.com (EN, FR, DE, no trackers) with screenshots and demo clips: see "Website and branding (18 Oct 2026)".
-- `scripts/check-testplan-coverage.sh` (listed in TESTPLAN) is not written yet.
-- The memory budget is reported but not enforced (engine).
+- **Windows:** MSIX build and test on a Windows machine per `docs/WINDOWS_BUILD.md`; Microsoft Store listing.
+- **Native review:** every FR and DE string by a native reader (V-06), including the assistant texts.
+- **Store submission (owner):** App Privacy "Data Not Collected", App Review contact, copyright line, then submit (`docs/store/README.md`).
+- **Data Protection keychain gate:** the signed macOS build keeps the master key in the Data Protection keychain and shows no keychain dialog on a fresh account (`docs/SPEC.md` 11, `docs/TESTPLAN.md` V-12). Not implemented yet; it blocks the release.
+- **Quality:** accessibility pass (V-07: axe-core, screen-reader labels, AA contrast, VoiceOver and NVDA); visual regression baselines per OS in CI (V-01); Playwright on Windows and Linux; tauri-driver smoke and Q-01 frame time in the nightly job.
+- **Coverage gaps:** X-07 (pinned topics and saved views survive a restart) and C-01 at UI level are covered in Rust only; `scripts/check-testplan-coverage.sh` is not written yet.
+- **Mockup details:** "since connect" wording on the tree root row (04); "n s left when received" on Message expiry (07).
+- **Owner readings:** see "Readings awaiting the owner" in `docs/DECISIONS.md`.

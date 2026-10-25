@@ -1,9 +1,7 @@
-# MCP interface: mini spec for validation
+# MCP interface
 
-Status: **beta** (owner, 25 Oct 2026: tools and texts may still change). Validated by the owner on 20 Oct 2026; implemented 20 Oct 2026 (phases 1 to 4: transport, security model,
-Settings page "Assistant", every tool group of section 4, five resources, four prompts; complete table in section 10).
-Decisions taken with the owner on 20 Oct 2026 are marked (owner); the implementing model's readings are in
-`docs/DECISIONS.md`, "20 Oct 2026, MCP interface (phases 1 and 2)" and "(phases 3 and 4)".
+Status: **beta** (tools and texts may still change). Implemented: transport, security model, Settings page
+"Assistant", every tool group of section 4, five resources, four prompts; complete table in section 10.
 
 ## 1. Goal
 
@@ -16,12 +14,12 @@ A chatbot (Claude Desktop, Claude Code, ChatGPT, any MCP host) helps the user of
 
 The assistant acts through the running app. The user sees every change in the window and in an Assistant log.
 
-## 2. Transport and hosting (owner: stdio shim; seamless Claude and ChatGPT support)
+## 2. Transport and hosting
 
 - `mqttpanel mcp` is an MCP server over stdio in the existing CLI binary. It forwards every call to the running app
   over a local socket (Unix socket in the app data folder, named pipe on Windows), same user only. If the app is not
-  running, the shim starts it and waits for the socket (owner: start the app).
-- stdio is enough for both target hosts (checked 20 Oct 2026): Claude Desktop and Claude Code launch stdio servers
+  running, the shim starts it and waits for the socket.
+- stdio is enough for both target hosts: Claude Desktop and Claude Code launch stdio servers
   from their configuration files; the ChatGPT desktop app launches stdio servers through its Codex configuration
   (`~/.codex/config.toml`, section `[mcp_servers.<name>]`, also editable in the app under Settings, MCP servers),
   shared with the Codex CLI and IDE extension, per OpenAI's documentation. ChatGPT on the web only takes remote
@@ -29,23 +27,23 @@ The assistant acts through the running app. The user sees every change in the wi
 - "Seamless" setup, Settings page **Assistant**, one button per host family:
   - **"Add to Claude"**: writes the `mqttpanel mcp` entry for Claude Desktop when it is installed (its file is created
     if Claude Desktop has not made it yet) and for Claude Code when `~/.claude.json` exists, after a confirmation that
-    names the files, and reports by name which apps it set up and which are not installed (25 Oct 2026). The Mac App
+    names the files, and reports by name which apps it set up and which are not installed. The Mac App
     Store copy (App Sandbox) writes nothing; it copies the configuration and says where to paste it.
   - **"Add to ChatGPT"**: writes `[mcp_servers.mqttpanel]` into `~/.codex/config.toml` (created if missing), same
     confirmation; the page notes that this is for the ChatGPT desktop app and that ChatGPT on the web cannot reach a
     local server.
-  - **Other assistant apps** (earlier "Other hosts"): the generic configuration snippet to copy.
-- The MCP server is **enabled by default** (owner): a configured host can launch the shim at any time; nothing listens
+  - **Other assistant apps**: the generic configuration snippet to copy.
+- The MCP server is **enabled by default**: a configured host can launch the shim at any time; nothing listens
   until it does.
 
 ## 3. Security model
 
-- **One-time acknowledgement (owner):** the first time a host connects, and from the Settings page, the app shows one
+- **One-time acknowledgement:** the first time a host connects, and from the Settings page, the app shows one
   sentence to accept once: "Over this interface an assistant can change everything in MQTT Panel, including deleting
   connections, retained messages and broker settings. You stay in control of what you ask it." Until accepted, tools
   that write return "not yet allowed: accept the acknowledgement in MQTT Panel, Settings, Assistant".
-- **No in-app confirmations** per tool call (owner); the host's own permission prompts remain the user's gate.
-- **Secrets (owner: both ways, with warnings and a recommendation):** every tool that needs a password, a key file,
+- **No in-app confirmations** per tool call; the host's own permission prompts remain the user's gate.
+- **Secrets (both ways, with warnings and a recommendation):** every tool that needs a password, a key file,
   a PKCS#12 passphrase or a CSR response has two forms:
   - **recommended**: the tool asks the app to collect the secret itself (`ask_in_app: true`): MQTT Panel opens its
     prompt or file picker, the tool returns "waiting for the user in MQTT Panel" and then the result; the secret never
@@ -55,13 +53,13 @@ The assistant acts through the running app. The user sees every change in the wi
     same warning once per session; the Assistant log records "password given through the assistant".
 - **Secrets never flow out**: no tool returns a password, a private key or a passphrase; exports of keys go to files
   the user picks in the app.
-- **Audit (owner: toast plus Assistant log):** every writing tool call shows a toast ("Assistant: connected Plant
+- **Audit (toast plus Assistant log):** every writing tool call shows a toast ("Assistant: connected Plant
   broker") and appends a row to Settings, Assistant (time, host name, tool, arguments without secrets, outcome), kept
   for the session, exportable as text.
 - **Limits**: one host session at a time per transport; tool calls time out after 30 s (connect: 20 s); history reads
   are bounded (section 5).
 
-## 4. Tools (names and arguments are proposals)
+## 4. Tools
 
 All tools return plain-words text plus a small JSON block; errors reuse the app's catalog messages.
 
@@ -91,7 +89,7 @@ All tools return plain-words text plus a small JSON block; errors reuse the app'
   `broker_rotate_ca()`.
 - `broker_log(level?, limit?)`.
 
-**Explorer and data (bounded, owner)**
+**Explorer and data (bounded)**
 - `list_topics(connection, filter?, limit=200)` → topics with last value, rate, message count, subtopics.
 - `get_topic(connection, topic)` → last payload (decoded), properties, counts.
 - `get_history(connection, topic, limit=200, before?)` → at most 500 rows per call with time, payload, QoS, size.
@@ -107,7 +105,7 @@ All tools return plain-words text plus a small JSON block; errors reuse the app'
 - `set_topic_chart(connection, topic, fields[])` and `set_sparkline(connection, topic, path | off)`.
 - `export_chart(id, csv | png, ask_in_app | file)`.
 
-**Navigation (owner: yes)**
+**Navigation**
 - `show_connection(id)`, `show_topic(connection, topic)`, `show_chart(id)`, `show_broker()`, `show_settings(page?)`:
   bring the window forward and open the place; never change data.
 
@@ -143,27 +141,23 @@ Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude",
 
 ## 8. Phases
 
-1. Spike (2 days): shim, socket, three tools (`list_connections`, `connect`, `list_topics`), the "Add to Claude"
-   and "Add to ChatGPT" buttons, a scripted session from each host.
-2. Connections and certificates tools, secrets rules, acknowledgement, toasts and log.
-3. Broker tools, data and charts tools, navigation, resources, prompts, exports.
-4. Settings page polish, docs (RUNNING, FEATURES, SPEC 6 security), website section "Works with your assistant".
+All four phases are implemented: the shim and socket, the connections and certificate tools with the secrets rules,
+the broker, data, chart and navigation tools with resources and prompts, and the Settings page.
 
-## 9. Readings to confirm
+## 9. How the rules are read
 
 - "Enabled by default" plus the one-time acknowledgement means: a host can connect at any time, but writing tools
   work only after the sentence was accepted once.
 - Direct secrets are allowed but every such tool result carries the warning once per session, and the log says so.
   When the user has already written the secret in the chat, the tool descriptions tell the model to use it directly
-  rather than asking again in the window (prompts lab, 25 Oct 2026: the model otherwise sometimes asked in the window
-  and the user would have typed it twice).
+  rather than asking again in the window (otherwise the user would type it twice).
 - Navigation tools bring the window forward; they never steal focus while the user is typing in another app (the
   window is raised without activation when MQTT Panel is not frontmost; a toast says the assistant moved the view).
 - History reads are capped at 500 rows per call; bigger extracts go through `export_data` to a file picked in the app.
 - One host session at a time; a second host gets "another assistant is connected".
 - ChatGPT support means the ChatGPT desktop app through its Codex MCP configuration; ChatGPT on the web is out of scope.
 
-## 10. Implemented (20 Oct 2026)
+## 10. Implemented
 
 Code: `apps/desktop/src-tauri/src/mcp/` (server, registry, one table per group in `tools/`, hosts, Settings commands),
 `apps/desktop/src-tauri/src/charts.rs` (the window's dashboard charts on the app side), `crates/shim` (the stdio shim

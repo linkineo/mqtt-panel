@@ -138,7 +138,7 @@ More detail (data folder, environment variables, first steps, the Mac App Store 
 |---|---|
 | [docs/SPEC.md](docs/SPEC.md) | Technical specification: architecture, data model, security, built-in broker, CLI, libraries, quality and release |
 | [docs/FEATURES.md](docs/FEATURES.md) | Feature scope table and functional requirements |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Decisions taken and the decision log |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Decisions in force and readings awaiting the owner |
 | [docs/TESTPLAN.md](docs/TESTPLAN.md) | Test plan |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Implementation status of each feature and test results |
 | [docs/RUNNING.md](docs/RUNNING.md) | Building and starting the app, the UI alone and the CLI; data folder; assistant setup by hand |
