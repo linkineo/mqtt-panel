@@ -18,7 +18,7 @@ pub use listener::BindAddr;
 pub use log::LogBuffer;
 use session::ListenerCtx;
 pub use state::CertSeen;
-use state::{Outbound, Shared, State};
+use state::{Shared, State};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -31,6 +31,71 @@ use tokio::task::JoinHandle;
 /// Default maximum packet size accepted from clients (and announced in CONNACK on MQTT 5): 16 MiB.
 pub const DEFAULT_MAX_PACKET: usize = 16 * 1024 * 1024;
 
+/// Resource limits of the broker (SPEC 6, limits table). The defaults are the shipped values; tests shorten the
+/// durations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Limits {
+    /// Connections that have not finished CONNECT (handshake, upgrade, login) per listener.
+    pub pending_per_listener: usize,
+    /// Connections that have not finished CONNECT per source address.
+    pub pending_per_address: usize,
+    /// Largest CONNECT accepted before authentication (the configured maximum packet applies after).
+    pub connect_max: usize,
+    /// Wait before a refused login gets its CONNACK and the connection closes.
+    pub login_failure_delay: Duration,
+    /// Password checks (argon2) running at the same time; further logins wait.
+    pub parallel_password_checks: usize,
+    /// An unacknowledged QoS 1/2 delivery older than this is sent once more.
+    pub inflight_resend: Duration,
+    /// The connection closes when its in-flight window stays full this long, or a write to it stalls this long.
+    pub inflight_close: Duration,
+    /// How long the owner has to answer the web page prompt (no answer: refused).
+    pub origin_prompt_timeout: Duration,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Limits {
+            pending_per_listener: 64,
+            pending_per_address: 8,
+            connect_max: 64 * 1024,
+            login_failure_delay: Duration::from_secs(1),
+            parallel_password_checks: 4,
+            inflight_resend: Duration::from_secs(30),
+            inflight_close: Duration::from_secs(60),
+            origin_prompt_timeout: Duration::from_secs(30),
+        }
+    }
+}
+
+/// A web page asks to connect without a login: what the owner is asked about.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginRequest {
+    pub listener_id: String,
+    pub kind: ListenerKind,
+    pub port: u16,
+    /// The `Origin` header as sent by the browser (for example `https://example.com`).
+    pub origin: String,
+}
+
+/// Asks the owner whether a web page may connect (SPEC 6, allowed web origins). The answer arrives on the returned
+/// receiver: true allows (the caller also adds the origin to the listener's list), false or a dropped sender refuses.
+#[derive(Clone)]
+pub struct OriginPrompt(
+    pub Arc<dyn Fn(OriginRequest) -> tokio::sync::oneshot::Receiver<bool> + Send + Sync>,
+);
+
+impl std::fmt::Debug for OriginPrompt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OriginPrompt")
+    }
+}
+
+/// Normalises an origin for comparison: trimmed, lower case, no trailing slash.
+pub fn normalize_origin(origin: &str) -> String {
+    origin.trim().trim_end_matches('/').to_ascii_lowercase()
+}
+
 /// One listener of the runtime.
 #[derive(Debug, Clone)]
 pub struct ListenerSpec {
@@ -41,6 +106,8 @@ pub struct ListenerSpec {
     pub port: u16,
     /// Server certificate, key and client CA for TLS and WSS.
     pub tls: Option<Arc<TlsMaterial>>,
+    /// Web origins allowed to connect to a WS or WSS listener while Anonymous is on (normalised).
+    pub allowed_origins: Vec<String>,
 }
 
 /// Everything the runtime needs. Build it by hand, from the manager ([`RuntimeConfig::from_manager`]) or from a
@@ -57,6 +124,10 @@ pub struct RuntimeConfig {
     pub revoked: RevocationList,
     /// Log buffer; pass the manager's to keep the log across restarts.
     pub log: LogBuffer,
+    /// Resource limits.
+    pub limits: Limits,
+    /// Asks the owner about unknown web origins; None refuses them.
+    pub origin_prompt: Option<OriginPrompt>,
 }
 
 impl Default for RuntimeConfig {
@@ -69,6 +140,8 @@ impl Default for RuntimeConfig {
             max_packet_size: DEFAULT_MAX_PACKET,
             revoked: RevocationList::default(),
             log: LogBuffer::new(),
+            limits: Limits::default(),
+            origin_prompt: None,
         }
     }
 }
@@ -133,6 +206,8 @@ pub fn sessions_text(n: usize) -> String {
 struct RunningListener {
     spec: ListenerSpec,
     tls: session::TlsSlot,
+    /// The live list of allowed web origins (read at each WebSocket upgrade).
+    origins: Arc<RwLock<Vec<String>>>,
     addrs: Vec<SocketAddr>,
     error: Option<BrokerError>,
     /// Ends the accept loops only (a rebind keeps the sessions).
@@ -176,6 +251,16 @@ impl Broker {
             started_at_ms: log::now_ms(),
             state: Mutex::new(State::default()),
             next_conn_id: AtomicU64::new(1),
+            password_checks: tokio::sync::Semaphore::new(
+                cfg.limits.parallel_password_checks.max(1),
+            ),
+            checks_running: std::sync::atomic::AtomicUsize::new(0),
+            checks_peak: std::sync::atomic::AtomicUsize::new(0),
+            limits: cfg.limits.clone(),
+            pending: Mutex::new(HashMap::new()),
+            limit_log: Mutex::new(HashMap::new()),
+            origin_prompt: RwLock::new(cfg.origin_prompt.clone()),
+            origin_waits: Mutex::new(HashMap::new()),
         });
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let (done_tx, done_rx) = mpsc::channel::<()>(1);
@@ -308,8 +393,14 @@ impl BrokerHandle {
     ) -> RunningListener {
         let (stop_tx, stop_rx) = watch::channel(false);
         let closed_tx = closed.unwrap_or_else(|| watch::channel(false).0);
+        let origins: Vec<String> = spec
+            .allowed_origins
+            .iter()
+            .map(|o| normalize_origin(o))
+            .collect();
         let mut rl = RunningListener {
             tls: Arc::new(RwLock::new(None)),
+            origins: Arc::new(RwLock::new(origins)),
             addrs: Vec::new(),
             error: None,
             stop_tx,
@@ -357,6 +448,9 @@ impl BrokerHandle {
             id: spec.id.clone(),
             kind: spec.kind,
             tls: rl.tls.clone(),
+            origins: rl.origins.clone(),
+            pending: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            port: Arc::new(std::sync::atomic::AtomicU16::new(spec.port)),
         });
         let done = plock(&self.done_tx).clone();
         let Some(done) = done else {
@@ -379,6 +473,7 @@ impl BrokerHandle {
                 }
             };
             rl.addrs.push(addr);
+            lctx.port.store(addr.port(), Ordering::Relaxed);
             let sig = listener::Signals {
                 stop: stop_rx.clone(),
                 shutdown: self.shutdown_tx.subscribe(),
@@ -552,7 +647,7 @@ impl BrokerHandle {
                 };
                 cert_ok && auth::login_still_valid(&auth, &i.login)
             };
-            if !valid && c.tx.send(Outbound::Disconnect(0x87)).is_ok() {
+            if !valid && c.ctl.send(0x87).is_ok() {
                 dropped += 1;
             }
         }
@@ -611,7 +706,7 @@ impl BrokerHandle {
         let st = self.shared.lock();
         match st.sessions.get(client_id).and_then(|s| s.conn.as_ref()) {
             Some(c) => {
-                let ok = c.tx.send(Outbound::Disconnect(0x98)).is_ok();
+                let ok = c.ctl.send(0x98).is_ok();
                 drop(st);
                 if ok {
                     self.shared.log.info(format!(
@@ -645,6 +740,42 @@ impl BrokerHandle {
         if let Ok(mut a) = self.shared.auth.write() {
             *a = Arc::new(auth);
         }
+    }
+
+    /// Replaces the allowed web origins of a listener while the broker runs (next WebSocket upgrade). False when
+    /// there is no such listener.
+    pub fn set_allowed_origins(&self, listener_id: &str, origins: &[String]) -> bool {
+        let mut ls = self.listeners_lock();
+        let Some(l) = ls.iter_mut().find(|l| l.spec.id == listener_id) else {
+            return false;
+        };
+        let list: Vec<String> = origins.iter().map(|o| normalize_origin(o)).collect();
+        l.spec.allowed_origins = list.clone();
+        if let Ok(mut g) = l.origins.write() {
+            *g = list;
+        }
+        true
+    }
+
+    /// The allowed web origins of a running listener.
+    pub fn allowed_origins(&self, listener_id: &str) -> Option<Vec<String>> {
+        self.listeners_lock()
+            .iter()
+            .find(|l| l.spec.id == listener_id)
+            .map(|l| l.origins.read().map(|g| g.clone()).unwrap_or_default())
+    }
+
+    /// Replaces the callback that asks the owner about unknown web origins (None refuses them).
+    pub fn set_origin_prompt(&self, prompt: Option<OriginPrompt>) {
+        if let Ok(mut g) = self.shared.origin_prompt.write() {
+            *g = prompt;
+        }
+    }
+
+    /// The most password checks seen running at the same time (tests of the limit).
+    #[doc(hidden)]
+    pub fn password_checks_peak(&self) -> usize {
+        self.shared.checks_peak.load(Ordering::Relaxed)
     }
 
     /// The live revocation list.

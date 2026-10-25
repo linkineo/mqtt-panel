@@ -476,6 +476,8 @@ pub(crate) enum ConnAckCode {
     QuotaExceeded,
     BadClientId,
     UnsupportedProtocol,
+    /// MQTT 5 only (0x90): the last will topic is not valid.
+    TopicNameInvalid,
 }
 
 /// Extra CONNACK data for MQTT 5.
@@ -502,6 +504,8 @@ pub(crate) fn encode_connack(
                 ConnAckCode::QuotaExceeded => v4::ConnectReturnCode::ServiceUnavailable,
                 ConnAckCode::BadClientId => v4::ConnectReturnCode::BadClientId,
                 ConnAckCode::UnsupportedProtocol => v4::ConnectReturnCode::RefusedProtocolVersion,
+                // No such code in 3.1.1 (the caller closes without CONNACK); never sent.
+                ConnAckCode::TopicNameInvalid => v4::ConnectReturnCode::ServiceUnavailable,
             };
             let _ =
                 v4::Packet::ConnAck(v4::ConnAck::new(c, session_present)).write(out, usize::MAX);
@@ -515,6 +519,7 @@ pub(crate) fn encode_connack(
                 ConnAckCode::UnsupportedProtocol => {
                     v5::ConnectReturnCode::UnsupportedProtocolVersion
                 }
+                ConnAckCode::TopicNameInvalid => v5::ConnectReturnCode::TopicNameInvalid,
             };
             let props = if code == ConnAckCode::Success {
                 Some(v5::ConnAckProperties {

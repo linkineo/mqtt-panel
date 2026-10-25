@@ -133,6 +133,20 @@ mqtt-panel/
   - **Security trade-off, stated plainly:** the key file is readable by any program running as the user, the same level as an ssh key without a passphrase, a kubeconfig or the AWS CLI credentials; the OS stores restrict access to the app. That is why the release keeps the OS store and the file is for unsigned builds only.
 - **Shell hardening (Tauri):** strict Content Security Policy, capabilities limited to the commands the UI needs, no shell or arbitrary file access from the WebView, no updater (the stores update the app).
 - **Embedded broker:** anonymous access off by default, TLS listener generated with a local CA on first start, client certificates optionally required. The broker binds to all interfaces by default (one broker-wide choice, "This computer only / Whole network") so devices on the network can connect without extra steps; the Broker screen shows a clear warning and an explainer, and every listener can be switched to localhost in one click. The plain TCP listener carries an extra warning when reachable from the network.
+- **Broker limits:** the embedded broker bounds what one client, or one address that has not logged in, can cost the app:
+
+  | Limit | Value | When exceeded |
+  |---|---|---|
+  | Levels of a topic name or filter (PUBLISH, SUBSCRIBE, last will) | 128 | MQTT 5: SUBACK 0x8F, DISCONNECT 0x90, CONNACK 0x90 (will); MQTT 3.1.1: the connection closes |
+  | Connections waiting to log in (TCP accepted, CONNECT not yet authenticated), per listener | 64 | Closed at once; one warning per minute and address |
+  | The same, per source address | 8 | Closed at once; one warning per minute and address |
+  | CONNECT size before the login | 64 KiB | Closed; the configured maximum packet size (16 MiB) applies after the login |
+  | Refused login | 1 s delay | CONNACK 0x05 / 0x86 after 1 s, then the connection closes |
+  | Password checks (argon2) at the same time, per broker | 4 | The others wait their turn |
+  | Unacknowledged QoS 1/2 delivery | 30 s | Sent once more with DUP |
+  | Full in-flight window, or a stalled write | 60 s | DISCONNECT 0x98 (MQTT 5; 3.1.1 closes), last will published |
+
+  Control orders (takeover 0x8E, "Disconnect" 0x98, live-apply drops 0x87) travel on their own channel that the session polls at all times, so a client with a full window cannot ignore them. Removing a subscription and dropping the subscription index never recurse.
 - **Assistant interface (MCP, `docs/MCP.md`):** the running app owns a same-user local socket (`mcp.sock`, mode 0600, in the data folder; a named pipe on Windows), no network port; hosts reach it through the stdio shim `mqttpanel mcp` (or the app executable with `mcp`). Writing tools work only after the one-time acknowledgement was accepted; secrets are asked in the app by default (`ask_in_app`), a secret given as an argument is warned about and logged, and no tool result ever returns a password, a private key or a passphrase.
 - **Privacy:** no telemetry, no crash reporting, no network calls except to the brokers the user configured. There is no update check; the stores update the app.
 - **Supply chain:** `cargo deny` and `npm audit` in CI, licence allow-list (MIT, Apache 2.0, BSD, ISC, MPL 2.0), lockfiles committed, release builds reproducible from CI only.

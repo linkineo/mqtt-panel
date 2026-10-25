@@ -49,6 +49,105 @@ where
     Ok(WsBytes::new(ws))
 }
 
+/// Largest HTTP upgrade request read before the WebSocket handshake.
+const MAX_HEAD: usize = 16 * 1024;
+
+/// Reads the HTTP upgrade request up to the blank line (at most 16 KiB), so the origin can be checked before the
+/// handshake; the bytes are replayed to the handshake with [`Rewind`].
+pub(crate) async fn read_head<S: AsyncRead + Unpin>(stream: &mut S) -> Result<Vec<u8>, String> {
+    use tokio::io::AsyncReadExt;
+    let mut head = Vec::with_capacity(1024);
+    let mut buf = [0u8; 2048];
+    loop {
+        if head.windows(4).any(|w| w == b"\r\n\r\n") {
+            return Ok(head);
+        }
+        if head.len() > MAX_HEAD {
+            return Err("upgrade request too large".into());
+        }
+        let n = stream.read(&mut buf).await.map_err(|e| e.to_string())?;
+        if n == 0 {
+            return Err("closed before the upgrade request".into());
+        }
+        head.extend_from_slice(&buf[..n]);
+    }
+}
+
+/// The `Origin` header of an upgrade request, when present (browsers always send it).
+pub(crate) fn origin_of(head: &[u8]) -> Option<String> {
+    let end = head
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .unwrap_or(head.len());
+    let text = String::from_utf8_lossy(&head[..end]);
+    text.split("\r\n").skip(1).find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.trim()
+            .eq_ignore_ascii_case("origin")
+            .then(|| value.trim().to_string())
+    })
+}
+
+/// Refuses an upgrade with HTTP 403.
+pub(crate) async fn refuse_forbidden<S: AsyncWrite + Unpin>(stream: &mut S) {
+    use tokio::io::AsyncWriteExt;
+    let body = "This web page is not allowed to connect to this broker.";
+    let resp = format!(
+        "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    let _ = stream.write_all(resp.as_bytes()).await;
+    let _ = stream.flush().await;
+    let _ = stream.shutdown().await;
+}
+
+/// A stream that first yields bytes already read from it.
+pub struct Rewind<S> {
+    prefix: Bytes,
+    inner: S,
+}
+
+impl<S> Rewind<S> {
+    pub fn new(prefix: Vec<u8>, inner: S) -> Self {
+        Rewind {
+            prefix: Bytes::from(prefix),
+            inner,
+        }
+    }
+}
+
+impl<S: AsyncRead + Unpin> AsyncRead for Rewind<S> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        if !self.prefix.is_empty() {
+            let n = self.prefix.len().min(buf.remaining());
+            let chunk = self.prefix.split_to(n);
+            buf.put_slice(&chunk);
+            return Poll::Ready(Ok(()));
+        }
+        Pin::new(&mut self.inner).poll_read(cx, buf)
+    }
+}
+
+impl<S: AsyncWrite + Unpin> AsyncWrite for Rewind<S> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_write(cx, buf)
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
+
 /// A WebSocket seen as a byte stream: binary frames in, one binary frame per write out.
 pub struct WsBytes<S> {
     inner: WebSocketStream<S>,
@@ -125,5 +224,17 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for WsBytes<S> {
     }
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_close(cx).map_err(io_err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn origin_header_is_found_case_insensitively() {
+        let h = b"GET /mqtt HTTP/1.1\r\nHost: x\r\norigin:  https://Example.com \r\n\r\n";
+        assert_eq!(origin_of(h).as_deref(), Some("https://Example.com"));
+        assert_eq!(origin_of(b"GET /mqtt HTTP/1.1\r\nHost: x\r\n\r\n"), None);
     }
 }

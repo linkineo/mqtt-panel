@@ -29,6 +29,11 @@
 //! port = 1883                    # reachability is broker-wide (top-level `bind`); a per-listener bind is refused
 //!
 //! [[listener]]
+//! kind = "ws"
+//! port = 8083
+//! allowed_origins = ["https://dashboard.example"]   # web pages allowed to connect while anonymous is on
+//!
+//! [[listener]]
 //! kind = "tls"
 //! port = 8883
 //! # cert, key, key_passphrase and client_ca may also be set per listener.
@@ -99,6 +104,8 @@ struct FileListener {
     key: Option<PathBuf>,
     key_passphrase: Option<String>,
     client_ca: Option<PathBuf>,
+    #[serde(default)]
+    allowed_origins: Vec<String>,
 }
 
 fn unreadable(file: &Path) -> BrokerError {
@@ -239,6 +246,7 @@ impl RuntimeConfig {
                 bind,
                 port: l.port,
                 tls,
+                allowed_origins: l.allowed_origins.clone(),
             });
         }
         Ok(RuntimeConfig {
@@ -251,6 +259,7 @@ impl RuntimeConfig {
                 .unwrap_or(crate::runtime::DEFAULT_MAX_PACKET),
             revoked: RevocationList::new(default_tls.revoked.iter()),
             log: Default::default(),
+            ..Default::default()
         })
     }
 }

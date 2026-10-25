@@ -7,6 +7,7 @@ use super::ws;
 use crate::config::ListenerKind;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
@@ -87,6 +88,56 @@ pub(crate) struct Signals {
     pub closed: watch::Receiver<bool>,
 }
 
+/// A connection that has not finished CONNECT, counted against the pending limits until dropped.
+pub(crate) struct PendingSlot {
+    shared: Arc<Shared>,
+    listener: Arc<AtomicUsize>,
+    ip: IpAddr,
+}
+
+impl PendingSlot {
+    /// Takes a slot, or says which limit is reached.
+    fn take(
+        shared: &Arc<Shared>,
+        listener: &Arc<AtomicUsize>,
+        ip: IpAddr,
+    ) -> Result<PendingSlot, &'static str> {
+        let lim = &shared.limits;
+        let mut per_ip = shared.pending.lock().unwrap_or_else(|p| p.into_inner());
+        let n = per_ip.get(&ip).copied().unwrap_or(0);
+        if n >= lim.pending_per_address {
+            return Err("address");
+        }
+        if listener.fetch_add(1, Ordering::SeqCst) >= lim.pending_per_listener {
+            listener.fetch_sub(1, Ordering::SeqCst);
+            return Err("listener");
+        }
+        per_ip.insert(ip, n + 1);
+        Ok(PendingSlot {
+            shared: shared.clone(),
+            listener: listener.clone(),
+            ip,
+        })
+    }
+}
+
+impl Drop for PendingSlot {
+    fn drop(&mut self) {
+        self.listener.fetch_sub(1, Ordering::SeqCst);
+        let mut per_ip = self
+            .shared
+            .pending
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        if let Some(n) = per_ip.get_mut(&self.ip) {
+            *n -= 1;
+            if *n == 0 {
+                per_ip.remove(&self.ip);
+            }
+        }
+    }
+}
+
 /// Accepts connections until the listener stops or the broker shuts down.
 pub(crate) async fn accept_loop(
     shared: Arc<Shared>,
@@ -101,10 +152,29 @@ pub(crate) async fn accept_loop(
             _ = sig.shutdown.changed() => break,
             r = listener.accept() => match r {
                 Ok((sock, peer)) => {
+                    let ip = peer.ip().to_canonical();
+                    let slot = match PendingSlot::take(&shared, &lctx.pending, ip) {
+                        Ok(s) => s,
+                        Err(which) => {
+                            drop(sock);
+                            let lim = &shared.limits;
+                            shared.warn_limit(ip, || match which {
+                                "address" => format!(
+                                    "connections from {} refused: more than {} waiting to log in from this address",
+                                    peer_text(&peer), lim.pending_per_address
+                                ),
+                                _ => format!(
+                                    "connections from {} refused: more than {} waiting to log in on the {} listener",
+                                    peer_text(&peer), lim.pending_per_listener, lctx.kind.label()
+                                ),
+                            });
+                            continue;
+                        }
+                    };
                     let _ = sock.set_nodelay(true);
                     let (shared, lctx, sd, cl, done) = (shared.clone(), lctx.clone(), sig.shutdown.clone(), sig.closed.clone(), done.clone());
                     tokio::spawn(async move {
-                        handle(shared, lctx, sock, peer, sd, cl).await;
+                        handle(shared, lctx, sock, peer, sd, cl, slot).await;
                         drop(done);
                     });
                 }
@@ -134,23 +204,11 @@ async fn handle(
     peer: SocketAddr,
     shutdown: watch::Receiver<bool>,
     closed: watch::Receiver<bool>,
+    slot: PendingSlot,
 ) {
-    let max = shared.max_packet;
     match lctx.kind {
-        ListenerKind::Tcp => serve(shared, lctx, sock, peer, None, shutdown, closed).await,
-        ListenerKind::Ws => {
-            match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::accept(sock, max)).await {
-                Ok(Ok(ws)) => serve(shared, lctx, ws, peer, None, shutdown, closed).await,
-                Ok(Err(e)) => shared.log.debug(format!(
-                    "WebSocket upgrade from {} failed: {e}",
-                    peer_text(&peer)
-                )),
-                Err(_) => shared.log.debug(format!(
-                    "WebSocket upgrade from {} timed out",
-                    peer_text(&peer)
-                )),
-            }
-        }
+        ListenerKind::Tcp => serve(shared, lctx, sock, peer, None, shutdown, closed, slot).await,
+        ListenerKind::Ws => upgrade(shared, lctx, sock, peer, None, shutdown, closed, slot).await,
         ListenerKind::Tls | ListenerKind::Wss => {
             // Read at each handshake: the material and the rule can change while the broker runs (change set 7).
             let Some(tls) = lctx.tls() else { return };
@@ -161,7 +219,7 @@ async fn handle(
             } else {
                 ClientAuthMode::Optional
             };
-            let (cfg, slot) = match tls.config_for(mode) {
+            let (cfg, hs) = match tls.config_for(mode) {
                 Ok(x) => x,
                 Err(e) => {
                     shared.log.warn(format!(
@@ -176,7 +234,7 @@ async fn handle(
             {
                 Ok(Ok(s)) => s,
                 Ok(Err(e)) => {
-                    let from_slot = slot.lock().ok().and_then(|s| s.failure.clone());
+                    let from_slot = hs.lock().ok().and_then(|s| s.failure.clone());
                     let reason = from_slot.unwrap_or_else(|| {
                         e.get_ref()
                             .and_then(|inner| inner.downcast_ref::<rustls::Error>())
@@ -200,23 +258,169 @@ async fn handle(
             let cert = if mode == ClientAuthMode::Off {
                 None
             } else {
-                slot.lock().ok().and_then(|s| s.verified.clone())
+                hs.lock().ok().and_then(|s| s.verified.clone())
             };
             if lctx.kind == ListenerKind::Tls {
-                serve(shared, lctx, stream, peer, cert, shutdown, closed).await;
+                serve(shared, lctx, stream, peer, cert, shutdown, closed, slot).await;
             } else {
-                match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::accept(stream, max)).await {
-                    Ok(Ok(ws)) => serve(shared, lctx, ws, peer, cert, shutdown, closed).await,
-                    Ok(Err(e)) => shared.log.debug(format!(
-                        "WebSocket upgrade from {} failed: {e}",
-                        peer_text(&peer)
-                    )),
-                    Err(_) => shared.log.debug(format!(
-                        "WebSocket upgrade from {} timed out",
-                        peer_text(&peer)
-                    )),
-                }
+                upgrade(shared, lctx, stream, peer, cert, shutdown, closed, slot).await;
             }
+        }
+    }
+}
+
+/// WebSocket upgrade with the web origin rule (SPEC 6): a browser (an `Origin` header) may connect when the broker
+/// requires a login, or when its origin is on the listener's list; an unknown origin while Anonymous is on asks the
+/// owner. Clients without an `Origin` header are not affected.
+#[allow(clippy::too_many_arguments)]
+async fn upgrade<S>(
+    shared: Arc<Shared>,
+    lctx: Arc<ListenerCtx>,
+    mut stream: S,
+    peer: SocketAddr,
+    cert: Option<super::tls::PeerCert>,
+    shutdown: watch::Receiver<bool>,
+    closed: watch::Receiver<bool>,
+    slot: PendingSlot,
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+{
+    let head = match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::read_head(&mut stream)).await {
+        Ok(Ok(h)) => h,
+        Ok(Err(e)) => {
+            shared.log.debug(format!(
+                "WebSocket upgrade from {} failed: {e}",
+                peer_text(&peer)
+            ));
+            return;
+        }
+        Err(_) => {
+            shared.log.debug(format!(
+                "WebSocket upgrade from {} timed out",
+                peer_text(&peer)
+            ));
+            return;
+        }
+    };
+    if let Some(origin) = ws::origin_of(&head) {
+        if !origin_allowed(&shared, &lctx, &origin, &peer).await {
+            ws::refuse_forbidden(&mut stream).await;
+            return;
+        }
+    }
+    let stream = ws::Rewind::new(head, stream);
+    match tokio::time::timeout(HANDSHAKE_TIMEOUT, ws::accept(stream, shared.max_packet)).await {
+        Ok(Ok(ws)) => serve(shared, lctx, ws, peer, cert, shutdown, closed, slot).await,
+        Ok(Err(e)) => shared.log.debug(format!(
+            "WebSocket upgrade from {} failed: {e}",
+            peer_text(&peer)
+        )),
+        Err(_) => shared.log.debug(format!(
+            "WebSocket upgrade from {} timed out",
+            peer_text(&peer)
+        )),
+    }
+}
+
+/// Decides whether a browser page with this origin may open the WebSocket (see [`upgrade`]).
+async fn origin_allowed(
+    shared: &Arc<Shared>,
+    lctx: &Arc<ListenerCtx>,
+    origin: &str,
+    peer: &SocketAddr,
+) -> bool {
+    if !shared.auth().anonymous {
+        // A login is required: the page still has to log in like any client.
+        return true;
+    }
+    let norm = super::normalize_origin(origin);
+    let listed = |l: &ListenerCtx| l.origins.read().map(|g| g.contains(&norm)).unwrap_or(false);
+    if listed(lctx) {
+        shared.log.debug(format!(
+            "web page at {origin} connects to the {} listener (allowed web origin)",
+            lctx.kind.label()
+        ));
+        return true;
+    }
+    if !crate::manager::valid_origin(&norm) {
+        // `null` (sandboxed pages, local files) or a malformed origin: any page can send it, never asked.
+        shared.warn_limit(peer.ip().to_canonical(), || {
+            format!(
+                "web page at {origin} refused on the {} listener: not an allowed web origin",
+                lctx.kind.label()
+            )
+        });
+        return false;
+    }
+    let key = (lctx.id.clone(), norm.clone());
+    // One prompt per origin: later upgrades from the same origin wait on the same answer.
+    let mut rx = {
+        let mut waits = shared
+            .origin_waits
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        match waits.get(&key) {
+            Some(rx) => rx.clone(),
+            None => {
+                let prompt = shared.origin_prompt.read().ok().and_then(|g| g.clone());
+                let Some(prompt) = prompt else {
+                    drop(waits);
+                    shared.warn_limit(peer.ip().to_canonical(), || format!(
+                        "web page at {origin} refused on the {} listener: not an allowed web origin",
+                        lctx.kind.label()
+                    ));
+                    return false;
+                };
+                let (tx, rx) = tokio::sync::watch::channel(None);
+                waits.insert(key.clone(), rx.clone());
+                let answer = (prompt.0)(super::OriginRequest {
+                    listener_id: lctx.id.clone(),
+                    kind: lctx.kind,
+                    port: lctx.port.load(Ordering::Relaxed),
+                    origin: origin.to_string(),
+                });
+                let (shared2, lctx2, key2, origin2) = (
+                    shared.clone(),
+                    lctx.clone(),
+                    key.clone(),
+                    origin.to_string(),
+                );
+                let wait = shared.limits.origin_prompt_timeout;
+                tokio::spawn(async move {
+                    let allowed = matches!(tokio::time::timeout(wait, answer).await, Ok(Ok(true)));
+                    if allowed {
+                        if let Ok(mut g) = lctx2.origins.write() {
+                            if !g.contains(&key2.1) {
+                                g.push(key2.1.clone());
+                            }
+                        }
+                        shared2.log.info(format!(
+                            "web page at {origin2} allowed on the {} listener",
+                            lctx2.kind.label()
+                        ));
+                    } else {
+                        shared2.log.warn(format!(
+                            "web page at {origin2} refused on the {} listener",
+                            lctx2.kind.label()
+                        ));
+                    }
+                    shared2
+                        .origin_waits
+                        .lock()
+                        .unwrap_or_else(|p| p.into_inner())
+                        .remove(&key2);
+                    let _ = tx.send(Some(allowed));
+                });
+                rx
+            }
+        }
+    };
+    loop {
+        if let Some(a) = *rx.borrow_and_update() {
+            return a;
+        }
+        if rx.changed().await.is_err() {
+            return rx.borrow().unwrap_or(false);
         }
     }
 }

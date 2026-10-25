@@ -92,6 +92,7 @@
  "broker.userInvalid": "Ein Benutzername darf nicht leer sein und keine Leerzeichen enthalten.",
  "broker.certExists": "Es gibt bereits ein Client-Zertifikat namens {name}.",
  "broker.nameInvalid": "Nutze Buchstaben, Ziffern, Punkte, Bindestriche und Unterstriche.",
+ "broker.originInvalid": "Gib eine Webadresse wie https://example.com ein: Schema und Host, ohne Pfad.",
  "broker.noListener": "Kein Listener ist aktiv. Schalte zuerst einen ein.",
  "broker.notRunning": "Der Broker läuft nicht. Starte ihn zuerst.",
  "keychain.unavailable": "Der Schlüsselbund des Systems ist nicht verfügbar: {detail}",

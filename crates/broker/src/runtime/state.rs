@@ -8,6 +8,7 @@ use super::stats::Stats;
 use super::tls::PeerCert;
 use crate::config::ListenerKind;
 use std::collections::{HashMap, VecDeque};
+use std::net::IpAddr;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -20,6 +21,9 @@ pub(crate) const QUEUE_HARD_LIMIT: usize = 100_000;
 /// Messages kept for a disconnected persistent session.
 pub(crate) const OFFLINE_LIMIT: usize = 1_000;
 
+/// The answer to a pending web page prompt (None while the owner has not answered).
+pub(crate) type OriginWait = tokio::sync::watch::Receiver<Option<bool>>;
+
 /// A message on its way to one subscriber.
 #[derive(Debug, Clone)]
 pub(crate) struct Delivery {
@@ -30,12 +34,11 @@ pub(crate) struct Delivery {
     pub dup: bool,
 }
 
-/// Commands to a connection task.
+/// Messages to a connection task. Control orders (takeover, kick, live-apply drops) travel on their own channel
+/// ([`ConnRef::ctl`]), which the session loop polls even while the in-flight window is full.
 #[derive(Debug)]
 pub(crate) enum Outbound {
     Publish(Delivery),
-    /// Close with this MQTT 5 reason code (0x8E takeover, 0x98 administrative action).
-    Disconnect(u8),
 }
 
 /// What the clients table shows about a connection, and the session registry entry (change set 7): the listener it
@@ -64,6 +67,8 @@ pub(crate) struct ClientInfo {
 pub(crate) struct ConnRef {
     pub conn_id: u64,
     pub tx: mpsc::UnboundedSender<Outbound>,
+    /// Close with this MQTT 5 reason code (0x8E takeover, 0x87 no longer authorised, 0x98 administrative action).
+    pub ctl: mpsc::UnboundedSender<u8>,
     pub queued: Arc<AtomicUsize>,
     pub info: Arc<ClientInfo>,
 }
@@ -109,6 +114,19 @@ pub(crate) struct Shared {
     pub started_at_ms: i64,
     pub state: Mutex<State>,
     pub next_conn_id: AtomicU64,
+    pub limits: super::Limits,
+    /// Bounds the argon2 verifications running at the same time.
+    pub password_checks: tokio::sync::Semaphore,
+    /// Password checks running now, and the most seen at once (tests).
+    pub checks_running: AtomicUsize,
+    pub checks_peak: AtomicUsize,
+    /// Connections that have not finished CONNECT, per source address.
+    pub pending: Mutex<HashMap<IpAddr, usize>>,
+    /// Last "limit reached" warning per source address (one per minute).
+    pub limit_log: Mutex<HashMap<IpAddr, Instant>>,
+    pub origin_prompt: RwLock<Option<super::OriginPrompt>>,
+    /// Origin prompts waiting for the owner, per (listener id, origin): later upgrades wait on the same answer.
+    pub origin_waits: Mutex<HashMap<(String, String), OriginWait>>,
 }
 
 impl Shared {
@@ -118,6 +136,23 @@ impl Shared {
 
     pub fn require_client_cert(&self) -> bool {
         self.require_client_cert.load(Ordering::Relaxed)
+    }
+
+    /// Logs a warning about a limit at most once per minute per source address.
+    pub fn warn_limit(&self, ip: IpAddr, text: impl FnOnce() -> String) {
+        let mut m = self.limit_log.lock().unwrap_or_else(|p| p.into_inner());
+        let now = Instant::now();
+        if m.get(&ip)
+            .is_some_and(|t| now.duration_since(*t) < Duration::from_secs(60))
+        {
+            return;
+        }
+        if m.len() > 4096 {
+            m.retain(|_, t| now.duration_since(*t) < Duration::from_secs(60));
+        }
+        m.insert(ip, now);
+        drop(m);
+        self.log.warn(text());
     }
 
     pub fn lock(&self) -> std::sync::MutexGuard<'_, State> {

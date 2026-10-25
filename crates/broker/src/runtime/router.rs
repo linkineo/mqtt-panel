@@ -59,14 +59,26 @@ pub(crate) fn parse_shared(filter: &str) -> Option<(&str, &str)> {
     Some((group, f))
 }
 
-/// Valid topic name for PUBLISH: non-empty, no wildcards, no NUL, at most 65535 bytes.
-pub(crate) fn valid_topic(topic: &str) -> bool {
-    !topic.is_empty() && topic.len() <= 65535 && !topic.contains(['+', '#', '\0'])
+/// Most levels a topic name or topic filter may have. Deeper ones are refused: every level is one node of the
+/// subscription index, and a cap keeps memory and the work per message bounded.
+pub(crate) const MAX_LEVELS: usize = 128;
+
+/// True when `s` has more than [`MAX_LEVELS`] levels.
+pub(crate) fn too_deep(s: &str) -> bool {
+    s.bytes().filter(|b| *b == b'/').count() >= MAX_LEVELS
 }
 
-/// Valid topic filter: `#` only last and alone in its level, `+` alone in its level.
+/// Valid topic name for PUBLISH: non-empty, no wildcards, no NUL, at most 65535 bytes and [`MAX_LEVELS`] levels.
+pub(crate) fn valid_topic(topic: &str) -> bool {
+    !topic.is_empty()
+        && topic.len() <= 65535
+        && !topic.contains(['+', '#', '\0'])
+        && !too_deep(topic)
+}
+
+/// Valid topic filter: `#` only last and alone in its level, `+` alone in its level, at most [`MAX_LEVELS`] levels.
 pub(crate) fn valid_filter(filter: &str) -> bool {
-    if filter.is_empty() || filter.len() > 65535 || filter.contains('\0') {
+    if filter.is_empty() || filter.len() > 65535 || filter.contains('\0') || too_deep(filter) {
         return false;
     }
     let levels: Vec<&str> = filter.split('/').collect();
@@ -143,14 +155,57 @@ impl Router {
         }
     }
 
-    /// Removes a subscription; returns true when it existed.
+    /// Removes a subscription; returns true when it existed. Iterative: the depth of the index never reaches the
+    /// stack.
     pub fn unsubscribe(&mut self, client_id: &str, filter: &str) -> bool {
         let (group, f) = match parse_shared(filter) {
             Some((g, f)) => (Some(g), f),
             None => (None, filter),
         };
         let levels: Vec<&str> = f.split('/').collect();
-        let removed = remove_rec(&mut self.root, &levels, client_id, group);
+        // 1. Find the node and remember, per depth, whether the node only exists for this path.
+        let mut node = &mut self.root;
+        // chain[i]: the node at depth i + 1 has no subscription and no other child than the next level.
+        let mut chain: Vec<bool> = Vec::with_capacity(levels.len());
+        for level in &levels {
+            let Some(child) = node.children.get_mut(*level) else {
+                return false;
+            };
+            chain.push(
+                child.subs.is_empty() && child.shared.is_empty() && child.children.len() == 1,
+            );
+            node = child;
+        }
+        let removed = match group {
+            None => node.subs.remove(client_id).is_some(),
+            Some(g) => {
+                let mut removed = false;
+                if let Some(grp) = node.shared.get_mut(g) {
+                    let before = grp.members.len();
+                    grp.members.retain(|(c, _)| c != client_id);
+                    removed = grp.members.len() != before;
+                    if grp.members.is_empty() {
+                        node.shared.remove(g);
+                    }
+                }
+                removed
+            }
+        };
+        // 2. Prune: cut the highest node from which everything below is now empty.
+        if node.is_empty() {
+            let last = levels.len() - 1;
+            let mut cut = last;
+            while cut > 0 && chain[cut - 1] {
+                cut -= 1;
+            }
+            let mut parent = Some(&mut self.root);
+            for level in &levels[..cut] {
+                parent = parent.and_then(|p| p.children.get_mut(*level));
+            }
+            if let Some(sub) = parent.and_then(|p| p.children.remove(levels[cut])) {
+                drop_iteratively(sub);
+            }
+        }
         if removed {
             self.count = self.count.saturating_sub(1);
         }
@@ -172,33 +227,17 @@ impl Router {
     }
 }
 
-fn remove_rec(node: &mut Node, levels: &[&str], client_id: &str, group: Option<&str>) -> bool {
-    match levels.split_first() {
-        None => match group {
-            None => node.subs.remove(client_id).is_some(),
-            Some(g) => {
-                let mut removed = false;
-                if let Some(grp) = node.shared.get_mut(g) {
-                    let before = grp.members.len();
-                    grp.members.retain(|(c, _)| c != client_id);
-                    removed = grp.members.len() != before;
-                    if grp.members.is_empty() {
-                        node.shared.remove(g);
-                    }
-                }
-                removed
-            }
-        },
-        Some((first, rest)) => {
-            let Some(child) = node.children.get_mut(*first) else {
-                return false;
-            };
-            let removed = remove_rec(child, rest, client_id, group);
-            if child.is_empty() {
-                node.children.remove(*first);
-            }
-            removed
-        }
+/// Drops a subtree without recursion (the default drop of nested maps recurses once per level).
+fn drop_iteratively(node: Node) {
+    let mut stack = vec![node];
+    while let Some(mut n) = stack.pop() {
+        stack.extend(n.children.drain().map(|(_, c)| c));
+    }
+}
+
+impl Drop for Router {
+    fn drop(&mut self) {
+        drop_iteratively(std::mem::take(&mut self.root));
     }
 }
 
@@ -313,5 +352,34 @@ mod tests {
         assert!(!valid_filter("a/#/b"));
         assert!(!valid_filter("a/b+"));
         assert!(!valid_topic("a/+"));
+    }
+
+    #[test]
+    fn sec01_depth_cap_and_iterative_removal() {
+        let deep_ok = vec!["x"; MAX_LEVELS].join("/");
+        let too_deep_f = vec!["x"; MAX_LEVELS + 1].join("/");
+        assert!(valid_filter(&deep_ok));
+        assert!(valid_topic(&deep_ok));
+        assert!(!valid_filter(&too_deep_f));
+        assert!(!valid_topic(&too_deep_f));
+        assert!(!valid_filter(&"/".repeat(60_000)));
+        let mut r = Router::default();
+        r.subscribe("c", &deep_ok, opts());
+        r.subscribe("d", "x/x", opts());
+        assert_eq!(ids(&r.matches(&deep_ok)), vec!["c"]);
+        assert!(r.unsubscribe("c", &deep_ok));
+        assert_eq!(r.len(), 1);
+        // The branch below x/x is gone, x/x stays.
+        assert_eq!(ids(&r.matches("x/x")), vec!["d"]);
+        assert!(r.root.children["x"].children["x"].children.is_empty());
+        assert!(r.unsubscribe("d", "x/x"));
+        assert!(r.root.children.is_empty());
+        // Dropping a deep index never recurses (built by hand: the public API refuses such depths).
+        let mut root = Node::default();
+        let mut n = &mut root;
+        for _ in 0..200_000 {
+            n = n.children.entry(String::new()).or_default();
+        }
+        drop(Router { root, count: 0 });
     }
 }

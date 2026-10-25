@@ -69,6 +69,9 @@ struct StoredListener {
     port: u16,
     enabled: bool,
     preset: Preset,
+    /// Web origins allowed to connect while Anonymous is on (WS and WSS listeners, normalised).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -142,6 +145,7 @@ fn default_listener(id: &str, kind: ListenerKind, port: u16, enabled: bool) -> S
         } else {
             Preset::Plain
         },
+        allowed_origins: Vec::new(),
     }
 }
 
@@ -168,6 +172,8 @@ pub struct BrokerManager {
     /// The server key, read once per session from the secret store and kept in memory, so a later start or a live
     /// certificate change never touches the secret store (and the OS keychain) again (SPEC 6, change set 2).
     server_key: Mutex<Option<String>>,
+    /// Asks the owner about unknown web origins (set by the desktop shell; None refuses them).
+    origin_prompt: Mutex<Option<crate::runtime::OriginPrompt>>,
 }
 
 impl std::fmt::Debug for BrokerManager {
@@ -176,6 +182,21 @@ impl std::fmt::Debug for BrokerManager {
             .field("dir", &self.dir)
             .finish()
     }
+}
+
+/// A web origin as browsers send it: `scheme://host[:port]`, no path, no user info. `null` (sandboxed pages, local
+/// files) is never accepted: any page can produce it.
+pub fn valid_origin(o: &str) -> bool {
+    let Some((scheme, host)) = o.split_once("://") else {
+        return false;
+    };
+    !scheme.is_empty()
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+        && !host.is_empty()
+        && !host.contains(['/', '@', '?', '#', ' ', '*'])
+        && !host.chars().any(|c| c.is_control())
 }
 
 fn valid_username(u: &str) -> bool {
@@ -419,6 +440,7 @@ impl BrokerManager {
             revoked,
             apply: tokio::sync::Mutex::new(()),
             server_key: Mutex::new(None),
+            origin_prompt: Mutex::new(None),
         };
         if !path.exists() || migrated {
             m.save(&m.lock().stored)?;
@@ -629,6 +651,7 @@ impl BrokerManager {
                     port: l.port,
                     enabled: l.enabled,
                     preset: l.preset,
+                    allowed_origins: l.allowed_origins.clone(),
                 })
                 .collect(),
             anonymous: st.anonymous,
@@ -771,6 +794,8 @@ impl BrokerManager {
             max_packet_size: crate::runtime::DEFAULT_MAX_PACKET,
             revoked: self.revoked.clone(),
             log: self.log.clone(),
+            limits: Default::default(),
+            origin_prompt: self.origin_prompt.lock().ok().and_then(|g| g.clone()),
         })
     }
 
@@ -798,6 +823,7 @@ impl BrokerManager {
                 } else {
                     None
                 },
+                allowed_origins: l.allowed_origins.clone(),
             })
             .collect()
     }
@@ -1125,6 +1151,7 @@ impl BrokerManager {
                 port,
                 enabled: true,
                 preset: req.preset,
+                allowed_origins: Vec::new(),
             });
             let mut rule_line = None;
             let before = (
@@ -2097,6 +2124,98 @@ impl BrokerManager {
     /// True when the broker serves an imported server certificate (not one issued by its own CA).
     pub fn server_imported(&self) -> bool {
         self.lock().stored.server_imported
+    }
+
+    /// Sets the callback that asks the owner whether a web page may connect while Anonymous is on (SPEC 6). It
+    /// applies to the running broker and to the next start.
+    pub fn set_origin_prompt(&self, prompt: Option<crate::runtime::OriginPrompt>) {
+        if let Ok(mut g) = self.origin_prompt.lock() {
+            *g = prompt.clone();
+        }
+        if let Some(h) = self.lock().handle.clone() {
+            h.set_origin_prompt(prompt);
+        }
+    }
+
+    /// Replaces the web origins allowed on a WS or WSS listener while Anonymous is on. Each origin is a scheme and a
+    /// host with an optional port (`https://example.com`, `http://localhost:3000`); duplicates are removed. Applies
+    /// to the next WebSocket upgrade.
+    pub fn set_allowed_origins(
+        &self,
+        listener_id: &str,
+        origins: &[String],
+    ) -> Result<BrokerConfig, BrokerError> {
+        let mut list: Vec<String> = Vec::new();
+        for o in origins {
+            let n = crate::runtime::normalize_origin(o);
+            if !valid_origin(&n) {
+                return Err(BrokerError::new(
+                    "broker.originInvalid",
+                    &[("origin", s(o.clone()))],
+                ));
+            }
+            if !list.contains(&n) {
+                list.push(n);
+            }
+        }
+        let mut inner = self.lock();
+        let Some(l) = inner
+            .stored
+            .listeners
+            .iter_mut()
+            .find(|l| l.id == listener_id)
+        else {
+            return Err(BrokerError::internal(format!("no listener {listener_id}")));
+        };
+        if !l.kind.websocket() {
+            return Err(BrokerError::internal(format!(
+                "listener {listener_id} is not a WebSocket listener"
+            )));
+        }
+        let (added, removed): (Vec<String>, Vec<String>) = (
+            list.iter()
+                .filter(|o| !l.allowed_origins.contains(o))
+                .cloned()
+                .collect(),
+            l.allowed_origins
+                .iter()
+                .filter(|o| !list.contains(o))
+                .cloned()
+                .collect(),
+        );
+        let label = format!("{} {}", l.kind.label(), l.port);
+        l.allowed_origins = list.clone();
+        self.commit(&mut inner, Apply::Save, None, "")?;
+        for o in &added {
+            self.log
+                .info(format!("web origin {o} allowed on listener {label}"));
+        }
+        for o in &removed {
+            self.log
+                .info(format!("web origin {o} removed from listener {label}"));
+        }
+        if let Some(h) = inner.handle.clone() {
+            h.set_allowed_origins(listener_id, &list);
+        }
+        Ok(self.view_with_secrets(&inner.stored))
+    }
+
+    /// Adds one web origin to a listener's list (the owner answered Allow to the web page prompt).
+    pub fn allow_origin(
+        &self,
+        listener_id: &str,
+        origin: &str,
+    ) -> Result<BrokerConfig, BrokerError> {
+        let mut list = self
+            .lock()
+            .stored
+            .listeners
+            .iter()
+            .find(|l| l.id == listener_id)
+            .map(|l| l.allowed_origins.clone())
+            .unwrap_or_default();
+        list.push(origin.to_string());
+        self.set_allowed_origins(listener_id, &list)
     }
 
     /// True when Anonymous is on.

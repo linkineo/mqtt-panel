@@ -56,6 +56,8 @@ The standing decisions behind MQTT Panel. The detailed behaviour is in `docs/SPE
 | | Why: the macOS login keychain identifies an unsigned program by its build hash, so every rebuild asked for the password again; a signed release must never show a keychain dialog (release gate, `docs/SPEC.md` 11, `docs/TESTPLAN.md` V-12). |
 | Trust | Self-signed and private-CA brokers are trusted per profile by certificate fingerprint or CA; skipping verification is per connection, off by default, and marked with ⚠. |
 | Broker certificates | ECDSA P-256 by default; local CA valid 5 years, server and client certificates 2 years. The server certificate names include localhost, the host name, its `.local` name and the LAN addresses, plus "Extra names". |
+| Broker limits | Built-in limits instead of settings: 128 topic levels, 64 waiting connections per listener and 8 per address, 64 KiB CONNECT before login, 1 s delay on a refused login, 4 password checks at once, in-flight resend after 30 s and disconnect after 60 s (values in `docs/SPEC.md` 6). |
+| | Why: one client, or anyone who can reach a listener, must not be able to stop or exhaust the app that hosts the broker; the values stay far above what devices need. |
 
 ## Assistant (MCP)
 

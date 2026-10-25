@@ -92,6 +92,7 @@
  "broker.userInvalid": "Un nom d’utilisateur ne peut pas être vide ni contenir d’espace.",
  "broker.certExists": "Un certificat client nommé {name} existe déjà.",
  "broker.nameInvalid": "Utilisez des lettres, des chiffres, des points, des tirets et des tirets bas.",
+ "broker.originInvalid": "Saisissez une adresse web comme https://example.com : un schéma et un hôte, sans chemin.",
  "broker.noListener": "Aucun listener n’est activé. Activez-en un d’abord.",
  "broker.notRunning": "Le broker n’est pas démarré. Démarrez-le d’abord.",
  "keychain.unavailable": "Le trousseau du système n’est pas disponible : {detail}",

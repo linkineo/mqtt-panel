@@ -4,8 +4,9 @@ use super::auth::{authenticate, AuthOutcome};
 use super::codec::{
     self, Ack, ConnAckCode, ConnAckExtra, ConnectInfo, DecodeError, Incoming, Version, Will,
 };
+use super::listener::PendingSlot;
 use super::log::now_ms;
-use super::router::{parse_shared, topic_matches, valid_filter, valid_topic};
+use super::router::{parse_shared, too_deep, topic_matches, valid_filter, valid_topic};
 use super::state::{ClientInfo, ConnRef, Delivery, Outbound, Shared};
 use super::tls::PeerCert;
 use super::tls::TlsListener;
@@ -33,6 +34,12 @@ pub(crate) struct ListenerCtx {
     pub id: String,
     pub kind: ListenerKind,
     pub tls: TlsSlot,
+    /// Allowed web origins (normalised), read at each WebSocket upgrade.
+    pub origins: Arc<RwLock<Vec<String>>>,
+    /// Connections of this listener that have not finished CONNECT.
+    pub pending: Arc<AtomicUsize>,
+    /// The bound port (for the web page prompt).
+    pub port: Arc<std::sync::atomic::AtomicU16>,
 }
 
 impl ListenerCtx {
@@ -53,6 +60,8 @@ enum Stage {
 struct OutEntry {
     delivery: Delivery,
     stage: Stage,
+    sent: tokio::time::Instant,
+    resent: bool,
 }
 
 /// Why the session loop ended.
@@ -71,6 +80,8 @@ enum Close {
     Shutdown,
     /// Its listener was stopped (removed, switched off, port or kind changed) while the broker runs.
     ListenerStopped,
+    /// The in-flight window stayed full, or a write stalled, for this many seconds.
+    Stuck(u64),
 }
 
 impl Close {
@@ -85,6 +96,7 @@ impl Close {
             Close::Kicked(_) => "disconnected by the broker".into(),
             Close::Shutdown => "broker stopping".into(),
             Close::ListenerStopped => "its listener stopped".into(),
+            Close::Stuck(s) => format!("no acknowledgement or no reading for {s} s"),
         }
     }
     fn publish_will(&self) -> bool {
@@ -119,6 +131,7 @@ async fn write_out<W: AsyncWrite + Unpin>(w: &mut W, out: &mut BytesMut) -> std:
 }
 
 /// Serves one connection until it closes. Never panics on network input.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn serve<S>(
     shared: Arc<Shared>,
     lctx: Arc<ListenerCtx>,
@@ -127,6 +140,7 @@ pub(crate) async fn serve<S>(
     cert: Option<PeerCert>,
     mut shutdown: watch::Receiver<bool>,
     mut closed: watch::Receiver<bool>,
+    slot: PendingSlot,
 ) where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
@@ -134,11 +148,14 @@ pub(crate) async fn serve<S>(
     let mut inbuf = BytesMut::with_capacity(4096);
     let mut out = BytesMut::with_capacity(4096);
     let max = shared.max_packet;
+    let limits = shared.limits.clone();
+    // Before authentication a CONNECT may not exceed the pre-login limit (SPEC 6, limits).
+    let connect_max = max.min(limits.connect_max);
 
     // 1. CONNECT
     let connect = tokio::time::timeout(CONNECT_TIMEOUT, async {
         loop {
-            match codec::decode_connect(&mut inbuf, max) {
+            match codec::decode_connect(&mut inbuf, connect_max) {
                 Ok(Some(c)) => return Ok(c),
                 Ok(None) => {}
                 Err(e) => return Err(e),
@@ -185,6 +202,27 @@ pub(crate) async fn serve<S>(
         }
     };
     let v = c.version;
+
+    // 1b. Last will topic: same rules as a PUBLISH topic (depth cap included).
+    if let Some(w) = &c.will {
+        if !valid_topic(&w.message.topic) {
+            if v == Version::V5 {
+                codec::encode_connack(
+                    v,
+                    &mut out,
+                    false,
+                    ConnAckCode::TopicNameInvalid,
+                    ConnAckExtra::default(),
+                );
+                let _ = write_out(&mut wr, &mut out).await;
+            }
+            shared.log.info(format!(
+                "client from {} rejected: invalid last will topic",
+                display_addr(&peer)
+            ));
+            return;
+        }
+    }
 
     // 2. Client id
     let mut assigned = None;
@@ -235,14 +273,30 @@ pub(crate) async fn serve<S>(
     let req = shared.require_client_cert() && lctx.kind.encrypted();
     let verified = cert.is_some();
     let (user, pass) = (c.username.clone(), c.password.clone());
+    // At most a few argon2 verifications at once; the others wait their turn.
+    let permit = if user.is_some() && pass.is_some() {
+        shared.password_checks.acquire().await.ok()
+    } else {
+        None
+    };
+    if permit.is_some() {
+        let now = shared.checks_running.fetch_add(1, Ordering::SeqCst) + 1;
+        shared.checks_peak.fetch_max(now, Ordering::SeqCst);
+    }
     let outcome = tokio::task::spawn_blocking(move || {
         authenticate(&auth, req, verified, user.as_deref(), pass.as_deref())
     })
     .await
     .unwrap_or(AuthOutcome::BadLogin);
+    if permit.is_some() {
+        shared.checks_running.fetch_sub(1, Ordering::SeqCst);
+    }
+    drop(permit);
     let login = match outcome {
         AuthOutcome::Accepted(l) => l,
         AuthOutcome::BadLogin => {
+            // A refused login costs the client a delay before the answer (the pending slot stays taken).
+            tokio::time::sleep(limits.login_failure_delay).await;
             codec::encode_connack(
                 v,
                 &mut out,
@@ -254,13 +308,16 @@ pub(crate) async fn serve<S>(
             shared.log.warn(format!(
                 "client {client_id} rejected: bad username or password"
             ));
+            drop(slot);
             return;
         }
     };
+    drop(slot);
 
     // 5. Register the session
     let conn_id = shared.next_conn_id.fetch_add(1, Ordering::Relaxed);
     let (tx, mut rx) = mpsc::unbounded_channel::<Outbound>();
+    let (ctl_tx, mut ctl_rx) = mpsc::unbounded_channel::<u8>();
     let queued = Arc::new(AtomicUsize::new(0));
     let info = Arc::new(ClientInfo {
         client_id: client_id.clone(),
@@ -291,7 +348,7 @@ pub(crate) async fn serve<S>(
     {
         let mut st = shared.lock();
         if let Some(old) = st.sessions.get(&client_id).and_then(|s| s.conn.clone()) {
-            let _ = old.tx.send(Outbound::Disconnect(0x8E));
+            let _ = old.ctl.send(0x8E);
             shared
                 .log
                 .info(format!("client {client_id} taken over by a new connection"));
@@ -307,6 +364,7 @@ pub(crate) async fn serve<S>(
         let cref = ConnRef {
             conn_id,
             tx: tx.clone(),
+            ctl: ctl_tx.clone(),
             queued: queued.clone(),
             info: info.clone(),
         };
@@ -324,6 +382,7 @@ pub(crate) async fn serve<S>(
         }
     }
     drop(tx);
+    drop(ctl_tx);
 
     let extra = ConnAckExtra {
         assigned_client_id: assigned,
@@ -359,12 +418,49 @@ pub(crate) async fn serve<S>(
     let mut qos2_in: HashSet<u16> = HashSet::new();
     let mut will: Option<Will> = c.will.take();
 
+    let stuck_secs = limits.inflight_close.as_secs().max(1);
+    let tick_every = (limits.inflight_resend.min(limits.inflight_close) / 4)
+        .clamp(Duration::from_millis(10), Duration::from_secs(1));
+    let mut tick = tokio::time::interval(tick_every);
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut full_since: Option<tokio::time::Instant> = None;
+    // Set when the connection ends in the middle of a write: no further byte is sent.
+    let mut abort = false;
+
     let close = 'session: loop {
-        if let Err(e) = write_out(&mut wr, &mut out).await {
-            break 'session Close::Error(crate::error::short_detail(&e.to_string()));
+        // Write what is pending. A control order, a stop or a stalled peer ends the wait: a client that stops reading
+        // cannot keep its connection (and the broker task) alive.
+        tokio::select! {
+            biased;
+            r = ctl_rx.recv() => {
+                abort = true;
+                break 'session Close::Kicked(r.unwrap_or(0x8E));
+            }
+            _ = shutdown.changed() => {
+                abort = true;
+                break 'session Close::Shutdown;
+            }
+            _ = closed.changed() => {
+                abort = true;
+                break 'session Close::ListenerStopped;
+            }
+            r = tokio::time::timeout(limits.inflight_close, write_out(&mut wr, &mut out)) => match r {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => break 'session Close::Error(crate::error::short_detail(&e.to_string())),
+                Err(_) => {
+                    abort = true;
+                    break 'session Close::Stuck(stuck_secs);
+                }
+            }
         }
         tokio::select! {
             biased;
+            r = ctl_rx.recv() => {
+                // None: the session was removed (taken over with a clean start).
+                let reason = r.unwrap_or(0x8E);
+                codec::encode_disconnect(v, &mut out, reason);
+                break 'session Close::Kicked(reason);
+            }
             _ = shutdown.changed() => {
                 codec::encode_disconnect(v, &mut out, 0x8B);
                 break 'session Close::Shutdown;
@@ -426,20 +522,31 @@ pub(crate) async fn serve<S>(
                             if inflight.get(&pkid).is_some_and(|e| e.stage == Stage::AwaitAck) {
                                 inflight.remove(&pkid);
                             }
+                            if inflight.len() < max_inflight {
+                                full_since = None;
+                            }
                         }
                         Incoming::PubRec(pkid) => {
                             if let Some(e) = inflight.get_mut(&pkid) {
-                                e.stage = Stage::AwaitComp;
+                                if e.stage == Stage::AwaitRec {
+                                    e.stage = Stage::AwaitComp;
+                                    e.sent = tokio::time::Instant::now();
+                                    e.resent = false;
+                                }
                             }
                             codec::encode_ack(v, &mut out, Ack::PubRel, pkid);
                         }
                         Incoming::PubComp(pkid) => {
                             inflight.remove(&pkid);
+                            if inflight.len() < max_inflight {
+                                full_since = None;
+                            }
                         }
                         Incoming::Subscribe { pkid, filters } => {
                             let mut codes = Vec::with_capacity(filters.len());
                             let mut retained_out: Vec<Delivery> = Vec::new();
                             let mut names = Vec::new();
+                            let mut deep_v4 = false;
                             {
                                 let mut st = shared.lock();
                                 for (filter, mut opts) in filters {
@@ -447,6 +554,11 @@ pub(crate) async fn serve<S>(
                                     let plain = shared_sub.map(|(_, f)| f).unwrap_or(filter.as_str());
                                     let bad_share = filter.starts_with("$share/") && shared_sub.is_none();
                                     if bad_share || !valid_filter(plain) {
+                                        if v == Version::V4 && too_deep(plain) {
+                                            // MQTT 3.1.1 has no reason code for it: the connection closes.
+                                            deep_v4 = true;
+                                            break;
+                                        }
                                         codes.push(None);
                                         continue;
                                     }
@@ -483,6 +595,9 @@ pub(crate) async fn serve<S>(
                                         shared.deliver(s, d);
                                     }
                                 }
+                            }
+                            if deep_v4 {
+                                break 'session Close::Protocol(format!("topic filter deeper than {} levels", super::router::MAX_LEVELS));
                             }
                             codec::encode_suback(v, &mut out, pkid, &codes);
                             if !names.is_empty() {
@@ -524,10 +639,6 @@ pub(crate) async fn serve<S>(
                 let mut budget = 256;
                 loop {
                     match cmd {
-                        Outbound::Disconnect(reason) => {
-                            codec::encode_disconnect(v, &mut out, reason);
-                            break 'session Close::Kicked(reason);
-                        }
                         Outbound::Publish(d) => {
                             queued.fetch_sub(1, Ordering::Relaxed);
                             if !d.msg.expired() {
@@ -549,10 +660,40 @@ pub(crate) async fn serve<S>(
                 codec::encode_disconnect(v, &mut out, 0x8D);
                 break 'session Close::KeepAlive;
             }
+            _ = tick.tick() => {
+                // In-flight timeout: resend an old unacknowledged delivery once; close when the window stays full.
+                let now = tokio::time::Instant::now();
+                if inflight.len() >= max_inflight {
+                    let since = *full_since.get_or_insert(now);
+                    if now.duration_since(since) >= limits.inflight_close {
+                        codec::encode_disconnect(v, &mut out, 0x98);
+                        break 'session Close::Stuck(stuck_secs);
+                    }
+                } else {
+                    full_since = None;
+                }
+                for (pkid, e) in inflight.iter_mut() {
+                    if e.resent || now.duration_since(e.sent) < limits.inflight_resend {
+                        continue;
+                    }
+                    e.resent = true;
+                    match e.stage {
+                        Stage::AwaitComp => codec::encode_ack(v, &mut out, Ack::PubRel, *pkid),
+                        _ => {
+                            let d = &e.delivery;
+                            codec::encode_publish(v, &mut out, &d.msg, d.qos, d.retain, *pkid, true, &d.sub_ids, max_out_size);
+                        }
+                    }
+                }
+            }
         }
     };
-    let _ = write_out(&mut wr, &mut out).await;
-    let _ = wr.shutdown().await;
+    if abort {
+        out.clear();
+    } else {
+        let _ = tokio::time::timeout(Duration::from_secs(1), write_out(&mut wr, &mut out)).await;
+    }
+    let _ = tokio::time::timeout(Duration::from_secs(1), wr.shutdown()).await;
 
     // 7. Clean up
     let publish_will = close.publish_will();
@@ -580,11 +721,9 @@ pub(crate) async fn serve<S>(
                         ..e.delivery
                     })
                     .collect();
-                while let Ok(cmd) = rx.try_recv() {
-                    if let Outbound::Publish(d) = cmd {
-                        if d.qos > 0 {
-                            pending.push(d);
-                        }
+                while let Ok(Outbound::Publish(d)) = rx.try_recv() {
+                    if d.qos > 0 {
+                        pending.push(d);
                     }
                 }
                 if let Some(s) = st.sessions.get_mut(&client_id) {
@@ -677,7 +816,15 @@ fn send_publish(
         } else {
             Stage::AwaitRec
         };
-        inflight.insert(pkid, OutEntry { delivery: d, stage });
+        inflight.insert(
+            pkid,
+            OutEntry {
+                delivery: d,
+                stage,
+                sent: tokio::time::Instant::now(),
+                resent: false,
+            },
+        );
     }
 }
 

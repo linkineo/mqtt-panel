@@ -83,6 +83,10 @@ pub struct Listener {
     pub port: u16,
     pub enabled: bool,
     pub preset: Preset,
+    /// Web origins allowed to connect while Anonymous is on (WS and WSS; SPEC 6). Changed with
+    /// `BrokerManager::set_allowed_origins`, never by `update_listener`.
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
 }
 
 /// Which CA verifies client certificates.

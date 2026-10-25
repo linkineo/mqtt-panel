@@ -92,6 +92,7 @@
  "broker.userInvalid": "A username cannot be empty or contain spaces.",
  "broker.certExists": "A client certificate named {name} already exists.",
  "broker.nameInvalid": "Use letters, digits, dots, dashes and underscores for the name.",
+ "broker.originInvalid": "Enter a web address like https://example.com: a scheme and a host, no path.",
  "broker.noListener": "No listener is enabled. Turn one on first.",
  "broker.notRunning": "The broker is not running. Start it first.",
  "keychain.unavailable": "The system keychain is not available: {detail}",

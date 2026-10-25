@@ -49,6 +49,7 @@ pub fn spec(id: &str, kind: ListenerKind) -> ListenerSpec {
         bind: BindAddr::Localhost,
         port: 0,
         tls: kind.encrypted().then(kit_material),
+        allowed_origins: Vec::new(),
     }
 }
 
