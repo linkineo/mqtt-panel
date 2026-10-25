@@ -239,6 +239,11 @@ pub enum EngineEvent {
     Menu { id: String },
     /// The assistant (docs/MCP.md): toasts, navigation, refreshes, the acknowledgement dialog, prompts for the user.
     Assistant { event: crate::mcp::AssistantEvent },
+    /// A web page wants to connect to the broker without a login (SPEC 6): the window asks Allow or Deny.
+    #[serde(rename_all = "camelCase")]
+    BrokerOrigin { id: String, listener_id: String, kind: mqttpanel_broker::ListenerKind, port: u16, origin: String },
+    /// The web page prompt was answered or timed out: the window closes it.
+    BrokerOriginDone { id: String },
 }
 
 pub fn now_ms() -> i64 {

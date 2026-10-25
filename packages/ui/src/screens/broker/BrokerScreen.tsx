@@ -114,6 +114,13 @@ export function ListenerRow(props: { l: Listener; network: boolean; onConfig(c: 
   const { t } = useTranslation();
   const { l, network } = props;
   const secure = l.kind === 'tls' || l.kind === 'wss';
+  // WS and WSS: a click on the row opens the listener's detail, the web pages allowed while Anonymous is on.
+  const web = l.kind === 'ws' || l.kind === 'wss';
+  const [open, setOpen] = useState(false);
+  const toggle = (e: { target: EventTarget }) => {
+    if (!web || (e.target as HTMLElement).closest('button, input, label, [role="switch"]')) return;
+    setOpen((o) => !o);
+  };
   const params = { kind: kindLabel(l.kind, t), port: l.port };
   const upd = async (p: Partial<Listener>) => {
     const c = await run(engine().updateListener({ ...l, ...p }));
@@ -124,7 +131,15 @@ export function ListenerRow(props: { l: Listener; network: boolean; onConfig(c: 
     if (c) props.onConfig(c);
   };
   return (
-    <tr data-testid="listener-row" data-listener={l.id}>
+    <>
+    <tr
+      data-testid="listener-row"
+      data-listener={l.id}
+      className={web ? 'clickable' : undefined}
+      aria-expanded={web ? open : undefined}
+      title={web ? t('broker.allowedOrigins') : undefined}
+      onClick={toggle}
+    >
       <td>
         <Switch on={l.enabled} label={t('broker.listenerOn', params)} onChange={(enabled) => void upd({ enabled })} />
       </td>
@@ -151,6 +166,95 @@ export function ListenerRow(props: { l: Listener; network: boolean; onConfig(c: 
         </button>
       </td>
     </tr>
+    {web && open && (
+      <tr data-testid={`listener-detail-${l.id}`} className="detail">
+        <td colSpan={5}>
+          <AllowedOrigins l={l} onConfig={props.onConfig} />
+        </td>
+      </tr>
+    )}
+    </>
+  );
+}
+
+/** The web pages allowed to connect to a WS or WSS listener while Anonymous is on (SPEC 6): removable chips and
+ * "+ Add…". A page not listed is asked about in a prompt when it tries to connect. */
+export function AllowedOrigins(props: { l: Listener; onConfig(c: BrokerConfig): void }) {
+  const { t } = useTranslation();
+  const { l } = props;
+  const [adding, setAdding] = useState(false);
+  const save = async (origins: string[]) => {
+    const c = await run(engine().setAllowedOrigins(l.id, origins));
+    if (c) props.onConfig(c);
+    return c;
+  };
+  return (
+    <div className="row" style={{ gap: 6, flexWrap: 'wrap', padding: '2px 0' }} data-testid={`origins-${l.id}`}>
+      <span className="muted">{t('broker.allowedOrigins')}</span>
+      <Info id="allowedOrigins" title={t('broker.allowedOrigins')} />
+      {l.allowedOrigins.length === 0 && <span className="muted" data-testid="no-origins">{t('broker.noOrigins')}</span>}
+      {l.allowedOrigins.map((o) => (
+        <span key={o} className="chip" data-testid="origin-chip">
+          <span className="mono">{o}</span>
+          <button
+            type="button"
+            className="x"
+            aria-label={t('broker.removeOrigin', { origin: o })}
+            title={t('broker.removeOrigin', { origin: o })}
+            data-testid={`remove-origin-${o}`}
+            onClick={() => void save(l.allowedOrigins.filter((x) => x !== o))}
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+      <button type="button" className="btn sm" data-testid={`add-origin-${l.id}`} onClick={() => setAdding(true)}>
+        {t('broker.addOrigin')}
+      </button>
+      {adding && <AddOriginDialog onClose={() => setAdding(false)} onAdd={async (o) => !!(await save([...l.allowedOrigins, o]))} />}
+    </div>
+  );
+}
+
+function AddOriginDialog(props: { onClose(): void; onAdd(origin: string): Promise<boolean> }) {
+  const { t } = useTranslation();
+  const [value, setValue] = useState('');
+  const add = async () => {
+    if (!value.trim()) return;
+    if (await props.onAdd(value.trim())) props.onClose();
+  };
+  return (
+    <Modal
+      title={t('broker.addOriginTitle')}
+      onClose={props.onClose}
+      width={460}
+      testId="add-origin-dialog"
+      footer={
+        <>
+          <button type="button" className="btn" onClick={props.onClose}>
+            {t('common.cancel')}
+          </button>
+          <button type="button" className="btn pri" data-testid="add-origin-ok" disabled={!value.trim()} onClick={() => void add()}>
+            {t('common.add')}
+          </button>
+        </>
+      }
+    >
+      <label className="row" style={{ gap: 8 }}>
+        <span>{t('broker.originLabel')}</span>
+        <input
+          className="inp mono grow"
+          value={value}
+          placeholder="https://example.com"
+          data-testid="add-origin-input"
+          {...NO_AUTO}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void add();
+          }}
+        />
+      </label>
+    </Modal>
   );
 }
 

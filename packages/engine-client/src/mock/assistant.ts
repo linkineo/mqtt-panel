@@ -26,6 +26,8 @@ export class MockAssistant {
   pickCancelled = false;
   /** Simulates the Mac App Store variant (App Sandbox). */
   sandboxed = false;
+  /** Simulates a socket (named pipe) that could not be opened at start. */
+  socketError: AssistantStatus['socketError'] = null;
 
   constructor(private emit: (e: AssistantEventBody) => void) {}
 
@@ -57,6 +59,7 @@ export class MockAssistant {
       snippet: JSON.stringify({ mcpServers: { mqttpanel: { command: MOCK_EXECUTABLE, args: ['mcp'] } } }, null, 2),
       hosts: this.hosts(),
       sandboxed: this.sandboxed,
+      socketError: this.socketError,
     };
   }
 

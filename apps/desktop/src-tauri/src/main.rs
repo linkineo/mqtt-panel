@@ -130,6 +130,8 @@ fn main() {
                 let _ = app.emit("engine-event", EngineEvent::Menu { id: event.id().0.clone() });
             });
             spawn_ticker(handle.clone());
+            // Web pages that want to connect without a login are asked about in the window (SPEC 6).
+            let _ = handle.state::<AppState>().broker.origin_prompt.set(broker::origin_prompt(handle.clone()));
             // The assistant socket (docs/MCP.md section 2): enabled by default, same user only, no network port.
             let link: Arc<dyn mcp::AppLink> = Arc::new(mcp::commands::TauriLink(handle.clone()));
             let mcp_dir = mqttpanel_profiles::default_dir();
@@ -143,6 +145,9 @@ fn main() {
                         if log_enabled() {
                             eprintln!("[mqttpanel] assistant socket: {e}");
                         }
+                        // Shown on Settings, Assistant (for example a named pipe already taken by another program).
+                        let st = handle.state::<AppState>();
+                        *lock(&st.assistant.socket_error) = Some(mcp::server::socket_error_message(&e));
                     }
                 }
             });
@@ -230,6 +235,8 @@ fn main() {
             broker::validate_port,
             broker::add_listener,
             broker::update_listener,
+            broker::set_allowed_origins,
+            broker::answer_origin,
             broker::remove_listener,
             broker::set_broker_bind,
             broker::set_anonymous,

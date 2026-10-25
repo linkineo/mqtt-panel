@@ -42,7 +42,28 @@ The assistant acts through the running app. The user sees every change in the wi
   sentence to accept once: "Over this interface an assistant can change everything in MQTT Panel, including deleting
   connections, retained messages and broker settings. You stay in control of what you ask it." Until accepted, tools
   that write return "not yet allowed: accept the acknowledgement in MQTT Panel, Settings, Assistant".
-- **No in-app confirmations** per tool call; the host's own permission prompts remain the user's gate.
+- **In-app confirmations** only for a short list of actions; every other call runs as soon as it is made and the
+  host's own permission prompts remain the user's gate. These wait for "Allow this assistant action?" in the app
+  ("The assistant wants to …", Allow / Deny, Deny by default; no answer within 60 s means denied; their call time
+  limit grows by 60 s):
+  - `broker_set_anonymous` turning Anonymous on;
+  - `broker_set_reachability` to `whole_network`;
+  - `trust_certificate` with `skip_always`;
+  - `update_connection` changing the host or port of a profile that holds a stored password, client key or PKCS#12
+    bundle (the credential would be sent elsewhere);
+  - `broker_set_allowed_origins` adding a web origin while Anonymous is on;
+  - a direct path in `export_data`, `export_chart`, `broker_export_ca`, `broker_export_server_cert` outside the user's
+    Documents, Downloads, Desktop and temporary folders (links resolved first);
+  - any write that would replace an existing file, also in a folder picked in the app (`broker_issue_client_cert`
+    checks before issuing). The save dialog asks by itself, so a file picked there is not asked again.
+
+  A call that changes nothing (Anonymous already on) asks nothing. A denial returns "The user denied this in MQTT
+  Panel. Do not try again unless the user asks for it." and the log outcome "denied"; an allowed call carries the
+  note "confirmed by the user". Test hook, debug builds only: `MQTTPANEL_TEST_CONFIRM=allow` or `deny` answers every
+  confirmation at once.
+- **Windows named pipe:** created with a security descriptor granting access to the current user's SID only; the shim
+  forwards only to a pipe served by a process of its own user; a name already taken is reported on Settings,
+  Assistant.
 - **Secrets (both ways, with warnings and a recommendation):** every tool that needs a password, a key file,
   a PKCS#12 passphrase or a CSR response has two forms:
   - **recommended**: the tool asks the app to collect the secret itself (`ask_in_app: true`): MQTT Panel opens its
@@ -82,6 +103,7 @@ All tools return plain-words text plus a small JSON block; errors reuse the app'
 - `broker_add_listener(kind, port, preset)`, `broker_update_listener(id, enabled?, port?)`,
   `broker_remove_listener(id)`, `broker_set_reachability(this_computer | whole_network)`.
 - `broker_set_anonymous(on)`, `broker_add_user(username, ask_in_app | password)`, `broker_remove_user(username)`.
+- `broker_set_allowed_origins(listener, origins[])`: the web pages allowed on a WS or WSS listener while Anonymous is on.
 - `broker_client_certs()`; `broker_issue_client_cert(name)` → files written to a folder the user picks in the app
   (PEM or PKCS#12), returns the paths; `broker_revoke_client_cert(name)`; `broker_set_client_cert_rule(optional |
   required, verify_against)`.
@@ -161,7 +183,7 @@ the broker, data, chart and navigation tools with resources and prompts, and the
 
 Code: `apps/desktop/src-tauri/src/mcp/` (server, registry, one table per group in `tools/`, hosts, Settings commands),
 `apps/desktop/src-tauri/src/charts.rs` (the window's dashboard charts on the app side), `crates/shim` (the stdio shim
-used by `mqttpanel mcp` and by the app executable started with `mcp`). Tests: `docs/TESTPLAN.md` M-01 to M-17; plain English
+used by `mqttpanel mcp` and by the app executable started with `mcp`). Tests: `docs/TESTPLAN.md` M-01 to M-17 and M-36 to M-43; plain English
 prompts to Claude Code against Mosquitto and the built-in broker, checked by machine: M-19 to M-35, listed with their
 prompts in `docs/MCP_PROMPTS.md`.
 Writing tools need the acknowledgement, show a toast and add a row to the Assistant log; "Secret way" fields are masked
@@ -173,7 +195,7 @@ warning); results give the paths, never a key.
 |---|---|---|---|---|
 | `list_connections` | Connections | no | | State (connected, connecting, reconnecting, failed, idle), host, port, protocol, security, last error and last test. |
 | `create_connection` | Connections | yes | | `host`, `protocol` required; the name follows the host; usual port per protocol. |
-| `update_connection` | Connections | yes | | Also `ws_path`, `keep_alive`, `clean_start`, `session_expiry`, `subscriptions`. |
+| `update_connection` | Connections | yes | | Also `ws_path`, `keep_alive`, `clean_start`, `session_expiry`, `subscriptions`. Asks the user when it changes the host or port of a profile with a stored credential. |
 | `set_connection_password` | Connections | yes | `ask_in_app` or `password` | Empty password removes it. |
 | `set_ca_certificate` | Connections | yes | `ask_in_app` or `file` | |
 | `set_client_certificate` | Connections | yes | `ask_in_app` or `cert_file`, `key_file`, `passphrase` | Switches the profile to the imported way; PKCS#12 needs no key file. |
@@ -181,26 +203,27 @@ warning); results give the paths, never a key.
 | `get_client_csr` | Connections | no | | PEM text; common name defaults to the client ID. |
 | `import_signed_certificate` | Connections | yes | `ask_in_app` or `file` | Must match the generated key. |
 | `test_connection` | Connections | no | | Result, or the certificate details and the trust choices. Starts the built-in broker for "Local broker". |
-| `trust_certificate` | Connections | yes | | `pin`, `ca` (when offered), `skip_once` (connects at once), `skip_always`. |
+| `trust_certificate` | Connections | yes | | `pin`, `ca` (when offered), `skip_once` (connects at once), `skip_always` (asks the user). |
 | `connect` | Connections | yes | | 20 s; starts the built-in broker for "Local broker". |
 | `disconnect` | Connections | yes | | |
 | `delete_connection` | Connections | yes | | Destructive hint for the host. |
-| `broker_status` | Broker | no | | State, listeners (kind, port, on, up, error), reachability, Anonymous, user names, client certificate rule, clients, retained. |
+| `broker_status` | Broker | no | | State, listeners (kind, port, on, up, error, allowed web origins), reachability, Anonymous, user names, client certificate rule, clients, retained. |
 | `broker_start` | Broker | yes | | Retries a listener that could not start. |
 | `broker_stop` | Broker | yes | | |
 | `broker_add_listener` | Broker | yes | | `kind` tcp, tls, ws, wss; `port`; `preset` plain, encrypted, passwords, mtls (as the Add listener dialog). Starts at once. |
 | `broker_update_listener` | Broker | yes | | `enabled`, `port`; live, only that listener's clients reconnect. |
 | `broker_remove_listener` | Broker | yes | | Destructive. |
-| `broker_set_reachability` | Broker | yes | | `this_computer` or `whole_network`. |
-| `broker_set_anonymous` | Broker | yes | | |
+| `broker_set_reachability` | Broker | yes | | `this_computer` or `whole_network` (asks the user). |
+| `broker_set_anonymous` | Broker | yes | | Turning it on asks the user. |
+| `broker_set_allowed_origins` | Broker | yes | | `listener` (WS or WSS), `origins` (replaces the list; empty removes all). Adding an origin while Anonymous is on asks the user. |
 | `broker_add_user` | Broker | yes | `ask_in_app` or `password` | Changes the password of an existing user. |
 | `broker_remove_user` | Broker | yes | | Destructive. |
 | `broker_client_certs` | Broker | no | | Name, expiry, key type, last seen, revoked. |
-| `broker_issue_client_cert` | Broker | yes | `ask_in_app` or `passphrase` | Folder always picked in the app (it is asked together with the passphrase); `format` pem (key encrypted when a passphrase is given) or pkcs12 (passphrase required); `valid_years` 1, 2, 5; `include_ca`. Returns the paths. |
+| `broker_issue_client_cert` | Broker | yes | `ask_in_app` or `passphrase` | Folder always picked in the app (it is asked together with the passphrase); `format` pem (key encrypted when a passphrase is given) or pkcs12 (passphrase required); `valid_years` 1, 2, 5; `include_ca`. Returns the paths. Replacing an existing file asks the user (before issuing). |
 | `broker_revoke_client_cert` | Broker | yes | | Destructive; the device is disconnected at once. |
 | `broker_set_client_cert_rule` | Broker | yes | | `rule` optional or required; `verify_against` local or imported. |
-| `broker_export_ca` | Broker | yes | `ask_in_app` or `folder` | Writes CA.pem; returns the path. |
-| `broker_export_server_cert` | Broker | yes | `ask_in_app` or `folder` | Writes server-chain.pem. |
+| `broker_export_ca` | Broker | yes | `ask_in_app` or `folder` | Writes CA.pem; returns the path. A direct folder outside the usual folders, or replacing a file, asks the user. |
+| `broker_export_server_cert` | Broker | yes | `ask_in_app` or `folder` | Writes server-chain.pem. Same questions as `broker_export_ca`. |
 | `broker_regenerate_server_cert` | Broker | yes | | `extra_names` replaces the kept list (omitted: kept); `key_type` (omitted: the current one). |
 | `broker_rotate_ca` | Broker | yes | | Destructive (issued certificates stop working). |
 | `broker_log` | Broker | no | | `level` (info), `limit` at most 500 (100). |
@@ -211,7 +234,7 @@ warning); results give the paths, never a key.
 | `search_values` | Data | no | | Last values containing a text, at most 100. |
 | `publish` | Data | yes | | `format` text, json, hex, base64; `qos`, `retain`; in the sent log. |
 | `delete_retained` | Data | yes | | `subtree` deletes every retained message at and under the topic the Explorer knows. Destructive. |
-| `export_data` | Data | yes | `ask_in_app` or `file` | `scope` topic or subtree, `format` csv, json, ndjson, `from`, `to` (ms). Returns the path, messages, topics, bytes. |
+| `export_data` | Data | yes | `ask_in_app` or `file` | `scope` topic or subtree, `format` csv, json, ndjson, `from`, `to` (ms). Returns the path, messages, topics, bytes. A direct path outside the usual folders, or replacing a file, asks the user. |
 | `list_charts` | Charts | no | | Dashboard charts with their series, topic charts and sparklines of every connection. |
 | `create_chart` | Charts | yes | | `connection` (the only connected one when omitted), `range` 5m, 15m, 1h, session. |
 | `rename_chart` | Charts | yes | | |
@@ -221,7 +244,7 @@ warning); results give the paths, never a key.
 | `remove_series` | Charts | yes | | |
 | `set_topic_chart` | Charts | yes | | `fields` paths or objects; kept fields keep their settings; empty removes. Saved in the profile. |
 | `set_sparkline` | Charts | yes | | `path`, or `off` true. Saved in the profile. |
-| `export_chart` | Charts | yes | `ask_in_app` or `file` | csv (the chart's range) or png (drawn by the window). |
+| `export_chart` | Charts | yes | `ask_in_app` or `file` | csv (the chart's range) or png (drawn by the window). A direct path outside the usual folders, or replacing a file, asks the user. |
 | `show_connection` | Navigation | no | | Connections screen, the profile selected. |
 | `show_topic` | Navigation | no | | Explorer of an open connection, the topic selected and revealed. |
 | `show_chart` | Navigation | no | | Charts screen, the chart and its connection when the id exists. |

@@ -78,6 +78,10 @@ export interface MockControls {
   takePort(port: number, taken?: boolean): void;
   /** Plays the assistant side (e2e): a host session, the acknowledgement dialog, a request, navigation, a toast. */
   assistantEvent(e: AssistantEventBody): void;
+  /** A web page at `origin` asks to connect to listener `listenerId` without a login (the window prompt, SPEC 6). */
+  brokerOrigin(listenerId: string, origin: string): string;
+  /** What the window answered to web page prompts, oldest first. */
+  originAnswers(): { id: string; allow: boolean }[];
   /** Adds a row to the Assistant log (e2e and tests; the real rows come from tool calls). */
   addAssistantLog(entry: AssistantLogEntry): void;
   /** What the app answered to assistant requests, oldest first. */
@@ -91,6 +95,8 @@ export interface MockControls {
   setHostFile(path: string, content: string | null): void;
   /** Simulates the Mac App Store variant (App Sandbox) for "Add to Claude" and "Add to ChatGPT". */
   setAssistantSandboxed(on: boolean): void;
+  /** Simulates an assistant socket (named pipe) that could not be opened at start; null clears it. */
+  setAssistantSocketError(error: UserMessage | null): void;
   tick(): void;
   dispose(): void;
 }
@@ -639,6 +645,10 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
 
   /** One broker change, applied at once (change set 7): the profile "Local broker" follows it and, when its
    * connection is open, reconnects only when its own listener or login changed (C-16). */
+  // Web page prompts (SPEC 6): pending by id, and what the window answered.
+  const originPending = new Map<string, { listenerId: string; origin: string }>();
+  const originAnswers: { id: string; allow: boolean }[] = [];
+  let originN = 0;
   const brokerChange = async (apply: () => void) => {
     const before = localFingerprint();
     apply();
@@ -1191,6 +1201,25 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       }
       return brokerChange(() => broker.updateListener(l));
     },
+    async setAllowedOrigins(listenerId, origins) {
+      return brokerChange(() => broker.setAllowedOrigins(listenerId, origins));
+    },
+    async answerOrigin(id, allow) {
+      const p = originPending.get(id);
+      originAnswers.push({ id, allow });
+      if (!p) return false;
+      originPending.delete(id);
+      const l = broker.config.listeners.find((x) => x.id === p.listenerId);
+      if (l) {
+        if (allow) {
+          broker.setAllowedOrigins(l.id, [...l.allowedOrigins, p.origin]);
+          broker.addLog('info', `web page at ${p.origin} allowed on the ${l.kind.toUpperCase()} listener`);
+        } else broker.addLog('warn', `web page at ${p.origin} refused on the ${l.kind.toUpperCase()} listener`);
+      }
+      emit({ type: 'brokerOriginDone', id });
+      changedTick();
+      return true;
+    },
     async removeListener(id) {
       return brokerChange(() => broker.removeListener(id));
     },
@@ -1421,6 +1450,16 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     assistantEvent(e) {
       assistant.push(e);
     },
+    brokerOrigin(listenerId, origin) {
+      const id = `origin-${++originN}`;
+      originPending.set(id, { listenerId, origin });
+      const l = broker.config.listeners.find((x) => x.id === listenerId);
+      emit({ type: 'brokerOrigin', id, listenerId, kind: l?.kind ?? 'ws', port: l?.port ?? 0, origin });
+      return id;
+    },
+    originAnswers() {
+      return clone(originAnswers);
+    },
     addAssistantLog(entry) {
       assistant.log.push(clone(entry));
       assistant.push({ kind: 'logChanged' });
@@ -1443,6 +1482,9 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
     setAssistantSandboxed(on) {
       assistant.sandboxed = on;
+    },
+    setAssistantSocketError(error) {
+      assistant.socketError = error;
     },
     tick,
     dispose() {

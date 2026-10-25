@@ -38,7 +38,7 @@ pub fn tools() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "update_connection",
-            description: "Change fields of a connection profile; fields left out stay as they are. subscriptions replaces the whole list of topic filters.",
+            description: "Change fields of a connection profile; fields left out stay as they are. subscriptions replaces the whole list of topic filters. Changing the host or port of a connection that keeps a password or client key waits until the user allows it in MQTT Panel (the credential would go to the new place).",
             schema: || {
                 let mut p = profile_props(true);
                 p["id"] = id_prop();
@@ -133,7 +133,7 @@ pub fn tools() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "trust_certificate",
-            description: "Answer the certificate question after test_connection or connect reported a certificate MQTT Panel cannot verify: pin (trust this exact certificate), ca (trust the CA that signed it, when offered), skip_once (connect once without verification), skip_always (never verify this connection; unsafe). Ask the user which one; never pick a skip mode on your own.",
+            description: "Answer the certificate question after test_connection or connect reported a certificate MQTT Panel cannot verify: pin (trust this exact certificate), ca (trust the CA that signed it, when offered), skip_once (connect once without verification), skip_always (never verify this connection; unsafe). Ask the user which one; never pick a skip mode on your own. skip_always also waits until the user allows it in MQTT Panel.",
             schema: || schema(json!({ "id": id_prop(), "mode": { "type": "string", "enum": ["pin", "ca", "skip_once", "skip_always"] } }), &["id", "mode"]),
             writes: true,
             destructive: false,
@@ -429,9 +429,21 @@ async fn create_connection(c: Call) -> Result<Outcome, Fail> {
     Ok(Outcome::new(text, json!({ "id": saved.id, "connection": profile_json(&c, &saved) })).changed("profiles"))
 }
 
+/// True when the profile keeps a credential in the secret store (password, client key or PKCS#12 bundle) that the
+/// next connection sends or uses.
+fn holds_credential(p: &Profile) -> bool {
+    p.has_password || p.tls.client_key.is_some() || p.tls.client_cert.as_ref().is_some_and(|f| f.in_keychain)
+}
+
 async fn update_connection(c: Call) -> Result<Outcome, Fail> {
     let mut p = c.profile("id")?.profile;
+    let before = format!("{}:{}", p.host, p.port);
     let changed = apply_fields(&c, &mut p, false)?;
+    // The stored credential would go to another place: the user allows it in the app first.
+    if (changed.contains(&"host") || changed.contains(&"port")) && holds_credential(&p) {
+        let after = format!("{}:{}", p.host, p.port);
+        c.confirm("moveCredential", &p.name, &[("name", name_json(&p.name)), ("from", json!(before)), ("to", json!(after))]).await?;
+    }
     let saved = cmd::save_profile_on(c.state(), p)?;
     let text = if changed.is_empty() {
         c.t("unchanged", &[("name", name_json(&saved.name))])
@@ -654,6 +666,9 @@ async fn trust_certificate(c: Call) -> Result<Outcome, Fail> {
     }
     if mode == "ca" && !lock(&c.state().pending_trust).get(&id).is_some_and(|t| t.ca_offer) {
         return Err(Fail::args("this certificate offers no CA to trust; choose pin, skip_once or skip_always"));
+    }
+    if mode == "skipAlways" {
+        c.confirm("skipAlways", &p.profile.name, &[("name", name_json(&p.profile.name))]).await?;
     }
     let saved = cmd::trust_certificate_on(c.state(), &id, mode)?;
     let key = match mode {

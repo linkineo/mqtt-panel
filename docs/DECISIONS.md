@@ -58,6 +58,8 @@ The standing decisions behind MQTT Panel. The detailed behaviour is in `docs/SPE
 | Broker certificates | ECDSA P-256 by default; local CA valid 5 years, server and client certificates 2 years. The server certificate names include localhost, the host name, its `.local` name and the LAN addresses, plus "Extra names". |
 | Broker limits | Built-in limits instead of settings: 128 topic levels, 64 waiting connections per listener and 8 per address, 64 KiB CONNECT before login, 1 s delay on a refused login, 4 password checks at once, in-flight resend after 30 s and disconnect after 60 s (values in `docs/SPEC.md` 6). |
 | | Why: one client, or anyone who can reach a listener, must not be able to stop or exhaust the app that hosts the broker; the values stay far above what devices need. |
+| Web pages | Browser connections to the WS listeners are a standard use, even anonymous. With Anonymous on, a page connects only from an origin on the listener's list; an unknown origin is asked about in the app (Allow adds it). Pages that log in and device clients are not affected. |
+| | Why: without the check any web page the user opens could read and publish through an anonymous broker; asking once per origin keeps dashboards working without a setting to find first. |
 | Long topics | Topics are kept cut at 1024 bytes by default (per profile, `maxTopicBytes`); levels share one string per topic. |
 | | Why: a broker the user explores can send any topic; memory per topic must stay linear and bounded. |
 
@@ -68,7 +70,11 @@ The standing decisions behind MQTT Panel. The detailed behaviour is in `docs/SPE
 | Transport | The app is the MCP server (`rmcp`) on a same-user local socket (`mcp.sock`, named pipe on Windows). Hosts start the stdio shim `mqttpanel mcp` or the app executable with `mcp`; the shim starts the app when needed. One host at a time. Marked beta. |
 | | Why no HTTP endpoint: Claude Desktop, Claude Code and the ChatGPT desktop app all launch stdio servers, and nothing in the app should listen on the network for this. |
 | Safety | Enabled by default; writing tools work after a one-time acknowledgement in the app. Secrets are asked in the app by default; a secret given in the chat works but is warned about and logged. Every writing call shows a toast and a row in the Assistant log. |
-| | Why the acknowledgement and no per-call confirmation: an assistant can change everything in the app, so the user accepts that once, knowingly; the host's own permission prompts stay the per-call gate. |
+| | Why the acknowledgement: an assistant can change everything in the app, so the user accepts that once, knowingly; the host's own permission prompts stay the per-call gate. |
+| Confirmations | A short list of actions waits for Allow or Deny in the app (Anonymous on, whole network, skip verification for good, moving a profile that holds a credential, adding a web origin while Anonymous is on, writing outside the usual folders, replacing a file); 60 s without an answer is a denial. |
+| | Why: text the assistant reads (payloads, topic names, log lines) can steer it, and another local program can reach the socket; these actions expose the broker, send a stored credential elsewhere or overwrite user files, so a person decides each time. |
+| Windows pipe | Owner-only security descriptor on the named pipe; the shim checks that the pipe's server runs as its own user. |
+| | Why: the pipe namespace is machine-wide, so another user could otherwise create the name first and read or answer the assistant's traffic. |
 | Texts | Tool names, descriptions and schemas in English (they are read by the model); results, errors and prompts in the app language. |
 
 ## Languages
@@ -103,3 +109,8 @@ Implementation choices where the spec left room. Each is easy to change.
 - MCP: "nothing listens until a host starts the shim" is read as "nothing on the network"; the same-user socket exists while the app runs.
 - Settings page "Assistant" has no mockup yet; it follows the other Settings pages.
 - Import from other tools is hidden in the UI; the parsers were checked against synthetic fixtures only.
+- The assistant confirmation dialog, the web page prompt and the "Allowed web pages" detail of a WS listener are not in the validated mockups; they reuse the existing modal, chip and ⓘ styles and need the owner's look.
+- `update_connection` asks before a host or port change of a profile with a stored credential, not before a protocol change alone (mqtts to mqtt would send the password unencrypted to the same host); one line to add if wanted.
+- Limits: the 8 waiting connections per address apply to localhost too; a CONNECT over 64 KiB (for example a large last will) is refused before the login; a full in-flight window closes with reason 0x98; MQTT 3.1.1 clients that subscribe deeper than 128 levels are disconnected (no reason code exists).
+- The topic length limit (1024 bytes) is a profile value without a form field.
+- The `null` origin (sandboxed pages, local files) is refused without a question, because any page can send it.

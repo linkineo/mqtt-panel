@@ -449,6 +449,29 @@ test.describe('Export, settings, palette', () => {
 });
 
 test.describe('Broker', () => {
+  test('B-34 allowed web pages: chips on the WS listener, the web page prompt adds an origin on Allow', async ({ page }) => {
+    await open(page, 'mock=demo&screen=broker');
+    const ws = page.locator('[data-testid=listener-row][data-listener=l-ws]');
+    await ws.locator('td').nth(3).click();
+    const detail = page.locator('[data-testid=listener-detail-l-ws]');
+    await expect(detail).toContainText('Allowed web pages');
+    await expect(detail.locator('[data-testid=no-origins]')).toHaveText('None');
+    await detail.locator('[data-testid=add-origin-l-ws]').click();
+    await page.fill('[data-testid=add-origin-input]', 'https://dashboard.example');
+    await page.click('[data-testid=add-origin-ok]');
+    await expect(detail.locator('[data-testid=origin-chip]')).toHaveText(['https://dashboard.example✕']);
+    // A web page that is not listed: the prompt, Deny focused; Allow adds it.
+    await page.evaluate(() => (window as any).__mqttpanelMock.engine.brokerOrigin('l-ws', 'https://page.example'));
+    const prompt = page.locator('[data-testid=web-origin-prompt]');
+    await expect(prompt).toContainText('A web page at https://page.example wants to connect to the broker without a login.');
+    await expect(page.locator('[data-testid=origin-deny]')).toBeFocused();
+    await page.click('[data-testid=origin-allow]');
+    await expect(prompt).toHaveCount(0);
+    await expect(detail.locator('[data-testid=origin-chip]')).toHaveText(['https://dashboard.example✕', 'https://page.example✕']);
+    await detail.locator('[data-testid="remove-origin-https://dashboard.example"]').click();
+    await expect(detail.locator('[data-testid=origin-chip]')).toHaveText(['https://page.example✕']);
+  });
+
   test('B-02 Add listener with "Encrypted + client certificates" sets client certificates to Required', async ({ page }) => {
     await open(page, 'mock=demo&screen=broker');
     const before = await page.locator('[data-testid=listener-row]').count();
@@ -1851,6 +1874,38 @@ test.describe('Assistant (docs/MCP.md section 6)', () => {
     await expect(page.locator('[data-testid=toast]', { hasText: 'The assistant moved the view.' })).toBeVisible();
     await expect(page.locator('[data-testid=assistant-accepted]')).toContainText('Accepted on');
     await expect(page.locator('[data-testid=assistant-session]')).toHaveText('Claude Desktop');
+  });
+
+  test('M-38 an action that weakens security waits for Allow or Deny in the app', async ({ page }) => {
+    await open(page, 'mock=demo&screen=connect');
+    const ask = (id: string) =>
+      page.evaluate(
+        (rid) =>
+          (window as any).__mqttpanelMock.engine.assistantEvent({
+            kind: 'request',
+            id: rid,
+            request: 'confirm',
+            profileId: '',
+            profileName: '',
+            text: 'The assistant wants to make the built-in broker reachable from the whole network. Devices on the network could connect to it, not only apps on this computer.',
+          }),
+        id,
+      );
+    await ask('c1');
+    const dlg = page.locator('[data-testid=assistant-confirm-action]');
+    await expect(dlg).toContainText('Allow this assistant action?');
+    await expect(dlg).toContainText('reachable from the whole network');
+    await expect(page.locator('[data-testid=assistant-deny]')).toBeFocused();
+    await page.click('[data-testid=assistant-deny]');
+    await expect(dlg).toHaveCount(0);
+    await ask('c2');
+    await page.click('[data-testid=assistant-allow]');
+    await expect(dlg).toHaveCount(0);
+    const answers = await page.evaluate(() => (window as any).__mqttpanelMock.engine.assistantAnswers());
+    expect(answers).toEqual([
+      { requestId: 'c1', answer: { cancelled: true } },
+      { requestId: 'c2', answer: {} },
+    ]);
   });
 
   test('M-10 a password asked in the app goes to the app, not the chat', async ({ page }) => {

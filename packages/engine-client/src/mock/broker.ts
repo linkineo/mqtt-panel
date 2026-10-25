@@ -26,6 +26,17 @@ export const APP_USER = 'mqtt-panel';
 export const DESKTOP_CERT = 'mqttpanel-desktop';
 
 /** Security rank: mutual TLS (TLS before WSS), TLS, secure WebSocket, TCP, WebSocket. */
+/** Like the engine: trimmed, lower case, no trailing slash. */
+export function normalizeOrigin(o: string): string {
+  return o.trim().replace(/\/+$/, '').toLowerCase();
+}
+
+/** `scheme://host[:port]`, no path, no user info; `null` is never accepted. */
+export function validOrigin(o: string): boolean {
+  const m = /^([a-z0-9+.-]+):\/\/([^/@?#\s*]+)$/.exec(o);
+  return !!m;
+}
+
 export function listenerRank(l: Listener, requireClientCert: boolean): number {
   const secure = l.kind === 'tls' || l.kind === 'wss';
   if (secure && requireClientCert) return l.kind === 'tls' ? 6 : 5;
@@ -75,10 +86,10 @@ export class MockBroker {
     const t = now();
     this.config = {
       listeners: [
-        { id: 'l-tcp', kind: 'tcp', port: 1883, enabled: true, preset: 'plain' },
-        { id: 'l-tls', kind: 'tls', port: 8883, enabled: true, preset: demo ? 'mtls' : 'encrypted' },
-        { id: 'l-ws', kind: 'ws', port: 8083, enabled: demo, preset: 'plain' },
-        { id: 'l-wss', kind: 'wss', port: 8084, enabled: false, preset: 'encrypted' },
+        { id: 'l-tcp', kind: 'tcp', port: 1883, enabled: true, preset: 'plain', allowedOrigins: [] },
+        { id: 'l-tls', kind: 'tls', port: 8883, enabled: true, preset: demo ? 'mtls' : 'encrypted', allowedOrigins: [] },
+        { id: 'l-ws', kind: 'ws', port: 8083, enabled: demo, preset: 'plain', allowedOrigins: [] },
+        { id: 'l-wss', kind: 'wss', port: 8084, enabled: false, preset: 'encrypted', allowedOrigins: [] },
       ],
       bind: 'network',
       anonymous: false,
@@ -323,6 +334,7 @@ export class MockBroker {
       port: req.port,
       enabled: true,
       preset: req.preset,
+      allowedOrigins: [],
     };
     this.config.listeners.push(l);
     // "Encrypted + client certificates" sets the broker-wide client certificate requirement to Required.
@@ -353,7 +365,8 @@ export class MockBroker {
     const i = this.config.listeners.findIndex((x) => x.id === l.id);
     if (i < 0) return;
     const old = this.config.listeners[i];
-    this.config.listeners[i] = clone(l);
+    // The allowed web origins change only through setAllowedOrigins.
+    this.config.listeners[i] = { ...clone(l), allowedOrigins: old.allowedOrigins };
     if (this.state !== 'running') return;
     if (old.enabled && !l.enabled) this.stopListener(old, 'listener switched off');
     else if (!old.enabled && l.enabled) this.startListener(l);
@@ -361,6 +374,22 @@ export class MockBroker {
       const n = this.stopListener(old, null, true);
       this.startListener(l, dropped(n, old.kind !== l.kind ? 'kind changed' : 'port changed'));
     }
+  }
+
+  /** Web origins of a WS or WSS listener (like the engine: normalised, duplicates removed, `null` refused). */
+  setAllowedOrigins(id: string, origins: string[]): void {
+    const l = this.config.listeners.find((x) => x.id === id);
+    if (!l || (l.kind !== 'ws' && l.kind !== 'wss')) throw um('broker.notRunning');
+    const list: string[] = [];
+    for (const o of origins) {
+      const n = normalizeOrigin(o);
+      if (!validOrigin(n)) throw um('broker.originInvalid', { origin: o });
+      if (!list.includes(n)) list.push(n);
+    }
+    const label = `${LABEL[l.kind]} ${l.port}`;
+    for (const o of list.filter((x) => !l.allowedOrigins.includes(x))) this.addLog('info', `web origin ${o} allowed on listener ${label}`);
+    for (const o of l.allowedOrigins.filter((x) => !list.includes(x))) this.addLog('info', `web origin ${o} removed from listener ${label}`);
+    l.allowedOrigins = list;
   }
 
   removeListener(id: string): void {

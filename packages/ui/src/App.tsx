@@ -7,6 +7,7 @@ import { Toasts } from './components/ui';
 import { ConnectionBar, useOpenTabs } from './components/ConnectionBar';
 import { TrustDialog } from './components/TrustDialog';
 import { AssistantLayer } from './components/Assistant';
+import { WebOriginLayer } from './components/WebOriginPrompt';
 import { CommandPalette } from './components/CommandPalette';
 import { FieldPicker } from './screens/explorer/FieldPicker';
 import { ConnectionsScreen } from './screens/connections/ConnectionsScreen';
@@ -225,6 +226,7 @@ export function App() {
       </div>
       <TrustDialog />
       <AssistantLayer />
+      <WebOriginLayer />
       <FieldPicker />
       {palette && <CommandPalette />}
       <Toasts />

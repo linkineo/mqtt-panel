@@ -94,7 +94,7 @@ pub fn tools() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "broker_set_reachability",
-            description: "Who can reach every listener of the built-in broker: this_computer (only apps on this computer) or whole_network (devices on the network too).",
+            description: "Who can reach every listener of the built-in broker: this_computer (only apps on this computer) or whole_network (devices on the network too). whole_network waits until the user allows it in MQTT Panel (denied after 60 s without an answer).",
             schema: || schema(json!({ "reach": { "type": "string", "enum": ["this_computer", "whole_network"] } }), &["reach"]),
             writes: true,
             destructive: false,
@@ -103,8 +103,26 @@ pub fn tools() -> Vec<ToolDef> {
             handler: h!(broker_set_reachability),
         },
         ToolDef {
+            name: "broker_set_allowed_origins",
+            description: "The web pages (origins such as https://dashboard.example or http://localhost:3000) allowed to connect to a WS or WSS listener of the built-in broker while anonymous access is on; replaces the listener's list (an empty list removes them all). Device clients and pages that log in are not affected. Adding an origin while anonymous access is on waits until the user allows it in MQTT Panel (denied after 60 s without an answer).",
+            schema: || {
+                schema(
+                    json!({
+                        "listener": listener_id_prop(),
+                        "origins": { "type": "array", "items": { "type": "string" }, "description": "Scheme and host, with a port when not the default; no path." }
+                    }),
+                    &["listener", "origins"],
+                )
+            },
+            writes: true,
+            destructive: false,
+            secret_fields: &[],
+            wait: Wait::Call,
+            handler: h!(broker_set_allowed_origins),
+        },
+        ToolDef {
             name: "broker_set_anonymous",
-            description: "Anonymous access on (clients connect without a user or a certificate; fine for a test bench, unsafe on a network) or off.",
+            description: "Anonymous access on (clients connect without a user or a certificate; fine for a test bench, unsafe on a network) or off. Turning it on waits until the user allows it in MQTT Panel (denied after 60 s without an answer).",
             schema: || schema(json!({ "on": { "type": "boolean" } }), &["on"]),
             writes: true,
             destructive: false,
@@ -336,6 +354,7 @@ pub fn status_json(st: &AppState, lang: Lang) -> Result<Value, mqttpanel_client:
                 "port": l.port,
                 "enabled": l.enabled,
                 "preset": l.preset,
+                "allowedOrigins": l.allowed_origins,
                 "up": running && ls.is_some_and(|x| x.up),
                 "error": ls.and_then(|x| x.error.clone()).map(|e| text::m(lang, &b::um(e))),
             })
@@ -481,14 +500,54 @@ async fn broker_set_reachability(c: Call) -> Result<Outcome, Fail> {
         "whole_network" => (Bind::Network, "broker.reach.network"),
         _ => return Err(Fail::args("reach must be this_computer or whole_network")),
     };
+    if bind == Bind::Network && b::mgr(c.state())?.config().bind != Bind::Network {
+        c.confirm("wholeNetwork", "", &[]).await?;
+    }
     b::set_broker_bind_on(c.state(), bind).await?;
     let lang = c.lang();
     let text = tt(lang, "broker.reachSet", &[("reach", json!(tt(lang, key, &[])))]);
     Ok(changed(text, status_json(c.state(), lang)?))
 }
 
+async fn broker_set_allowed_origins(c: Call) -> Result<Outcome, Fail> {
+    let id = c.str("listener")?;
+    let l = listener(&c, &id)?;
+    if !l.kind.websocket() {
+        return Err(Fail::args("web origins apply to WS and WSS listeners only"));
+    }
+    let origins: Vec<String> = match c.args.get("origins") {
+        Some(Value::Array(a)) => a.iter().filter_map(|v| v.as_str()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(),
+        _ => return Err(Fail::args("origins is required (a list of web origins, may be empty)")),
+    };
+    let m = b::mgr(c.state())?;
+    let before: Vec<String> = l.allowed_origins.clone();
+    let added: Vec<String> = origins
+        .iter()
+        .map(|o| mqttpanel_broker::runtime::normalize_origin(o))
+        .filter(|o| !before.contains(o))
+        .collect();
+    if !added.is_empty() && m.config().anonymous {
+        // Validate first, so the user is never asked about a list that would be refused anyway.
+        for o in &origins {
+            if !mqttpanel_broker::manager::valid_origin(&mqttpanel_broker::runtime::normalize_origin(o)) {
+                return Err(Fail::from(b::be(mqttpanel_broker::BrokerError::new("broker.originInvalid", &[("origin", json!(o))]))));
+            }
+        }
+        let name = format!("{} {}", l.kind.label(), l.port);
+        c.confirm("allowOrigins", &name, &[("origins", json!(added.join(", ")))]).await?;
+    }
+    let cfg = m.set_allowed_origins(&id, &origins).map_err(b::be)?;
+    let list = cfg.listeners.iter().find(|x| x.id == id).map(|x| x.allowed_origins.clone()).unwrap_or_default();
+    let shown_list = if list.is_empty() { tt(c.lang(), "broker.noOrigins", &[]) } else { list.join(", ") };
+    let text = c.t("broker.originsSet", &[("kind", json!(l.kind.label())), ("port", json!(l.port)), ("origins", json!(shown_list))]);
+    Ok(changed(text, json!({ "listener": id, "allowedOrigins": list })))
+}
+
 async fn broker_set_anonymous(c: Call) -> Result<Outcome, Fail> {
     let on = c.opt_bool("on").ok_or_else(|| Fail::args("on is required (true or false)"))?;
+    if on && !b::mgr(c.state())?.config().anonymous {
+        c.confirm("anonymousOn", "", &[]).await?;
+    }
     b::set_anonymous_on(c.state(), on).await?;
     let text = c.t(if on { "broker.anonOn" } else { "broker.anonOff" }, &[]);
     Ok(changed(text, status_json(c.state(), c.lang())?).changed("connections"))
@@ -575,6 +634,15 @@ async fn broker_issue_client_cert(c: Call) -> Result<Outcome, Fail> {
     if format == CertFormat::Pkcs12 && passphrase.is_empty() {
         return Err(Fail::args("a PKCS#12 bundle needs a passphrase"));
     }
+    // The files it writes (named like the broker manager does): replacing one needs the user's Allow first.
+    let mut planned: Vec<String> = if format == CertFormat::Pkcs12 { vec![format!("{name}.p12")] } else { vec![format!("{name}.pem"), format!("{name}.key")] };
+    if include_ca {
+        planned.push("CA.pem".into());
+    }
+    let existing: Vec<String> = planned.iter().map(|n| folder.join(n)).filter(|p| p.exists()).map(|p| shown(&p)).collect();
+    if !existing.is_empty() {
+        c.confirm("overwrite", &name, &[("file", json!(existing.join(", ")))]).await?;
+    }
     let files = b::issue_client_cert_on(c.state(), IssueCertRequest { name: name.clone(), valid_years: years, key_type, format, passphrase, save_ca: include_ca })?;
     let paths = crate::files::write_files_in(&folder, &files)?;
     let names: Vec<String> = files.iter().map(|(n, _)| n.clone()).collect();
@@ -616,8 +684,9 @@ async fn broker_set_client_cert_rule(c: Call) -> Result<Outcome, Fail> {
 
 async fn export_one(c: &Call, file: (String, Vec<u8>), key: &str) -> Result<Outcome, Fail> {
     let (name, data) = file;
-    let folder = c.folder_target(&name, &name).await?;
+    let (folder, direct) = c.folder_target(&name, &name).await?;
     let path = folder.join(&name);
+    c.check_write(&path, direct).await?;
     crate::files::write_file(&path, &data)?;
     Ok(Outcome::new(c.t(key, &[("file", json!(shown(&path)))]), json!({ "file": shown(&path) })))
 }

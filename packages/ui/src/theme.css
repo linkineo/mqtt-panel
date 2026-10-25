@@ -512,3 +512,4 @@ button.chip:hover { filter: brightness(.97) }
 .tile-btn.stop { color: var(--brick); border-color: var(--brick) }
 .tile-btn:hover:not(:disabled) { filter: brightness(.95); background: var(--line-2) }
 .tile-btn:disabled { opacity: .45 }
+.tbl tr.clickable { cursor: pointer }

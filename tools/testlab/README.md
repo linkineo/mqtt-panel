@@ -126,7 +126,10 @@ them first.
 
 The debug build loads its window from the dev server, which the runner does not start: the window stays blank and
 the cases use only the app side. The in-app way of giving secrets (`ask_in_app`) needs a person in the window, so
-every case gives passwords and files directly in the prompt.
+every case gives passwords and files directly in the prompt. Actions that wait for Allow or Deny in the window
+(`docs/MCP.md` section 3) are answered by nobody and end as "denied" after 60 s; the current cases write their files
+to temporary folders and need none. A debug app started with `MQTTPANEL_TEST_CONFIRM=allow` (or `deny`) answers every
+confirmation at once, for cases that need one; release builds ignore it.
 
 ## Public brokers
 

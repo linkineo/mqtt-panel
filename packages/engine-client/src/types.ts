@@ -545,6 +545,9 @@ export interface Listener {
   port: number;
   enabled: boolean;
   preset: Preset;
+  /** WS and WSS: web pages (origins such as "https://dashboard.example") allowed to connect while Anonymous is on.
+   * Changed with setAllowedOrigins, never by updateListener (SPEC 6). */
+  allowedOrigins: string[];
 }
 
 export interface BrokerConfig {
@@ -705,6 +708,8 @@ export interface AssistantStatus {
   hosts: AssistantHostFile[];
   /** Mac App Store variant (App Sandbox): the buttons cannot write the hosts' files; the snippet is the way. */
   sandboxed: boolean;
+  /** Why the assistant socket (named pipe on Windows) could not be opened at start, for example taken by another program. */
+  socketError?: UserMessage | null;
 }
 
 /** What "Add to Claude" or "Add to ChatGPT" wrote. */
@@ -726,10 +731,10 @@ export interface AssistantLogEntry {
   host: string;
   tool: string;
   arguments: Record<string, unknown>;
-  outcome: 'ok' | 'refused' | 'failed' | 'cancelled' | 'timeout';
+  outcome: 'ok' | 'refused' | 'failed' | 'cancelled' | 'timeout' | 'denied';
   /** One sentence in the app language. */
   detail: string;
-  /** "secret given through the assistant" when a secret came as a tool argument. */
+  /** "secret given through the assistant" and "confirmed by the user", when they apply. */
   note?: string;
 }
 
@@ -737,9 +742,11 @@ export interface AssistantLogEntry {
  * What the assistant asks the user for in the app (ask_in_app): for a connection `password`, `caCert`, `clientCert`,
  * `signedCert`; `brokerPassword` (a user of the built-in broker); `saveFile` (where to save an export, `defaultName`);
  * `folder` (a folder for `defaultName`); `issueCert` (the folder of a new client certificate and, when
- * `withPassphrase`, its passphrase); `chartPng` (no dialog: the window draws the chart `chartId` and answers `data`).
+ * `withPassphrase`, its passphrase); `chartPng` (no dialog: the window draws the chart `chartId` and answers `data`);
+ * `confirm` (Allow or Deny an action that weakens security or writes outside the usual folders; `text` says what the
+ * assistant wants; Allow answers `{}`, Deny `{ cancelled: true }`).
  */
-export type AssistantRequestKind = 'password' | 'caCert' | 'clientCert' | 'signedCert' | 'brokerPassword' | 'saveFile' | 'folder' | 'issueCert' | 'chartPng';
+export type AssistantRequestKind = 'password' | 'caCert' | 'clientCert' | 'signedCert' | 'brokerPassword' | 'saveFile' | 'folder' | 'issueCert' | 'chartPng' | 'confirm';
 
 /** The app's answer to an assistant request; the secret stays in the app. */
 export interface AssistantAnswer {
@@ -797,6 +804,8 @@ export type AssistantEventBody =
       format?: 'pem' | 'pkcs12';
       withPassphrase?: boolean;
       chartId?: string;
+      /** confirm: "The assistant wants to …", in the app language. */
+      text?: string;
     }
   | { kind: 'requestDone'; id: string }
   /** The assistant changed the dashboard charts: the Charts screen shows this list. */
@@ -807,4 +816,21 @@ export interface AssistantEvent {
   event: AssistantEventBody;
 }
 
-export type EngineEvent = TickEvent | MenuEvent | AssistantEvent;
+/** A web page wants to connect to the broker without a login (Anonymous on, origin not listed): the window asks
+ * Allow or Deny and answers with answerOrigin; the broker refuses after 30 s without an answer (SPEC 6). */
+export interface BrokerOriginEvent {
+  type: 'brokerOrigin';
+  id: string;
+  listenerId: string;
+  kind: ListenerKind;
+  port: number;
+  origin: string;
+}
+
+/** The web page prompt was answered or timed out: the window closes it. */
+export interface BrokerOriginDoneEvent {
+  type: 'brokerOriginDone';
+  id: string;
+}
+
+export type EngineEvent = TickEvent | MenuEvent | AssistantEvent | BrokerOriginEvent | BrokerOriginDoneEvent;

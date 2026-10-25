@@ -102,6 +102,7 @@ export function AssistantLayer() {
           defaultName={req.defaultName}
           format={req.format}
           withPassphrase={req.withPassphrase}
+          text={req.text}
           onAnswer={(answer) => {
             setRequests((r) => r.filter((x) => x.id !== req.id));
             void engine()
@@ -289,6 +290,55 @@ function ChooseRow(props: { label: string; value: string | null; placeholder: st
 
 /** What the assistant asks for (ask_in_app): the secret or file stays in the app; the assistant gets the result. */
 export function RequestDialog(props: {
+  kind: AssistantRequestKind;
+  name: string;
+  defaultName?: string;
+  format?: 'pem' | 'pkcs12';
+  withPassphrase?: boolean;
+  /** confirm: "The assistant wants to …". */
+  text?: string;
+  onAnswer(a: AssistantAnswer): void;
+}) {
+  if (props.kind === 'confirm') return <ConfirmRequest text={props.text ?? ''} onAnswer={props.onAnswer} />;
+  return <AskRequest {...props} />;
+}
+
+/**
+ * Allow or Deny for an action of the assistant that weakens security, sends a stored credential elsewhere or writes
+ * a file outside the usual folders (docs/MCP.md section 3). Deny is the default; closing the dialog denies; the app
+ * side denies after 60 s without an answer.
+ */
+function ConfirmRequest(props: { text: string; onAnswer(a: AssistantAnswer): void }) {
+  const { t } = useTranslation();
+  const deny = () => props.onAnswer({ cancelled: true });
+  return (
+    <Modal
+      title={t('assistant.req.confirm')}
+      onClose={deny}
+      width={520}
+      testId="assistant-confirm-action"
+      footer={
+        <>
+          <button type="button" className="btn" onClick={deny} data-testid="assistant-deny" data-autofocus>
+            {t('assistant.deny')}
+          </button>
+          <button type="button" className="btn pri" onClick={() => props.onAnswer({})} data-testid="assistant-allow">
+            {t('assistant.allow')}
+          </button>
+        </>
+      }
+    >
+      <p className="small" style={{ margin: 0 }} data-testid="assistant-confirm-text">
+        {props.text}
+      </p>
+      <div className="small muted" style={{ marginTop: 8 }}>
+        {t('assistant.req.confirmText')}
+      </div>
+    </Modal>
+  );
+}
+
+function AskRequest(props: {
   kind: AssistantRequestKind;
   name: string;
   defaultName?: string;

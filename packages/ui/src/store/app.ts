@@ -190,6 +190,8 @@ export const useApp = create<AppState>((set, get) => ({
       assistantListeners.forEach((l) => l(a));
       return;
     }
+    // Web page prompts are handled by WebOriginLayer.
+    if (e.type === 'brokerOrigin' || e.type === 'brokerOriginDone') return;
     const st = get();
     const patch: Partial<AppState> = {
       connections: e.connections,

@@ -69,11 +69,28 @@ pub fn registry() -> Vec<ToolDef> {
     all
 }
 
+/// Tools that may stop for the user's Allow or Deny in the app ([`Call::confirm`], docs/MCP.md section 3): their time
+/// limit grows by `limits.confirm`. Only the cases listed there ask; every other call of these tools runs as before.
+pub const CONFIRMING: &[&str] = &[
+    "broker_set_anonymous",
+    "broker_set_reachability",
+    "trust_certificate",
+    "update_connection",
+    "export_data",
+    "export_chart",
+    "broker_export_ca",
+    "broker_export_server_cert",
+    "broker_issue_client_cert",
+    "broker_set_allowed_origins",
+];
+
 /// One tool call: the app, the arguments, and a way to tell the host that the call waits for the user.
 pub struct Call {
     pub link: Arc<dyn AppLink>,
     pub args: Map<String, Value>,
     pub waiting: Arc<dyn Fn() + Send + Sync>,
+    /// Set when the user allowed a confirmation during this call (the Assistant log notes it).
+    pub confirmed: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// What a handler returns: sentences for the chat and the toast, a JSON block, and what changed under the window.
@@ -111,6 +128,14 @@ impl From<UserMessage> for Fail {
 }
 
 impl Fail {
+    /// The user chose Deny, or nobody answered the confirmation in time (log outcome "denied").
+    pub fn denied(no_answer: Option<u64>) -> Fail {
+        let msg = match no_answer {
+            Some(seconds) => text::um("deniedNoAnswer", &[("seconds", json!(seconds))]),
+            None => text::um("denied", &[]),
+        };
+        Fail { msg, outcome: "denied" }
+    }
     pub fn cancelled() -> Fail {
         Fail { msg: text::um("userCancelled", &[]), outcome: "cancelled" }
     }
@@ -191,11 +216,40 @@ impl Call {
             Err(false) => Err(Fail::no_answer(self.state().assistant.limits().user.as_secs())),
         }
     }
+    /// Asks the user in the app to Allow or Deny (see [`super::confirm`]); Ok when allowed, the "denied" failure
+    /// otherwise. Call it only for the cases listed in docs/MCP.md section 3, and add the tool to [`CONFIRMING`].
+    pub async fn confirm(&self, action: &'static str, name: &str, params: &[(&'static str, Value)]) -> Result<(), Fail> {
+        (self.waiting)();
+        let req = super::ConfirmRequest { action, params: params.to_vec(), name: name.to_string() };
+        match super::confirm(self.link.as_ref(), req).await {
+            super::Confirmation::Allowed => {
+                self.confirmed.store(true, std::sync::atomic::Ordering::Relaxed);
+                Ok(())
+            }
+            super::Confirmation::Denied => Err(Fail::denied(None)),
+            super::Confirmation::NoAnswer => Err(Fail::denied(Some(self.state().assistant.limits().confirm.as_secs()))),
+        }
+    }
+    /// Before writing `path`: an existing file is overwritten only after the user allows it; a new file at a `direct`
+    /// path (given by the host, not picked in the app) outside the usual folders ([`super::safe_roots`]) too.
+    pub async fn check_write(&self, path: &std::path::Path, direct: bool) -> Result<(), Fail> {
+        let file = json!(shown(path));
+        if path.exists() {
+            return self.confirm("overwrite", &crate::files::file_name(path), &[("file", file)]).await;
+        }
+        if direct && !super::inside(path, &super::safe_roots(self.state())) {
+            return self.confirm("writeOutside", &crate::files::file_name(path), &[("file", file)]).await;
+        }
+        Ok(())
+    }
     /// The file an export goes to: the direct `file` argument (an absolute path; not a secret), or the save dialog in
-    /// the app with `default_name`.
+    /// the app with `default_name`. A direct path is checked with [`Call::check_write`] (the save dialog asks itself
+    /// before replacing a file).
     pub async fn save_target(&self, default_name: &str, what: &str) -> Result<std::path::PathBuf, Fail> {
         if let Some(f) = self.opt_str("file").filter(|f| !f.trim().is_empty()) {
-            return absolute(&f, false);
+            let path = absolute(&f, false)?;
+            self.check_write(&path, true).await?;
+            return Ok(path);
         }
         if !self.ask_in_app() {
             return Err(need("file"));
@@ -203,16 +257,17 @@ impl Call {
         let a = self.ask(super::Ask { request: "saveFile".into(), name: what.into(), default_name: Some(default_name.into()), ..Default::default() }).await?;
         a.path.filter(|p| !p.is_empty()).map(std::path::PathBuf::from).ok_or_else(Fail::cancelled)
     }
-    /// The folder files go to: the direct `folder` argument, or the folder dialog in the app.
-    pub async fn folder_target(&self, default_name: &str, what: &str) -> Result<std::path::PathBuf, Fail> {
+    /// The folder files go to: the direct `folder` argument, or the folder dialog in the app; true when direct (check
+    /// each file with [`Call::check_write`]).
+    pub async fn folder_target(&self, default_name: &str, what: &str) -> Result<(std::path::PathBuf, bool), Fail> {
         if let Some(f) = self.opt_str("folder").filter(|f| !f.trim().is_empty()) {
-            return absolute(&f, true);
+            return Ok((absolute(&f, true)?, true));
         }
         if !self.ask_in_app() {
             return Err(need("folder"));
         }
         let a = self.ask(super::Ask { request: "folder".into(), name: what.into(), default_name: Some(default_name.into()), ..Default::default() }).await?;
-        a.path.filter(|p| !p.is_empty()).map(std::path::PathBuf::from).ok_or_else(Fail::cancelled)
+        a.path.filter(|p| !p.is_empty()).map(|p| (std::path::PathBuf::from(p), false)).ok_or_else(Fail::cancelled)
     }
     /// The profile named by `key` (an id, or a connection name).
     pub fn profile(&self, key: &str) -> Result<mqttpanel_profiles::StoredProfile, Fail> {
@@ -278,11 +333,11 @@ pub fn conn_prop() -> Value {
 }
 
 pub fn file_prop() -> Value {
-    json!({ "type": "string", "description": "Direct way: an absolute file path on this computer. Leave it out to let the user choose in MQTT Panel's save dialog." })
+    json!({ "type": "string", "description": "Direct way: an absolute file path on this computer. Leave it out to let the user choose in MQTT Panel's save dialog. Replacing an existing file, or a path outside the user's Documents, Downloads, Desktop and temporary folders, waits until the user allows it in MQTT Panel." })
 }
 
 pub fn folder_prop() -> Value {
-    json!({ "type": "string", "description": "Direct way: an absolute folder path on this computer. Leave it out to let the user choose the folder in MQTT Panel." })
+    json!({ "type": "string", "description": "Direct way: an absolute folder path on this computer. Leave it out to let the user choose the folder in MQTT Panel. Replacing an existing file, or a folder outside the user's Documents, Downloads, Desktop and temporary folders, waits until the user allows it in MQTT Panel." })
 }
 
 pub fn ask_prop() -> Value {

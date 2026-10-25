@@ -17,6 +17,7 @@ const L = (id: string, kind: Listener['kind'], enabled = true): Listener => ({
   port: 1000,
   enabled,
   preset: 'plain',
+  allowedOrigins: [],
 });
 
 describe('Change set 1: "This app\'s broker" (02b)', () => {

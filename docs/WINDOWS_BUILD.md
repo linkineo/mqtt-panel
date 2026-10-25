@@ -90,7 +90,7 @@ npm run e2e                   # Playwright against the UI with the mock engine
 npm run tauri -- build --no-bundle
 ```
 
-- `cargo test --workspace`: record the total passed, failed and ignored. Some tests start an external Mosquitto when one is installed and are skipped otherwise; that is expected.
+- `cargo test --workspace`: record the total passed, failed and ignored. Some tests start an external Mosquitto when one is installed and are skipped otherwise; that is expected. The Windows-only test **M-41** (`cargo test -p mqttpanel-shim m41`: the named pipe's access list holds the current user only, and the shim's server check passes for a pipe of this user) runs only here; report its result by name. The pipe code (`crates/shim/src/winsec.rs`, `listen` in `apps/desktop/src-tauri/src/mcp/server.rs`) was written without a Windows machine: a compile error there is expected to be possible, report it with the message.
 - `npm run e2e` takes several minutes (the overflow suite renders every state in EN, FR and DE). Record the totals.
 - `npm run tauri -- build --no-bundle` builds the UI and the release executable under `target\release\` (`mqtt-panel.exe`, or `MQTT Panel.exe` when the Tauri CLI applies `mainBinaryName`). **Do not build the MSI or NSIS bundles**: `tauri.conf.json` lists the macOS targets only, and the Store does not want them. If `--no-bundle` is refused by the installed Tauri CLI, report it.
 - Start `target\release\mqtt-panel.exe` (or `MQTT Panel.exe`) once by hand: the window opens, the Settings "Updates" page shows "Updates come from the store this copy was installed from.", no console window appears.
@@ -177,6 +177,7 @@ For each item record pass or fail with a short note.
 5. File dialogs: every Browse button opens the native dialog; drag-and-drop of a certificate file works; certificate export writes where chosen.
 6. Secrets: set a broker password, quit, restart: the password is still there and no dialog appeared (DPAPI through the Windows credential store).
 7. Assistant (MCP): with the app running, `mqtt-panel.exe mcp` from a terminal (inside the package path, see open point 1) connects to the app's named pipe.
+8. **M-42**, pipe owned by another user: sign in as a second Windows user, create `\\.\pipe\mqttpanel-mcp-<first user>` there (for example by starting MQTT Panel as that user with the first user's name in `USERNAME`, or with a small PowerShell `NamedPipeServerStream`), then start MQTT Panel as the first user: Settings, Assistant shows that another program uses the assistant connection point; `mqtt-panel.exe mcp` run by the first user stops with the error that the pipe belongs to another user and sends nothing.
 
 ## 8. Report back to the owner and the spec model
 

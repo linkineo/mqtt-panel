@@ -24,6 +24,7 @@ use crate::state::{lock, AppState};
 use mqttpanel_client::catalog::Lang;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -40,11 +41,13 @@ pub struct Limits {
     pub user: Duration,
     /// A writing call that waits for the acknowledgement.
     pub ack: Duration,
+    /// An action that waits for the user's Allow or Deny in the app ([`confirm`]); no answer in time means denied.
+    pub confirm: Duration,
 }
 
 impl Default for Limits {
     fn default() -> Self {
-        Limits { call: Duration::from_secs(30), connect: Duration::from_secs(20), user: Duration::from_secs(120), ack: Duration::from_secs(60) }
+        Limits { call: Duration::from_secs(30), connect: Duration::from_secs(20), user: Duration::from_secs(120), ack: Duration::from_secs(60), confirm: Duration::from_secs(60) }
     }
 }
 
@@ -80,7 +83,9 @@ pub enum AssistantEvent {
     /// Ask the user in the app: `password`, `caCert`, `clientCert` (certificate, key, passphrase) or `signedCert` for a
     /// connection; `brokerPassword` (a broker user), `saveFile` (where to save an export, `default_name`), `folder`
     /// (a folder for `default_name`), `issueCert` (a folder for a new client certificate, and its passphrase when
-    /// `with_passphrase`), or `chartPng` (the window draws the chart `chart_id` and answers with the image, no dialog).
+    /// `with_passphrase`), `chartPng` (the window draws the chart `chart_id` and answers with the image, no dialog), or
+    /// `confirm` (Allow or Deny for an action that weakens security or writes outside the usual folders; `text` is the
+    /// sentence in the app language; Allow answers without `cancelled`, Deny with it).
     /// `profile_name` is the name shown in the dialog title (connection, user, certificate or file).
     #[serde(rename_all = "camelCase")]
     Request {
@@ -96,6 +101,8 @@ pub enum AssistantEvent {
         with_passphrase: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         chart_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        text: Option<String>,
     },
     /// A request was answered, cancelled or timed out: the UI closes its prompt.
     RequestDone { id: String },
@@ -128,6 +135,7 @@ pub struct Ask {
     pub format: Option<String>,
     pub with_passphrase: Option<bool>,
     pub chart_id: Option<String>,
+    pub text: Option<String>,
 }
 
 /// One row of the Assistant log (Settings, Assistant); kept for the session of the app, never written to disk.
@@ -143,7 +151,7 @@ pub struct LogEntry {
     pub outcome: String,
     /// One sentence in the app language.
     pub detail: String,
-    /// "secret given through the assistant", in the app language, when a secret came as an argument.
+    /// "secret given through the assistant" and "confirmed by the user", in the app language, when they apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
 }
@@ -183,6 +191,11 @@ pub struct Hub {
     pending: Mutex<HashMap<String, oneshot::Sender<AssistantAnswer>>>,
     next_id: AtomicU64,
     pub limits: Mutex<Limits>,
+    /// Folders where a direct file path needs no confirmation (None: the user's Documents, Downloads, Desktop and the
+    /// temporary folders; tests set their own).
+    pub safe_roots: Mutex<Option<Vec<PathBuf>>>,
+    /// Why the assistant socket (named pipe on Windows) could not be opened; shown on Settings, Assistant.
+    pub socket_error: Mutex<Option<mqttpanel_client::UserMessage>>,
 }
 
 impl Default for Hub {
@@ -195,6 +208,8 @@ impl Default for Hub {
             pending: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
             limits: Mutex::new(Limits::default()),
+            safe_roots: Mutex::new(None),
+            socket_error: Mutex::new(None),
         }
     }
 }
@@ -356,6 +371,11 @@ pub async fn wait_for_ack(link: &dyn AppLink) -> bool {
 /// Asks the user in the app (a prompt, a picker, or the chart image) and waits up to `limits.user`. Err(true) when
 /// cancelled, Err(false) when nobody answered in time.
 pub async fn ask_with(link: &dyn AppLink, a: Ask) -> Result<AssistantAnswer, bool> {
+    let limit = link.state().assistant.limits().user;
+    ask_within(link, a, limit).await
+}
+
+async fn ask_within(link: &dyn AppLink, a: Ask, limit: Duration) -> Result<AssistantAnswer, bool> {
     let hub = &link.state().assistant;
     let (id, rx) = hub.new_request();
     link.emit(AssistantEvent::Request {
@@ -367,9 +387,10 @@ pub async fn ask_with(link: &dyn AppLink, a: Ask) -> Result<AssistantAnswer, boo
         format: a.format,
         with_passphrase: a.with_passphrase,
         chart_id: a.chart_id,
+        text: a.text,
     });
     link.raise_window();
-    let r = tokio::time::timeout(hub.limits().user, rx).await;
+    let r = tokio::time::timeout(limit, rx).await;
     lock(&hub.pending).remove(&id);
     link.emit(AssistantEvent::RequestDone { id });
     match r {
@@ -377,4 +398,79 @@ pub async fn ask_with(link: &dyn AppLink, a: Ask) -> Result<AssistantAnswer, boo
         Ok(_) => Err(true),
         Err(_) => Err(false),
     }
+}
+
+// ---------------------------------------------------------------- confirmations (docs/MCP.md section 3)
+
+/// An action the assistant may run only after the user allows it in the app: `action` names the sentence
+/// `mcp.confirm.<action>` ("The assistant wants to …"), rendered in the app language with `params`.
+#[derive(Debug, Clone)]
+pub struct ConfirmRequest {
+    pub action: &'static str,
+    pub params: Vec<(&'static str, serde_json::Value)>,
+    /// The name in the dialog title (a connection, a listener, a file).
+    pub name: String,
+}
+
+/// The user's answer to a [`ConfirmRequest`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Confirmation {
+    Allowed,
+    Denied,
+    /// Nobody answered within `limits.confirm` (60 s): treated as denied.
+    NoAnswer,
+}
+
+/// Test hook (debug builds only): `MQTTPANEL_TEST_CONFIRM=allow` or `deny` answers every confirmation at once, so the
+/// prompts lab and end-to-end tests run without a person at the window. Ignored in release builds.
+fn test_answer() -> Option<Confirmation> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    match std::env::var("MQTTPANEL_TEST_CONFIRM").ok()?.as_str() {
+        "allow" => Some(Confirmation::Allowed),
+        "deny" => Some(Confirmation::Denied),
+        _ => None,
+    }
+}
+
+/// Asks the user in the app to Allow or Deny an action of the assistant (dialog "The assistant wants to …"), raising
+/// the window; waits up to `limits.confirm`.
+pub async fn confirm(link: &dyn AppLink, req: ConfirmRequest) -> Confirmation {
+    if let Some(a) = test_answer() {
+        return a;
+    }
+    let hub = &link.state().assistant;
+    let sentence = text::t(hub.lang(), &format!("confirm.{}", req.action), &req.params);
+    let ask = Ask { request: "confirm".into(), name: req.name, text: Some(sentence), ..Default::default() };
+    match ask_within(link, ask, hub.limits().confirm).await {
+        Ok(_) => Confirmation::Allowed,
+        Err(true) => Confirmation::Denied,
+        Err(false) => Confirmation::NoAnswer,
+    }
+}
+
+/// The folders where a direct file path needs no confirmation: the user's Documents, Downloads and Desktop folders and
+/// the temporary folders (resolved, so a link inside them pointing elsewhere does not count).
+pub fn safe_roots(state: &AppState) -> Vec<PathBuf> {
+    if let Some(r) = lock(&state.assistant.safe_roots).clone() {
+        return r.iter().filter_map(|p| p.canonicalize().ok()).collect();
+    }
+    let mut roots: Vec<PathBuf> = [dirs::document_dir(), dirs::download_dir(), dirs::desktop_dir()].into_iter().flatten().collect();
+    if let Some(h) = dirs::home_dir() {
+        roots.extend(["Documents", "Downloads", "Desktop"].iter().map(|d| h.join(d)));
+    }
+    roots.push(std::env::temp_dir());
+    #[cfg(unix)]
+    roots.extend([PathBuf::from("/tmp"), PathBuf::from("/var/tmp")]);
+    roots.iter().filter_map(|p| p.canonicalize().ok()).collect()
+}
+
+/// True when `path` (an absolute path whose folder exists) lies inside one of `roots` once links are resolved.
+pub fn inside(path: &Path, roots: &[PathBuf]) -> bool {
+    let resolved = match (path.parent().and_then(|d| d.canonicalize().ok()), path.file_name()) {
+        (Some(d), Some(n)) => d.join(n),
+        _ => return false,
+    };
+    roots.iter().any(|r| resolved.starts_with(r))
 }

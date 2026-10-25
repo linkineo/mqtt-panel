@@ -82,7 +82,7 @@ async fn env() -> Env {
         charts: Default::default(),
     };
     state.assistant.set_lang("en");
-    *lock(&state.assistant.limits) = Limits { call: Duration::from_secs(20), connect: Duration::from_secs(15), user: Duration::from_millis(800), ack: Duration::from_millis(400) };
+    *lock(&state.assistant.limits) = Limits { call: Duration::from_secs(20), connect: Duration::from_secs(15), user: Duration::from_millis(800), ack: Duration::from_millis(400), confirm: Duration::from_millis(400) };
     let link = Arc::new(TestLink { state, events: Mutex::new(vec![]), raised: Mutex::new(0), answer: Mutex::new(None) });
     let dyn_link: Arc<dyn AppLink> = link.clone();
     let listening = listen(dyn_link, dir.path()).await.expect("listen");
@@ -408,6 +408,12 @@ async fn m06_trust_modes() {
     assert_eq!(data(&text)["connect"]["kind"], "connected", "{text}");
     assert_eq!(data(&text)["connect"]["certificateVerified"], false);
     assert!(!e.link.state.store.get(&ids[2]).unwrap().profile.tls.skip_verify);
+    // skip_always waits for the user's Allow in the app (M-36): nobody at the window denies it.
+    *lock(&e.link.answer) = None;
+    let (err, text, _) = call(&c, "trust_certificate", json!({ "id": ids[3], "mode": "skip_always" })).await;
+    assert!(err && text.contains("denied"), "{text}");
+    assert!(!e.link.state.store.get(&ids[3]).unwrap().profile.tls.skip_verify);
+    *lock(&e.link.answer) = Some(AssistantAnswer::default());
     let (err, text, _) = call(&c, "trust_certificate", json!({ "id": ids[3], "mode": "skip_always" })).await;
     assert!(!err, "{text}");
     assert!(e.link.state.store.get(&ids[3]).unwrap().profile.tls.skip_verify);
@@ -1036,6 +1042,7 @@ async fn m15_no_secret_in_broker_data_and_chart_results() {
             "set_topic_chart" => json!({ "connection": id, "topic": "plant/a", "fields": ["v"] }),
             "set_sparkline" => json!({ "connection": id, "topic": "plant/a", "path": "v" }),
             "export_chart" => json!({ "id": chart, "format": "png" }),
+            "broker_set_allowed_origins" => json!({ "listener": "ws", "origins": [] }),
             other => panic!("no arguments for {other}"),
         };
         let x = call(&c, t.name, args.clone()).await;
@@ -1071,4 +1078,301 @@ async fn m15_no_secret_in_broker_data_and_chart_results() {
     }
     c.cancel().await.unwrap();
     m.stop().await;
+}
+
+// ---------------------------------------------------------------- confirmations (M-36 to M-39)
+
+fn allow(e: &Env) {
+    answer(e, AssistantAnswer::default());
+}
+
+fn deny(e: &Env) {
+    answer(e, AssistantAnswer { cancelled: true, ..Default::default() });
+}
+
+/// The confirmation dialogs shown since the last `clear`: their sentences.
+fn confirmations(e: &Env) -> Vec<String> {
+    e.link
+        .events()
+        .into_iter()
+        .filter_map(|x| match x {
+            AssistantEvent::Request { request, text, .. } if request == "confirm" => Some(text.unwrap_or_default()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn last_log(e: &Env) -> super::LogEntry {
+    e.link.state.assistant.log().last().cloned().unwrap()
+}
+
+/// M-36: broker_set_anonymous(true), broker_set_reachability(whole_network) and update_connection moving a profile
+/// that holds a credential wait for Allow or Deny in the app; the other calls of these tools do not ask. The log
+/// records "denied" and "confirmed by the user".
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn m36_confirmations_for_security_changes() {
+    let e = env().await;
+    accept(&e);
+    let c = client(&e, "Test host").await;
+    let m = crate::broker::mgr(&e.link.state).unwrap();
+    // Anonymous: off asks nothing; on asks.
+    let (err, text, _) = call(&c, "broker_set_anonymous", json!({ "on": false })).await;
+    assert!(!err, "{text}");
+    assert!(confirmations(&e).is_empty());
+    deny(&e);
+    let (err, text, _) = call(&c, "broker_set_anonymous", json!({ "on": true })).await;
+    assert!(err && text.contains("denied"), "{text}");
+    assert!(!m.config().anonymous);
+    let row = last_log(&e);
+    assert_eq!((row.tool.as_str(), row.outcome.as_str()), ("broker_set_anonymous", "denied"));
+    let asked = confirmations(&e);
+    assert_eq!(asked.len(), 1);
+    assert!(asked[0].starts_with("The assistant wants to turn on anonymous access"), "{}", asked[0]);
+    allow(&e);
+    e.link.clear();
+    let (err, text, _) = call(&c, "broker_set_anonymous", json!({ "on": true })).await;
+    assert!(!err, "{text}");
+    assert!(m.config().anonymous);
+    assert_eq!(last_log(&e).note.as_deref(), Some("confirmed by the user"));
+    assert_eq!(confirmations(&e).len(), 1);
+    // Already on: nothing changes, nothing asked.
+    e.link.clear();
+    let (err, _, _) = call(&c, "broker_set_anonymous", json!({ "on": true })).await;
+    assert!(!err && confirmations(&e).is_empty());
+
+    // Reachability: this computer asks nothing; the whole network asks.
+    let (err, _, _) = call(&c, "broker_set_reachability", json!({ "reach": "this_computer" })).await;
+    assert!(!err && confirmations(&e).is_empty());
+    deny(&e);
+    let (err, text, _) = call(&c, "broker_set_reachability", json!({ "reach": "whole_network" })).await;
+    assert!(err && text.contains("denied"), "{text}");
+    assert_eq!(m.config().bind, mqttpanel_broker::Bind::Localhost);
+    assert!(confirmations(&e)[0].contains("whole network"));
+    allow(&e);
+    let (err, text, _) = call(&c, "broker_set_reachability", json!({ "reach": "whole_network" })).await;
+    assert!(!err, "{text}");
+    assert_eq!(m.config().bind, mqttpanel_broker::Bind::Network);
+    let (err, _, _) = call(&c, "broker_set_reachability", json!({ "reach": "this_computer" })).await;
+    assert!(!err);
+
+    // A profile with a stored password: host or port changes ask; other fields do not; without a credential nothing asks.
+    *lock(&e.link.answer) = None;
+    let (_, text, _) = call(&c, "create_connection", json!({ "host": "plant.example.com", "protocol": "mqtts" })).await;
+    let id = data(&text)["id"].as_str().unwrap().to_string();
+    e.link.clear();
+    let (err, text, _) = call(&c, "update_connection", json!({ "id": id, "host": "other.example.com" })).await;
+    assert!(!err && confirmations(&e).is_empty(), "no credential, no question: {text}");
+    let (err, _, _) = call(&c, "set_connection_password", json!({ "id": id, "password": "Stored-Pa55" })).await;
+    assert!(!err);
+    let (err, _, _) = call(&c, "update_connection", json!({ "id": id, "name": "Plant", "keep_alive": 30 })).await;
+    assert!(!err && confirmations(&e).is_empty());
+    deny(&e);
+    let (err, text, _) = call(&c, "update_connection", json!({ "id": id, "host": "evil.example.net" })).await;
+    assert!(err && text.contains("denied"), "{text}");
+    assert_eq!(e.link.state.store.get(&id).unwrap().profile.host, "other.example.com");
+    let asked = confirmations(&e);
+    assert!(asked[0].contains("other.example.com:8883") && asked[0].contains("evil.example.net:8883") && asked[0].contains("password"), "{}", asked[0]);
+    // No answer in time is a denial too.
+    *lock(&e.link.answer) = None;
+    let (err, text, _) = call(&c, "update_connection", json!({ "id": id, "port": 9999 })).await;
+    assert!(err && text.contains("Nobody allowed"), "{text}");
+    assert_eq!(e.link.state.store.get(&id).unwrap().profile.port, 8883);
+    assert_eq!(last_log(&e).outcome, "denied");
+    allow(&e);
+    let (err, text, _) = call(&c, "update_connection", json!({ "id": id, "host": "new.example.com", "port": 9999 })).await;
+    assert!(!err, "{text}");
+    let p = e.link.state.store.get(&id).unwrap().profile;
+    assert_eq!((p.host.as_str(), p.port), ("new.example.com", 9999));
+    assert_eq!(e.link.state.store.password(&id).as_deref(), Some("Stored-Pa55"));
+    assert_eq!(last_log(&e).note.as_deref(), Some("confirmed by the user"));
+    c.cancel().await.unwrap();
+}
+
+/// M-37: direct file paths: inside the usual folders a new file needs no question; outside them, or replacing an
+/// existing file anywhere (also in a folder picked in the app), the user allows or denies first.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn m37_file_writes_outside_the_usual_folders_or_replacing_a_file() {
+    let e = env().await;
+    accept(&e);
+    let c = client(&e, "Test host").await;
+    let root = tempfile::tempdir().unwrap();
+    let (safe, outside) = (root.path().join("documents"), root.path().join("elsewhere"));
+    std::fs::create_dir_all(&safe).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    *lock(&e.link.state.assistant.safe_roots) = Some(vec![safe.clone()]);
+    let id = builtin(&c).await;
+    let conn = conn_of(&e, &id);
+    let (err, _, _) = call(&c, "publish", json!({ "connection": id, "topic": "line/a", "payload": "1" })).await;
+    assert!(!err);
+    until(|| lock(&conn.engine).topic_count() >= 1).await;
+    e.link.clear();
+    *lock(&e.link.answer) = None;
+    // New file in a usual folder: no question.
+    let inside = safe.join("a.csv");
+    let (err, text, _) = call(&c, "export_data", json!({ "connection": id, "topic": "line/a", "file": inside })).await;
+    assert!(!err, "{text}");
+    assert!(confirmations(&e).is_empty());
+    // Replacing it: asked; denied keeps the file.
+    std::fs::write(&inside, "keep me").unwrap();
+    deny(&e);
+    let (err, text, _) = call(&c, "export_data", json!({ "connection": id, "topic": "line/a", "file": inside })).await;
+    assert!(err && text.contains("denied"), "{text}");
+    assert_eq!(std::fs::read_to_string(&inside).unwrap(), "keep me");
+    assert!(confirmations(&e)[0].starts_with("The assistant wants to replace an existing file"));
+    allow(&e);
+    let (err, text, _) = call(&c, "export_data", json!({ "connection": id, "topic": "line/a", "file": inside })).await;
+    assert!(!err, "{text}");
+    assert_ne!(std::fs::read_to_string(&inside).unwrap(), "keep me");
+    // A new file outside the usual folders: asked.
+    e.link.clear();
+    deny(&e);
+    let far = outside.join("b.csv");
+    let (err, _, _) = call(&c, "export_data", json!({ "connection": id, "topic": "line/a", "file": far })).await;
+    assert!(err && !far.exists());
+    assert!(confirmations(&e)[0].contains("outside your Documents, Downloads, Desktop and temporary folders"));
+    allow(&e);
+    let (err, _, _) = call(&c, "export_data", json!({ "connection": id, "topic": "line/a", "file": far })).await;
+    assert!(!err && far.exists());
+    // A link inside a usual folder pointing outside counts as outside.
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&outside, safe.join("link")).unwrap();
+        e.link.clear();
+        deny(&e);
+        let (err, _, _) = call(&c, "export_data", json!({ "connection": id, "topic": "line/a", "file": safe.join("link").join("c.csv") })).await;
+        assert!(err && confirmations(&e).len() == 1);
+    }
+    // Folder tools: a direct folder outside asks; replacing CA.pem in a folder picked in the app asks.
+    e.link.clear();
+    deny(&e);
+    let (err, _, _) = call(&c, "broker_export_ca", json!({ "folder": outside })).await;
+    assert!(err && !outside.join("CA.pem").exists());
+    allow(&e);
+    let (err, _, _) = call(&c, "broker_export_ca", json!({ "folder": safe })).await;
+    assert!(!err && safe.join("CA.pem").exists());
+    e.link.clear();
+    let picked = AssistantAnswer { path: Some(safe.to_string_lossy().to_string()), ..Default::default() };
+    answer(&e, picked);
+    let (err, text, _) = call(&c, "broker_export_ca", json!({})).await;
+    assert!(!err, "{text}");
+    assert_eq!(confirmations(&e).len(), 1, "replacing CA.pem in the picked folder is confirmed");
+    // A new client certificate whose files would replace existing ones: asked before anything is issued.
+    let before = crate::broker::mgr(&e.link.state).unwrap().issued_certs().len();
+    std::fs::write(safe.join("dev-1.pem"), "old").unwrap();
+    e.link.clear();
+    answer(&e, AssistantAnswer { path: Some(safe.to_string_lossy().to_string()), ..Default::default() });
+    let (err, _, _) = call(&c, "broker_issue_client_cert", json!({ "name": "dev-1", "include_ca": false })).await;
+    assert!(!err && confirmations(&e).len() == 1);
+    assert_eq!(crate::broker::mgr(&e.link.state).unwrap().issued_certs().len(), before + 1);
+    c.cancel().await.unwrap();
+}
+
+/// M-38: the confirmation dialog in the app language, the 60 s limit by default, and the test hook.
+#[test]
+fn m38_confirmation_texts_and_limits() {
+    use mqttpanel_client::catalog::Lang;
+    assert_eq!(Limits::default().confirm, Duration::from_secs(60));
+    for lang in [Lang::En, Lang::Fr, Lang::De] {
+        for (action, params) in [
+            ("anonymousOn", vec![]),
+            ("wholeNetwork", vec![]),
+            ("skipAlways", vec![("name", json!("Plant"))]),
+            ("moveCredential", vec![("name", json!("Plant")), ("from", json!("a:1")), ("to", json!("b:2"))]),
+            ("overwrite", vec![("file", json!("/x/y.csv"))]),
+            ("writeOutside", vec![("file", json!("/x/y.csv"))]),
+            ("allowOrigins", vec![("origins", json!("https://example.com"))]),
+        ] {
+            let s = super::text::t(lang, &format!("confirm.{action}"), &params);
+            assert!(!s.contains("confirm.") && !s.contains('{'), "{lang:?} {action}: {s}");
+        }
+        for k in ["denied", "confirmedNote", "socketTaken"] {
+            assert!(!super::text::t(lang, k, &[]).starts_with("mcp."), "{lang:?} {k}");
+        }
+    }
+    // Every tool that may ask exists (broker_set_allowed_origins may come later).
+    let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
+    for t in super::tools::CONFIRMING {
+        assert!(names.contains(t) || *t == "broker_set_allowed_origins", "{t}");
+    }
+}
+
+/// M-39: a socket that cannot be opened is reported on Settings, Assistant (another copy holds it).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn m39_socket_taken_is_reported() {
+    let e = env().await;
+    let dyn_link: Arc<dyn AppLink> = e.link.clone();
+    let err = listen(dyn_link, e.dir.path()).await.err().expect("the first listener holds the socket");
+    let m = super::server::socket_error_message(&err);
+    assert_eq!(m.key, "mcp.socketTaken");
+    *lock(&e.link.state.assistant.socket_error) = Some(m);
+    let st = super::commands::status_of(&e.link.state);
+    assert_eq!(st.socket_error.unwrap().key, "mcp.socketTaken");
+    let other = super::server::socket_error_message(&std::io::Error::other("boom"));
+    assert_eq!(other.key, "mcp.socketFailed");
+}
+
+/// M-43: broker_set_allowed_origins asks before adding a web origin while Anonymous is on (Allow and Deny); removing
+/// origins, or adding while a login is required, does not ask; an invalid origin is refused without a question. The
+/// window prompt for a web page (open_origin_prompt / answer_origin_on) adds the origin on Allow.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn m43_allowed_origins_tool_and_web_page_prompt() {
+    let e = env().await;
+    accept(&e);
+    let c = client(&e, "Test host").await;
+    let m = crate::broker::mgr(&e.link.state).unwrap();
+    let origins = |m: &mqttpanel_broker::BrokerManager| m.config().listeners.into_iter().find(|l| l.id == "ws").unwrap().allowed_origins;
+    assert!(m.config().anonymous);
+    // Anonymous on, adding: Deny keeps the list.
+    deny(&e);
+    let (err, text, _) = call(&c, "broker_set_allowed_origins", json!({ "listener": "ws", "origins": ["https://dash.example"] })).await;
+    assert!(err && text.contains("denied"), "{text}");
+    assert!(origins(m).is_empty());
+    let asked = confirmations(&e);
+    assert_eq!(asked.len(), 1);
+    assert!(asked[0].contains("https://dash.example") && asked[0].contains("without a login"), "{}", asked[0]);
+    assert_eq!(last_log(&e).outcome, "denied");
+    // Allow sets it, the log notes the confirmation, the status lists it.
+    allow(&e);
+    e.link.clear();
+    let (err, text, _) = call(&c, "broker_set_allowed_origins", json!({ "listener": "ws", "origins": ["https://Dash.example/"] })).await;
+    assert!(!err, "{text}");
+    assert_eq!(origins(m), vec!["https://dash.example"]);
+    assert_eq!(last_log(&e).note.as_deref(), Some("confirmed by the user"));
+    assert!(text.contains("https://dash.example"), "{text}");
+    let (_, status, _) = call(&c, "broker_status", json!({})).await;
+    let ws = data(&status)["listeners"].as_array().unwrap().iter().find(|l| l["id"] == "ws").cloned().unwrap();
+    assert_eq!(ws["allowedOrigins"], json!(["https://dash.example"]));
+    // The same list again, or a shorter one, asks nothing.
+    e.link.clear();
+    *lock(&e.link.answer) = None;
+    let (err, _, _) = call(&c, "broker_set_allowed_origins", json!({ "listener": "ws", "origins": ["https://dash.example"] })).await;
+    assert!(!err && confirmations(&e).is_empty());
+    let (err, _, _) = call(&c, "broker_set_allowed_origins", json!({ "listener": "ws", "origins": [] })).await;
+    assert!(!err && confirmations(&e).is_empty());
+    assert!(origins(m).is_empty());
+    // Invalid origin: refused, nobody asked.
+    let (err, text, _) = call(&c, "broker_set_allowed_origins", json!({ "listener": "ws", "origins": ["null"] })).await;
+    assert!(err && text.contains("https://example.com"), "{text}");
+    assert!(confirmations(&e).is_empty());
+    // A TCP listener has no web origins.
+    let (err, _, _) = call(&c, "broker_set_allowed_origins", json!({ "listener": "tcp", "origins": ["https://a.example"] })).await;
+    assert!(err);
+    // Anonymous off: adding asks nothing (pages must log in anyway).
+    m.set_anonymous(false).unwrap();
+    let (err, _, _) = call(&c, "broker_set_allowed_origins", json!({ "listener": "ws", "origins": ["http://localhost:3000"] })).await;
+    assert!(!err && confirmations(&e).is_empty());
+    assert_eq!(origins(m), vec!["http://localhost:3000"]);
+
+    // The window prompt for a web page: Allow adds the origin and answers true; Deny answers false; a second answer
+    // finds nothing.
+    let st = &e.link.state;
+    let (id, rx) = crate::broker::open_origin_prompt(&st.broker, "ws", "https://page.example");
+    assert!(crate::broker::answer_origin_on(st, &id, true));
+    assert!(rx.await.unwrap());
+    assert!(origins(m).contains(&"https://page.example".to_string()));
+    assert!(!crate::broker::answer_origin_on(st, &id, true));
+    let (id, rx) = crate::broker::open_origin_prompt(&st.broker, "ws", "https://other.example");
+    assert!(crate::broker::answer_origin_on(st, &id, false));
+    assert!(!rx.await.unwrap());
+    assert!(!origins(m).contains(&"https://other.example".to_string()));
 }

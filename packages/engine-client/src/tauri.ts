@@ -95,6 +95,8 @@ export function createTauriEngineClient(): EngineClient {
     validatePort: (port, listenerId) => invoke('validate_port', { port, listenerId }),
     addListener: (request) => invoke('add_listener', { request }),
     updateListener: (listener) => invoke('update_listener', { listener }),
+    setAllowedOrigins: (listenerId, origins) => invoke('set_allowed_origins', { listenerId, origins }),
+    answerOrigin: (id, allow) => invoke('answer_origin', { id, allow }),
     removeListener: (listenerId) => invoke('remove_listener', { listenerId }),
     setBrokerBind: (bind) => invoke('set_broker_bind', { bind }),
     setAnonymous: (on) => invoke('set_anonymous', { on }),

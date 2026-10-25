@@ -182,6 +182,11 @@ export interface EngineClient {
   addListener(request: AddListenerRequest): Promise<BrokerConfig>;
   updateListener(listener: Listener): Promise<BrokerConfig>;
   removeListener(listenerId: string): Promise<BrokerConfig>;
+  /** Web pages allowed to connect to a WS or WSS listener while Anonymous is on (replaces the list; normalised, an
+   * invalid origin is refused with broker.originInvalid). */
+  setAllowedOrigins(listenerId: string, origins: string[]): Promise<BrokerConfig>;
+  /** Allow (adds the origin to the listener's list) or Deny for a brokerOrigin prompt; false when it is gone. */
+  answerOrigin(id: string, allow: boolean): Promise<boolean>;
   /** Reachability of every listener, broker-wide (change set 4): the whole network or this computer only. */
   setBrokerBind(bind: BrokerBind): Promise<BrokerConfig>;
   setAnonymous(on: boolean): Promise<BrokerConfig>;

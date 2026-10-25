@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { AssistantHostFile, AssistantLogEntry, AssistantStatus, AssistantWriteReport } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
 import { useApp } from '../../store/app';
-import { ConfirmDialog, Info } from '../../components/ui';
+import { ConfirmDialog, Info, Msg } from '../../components/ui';
 import { AcknowledgeDialog } from '../../components/Assistant';
 import { fmtDate, fmtTime } from '../../lib/format';
 import { toMessage } from '../../i18n';
@@ -108,6 +108,11 @@ export function AssistantSettings() {
       <p className="small muted" style={{ maxWidth: '90ch', margin: '0 0 10px' }} data-testid="assistant-ack-sentence">
         {t('assistant.ackText')}
       </p>
+      {status?.socketError && (
+        <div className="callout err" style={{ maxWidth: '90ch', marginBottom: 10 }} role="alert" data-testid="assistant-socket-error">
+          <Msg msg={status.socketError} />
+        </div>
+      )}
       <div className="form">
         <div className="f">
           <span className="lbl">

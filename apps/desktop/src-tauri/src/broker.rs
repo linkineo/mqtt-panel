@@ -17,6 +17,40 @@ type R<T> = Result<T, UserMessage>;
 #[derive(Default)]
 pub struct BrokerState {
     manager: OnceLock<Result<BrokerManager, UserMessage>>,
+    /// Asks the owner about a web page that wants to connect without a login (set by the app at start).
+    pub origin_prompt: OnceLock<mqttpanel_broker::runtime::OriginPrompt>,
+    /// Web page prompts waiting for Allow or Deny, by id: the answer channel, the listener id and the origin.
+    pub origins_pending: std::sync::Mutex<std::collections::HashMap<String, PendingOrigin>>,
+    next_origin: std::sync::atomic::AtomicU64,
+}
+
+/// A web page prompt waiting for the owner.
+pub struct PendingOrigin {
+    pub answer: tokio::sync::oneshot::Sender<bool>,
+    pub listener_id: String,
+    pub origin: String,
+}
+
+/// Registers a web page prompt; returns its id and the receiver the broker waits on (SPEC 6, allowed web origins).
+pub fn open_origin_prompt(s: &BrokerState, listener_id: &str, origin: &str) -> (String, tokio::sync::oneshot::Receiver<bool>) {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let id = format!("origin-{}", s.next_origin.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1);
+    lock(&s.origins_pending).insert(id.clone(), PendingOrigin { answer: tx, listener_id: listener_id.into(), origin: origin.into() });
+    (id, rx)
+}
+
+/// The owner's answer: Allow adds the origin to the listener's list (kept in the broker configuration) and lets the
+/// waiting upgrade through; Deny refuses it. False when the prompt is gone (answered or timed out).
+pub fn answer_origin_on(state: &AppState, id: &str, allow: bool) -> bool {
+    let Some(p) = lock(&state.broker.origins_pending).remove(id) else {
+        return false;
+    };
+    if allow {
+        if let Ok(m) = mgr(state) {
+            let _ = m.allow_origin(&p.listener_id, &p.origin);
+        }
+    }
+    p.answer.send(allow).is_ok()
 }
 
 impl BrokerState {
@@ -54,7 +88,11 @@ pub fn mgr<'a>(state: &'a AppState) -> R<&'a BrokerManager> {
     state
         .broker
         .manager
-        .get_or_init(|| BrokerManager::open(&broker_dir(), state.store.secrets().clone()).map_err(be))
+        .get_or_init(|| {
+            let m = BrokerManager::open(&broker_dir(), state.store.secrets().clone()).map_err(be)?;
+            m.set_origin_prompt(state.broker.origin_prompt.get().cloned());
+            Ok(m)
+        })
         .as_ref()
         .map_err(|e| e.clone())
 }
@@ -344,6 +382,48 @@ pub async fn rotate_ca_on(state: &AppState) -> R<BrokerCerts> {
     let c = mgr(state)?.rotate_ca().map_err(be)?;
     follow_and_reconnect(state, before).await;
     Ok(c)
+}
+
+/// Replaces the web origins allowed on a WS or WSS listener while Anonymous is on (the listener detail's chips).
+#[tauri::command]
+pub fn set_allowed_origins(state: State<'_, AppState>, listener_id: String, origins: Vec<String>) -> R<BrokerConfig> {
+    mgr(&state)?.set_allowed_origins(&listener_id, &origins).map_err(be)
+}
+
+/// Allow or Deny for a web page prompt.
+#[tauri::command]
+pub fn answer_origin(app: AppHandle, state: State<'_, AppState>, id: String, allow: bool) -> R<bool> {
+    let ok = answer_origin_on(&state, &id, allow);
+    use tauri::Emitter;
+    let _ = app.emit("engine-event", EngineEvent::BrokerOriginDone { id });
+    Ok(ok)
+}
+
+/// The prompt the broker calls for an unknown web origin: the window shows "A web page at … wants to connect"
+/// (Allow / Deny); the broker refuses after 30 s without an answer, and the window closes the prompt then.
+pub fn origin_prompt(app: AppHandle) -> mqttpanel_broker::runtime::OriginPrompt {
+    use tauri::{Emitter, Manager};
+    mqttpanel_broker::runtime::OriginPrompt(std::sync::Arc::new(move |req: mqttpanel_broker::runtime::OriginRequest| {
+        let st = app.state::<AppState>();
+        let (id, rx) = open_origin_prompt(&st.broker, &req.listener_id, &req.origin);
+        let _ = app.emit(
+            "engine-event",
+            EngineEvent::BrokerOrigin { id: id.clone(), listener_id: req.listener_id.clone(), kind: req.kind, port: req.port, origin: req.origin.clone() },
+        );
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.show();
+        }
+        let app2 = app.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(31)).await;
+            let st = app2.state::<AppState>();
+            if lock(&st.broker.origins_pending).remove(&id).is_some() {
+                let _ = app2.emit("engine-event", EngineEvent::BrokerOriginDone { id });
+            }
+        });
+        rx
+    }))
 }
 
 #[tauri::command]

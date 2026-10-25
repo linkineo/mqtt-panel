@@ -48,6 +48,8 @@ pub struct AssistantStatus {
     pub hosts: Vec<HostFile>,
     /// App Sandbox (Mac App Store variant): the buttons cannot write the hosts' files; the snippet is the way.
     pub sandboxed: bool,
+    /// Why the assistant socket (named pipe on Windows) could not be opened at start; null when it listens.
+    pub socket_error: Option<UserMessage>,
 }
 
 pub fn status_of(state: &AppState) -> AssistantStatus {
@@ -61,6 +63,7 @@ pub fn status_of(state: &AppState) -> AssistantStatus {
         snippet: hosts::snippet(&exe),
         hosts: hosts::host_files(&homes, &exe),
         sandboxed: homes.sandboxed,
+        socket_error: lock(&state.assistant.socket_error).clone(),
         executable: exe,
     }
 }

@@ -36,7 +36,18 @@ impl McpServer {
     }
 
     fn log(&self, def: &ToolDef, args: &serde_json::Map<String, Value>, outcome: &str, detail: &str, direct: bool) {
+        self.log_noted(def, args, outcome, detail, direct, false);
+    }
+
+    fn log_noted(&self, def: &ToolDef, args: &serde_json::Map<String, Value>, outcome: &str, detail: &str, direct: bool, confirmed: bool) {
         let hub = &self.link.state().assistant;
+        let mut notes = vec![];
+        if direct {
+            notes.push(t(self.lang(), "secretNote", &[]));
+        }
+        if confirmed {
+            notes.push(t(self.lang(), "confirmedNote", &[]));
+        }
         hub.push_log(LogEntry {
             at: crate::types::now_ms(),
             host: hub.host(),
@@ -44,7 +55,7 @@ impl McpServer {
             arguments: masked(def, args),
             outcome: outcome.into(),
             detail: detail.into(),
-            note: direct.then(|| t(self.lang(), "secretNote", &[])),
+            note: (!notes.is_empty()).then(|| notes.join(" · ")),
         });
         self.link.emit(AssistantEvent::LogChanged);
     }
@@ -70,7 +81,9 @@ impl McpServer {
             Wait::MaybeUser => limits.call,
             Wait::User => limits.user + limits.call,
         };
-        let call = Call { link: self.link.clone(), args: args.clone(), waiting };
+        let limit = if tools::CONFIRMING.contains(&def.name) { limit + limits.confirm } else { limit };
+        let confirmed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let call = Call { link: self.link.clone(), args: args.clone(), waiting, confirmed: confirmed.clone() };
         let r = tokio::time::timeout(limit, (def.handler)(call)).await;
         let logged = def.writes || direct;
         match r {
@@ -84,7 +97,7 @@ impl McpServer {
                     self.link.emit(AssistantEvent::Toast { text: t(lang, "toast", &[("text", json!(toast))]) });
                 }
                 if logged {
-                    self.log(def, &args, "ok", &body, direct);
+                    self.log_noted(def, &args, "ok", &body, direct, confirmed.load(std::sync::atomic::Ordering::Relaxed));
                 }
                 if direct && self.link.state().assistant.take_warning() {
                     body = format!("{body}\n\n{}", t(lang, "directSecret", &[]));
@@ -299,6 +312,18 @@ where
     link.emit(AssistantEvent::Session { connected: false, host: None });
 }
 
+/// What Settings, Assistant shows when the socket (named pipe on Windows) cannot be opened: taken by another program
+/// (or another copy of the app), or another error with its detail.
+pub fn socket_error_message(e: &std::io::Error) -> mqttpanel_client::UserMessage {
+    // Windows: ERROR_ACCESS_DENIED (5) or ERROR_PIPE_BUSY (231) when the pipe name already exists.
+    let taken = matches!(e.kind(), std::io::ErrorKind::AddrInUse | std::io::ErrorKind::PermissionDenied) || matches!(e.raw_os_error(), Some(5 | 231) if cfg!(windows));
+    if taken {
+        text::um("socketTaken", &[])
+    } else {
+        text::um("socketFailed", &[("detail", json!(e.to_string()))])
+    }
+}
+
 /// The socket of a running server; dropping it stops listening and removes the socket file.
 pub struct Listening {
     pub endpoint: PathBuf,
@@ -340,20 +365,24 @@ pub async fn listen(link: Arc<dyn AppLink>, dir: &Path) -> std::io::Result<Liste
     Ok(Listening { endpoint, task })
 }
 
-/// Starts listening on the named pipe of this user (Windows).
+/// Starts listening on the named pipe of this user (Windows). Every instance is created with a security descriptor
+/// that grants access to the current user's SID only; the first one must be new (a name already taken, by another
+/// copy of the app or by a program of another user, fails here and is shown on Settings, Assistant).
 #[cfg(windows)]
 pub async fn listen(link: Arc<dyn AppLink>, dir: &Path) -> std::io::Result<Listening> {
     use tokio::net::windows::named_pipe::ServerOptions;
     let endpoint = mqttpanel_shim::endpoint_in(dir);
     let name = endpoint.to_string_lossy().to_string();
-    let mut server = ServerOptions::new().first_pipe_instance(true).reject_remote_clients(true).create(&name)?;
+    let mut attrs = mqttpanel_shim::winsec::OwnerOnly::new()?;
+    // SAFETY: `attrs` points to a valid SECURITY_ATTRIBUTES that lives as long as the accept task.
+    let mut server = unsafe { ServerOptions::new().first_pipe_instance(true).reject_remote_clients(true).create_with_security_attributes_raw(&name, attrs.as_ptr())? };
     let task = tokio::spawn(async move {
         loop {
             if server.connect().await.is_err() {
                 tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                 continue;
             }
-            let next = match ServerOptions::new().reject_remote_clients(true).create(&name) {
+            let next = match unsafe { ServerOptions::new().reject_remote_clients(true).create_with_security_attributes_raw(&name, attrs.as_ptr()) } {
                 Ok(s) => s,
                 Err(_) => break,
             };
