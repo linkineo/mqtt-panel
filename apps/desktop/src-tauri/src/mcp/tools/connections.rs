@@ -52,7 +52,7 @@ pub fn tools() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "set_connection_password",
-            description: "Set the password of a connection. Recommended: ask_in_app true (the default), MQTT Panel asks the user in its window and the password never passes through the chat. The direct way (password argument) sends the password through the chat transcript and the model provider; use it only when the user insists. An empty password removes it.",
+            description: "Set the password of a connection. Recommended: ask_in_app true (the default), MQTT Panel asks the user in its window and the password never passes through the chat. The direct way (password argument) sends the password through the chat transcript and the model provider; use it only when the user insists. When the user has already written the password in the chat, use the direct way with it: it has already passed through the chat, and asking again in the window only makes them type it twice. An empty password removes it.",
             schema: || schema(json!({ "id": id_prop(), "ask_in_app": ask_prop(), "password": { "type": "string", "description": "Direct way, not recommended: this value travels through the chat and the model provider." } }), &["id"]),
             writes: true,
             destructive: false,
@@ -72,7 +72,7 @@ pub fn tools() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "set_client_certificate",
-            description: "Set the client certificate and key a connection logs in with (PEM, CRT, DER, or one PKCS#12 bundle .p12/.pfx; key PEM or KEY). Recommended: ask_in_app true (the default), MQTT Panel opens its pickers and asks for a passphrase itself. The direct way (cert_file, key_file, passphrase) sends the paths and the passphrase through the chat transcript and the model provider. The key goes to MQTT Panel's secret store and is never returned.",
+            description: "Set the client certificate and key a connection logs in with (PEM, CRT, DER, or one PKCS#12 bundle .p12/.pfx; key PEM or KEY). Recommended: ask_in_app true (the default), MQTT Panel opens its pickers and asks for a passphrase itself. The direct way (cert_file, key_file, passphrase) sends the paths and the passphrase through the chat transcript and the model provider. When the user has already written the file paths or the passphrase in the chat, use the direct way with them: they have already passed through the chat, and asking again in the window only makes them pick them twice. The key goes to MQTT Panel's secret store and is never returned.",
             schema: || {
                 schema(
                     json!({
@@ -604,11 +604,14 @@ async fn test_connection(c: Call) -> Result<Outcome, Fail> {
     Ok(out.changed("profiles"))
 }
 
-fn connect_outcome(c: &Call, name: &str, o: ConnectOutcome) -> Result<Outcome, Fail> {
+/// `tls`: the profile uses TLS (mqtts, wss); without TLS there is no certificate, so `certificateVerified` is null
+/// (a plain connection reported `true`, found by the prompts lab, docs/MCP_PROMPTS.md).
+fn connect_outcome(c: &Call, name: &str, tls: bool, o: ConnectOutcome) -> Result<Outcome, Fail> {
     match o {
         ConnectOutcome::Connected { status } => {
             let text = c.t("connected", &[("name", name_json(name)), ("version", json!(status.negotiated_version.clone().unwrap_or_default()))]);
-            Ok(Outcome::new(text, json!({ "kind": "connected", "state": status.state, "mqttVersion": status.negotiated_version, "certificateVerified": !status.skip_verify })).changed("connections"))
+            let verified = if tls { json!(!status.skip_verify) } else { Value::Null };
+            Ok(Outcome::new(text, json!({ "kind": "connected", "state": status.state, "mqttVersion": status.negotiated_version, "certificateVerified": verified })).changed("connections"))
         }
         ConnectOutcome::NeedsTrust { trust } => Ok(trust_outcome(c, name, &trust)),
         ConnectOutcome::Failed { error } => {
@@ -618,12 +621,17 @@ fn connect_outcome(c: &Call, name: &str, o: ConnectOutcome) -> Result<Outcome, F
     }
 }
 
+fn uses_tls(scheme: &str) -> bool {
+    matches!(scheme, "mqtts" | "wss")
+}
+
 async fn connect(c: Call) -> Result<Outcome, Fail> {
     let p = c.profile("id")?;
     let started = start_local_broker(&c, &p).await?;
     let name = p.profile.name.clone();
+    let tls = uses_tls(&p.profile.scheme);
     let o = cmd::connect_stored(c.state(), p, false).await;
-    let mut out = connect_outcome(&c, &name, o)?;
+    let mut out = connect_outcome(&c, &name, tls, o)?;
     if started {
         out.text = format!("{} {}", c.t("brokerStarted", &[]), out.text);
         out = out.changed("broker");
@@ -658,7 +666,8 @@ async fn trust_certificate(c: Call) -> Result<Outcome, Fail> {
     if mode == "skipOnce" {
         // Nothing is saved: connect once without verification right away (as the window does).
         let stored = c.profile("id")?;
-        let o = connect_outcome(&c, &saved.name, cmd::connect_stored(c.state(), stored, true).await)?;
+        let tls = uses_tls(&stored.profile.scheme);
+        let o = connect_outcome(&c, &saved.name, tls, cmd::connect_stored(c.state(), stored, true).await)?;
         out.text = format!("{} {}", out.text, o.text);
         out.data["connect"] = o.data;
         out = out.changed("connections");

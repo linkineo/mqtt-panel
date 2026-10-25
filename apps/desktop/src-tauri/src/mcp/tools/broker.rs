@@ -114,7 +114,7 @@ pub fn tools() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "broker_add_user",
-            description: "Add a user of the built-in broker (shared by every listener), or change the password of an existing one. Recommended: ask_in_app true (the default), MQTT Panel asks the user for the password in its window, so it never passes through the chat. The direct way (password argument) sends the password through the chat transcript and the model provider; use it only when the user insists.",
+            description: "Add a user of the built-in broker (shared by every listener), or change the password of an existing one. Recommended: ask_in_app true (the default), MQTT Panel asks the user for the password in its window, so it never passes through the chat. The direct way (password argument) sends the password through the chat transcript and the model provider; use it only when the user insists. When the user has already written the password in the chat, use the direct way with it: it has already passed through the chat, and asking again in the window only makes them type it twice.",
             schema: || {
                 schema(
                     json!({
@@ -153,7 +153,7 @@ pub fn tools() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "broker_issue_client_cert",
-            description: "Issue a client certificate for a device from the built-in broker's CA. The files (certificate and key, or one PKCS#12 bundle, plus CA.pem by default) are written to a folder the user picks in MQTT Panel; the result gives their paths, never the key. A PKCS#12 bundle needs a passphrase: recommended, leave it out and MQTT Panel asks the user for it together with the folder. The direct way (passphrase argument) sends the passphrase through the chat transcript and the model provider.",
+            description: "Issue a client certificate for a device from the built-in broker's CA. The files (certificate and key, or one PKCS#12 bundle, plus CA.pem by default) are written to a folder the user picks in MQTT Panel; the result gives their paths, never the key. A PKCS#12 bundle needs a passphrase: recommended, leave it out and MQTT Panel asks the user for it together with the folder. The direct way (passphrase argument) sends the passphrase through the chat transcript and the model provider. When the user has already written the passphrase in the chat, use the direct way with it: it has already passed through the chat, and asking again in the window only makes them type it twice.",
             schema: || {
                 schema(
                     json!({

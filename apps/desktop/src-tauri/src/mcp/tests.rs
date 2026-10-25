@@ -183,6 +183,8 @@ async fn m01_connections_flow_against_the_embedded_broker() {
     let (err, text, _) = call(&c, "connect", json!({ "id": local })).await;
     assert!(!err, "{text}");
     assert_eq!(data(&text)["kind"], "connected");
+    // Plain TCP listener: no certificate, so nothing to call verified (prompts lab, docs/MCP_PROMPTS.md).
+    assert!(data(&text)["certificateVerified"].is_null(), "{text}");
     let (_, text, _) = call(&c, "list_connections", json!({})).await;
     assert!(text.contains("Local broker (connected)"), "{text}");
     let (err, text, _) = call(&c, "disconnect", json!({ "id": "Local broker" })).await;
@@ -482,6 +484,9 @@ fn registry_rules() {
             assert!(schema["properties"][*f].is_object(), "{}: {f}", t.name);
             assert!(t.touches_secret());
             assert!(t.description.contains("chat"), "{} must say the value travels through the chat", t.name);
+            // Lab finding (docs/MCP_PROMPTS.md): with the value already in the user's message, the model sometimes
+            // asked in the window anyway; the description says to use it directly then.
+            assert!(t.description.contains("already written"), "{} must say what to do with a value already in the chat", t.name);
         }
         if schema["properties"]["ask_in_app"].is_object() {
             assert!(matches!(t.wait, super::tools::Wait::MaybeUser | super::tools::Wait::User), "{}", t.name);
