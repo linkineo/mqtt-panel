@@ -39,6 +39,7 @@ if [ "${1:-}" = "--verify" ]; then verify "$2"; exit; fi
 set -a; . ./.env.local; set +a
 : "${ASC_KEY_ID:?}" "${ASC_ISSUER_ID:?}" "${APPLE_TEAM_ID:?}" "${APPLE_DEVELOPER_ID_IDENTITY:?}"
 : "${TAURI_SIGNING_PRIVATE_KEY_PATH:?}" "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD?}"
+TAURI_SIGNING_PRIVATE_KEY_PATH="${TAURI_SIGNING_PRIVATE_KEY_PATH/#\~/$HOME}"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 scripts/check-forbidden-words.sh
 
@@ -62,7 +63,9 @@ echo "MQTT Panel $VERSION: building the Developer ID variant ($TARGET)"
 export APPLE_SIGNING_IDENTITY="$APPLE_DEVELOPER_ID_IDENTITY"
 export APPLE_API_KEY="$ASC_KEY_ID" APPLE_API_ISSUER="$ASC_ISSUER_ID" APPLE_API_KEY_PATH="$KEY_PATH"
 # The CLI signs the updater archive with TAURI_SIGNING_PRIVATE_KEY (a key string or the path of the key file).
-export TAURI_SIGNING_PRIVATE_KEY="$TAURI_SIGNING_PRIVATE_KEY_PATH" TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+# The path must be absolute: the CLI resolves it from the Tauri directory, and treats a path it cannot find as the key
+# text itself.
+export TAURI_SIGNING_PRIVATE_KEY="$(cd "$(dirname "$TAURI_SIGNING_PRIVATE_KEY_PATH")" && pwd)/$(basename "$TAURI_SIGNING_PRIVATE_KEY_PATH")" TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 # "app" as well as "dmg": the bundler makes the updater archive from the app bundle only when the app target is built.
 cargo tauri build --target "$TARGET" --bundles app,dmg --features self-update --config "$DMG_CONF"
 

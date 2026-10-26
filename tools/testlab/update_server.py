@@ -10,7 +10,7 @@ End-to-end run (docs/UPDATER.md, Tests); debug bundles, since only debug builds 
 
   cargo tauri signer generate --ci -p "" -w tools/testlab/out/update/test.key
   python3 tools/testlab/update_server.py overlay --pubkey tools/testlab/out/update/test.key.pub
-  export TAURI_SIGNING_PRIVATE_KEY=tools/testlab/out/update/test.key TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+  export TAURI_SIGNING_PRIVATE_KEY="$PWD/tools/testlab/out/update/test.key" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""   # absolute path
   # 1. the installed copy: the current version, copied to a folder you can write to
   cargo tauri build --debug --bundles app --features self-update \
     --config tools/testlab/out/update/tauri.updatetest.conf.json
