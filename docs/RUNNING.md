@@ -1,6 +1,6 @@
 # Running MQTT Panel from source
 
-How to start the desktop app, the UI alone and the command line on a development machine. MQTT Panel is distributed through the Mac App Store and the Microsoft Store only; there are no installers and no updater. Anyone else builds it from the public repository https://github.com/linkineo/mqtt-panel as described here; Linux users always do. Release notes are on its Releases page, which Settings, Updates links to.
+How to start the desktop app, the UI alone and the command line on a development machine. MQTT Panel is distributed through the Mac App Store and the Microsoft Store, and for macOS as a signed and notarized DMG on the Releases page; only that DMG updates itself (`docs/UPDATER.md`). Anyone else builds it from the public repository https://github.com/linkineo/mqtt-panel as described here; Linux users always do. Release notes are on its Releases page, which Settings, Updates links to.
 
 ## Requirements
 
@@ -65,7 +65,7 @@ open "target/release/bundle/macos/MQTT Panel.app"          # macOS
 
 On Windows and Linux open the bundle from the file manager or run the installer.
 
-Developer builds are not signed. On macOS Gatekeeper may refuse a build that was downloaded from elsewhere; a bundle built locally opens without a prompt. A downloaded unsigned build opens with right-click, Open, then Open again. On Windows SmartScreen shows "Windows protected your PC"; choose More info, then Run anyway. Release builds will be signed (see `docs/SPEC.md` section 11).
+Developer builds are not signed. On macOS Gatekeeper may refuse a build that was downloaded from elsewhere; a bundle built locally opens without a prompt. A downloaded unsigned build opens with right-click, Open, then Open again. On Windows SmartScreen shows "Windows protected your PC"; choose More info, then Run anyway. Release builds are signed: `scripts/release-mac-testflight.sh` for the Mac App Store and `scripts/release-mac-dmg.sh` for the notarized DMG (see `docs/SPEC.md` section 11).
 
 Where the master key lives: an unsigned build (dev, `npm run tauri dev`, CI, an unsigned beta) keeps the master key in `master.key` (owner-only) in the app data folder and never shows a keychain dialog. A build that still finds the old login-keychain item reads it once, writes the file and deletes the item: that is the last dialog you see. A build signed with a real identity (Developer ID, or a local signing identity for testing that path; ad-hoc does not count) keeps the key in the OS secret store (macOS: Data Protection keychain once the signing step is done, login keychain before that; Windows: DPAPI; Linux: Secret Service or the file fallback), which is silent for end users. `MQTTPANEL_KEYSTORE=file` or `=keychain` forces the store for tests. With `MQTTPANEL_LOG=1` the chosen store and a move are printed once. A `master.key` that other users can read is not used (fix it with `chmod 600`). The CLI follows the same rule on the same data folder.
 
@@ -140,6 +140,20 @@ External clients with the broker's own chain (T-31, Paho against `mqttpanel brok
 ```
 tools/testlab/.venv/bin/python tools/testlab/external_clients.py
 ```
+
+Self-update (`docs/UPDATER.md`): the desktop crate builds with and without the updater, and the update commands are
+covered on both sides:
+
+```
+cargo build -p mqttpanel-desktop                          # store and developer builds: no updater code
+cargo build -p mqttpanel-desktop --features self-update   # the direct macOS download
+cargo test -p mqttpanel-desktop --features self-update
+```
+
+A feature build starts the updater only when its configuration carries `plugins.updater` (the overlay
+`tauri.dmg.conf.json`, or the test lab overlay); a debug build reads `MQTTPANEL_UPDATE_ENDPOINT` to check against the
+local server of `tools/testlab/update_server.py` (end-to-end run in its header and in `docs/UPDATER.md`, Tests). In the
+browser, `?update=1.0.2` makes the mock engine a direct download with that version offered (`?update=none`: nothing).
 
 ## 9. TestFlight build for macOS
 

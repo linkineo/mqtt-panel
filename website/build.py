@@ -71,7 +71,7 @@ T = {
         lead="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in. Your AI assistant can drive it too: Claude and ChatGPT connect through MCP to set up brokers, certificates and charts for you.",
         dl=dict(button="Download", h="Download", soon="coming soon", mas="Download on the Mac App Store",
                 ms="Get it from Microsoft", stores="MQTT Panel is installed and updated through the Microsoft Store and the Mac App Store. On macOS you can also download it directly.",
-                dmg="Download for macOS", dmg_note="Universal app for Apple silicon and Intel, macOS 11 or later, signed and notarized. A direct download does not update itself.",
+                dmg="Download for macOS", dmg_note="Universal app for Apple silicon and Intel, macOS 11 or later, signed and notarized. It checks mqtt-panel.com for updates and installs them when you ask.",
                 gh="Build it yourself", gh_note="Source code and release notes for developers."),
         demo_h="A closer look",
         demo_p="Screens from the app, with demo data.",
@@ -103,7 +103,8 @@ T = {
         privacy_sections=[
             ("The app", [
                 "MQTT Panel has no telemetry, no crash reporting, no analytics and no account.",
-                "The app makes no network connections except to the brokers you configure. Updates come through the Microsoft Store or the Mac App Store.",
+                "The app makes no network connections except to the brokers you configure. Copies from the Microsoft Store or the Mac App Store are updated by the store.",
+                "The macOS download from this website also checks for updates: once a day at most, plus when you choose Check now, it asks mqtt-panel.com whether a newer version exists. The request carries only the app version, the system and the processor type: no identifier, no cookie. The website keeps nothing and sends the app on to the release file on GitHub, which sees your IP address as for any download. You can switch the check off in Settings, Updates; nothing is installed until you ask.",
                 "Profiles, templates, views and the message history stay on your computer.",
             ]),
             ("Secrets", [
@@ -141,7 +142,7 @@ T = {
         lead="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré. Votre assistant IA peut aussi piloter l’app : Claude et ChatGPT s’y connectent par MCP et préparent brokers, certificats et courbes à votre place.",
         dl=dict(button="Télécharger", h="Télécharger", soon="bientôt disponible", mas="Télécharger dans le Mac App Store",
                 ms="Obtenir auprès de Microsoft", stores="MQTT Panel s’installe et se met à jour par le Microsoft Store et le Mac App Store. Sur macOS, vous pouvez aussi le télécharger directement.",
-                dmg="Télécharger pour macOS", dmg_note="App universelle (Apple silicon et Intel), macOS 11 ou plus récent, signée et notarisée. Un téléchargement direct ne se met pas à jour tout seul.",
+                dmg="Télécharger pour macOS", dmg_note="App universelle (Apple silicon et Intel), macOS 11 ou plus récent, signée et notarisée. Elle vérifie sur mqtt-panel.com si une mise à jour existe et l’installe quand vous le demandez.",
                 gh="Compilez-le vous-même", gh_note="Le code source et les notes de version, pour les développeurs."),
         demo_h="Vu de plus près",
         demo_p="Des écrans de l’app, avec des données de démonstration.",
@@ -173,7 +174,8 @@ T = {
         privacy_sections=[
             ("L’app", [
                 "MQTT Panel n’a ni télémétrie, ni rapport de plantage, ni mesure d’audience, ni compte.",
-                "L’app ne se connecte qu’aux brokers que vous configurez. Les mises à jour arrivent par le Microsoft Store ou le Mac App Store.",
+                "L’app ne se connecte qu’aux brokers que vous configurez. Les copies du Microsoft Store ou du Mac App Store sont mises à jour par la boutique.",
+                "La version macOS téléchargée sur ce site vérifie aussi les mises à jour : au plus une fois par jour, et quand vous choisissez Vérifier maintenant, elle demande à mqtt-panel.com si une version plus récente existe. La requête ne contient que la version de l’app, le système et le type de processeur : aucun identifiant, aucun cookie. Le site ne conserve rien et renvoie l’app vers le fichier de la version sur GitHub, qui voit votre adresse IP comme pour tout téléchargement. Vous pouvez désactiver la vérification dans Réglages, Mises à jour ; rien n’est installé sans votre accord.",
                 "Profils, modèles, vues et historique des messages restent sur votre ordinateur.",
             ]),
             ("Secrets", [
@@ -211,7 +213,7 @@ T = {
         lead="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker. Auch dein KI-Assistent kann die App steuern: Claude und ChatGPT verbinden sich über MCP und richten Broker, Zertifikate und Kurven für dich ein.",
         dl=dict(button="Herunterladen", h="Herunterladen", soon="bald verfügbar", mas="Laden im Mac App Store",
                 ms="Bei Microsoft herunterladen", stores="MQTT Panel wird über den Microsoft Store und den Mac App Store installiert und aktualisiert. Auf dem Mac kannst du es auch direkt herunterladen.",
-                dmg="Für macOS herunterladen", dmg_note="Universelle App für Apple Silicon und Intel, macOS 11 oder neuer, signiert und notarisiert. Ein direkter Download aktualisiert sich nicht selbst.",
+                dmg="Für macOS herunterladen", dmg_note="Universelle App für Apple Silicon und Intel, macOS 11 oder neuer, signiert und notarisiert. Sie fragt bei mqtt-panel.com nach Updates und installiert sie, wenn du es möchtest.",
                 gh="Selbst bauen", gh_note="Quellcode und Versionshinweise für Entwickler."),
         demo_h="Genauer hingeschaut",
         demo_p="Bildschirme aus der App, mit Demodaten.",
@@ -243,7 +245,8 @@ T = {
         privacy_sections=[
             ("Die App", [
                 "MQTT Panel hat keine Telemetrie, keine Absturzberichte, keine Nutzungsstatistik und kein Konto.",
-                "Die App verbindet sich nur mit den Brokern, die du einrichtest. Updates kommen über den Microsoft Store oder den Mac App Store.",
+                "Die App verbindet sich nur mit den Brokern, die du einrichtest. Kopien aus dem Microsoft Store oder dem Mac App Store aktualisiert der Store.",
+                "Der macOS-Download von dieser Website sucht außerdem nach Updates: höchstens einmal am Tag und wenn du Jetzt prüfen wählst, fragt er bei mqtt-panel.com nach, ob es eine neuere Version gibt. Die Anfrage enthält nur die App-Version, das System und den Prozessortyp: keine Kennung, kein Cookie. Die Website speichert nichts und leitet die App zur Release-Datei auf GitHub weiter, das deine IP-Adresse wie bei jedem Download sieht. Du kannst die Prüfung unter Einstellungen, Updates abschalten; installiert wird nur, wenn du es möchtest.",
                 "Profile, Vorlagen, Ansichten und der Nachrichtenverlauf bleiben auf deinem Computer.",
             ]),
             ("Geheimnisse", [

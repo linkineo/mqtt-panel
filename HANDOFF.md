@@ -72,8 +72,14 @@ diagnostics without payloads.
   TestFlight; the listing is maintained with `scripts/asc/` (`docs/store/README.md`). Only the owner submits for review.
 - **Microsoft Store:** MSIX built on a Windows machine with `scripts/build-msix.ps1` per `docs/WINDOWS_BUILD.md`; the
   Store signs it.
-- No installers, no updater, no Linux packages. Release gate: the signed macOS build shows no keychain dialog
-  (`docs/TESTPLAN.md` V-12).
+- **Direct macOS download:** `scripts/release-mac-dmg.sh` builds the universal Developer ID variant, notarizes and
+  staples the app and the DMG and verifies them; the DMG goes on the GitHub release as `MQTT-Panel-macOS.dmg` (fixed
+  name, the website links `releases/latest/download/`). This variant alone carries the updater (`docs/UPDATER.md`):
+  built with the cargo feature `self-update` and the overlay `tauri.dmg.conf.json`, its archive signed with the
+  updater key from `.env.local`; the script also writes `MQTT-Panel-macOS.app.tar.gz`, its `.sig` and `latest.json`,
+  all five files go on the release. The Worker sends `/update/` to that `latest.json`. No Windows installer outside
+  the store, no Linux packages. Release gate: a signed macOS build shows no keychain dialog (`docs/TESTPLAN.md` V-12);
+  the published DMG finds and installs the next version (U-09).
 
 ## Website
 

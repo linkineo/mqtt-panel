@@ -25,8 +25,8 @@ whichever model runs it.
 - Demo and screenshot data is localised per language.
 
 ## Product rules
-- No telemetry, no crash reporting, no accounts, no network calls except to configured brokers. No updater: the Mac App Store and the Microsoft Store update the app.
-- Distribution: Mac App Store and Microsoft Store only. No downloadable installers, no Linux packages; GitHub is for building from source.
+- No telemetry, no crash reporting, no accounts, no network calls except to configured brokers and the update check of the direct macOS download. No updater in store builds; the direct macOS download checks mqtt-panel.com for updates (see `docs/UPDATER.md`).
+- Distribution: Mac App Store and Microsoft Store, plus a signed and notarized universal DMG for macOS attached to the GitHub release (`scripts/release-mac-dmg.sh`, asset name `MQTT-Panel-macOS.dmg`). No Windows installer outside the store, no Linux packages; GitHub is otherwise for building from source.
 - Secrets (passwords, private keys, PKCS#12 passphrases) live in the encrypted secrets file whose master key sits in the OS secret store on signed builds and in a key file readable by the user only on unsigned builds; never in profile files or the repository. A signed release must never show a keychain dialog to an end user (release gate, `docs/SPEC.md` 11).
 - Users never type file paths: every file field has a Browse button (native dialog) and accepts drag-and-drop.
 - Every security option has an info bubble in plain words, in EN, FR and DE.

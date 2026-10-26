@@ -10,9 +10,10 @@ See what is happening on your MQTT brokers: topics, values, history, charts, pub
 
 - [Mac App Store](#) · coming soon
 - [Microsoft Store](#) · coming soon
+- [Download for macOS (.dmg)](https://github.com/linkineo/mqtt-panel/releases/latest/download/MQTT-Panel-macOS.dmg) · universal (Apple silicon and Intel), macOS 11 or later, signed and notarized, updates itself
 - Source code, release notes and issues: [github.com/linkineo/mqtt-panel](https://github.com/linkineo/mqtt-panel)
 
-MQTT Panel is installed and updated through the Mac App Store and the Microsoft Store; there are no other installers and no built-in updater. Linux users and developers build it themselves (see below). Website: [mqtt-panel.com](https://mqtt-panel.com).
+MQTT Panel is installed and updated through the Mac App Store and the Microsoft Store. On macOS the same app is also available as a direct download from the [Releases](https://github.com/linkineo/mqtt-panel/releases) page; the direct download updates itself through the app: once a day at most it asks mqtt-panel.com whether a newer version exists (version, system and processor type only; switch it off in Settings, Updates) and installs it when you ask ([docs/UPDATER.md](docs/UPDATER.md)). Linux users and developers build it themselves (see below). Website: [mqtt-panel.com](https://mqtt-panel.com).
 
 ## Features
 

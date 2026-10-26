@@ -13,6 +13,7 @@ Reporting a vulnerability: open a private security advisory on GitHub (Security,
 - MCP server and shim: socket, acknowledgement, tool arguments and results, paths.
 - Desktop app: capabilities, CSP, IPC, dialogs, rendering of untrusted payloads.
 - CLI, website worker, test lab scripts, supply chain (`cargo deny`, `npm audit`).
+- Self-update of the direct macOS download (added 26 Oct 2026 for 1.0.1, `docs/UPDATER.md`): the only network call besides the configured brokers.
 
 ## Fixed (change set after 1.0.0; tests B-30 to B-34, Q-06, M-36 to M-43)
 
@@ -58,6 +59,7 @@ Reporting a vulnerability: open a private security advisory on GitHub (Security,
 - TLS listener and argon2 use (`crates/broker/src/runtime/tls.rs`).
 - Socket and secret masking (`apps/desktop/src-tauri/src/mcp/server.rs`).
 - cargo deny passes; lockfiles committed; no secrets in history (`deny.toml`).
+- Self-update (`apps/desktop/src-tauri/src/updates.rs`, compiled into the DMG variant only): at most one automatic check a day plus "Check now", over HTTPS to an endpoint under the project's domain (`https://mqtt-panel.com/update/...`, a Worker redirect to the GitHub release that logs and stores nothing); the request carries the version, platform and architecture only. Tauri's updater plugin verifies the minisign signature of the archive against the public key built into the app before anything is replaced, and with `requireSignedVersion` the signed version must match the announced one (no downgrade through a forged `latest.json`). The private key never enters the repository. Nothing installs without the user's click; a copy that cannot replace itself (DMG, translocation) says so instead of trying; the plugin's `zip` feature (Tauri 1 Windows bundles, open advisories) is off. Release builds ignore the test override `MQTTPANEL_UPDATE_ENDPOINT` and refuse plain HTTP endpoints.
 
 ## Checks run
 

@@ -291,7 +291,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | S-01 | E | auto | Export selected topic, subtree, visible rows; last hour, session, custom; CSV, JSON, NDJSON; MQTT 5 properties on/off; base64 raw | Files parse; row counts match the estimate ± 0; CSV expands numeric JSON fields. |
 | S-02 | E | auto | Nothing is written to disk by default: run a session, inspect the app data folder | Only profiles, templates, views, settings and broker config present; no message data. |
 | S-03 | E | auto | Clear all history; memory estimate drops | As specified. |
-| S-04 | E | auto | Updates page and network calls (the stores update the app): the page shows the one store sentence in EN, FR, DE with no switch, channel or button; network calls observed with a proxy | Only broker traffic; no update check. |
+| S-04 | E | auto | Store builds, Updates page and network calls (the stores update the app): the page shows the one store sentence in EN, FR, DE with no switch, channel or button; network calls observed with a proxy | Only broker traffic; no update check. The direct macOS download is section 14. |
 | S-06 | U | auto | Master key store selection: unsigned signature → file store, Developer ID signature → OS store, `MQTTPANEL_KEYSTORE` override wins; the file store creates `master.key` with 0600 and its folder 0700, round-trips the key, refuses a world-readable file with a plain error; the move from a fake keychain source reads once, writes the file, deletes the item, and keeps the old behaviour when the source refuses | As specified. |
 | S-05 | E | auto | No app-wide "Skip verification" in Settings; an old settings file with `skipVerify: true` loads and the flag is ignored; an old profile with `verifyServer: false` loads with the skip switch on | As specified. |
 
@@ -353,6 +353,25 @@ The assistant interface (`docs/MCP.md`). Rust tests in `apps/desktop/src-tauri/s
 | M-33 | E | lab | Claude Code prompt C13, busiest topic and a chart (`tools/testlab/mcp_prompts/run.py`, prompt in `docs/MCP_PROMPTS.md`): list_topics (rates), get_topic, create_chart and add_series or set_topic_chart | The answer names lab/c13/plant/boiler; list_charts shows a series of its temperature. |
 | M-34 | E | lab | Claude Code prompt C14, history and export to a file (`tools/testlab/mcp_prompts/run.py`, prompt in `docs/MCP_PROMPTS.md`): get_history, export_data with a file path | get_history on the topic; the CSV file exists with a header and rows. |
 | M-35 | E | lab | Claude Code prompt C15, before the acknowledgement (`tools/testlab/mcp_prompts/run.py`, prompt in `docs/MCP_PROMPTS.md`): writing tools refused until the user accepts in the app | Writing calls refused; no connection; the answer tells the user to accept the acknowledgement in MQTT Panel, Settings, Assistant. |
+
+## 14. Self-update (direct macOS download)
+
+`docs/UPDATER.md`. Rust tests in `apps/desktop/src-tauri/src/updates.rs` and `crates/profiles/tests/profiles_c.rs`,
+Vitest in `packages/ui/src/test/updates.test.tsx`, the end-to-end run with `tools/testlab/update_server.py`.
+
+| ID | Level | Tag | Test | Expected |
+|---|---|---|---|---|
+| U-01 | U | auto | The desktop crate builds without and with the feature `self-update`; without it `update_status` reports `selfUpdate: false` and the other update commands answer a plain error; the store build keeps the store sentence, no dot, no update paragraph in Privacy; a settings file without `updates` loads with the automatic check on | As specified. |
+| U-02 | U | auto | DMG build, idle: the switch "Check for updates automatically" (on) with its ⓘ saying what is sent, the last check, "Check now" → "You have the latest version"; switching off is saved and stops the launch check | As specified. |
+| U-03 | U | auto | The launch check runs only when on and the last check is 24 h old or more (or missing, unreadable, in the future); a failed launch check shows nothing; a failed "Check now" says "Could not reach mqtt-panel.com." | As specified. |
+| U-04 | U | auto | Update found: toast "MQTT Panel 1.0.2 is available" with "Open Updates" (opens Settings, Updates), dot on the Settings rail item with its accessible name, version, date, notes, "Download and install" and "Later" (Later hides the dot for this run) | As specified. |
+| U-05 | U | auto | Install: progress bar with percentage, then "Restart now"; nothing installs without the click | As specified. |
+| U-06 | U | auto | A bundle that cannot be replaced (run from the DMG, translocated, read-only folder, no bundle): "Move MQTT Panel to Applications first" instead of the install; the command refuses too | As specified. |
+| U-07 | U | auto | Strings in FR (« vous ») and DE ("du") for the toast, the panel and the ⓘ | As specified. |
+| U-08 | U | auto | The window never overwrites `updates` (auto, last check) with an old copy of the settings | As specified. |
+| U-09 | M | manual | Release gate: the published DMG, copied to Applications, finds and installs the next version (checked once with a throwaway 1.0.2 build before 1.0.1 is published); `latest.json` holds `darwin-aarch64-app`, `darwin-aarch64`, `darwin-x86_64-app`, `darwin-x86_64` | Installed, relaunched, About shows the new version; profiles and secrets kept; no keychain dialog. |
+| U-10 | M | lab | Test lab (`tools/testlab/update_server.py`): debug bundle built with the test public key, `MQTTPANEL_UPDATE_ENDPOINT` on the local server; modes offer, none, fail, bad-signature; app run from a read-only disk image | Installs and relaunches on offer; "You have the latest version" on none; "Could not reach mqtt-panel.com." on fail; "The download is not signed by MQTT Panel. Nothing was installed." on bad-signature; "Move MQTT Panel to Applications first" from the disk image. The server log shows only platform, architecture and version in the path. |
+| U-11 | U | auto | Website Worker: any path under `/update/` answers 302 to `releases/latest/download/latest.json` with `Cache-Control: no-store`, also while the preview lock is on | As specified. |
 
 ---
 

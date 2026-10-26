@@ -19,6 +19,11 @@ const HEADERS = {
 // set, every request needs HTTP Basic authentication with the user name in SITE_USER (default "preview") and that
 // password, and search engines are told not to index. Remove the secret to make the site public again:
 //   wrangler secret delete SITE_PASSWORD
+// Self-update of the direct macOS download (docs/UPDATER.md): the app asks /update/<platform>/<arch>/<version>; any
+// path under /update/ is sent to the latest.json of the latest GitHub release. Nothing is logged or stored, and the
+// answer is never cached. It stays outside the preview lock: the app cannot log in, and the redirect reveals nothing.
+const UPDATE_MANIFEST = 'https://github.com/linkineo/mqtt-panel/releases/latest/download/latest.json';
+
 const enc = new TextEncoder();
 function same(a, b) {
   const x = enc.encode(a), y = enc.encode(b);
@@ -43,6 +48,9 @@ export default {
     if (url.hostname.startsWith('www.')) {
       url.hostname = url.hostname.slice(4);
       return Response.redirect(url.toString(), 301);
+    }
+    if (url.pathname.startsWith('/update/')) {
+      return new Response(null, { status: 302, headers: { Location: UPDATE_MANIFEST, 'Cache-Control': 'no-store', ...HEADERS } });
     }
     const locked = !!env.SITE_PASSWORD;
     if (locked && !authorised(request, env)) {
