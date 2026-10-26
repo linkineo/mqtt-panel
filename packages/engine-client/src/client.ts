@@ -46,6 +46,7 @@ import type {
   TopicDetail,
   TreeQuery,
   TreeSlice,
+  UpdateStatus,
   UserMessage,
 } from './types';
 
@@ -62,7 +63,18 @@ export interface EngineClient {
   /** Where the master key lives in this build (change set 10): the owner-only key file or the OS keychain. */
   keyStoreKind(): Promise<KeyStoreKind>;
   getSettings(): Promise<Settings>;
+  /** Saves everything except `updates`, which belongs to the update methods below. */
   saveSettings(settings: Settings): Promise<Settings>;
+
+  // self-update, direct macOS download only (docs/UPDATER.md); store builds answer selfUpdate false and errors
+  updateStatus(): Promise<UpdateStatus>;
+  /** manual: "Check now". Otherwise the launch check, which runs only when it is on and due (24 h). */
+  updateCheck(manual: boolean): Promise<UpdateStatus>;
+  /** "Download and install": progress arrives as `update` events. */
+  updateInstall(): Promise<UpdateStatus>;
+  /** "Restart now", once the new version is in place. */
+  updateRestart(): Promise<void>;
+  updateSetAuto(on: boolean): Promise<UpdateStatus>;
 
   // profiles (C1, C4)
   listProfiles(): Promise<Profile[]>;

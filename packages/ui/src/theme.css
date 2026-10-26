@@ -421,6 +421,11 @@ button.chip:hover { filter: brightness(.97) }
 .rail button .badge::after { content: ""; border-left: 7px solid var(--sage); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; margin-left: 2px }
 .rail button .badge.starting::after { border-left-color: var(--clay) }
 .rail button .cnt { position: absolute; left: calc(50% + 4px); top: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--sage); color: var(--on-accent); font-size: 10px; font-weight: 700; display: grid; place-items: center; line-height: 1; box-sizing: border-box; font-variant-numeric: tabular-nums; pointer-events: none }
+/* docs/UPDATER.md: a small accent dot on Settings while an update waits (direct macOS download only) */
+.rail button .upd { position: absolute; left: calc(50% + 6px); top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--sage); box-shadow: 0 0 0 2px var(--paper); pointer-events: none }
+.rail button.on .upd { box-shadow: 0 0 0 2px var(--surface) }
+.upbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; width: 260px; flex: none }
+.upbar > span { display: block; height: 100%; background: var(--sage); transition: width .2s }
 .card .stw { display: inline-flex; align-items: center; gap: 6px; flex: none }
 .card .stop { width: 18px; height: 18px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,.22); color: inherit; display: inline-grid; place-items: center; font-size: 8px; line-height: 1; margin-left: 4px; flex: none; cursor: default }
 .card:not(.live) .stop { background: var(--clay-soft); color: var(--clay) }

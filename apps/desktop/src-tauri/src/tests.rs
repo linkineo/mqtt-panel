@@ -167,7 +167,7 @@ fn contract_ts_methods_match_rust_commands() {
     let ts = include_str!("../../../../packages/engine-client/src/client.ts");
     let body = &ts[ts.find("export interface EngineClient {").unwrap()..ts.find("export interface ContextMenuItem").unwrap()];
     let main_rs = include_str!("main.rs");
-    let sources = [include_str!("commands.rs"), include_str!("broker.rs"), include_str!("mcp/commands.rs"), include_str!("charts.rs")].concat();
+    let sources = [include_str!("commands.rs"), include_str!("broker.rs"), include_str!("mcp/commands.rs"), include_str!("charts.rs"), include_str!("updates.rs")].concat();
     let snake = |s: &str| {
         let mut o = String::new();
         for c in s.chars() {

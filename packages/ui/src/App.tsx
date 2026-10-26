@@ -18,6 +18,7 @@ import { BrokerScreen } from './screens/broker/BrokerScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { modHeld } from './lib/keys';
 import { switchConnectionMenu } from './components/ConnectionBar';
+import { updateWaiting } from './lib/updates';
 import { newConnection } from './lib/actions';
 
 /**
@@ -33,7 +34,10 @@ function Rail() {
   const openSettings = useApp((s) => s.openSettings);
   const brokerState = useApp((s) => s.broker?.state ?? 'stopped');
   const open = useOpenTabs().length;
+  // docs/UPDATER.md: a dot on Settings while an update waits (the direct macOS download only)
+  const waiting = useApp((s) => updateWaiting(s.update, s.updateLater));
   const badge = (k: Screen) => {
+    if (k === 'settings' && waiting) return <span className="upd" data-testid="rail-settings-dot" aria-hidden="true" />;
     if (k === 'broker' && (brokerState === 'running' || brokerState === 'starting')) {
       return <span className={`badge${brokerState === 'starting' ? ' starting' : ''}`} data-testid="rail-broker-badge" data-state={brokerState} aria-hidden="true" />;
     }
@@ -50,6 +54,7 @@ function Rail() {
     if (k === 'broker' && brokerState === 'running') return `${t('rail.broker')}, ${t('rail.brokerRunning')}`;
     if (k === 'broker' && brokerState === 'starting') return `${t('rail.broker')}, ${t('rail.brokerStarting')}`;
     if (k === 'connect' && open > 0) return `${t('rail.connect')}, ${t('rail.openCount', { count: open })}`;
+    if (k === 'settings' && waiting) return `${t('rail.settings')}, ${t('rail.updateWaiting')}`;
     return undefined;
   };
   // The AI item (20 Oct 2026) opens Settings on the Assistant page and is lit only there; Settings is lit otherwise.

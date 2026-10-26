@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "bundle": {
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://mqtt-panel.com/update/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "pubkey": "UPDATER_PUBKEY_PLACEHOLDER",
+      "requireSignedVersion": true
+    }
+  }
+}

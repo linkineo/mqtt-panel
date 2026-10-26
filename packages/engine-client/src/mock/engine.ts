@@ -29,6 +29,7 @@ import type {
   TestResult,
   TickEvent,
   TrustPrompt,
+  UpdateStatus,
   UserMessage,
 } from '../types';
 import { APP_USER, MockBroker } from './broker';
@@ -62,6 +63,17 @@ export interface MockOptions {
   now?: () => number;
   /** What `keyStoreKind` answers (default "keychain", as a signed build). */
   keyStore?: 'file' | 'keychain';
+  /** The direct macOS download (docs/UPDATER.md): AppInfo selfUpdate and the update commands (default false, a
+   * store build). */
+  selfUpdate?: boolean;
+  /** What the update server offers (default: nothing newer). */
+  updateOffer?: MockUpdateOffer | null;
+}
+
+export interface MockUpdateOffer {
+  version: string;
+  date: string;
+  notes: string | null;
 }
 
 export interface MockControls {
@@ -97,6 +109,14 @@ export interface MockControls {
   setAssistantSandboxed(on: boolean): void;
   /** Simulates an assistant socket (named pipe) that could not be opened at start; null clears it. */
   setAssistantSocketError(error: UserMessage | null): void;
+  /** Self-update (docs/UPDATER.md): switches the build kind, sets the offer of the update server, makes the next
+   * checks fail as if mqtt-panel.com were unreachable, or makes the bundle impossible to replace (run from the DMG). */
+  setSelfUpdate(on: boolean): void;
+  setUpdateOffer(offer: MockUpdateOffer | null): void;
+  setUpdateUnreachable(on: boolean): void;
+  setUpdateCanInstall(on: boolean): void;
+  /** How many times "Restart now" was pressed. */
+  updateRestarts(): number;
   tick(): void;
   dispose(): void;
 }
@@ -158,6 +178,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     payloadRenderLimitKb: 256,
     brokerLogOpen: false,
     assistantAcknowledged: null,
+    updates: { auto: true, lastCheck: null },
   };
   let profiles: Profile[] = demo ? demoProfiles(lang, now()) : [];
   const templates = new Map<string, Template[]>();
@@ -174,6 +195,41 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
   const pendingTrust = new Map<string, TrustPrompt>();
   const assistant = new MockAssistant((event) => emit({ type: 'assistant', event }));
   const dataset = buildDataset(lang);
+  // self-update (docs/UPDATER.md)
+  let selfUpdate = options.selfUpdate ?? false;
+  let updateOffer: MockUpdateOffer | null = options.updateOffer ?? null;
+  let updateUnreachable = false;
+  let updateCanInstall = true;
+  let updateRestarts = 0;
+  let upd: UpdateStatus = {
+    selfUpdate,
+    auto: true,
+    lastCheck: null,
+    state: 'idle',
+    version: null,
+    date: null,
+    notes: null,
+    downloaded: 0,
+    total: null,
+    canInstall: true,
+    error: null,
+  };
+  const updateStatus = (): UpdateStatus => ({
+    ...upd,
+    selfUpdate,
+    auto: settings.updates.auto,
+    lastCheck: settings.updates.lastCheck,
+    canInstall: upd.state === 'available' ? updateCanInstall : upd.canInstall,
+  });
+  const setUpd = (patch: Partial<UpdateStatus>) => {
+    upd = { ...upd, ...patch };
+    const st = updateStatus();
+    emit({ type: 'update', status: st });
+    return clone(st);
+  };
+  const needSelfUpdate = () => {
+    if (!selfUpdate) throw um('update.storeBuild');
+  };
   let sentN = 0;
   let corrN = 1041;
   let disposed = false;
@@ -720,7 +776,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
 
   const client: MockEngineClient = {
     async appInfo() {
-      return { version: '1.0.0-beta.3', platform: detectPlatform(), native: false };
+      return { version: '1.0.1', platform: detectPlatform(), native: false, selfUpdate };
     },
     async keyStoreKind() {
       return options.keyStore ?? 'keychain';
@@ -729,9 +785,53 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
       return clone(settings);
     },
     async saveSettings(s) {
-      settings = clone(s);
+      // `updates` belongs to the update methods, as in the app
+      settings = { ...clone(s), updates: settings.updates };
       changedTick();
       return clone(settings);
+    },
+
+    // self-update (docs/UPDATER.md)
+    async updateStatus() {
+      return clone(updateStatus());
+    },
+    async updateCheck(manual) {
+      needSelfUpdate();
+      if (upd.state === 'checking' || upd.state === 'downloading' || upd.state === 'ready') return clone(updateStatus());
+      const last = settings.updates.lastCheck ? Date.parse(settings.updates.lastCheck) : NaN;
+      const due = !Number.isFinite(last) || now() - last >= 24 * 3600 * 1000;
+      if (!manual && (!settings.updates.auto || !due || upd.state === 'available')) return clone(updateStatus());
+      setUpd({ state: 'checking', error: null });
+      await delay(latency);
+      if (updateUnreachable) return setUpd(manual ? { state: 'error', error: um('update.unreachable') } : { state: 'idle' });
+      settings = { ...settings, updates: { ...settings.updates, lastCheck: new Date(now()).toISOString().replace(/\.\d+Z$/, 'Z') } };
+      if (updateOffer) return setUpd({ state: 'available', version: updateOffer.version, date: updateOffer.date, notes: updateOffer.notes, downloaded: 0, total: null, error: null });
+      return setUpd({ state: manual ? 'latest' : 'idle', version: null, date: null, notes: null, error: null });
+    },
+    async updateInstall() {
+      needSelfUpdate();
+      if (upd.state === 'downloading' || upd.state === 'ready') return clone(updateStatus());
+      if (upd.state !== 'available') throw um('update.nothing');
+      if (!updateCanInstall) {
+        setUpd({ canInstall: false });
+        throw um('update.moveFirst');
+      }
+      const total = 4_200_000;
+      setUpd({ state: 'downloading', downloaded: 0, total, error: null, canInstall: true });
+      await delay(latency);
+      setUpd({ downloaded: total / 2 });
+      await delay(latency);
+      return setUpd({ state: 'ready', downloaded: total });
+    },
+    async updateRestart() {
+      needSelfUpdate();
+      if (upd.state !== 'ready') throw um('update.nothing');
+      updateRestarts++;
+    },
+    async updateSetAuto(on) {
+      needSelfUpdate();
+      settings = { ...settings, updates: { ...settings.updates, auto: on } };
+      return clone(updateStatus());
     },
 
     // profiles
@@ -1431,6 +1531,21 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
     },
     savedFiles() {
       return saves.slice();
+    },
+    setSelfUpdate(on) {
+      selfUpdate = on;
+    },
+    setUpdateOffer(offer) {
+      updateOffer = offer;
+    },
+    setUpdateUnreachable(on) {
+      updateUnreachable = on;
+    },
+    setUpdateCanInstall(on) {
+      updateCanInstall = on;
+    },
+    updateRestarts() {
+      return updateRestarts;
     },
     emitMenu(id) {
       emit({ type: 'menu', id });

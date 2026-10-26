@@ -11,6 +11,7 @@ import type {
   RepeatStatus,
   SentEntry,
   Settings,
+  UpdateStatus,
   UserMessage,
 } from '@mqttpanel/engine-client';
 import { engine, platform } from '../services';
@@ -24,6 +25,8 @@ export interface Toast {
   kind: 'info' | 'err' | 'warn';
   text?: string;
   msg?: UserMessage | null;
+  /** One button next to the text (the update toast: "Open Updates"); pressing it also closes the toast. */
+  action?: { label: string; run(): void; testId?: string };
 }
 
 export type Fold = 'security' | 'advanced' | 'brokerAdvanced';
@@ -70,6 +73,10 @@ interface AppState {
   assistantConnected: boolean;
   /** Bumped when the Assistant log changes (Settings, Assistant reloads it). */
   assistantLogSeq: number;
+  /** Self-update (docs/UPDATER.md): the last status from the app, null in store builds. */
+  update: UpdateStatus | null;
+  /** "Later" was pressed for this version: the rail dot goes away until the next launch. Not saved. */
+  updateLater: string | null;
 
   setScreen(s: Screen): void;
   toggleFold(f: Fold): void;
@@ -106,6 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
   payloadRenderLimitKb: 256,
   brokerLogOpen: false,
   assistantAcknowledged: null,
+  updates: { auto: true, lastCheck: null },
 };
 
 const sentListeners = new Set<SentListener>();
@@ -115,7 +123,7 @@ let toastId = 1;
 
 export const useApp = create<AppState>((set, get) => ({
   ready: false,
-  appInfo: { version: '', platform: 'web', native: false },
+  appInfo: { version: '', platform: 'web', native: false, selfUpdate: false },
   keyStore: null,
   settings: DEFAULT_SETTINGS,
   screen: 'connect',
@@ -140,6 +148,8 @@ export const useApp = create<AppState>((set, get) => ({
   assistantHost: null,
   assistantConnected: false,
   assistantLogSeq: 0,
+  update: null,
+  updateLater: null,
 
   setScreen: (screen) => set({ screen, paletteOpen: false }),
   toggleFold: (f) => set({ folds: { ...get().folds, [f]: !get().folds[f] } }),
@@ -175,7 +185,7 @@ export const useApp = create<AppState>((set, get) => ({
   toast: (t) => {
     const id = toastId++;
     set({ toasts: [...get().toasts, { ...t, id }].slice(-4) });
-    setTimeout(() => get().dismissToast(id), t.kind === 'err' ? 8000 : 4000);
+    setTimeout(() => get().dismissToast(id), t.kind === 'err' ? 8000 : t.action ? 12000 : 4000);
   },
   dismissToast: (id) => set({ toasts: get().toasts.filter((x) => x.id !== id) }),
   handleEvent: (e) => {
@@ -188,6 +198,10 @@ export const useApp = create<AppState>((set, get) => ({
       if (a.kind === 'session') set({ assistantConnected: a.connected, assistantHost: a.connected ? a.host : null });
       if (a.kind === 'logChanged') set({ assistantLogSeq: get().assistantLogSeq + 1 });
       assistantListeners.forEach((l) => l(a));
+      return;
+    }
+    if (e.type === 'update') {
+      set({ update: e.status });
       return;
     }
     // Web page prompts are handled by WebOriginLayer.

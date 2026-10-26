@@ -388,6 +388,19 @@ export function Toasts() {
       {toasts.map((x) => (
         <div key={x.id} className={`toast ${x.kind}`} role={x.kind === 'err' ? 'alert' : 'status'} data-testid="toast">
           <span className="grow selectable">{x.msg ? renderMessage(t, x.msg) : x.text}</span>
+          {x.action && (
+            <button
+              type="button"
+              className="btn sm"
+              data-testid={x.action.testId ?? 'toast-action'}
+              onClick={() => {
+                dismiss(x.id);
+                x.action?.run();
+              }}
+            >
+              {x.action.label}
+            </button>
+          )}
           <button type="button" className="iconbtn" aria-label={t('common.dismiss')} onClick={() => dismiss(x.id)}>
             ✕
           </button>

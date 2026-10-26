@@ -11,6 +11,10 @@ publish = false
 name = "mqtt-panel"
 path = "src/main.rs"
 
+[features]
+# Compiled into the direct macOS download only (scripts/release-mac-dmg.sh).
+self-update = ["dep:tauri-plugin-updater"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -28,12 +32,15 @@ mqttpanel-client.workspace = true
 mqttpanel-profiles.workspace = true
 mqttpanel-tls.workspace = true
 mqttpanel-broker.workspace = true
-time.workspace = true
+time = { workspace = true, features = ["formatting", "parsing"] }
 rustls-pki-types.workspace = true
 rmcp = { version = "3.6", default-features = false, features = ["server"] }
 toml_edit = "0.25"
 dirs = "6"
 mqttpanel-shim.workspace = true
+# Self-update, Developer ID DMG only (docs/UPDATER.md); store and developer builds never compile it. No "zip"
+# feature: it only serves Windows bundles of Tauri 1 (macOS uses tar and flate2).
+tauri-plugin-updater = { version = "2", optional = true, default-features = false, features = ["rustls-tls", "system-proxy"] }
 
 [dev-dependencies]
 tempfile = "3"

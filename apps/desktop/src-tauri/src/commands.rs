@@ -22,7 +22,7 @@ pub fn conn(state: &AppState, id: &str) -> R<Arc<Conn>> {
 // ---------------------------------------------------------------- app and settings
 
 #[tauri::command]
-pub fn app_info() -> AppInfo {
+pub fn app_info(app: AppHandle) -> AppInfo {
     let platform = if cfg!(target_os = "macos") {
         "macos"
     } else if cfg!(target_os = "windows") {
@@ -30,7 +30,7 @@ pub fn app_info() -> AppInfo {
     } else {
         "linux"
     };
-    AppInfo { version: env!("CARGO_PKG_VERSION").into(), platform: platform.into(), native: true }
+    AppInfo { version: env!("CARGO_PKG_VERSION").into(), platform: platform.into(), native: true, self_update: crate::updates::enabled(&app) }
 }
 
 /// Where the master key lives in this build: "file" or "keychain" (change set 10; the ⓘ next to the key fields says it).
@@ -45,7 +45,10 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 }
 
 #[tauri::command]
-pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> R<Settings> {
+pub fn save_settings(state: State<'_, AppState>, mut settings: Settings) -> R<Settings> {
+    // The update settings belong to the update commands (update_set_auto, the last check); a window holding an older
+    // copy never overwrites them.
+    settings.updates = lock(&state.settings).updates.clone();
     let saved = state.store.save_settings(&settings)?;
     *lock(&state.settings) = saved.clone();
     let cfg = engine_config(&saved);

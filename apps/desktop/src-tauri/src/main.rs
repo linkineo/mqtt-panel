@@ -12,6 +12,7 @@ mod state;
 #[cfg(test)]
 mod tests;
 mod types;
+mod updates;
 
 use mqttpanel_profiles::{MemorySecrets, SecretStore, Store};
 use state::{lock, AppState};
@@ -105,9 +106,12 @@ fn main() {
     if args.len() == 1 && args[0] == "mcp" {
         std::process::exit(mqttpanel_shim::run(mqttpanel_shim::Launch::SelfExe));
     }
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+    let context = tauri::generate_context!();
+    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_opener::init());
+    // The direct macOS download only (docs/UPDATER.md): store and developer builds compile no updater code.
+    #[cfg(feature = "self-update")]
+    let builder = updates::register(builder, &context);
+    builder
         .setup(|app| {
             let dir = mqttpanel_profiles::default_dir();
             let _ = std::fs::create_dir_all(&dir);
@@ -164,6 +168,11 @@ fn main() {
             commands::open_release_notes,
             commands::app_info,
             commands::key_store_kind,
+            updates::update_status,
+            updates::update_check,
+            updates::update_install,
+            updates::update_restart,
+            updates::update_set_auto,
             commands::get_settings,
             commands::save_settings,
             commands::list_profiles,
@@ -275,7 +284,7 @@ fn main() {
             mcp::commands::assistant_pick_folder,
             charts::sync_charts,
         ]))
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building MQTT Panel")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {

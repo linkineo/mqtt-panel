@@ -33,6 +33,9 @@ export interface Settings {
   brokerLogOpen: boolean;
   /** The day (YYYY-MM-DD) the assistant acknowledgement was accepted (docs/MCP.md section 3); null until then. */
   assistantAcknowledged: string | null;
+  /** Self-update of the direct macOS download (docs/UPDATER.md). The window changes `auto` through updateSetAuto
+   * only; the app writes `lastCheck` (RFC 3339, UTC). Store builds keep the defaults. */
+  updates: { auto: boolean; lastCheck: string | null };
 }
 
 /** Where the master key lives (change set 10): "file" on unsigned builds, "keychain" (the OS secret store) on signed ones. */
@@ -43,6 +46,27 @@ export interface AppInfo {
   platform: 'macos' | 'windows' | 'linux' | 'web';
   /** True when running inside the desktop shell (native dialogs, menus, keychain). */
   native: boolean;
+  /** This build updates itself (the direct macOS download, docs/UPDATER.md); false in store and developer builds. */
+  selfUpdate: boolean;
+}
+
+/** What Settings → Updates shows (docs/UPDATER.md). */
+export interface UpdateStatus {
+  selfUpdate: boolean;
+  auto: boolean;
+  /** The last successful check, RFC 3339 (UTC); null before the first one. */
+  lastCheck: string | null;
+  state: 'idle' | 'checking' | 'latest' | 'available' | 'downloading' | 'ready' | 'error';
+  /** The version offered, its date (YYYY-MM-DD) and its notes (plain text). */
+  version: string | null;
+  date: string | null;
+  notes: string | null;
+  /** Download progress in bytes; total is null while the server does not say. */
+  downloaded: number;
+  total: number | null;
+  /** False when the app cannot replace its own bundle (run from the DMG, translocated, read-only folder). */
+  canInstall: boolean;
+  error: UserMessage | null;
 }
 
 // ---------------------------------------------------------------- certificates and files
@@ -833,4 +857,10 @@ export interface BrokerOriginDoneEvent {
   id: string;
 }
 
-export type EngineEvent = TickEvent | MenuEvent | AssistantEvent | BrokerOriginEvent | BrokerOriginDoneEvent;
+/** Self-update progress (docs/UPDATER.md): checking, found, download progress, ready to restart. */
+export interface UpdateEvent {
+  type: 'update';
+  status: UpdateStatus;
+}
+
+export type EngineEvent = TickEvent | MenuEvent | AssistantEvent | BrokerOriginEvent | BrokerOriginDoneEvent | UpdateEvent;

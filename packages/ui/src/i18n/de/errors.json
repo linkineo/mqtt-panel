@@ -334,5 +334,13 @@
  "mcp.prompt.chart.given": "Der Wert, den ich meine: {value}.",
  "mcp.prompt.chart.givenConnection": "Such in der Verbindung {connection}.",
  "mcp.prompt.chart.state": "Verbundene Verbindungen und Diagramme:",
- "mcp.prompt.chart.body": "Hilf mir, einen Wert in MQTT Panel als Diagramm zu zeigen. Nutze die Werkzeuge der App Schritt für Schritt:\n1. Falls ich es noch nicht gesagt habe, frag mich, welchen Wert ich sehen will. Finde das Topic mit list_topics (mit Filter) oder search_values und das Feld mit get_topic (seine Liste fields sagt, welche sich zeichnen lassen). Passen mehrere, zeig mir die Kandidaten und lass mich wählen.\n2. Frag mich, ob ich ihn im Topic-Diagramm unter dem Payload haben will (set_topic_chart; es behält die vorhandenen Felder, also gib alle an) oder in einem Diagramm unter Diagramme (ein vorhandenes aus list_charts oder create_chart, dann add_series mit Topic und Feldpfad).\n3. Setze eine Einheit und den Stufenstil, wenn es hilft (Stufen für Ein/Aus-Zustände). Veröffentliche dafür nichts.\n4. Zeig das Ergebnis: show_topic für ein Topic-Diagramm, show_chart für ein Diagramm unter Diagramme. Möchte ich eine Datei, rufe export_chart (csv oder png) auf und lass mich den Ort in MQTT Panel wählen."
+ "mcp.prompt.chart.body": "Hilf mir, einen Wert in MQTT Panel als Diagramm zu zeigen. Nutze die Werkzeuge der App Schritt für Schritt:\n1. Falls ich es noch nicht gesagt habe, frag mich, welchen Wert ich sehen will. Finde das Topic mit list_topics (mit Filter) oder search_values und das Feld mit get_topic (seine Liste fields sagt, welche sich zeichnen lassen). Passen mehrere, zeig mir die Kandidaten und lass mich wählen.\n2. Frag mich, ob ich ihn im Topic-Diagramm unter dem Payload haben will (set_topic_chart; es behält die vorhandenen Felder, also gib alle an) oder in einem Diagramm unter Diagramme (ein vorhandenes aus list_charts oder create_chart, dann add_series mit Topic und Feldpfad).\n3. Setze eine Einheit und den Stufenstil, wenn es hilft (Stufen für Ein/Aus-Zustände). Veröffentliche dafür nichts.\n4. Zeig das Ergebnis: show_topic für ein Topic-Diagramm, show_chart für ein Diagramm unter Diagramme. Möchte ich eine Datei, rufe export_chart (csv oder png) auf und lass mich den Ort in MQTT Panel wählen.",
+ "update.storeBuild": "Diese Kopie wird über den Store aktualisiert, aus dem du sie installiert hast.",
+ "update.unreachable": "mqtt-panel.com ist nicht erreichbar.",
+ "update.badSignature": "Der Download ist nicht von MQTT Panel signiert. Es wurde nichts installiert.",
+ "update.moveFirst": "Verschiebe MQTT Panel zuerst in den Ordner Programme.",
+ "update.notAllowed": "MQTT Panel konnte sich nicht ersetzen: Die Berechtigung wurde verweigert.",
+ "update.previousKept": "Das Update ist fehlgeschlagen. Die vorherige Version liegt unter {path}.",
+ "update.noBuild": "Für diesen Mac ist noch kein Update veröffentlicht.",
+ "update.nothing": "Es gibt kein Update zum Installieren."
 }

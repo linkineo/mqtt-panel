@@ -94,6 +94,25 @@ fn s04_old_settings_update_switches_ignored() {
     assert!(!raw.contains("updateChannel"));
 }
 
+/// U-01 (docs/UPDATER.md): a settings file without `updates` loads with the automatic check on and no last check;
+/// the values written back round-trip.
+#[test]
+fn u01_update_settings_default_and_round_trip() {
+    let (d, s, _) = store();
+    std::fs::write(d.path().join("settings.json"), br#"{"theme":"dark"}"#).unwrap();
+    let mut set = s.settings();
+    assert!(set.updates.auto);
+    assert_eq!(set.updates.last_check, None);
+    set.updates.auto = false;
+    set.updates.last_check = Some("2026-10-26T08:00:00Z".into());
+    s.save_settings(&set).unwrap();
+    let raw = std::fs::read_to_string(d.path().join("settings.json")).unwrap();
+    assert!(raw.contains("\"lastCheck\""));
+    let back = s.settings();
+    assert!(!back.updates.auto);
+    assert_eq!(back.updates.last_check.as_deref(), Some("2026-10-26T08:00:00Z"));
+}
+
 /// S-05: an old profile with `verifyServer: false` loads with the per-connection skip switch on;
 /// `verifyServer: true` (or absent) loads with it off; the file is written back with `skipVerify` only.
 #[test]

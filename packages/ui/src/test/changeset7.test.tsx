@@ -105,7 +105,9 @@ describe('Change set 7: no restart (B-25)', () => {
       ['de', { ...de, ...deErr }],
     ];
     for (const [lang, cat] of cats) {
+      // the app's own restart after a self-update (docs/UPDATER.md) is not a broker restart
       const hits = Object.entries(cat)
+        .filter(([k]) => !k.startsWith('updates.'))
         .filter(([, v]) => /restart|redémarr|neu ?start|neustart|starte .* neu\b/i.test(v))
         .map(([k]) => k);
       // only the app's own restart, after a keychain refusal or a key file other users can read (change set 10)

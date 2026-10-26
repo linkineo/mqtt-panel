@@ -10,6 +10,8 @@ pub struct AppInfo {
     pub version: String,
     pub platform: String,
     pub native: bool,
+    /// This build updates itself (the direct macOS download, docs/UPDATER.md); false in store and developer builds.
+    pub self_update: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -244,6 +246,9 @@ pub enum EngineEvent {
     BrokerOrigin { id: String, listener_id: String, kind: mqttpanel_broker::ListenerKind, port: u16, origin: String },
     /// The web page prompt was answered or timed out: the window closes it.
     BrokerOriginDone { id: String },
+    /// Self-update progress (docs/UPDATER.md): checking, found, download progress, ready to restart.
+    #[cfg_attr(not(feature = "self-update"), allow(dead_code))]
+    Update { status: crate::updates::UpdateStatus },
 }
 
 pub fn now_ms() -> i64 {

@@ -9,6 +9,7 @@ the official Eclipse Paho client. Nothing here runs in CI.
 | `load_client.py` | Paho → app's broker | Connect standard clients to the embedded broker with the certificates exported from the app; generate 500 messages/s over 50 topics for throughput, chart and export tests; report rates |
 | `mcp_prompts/run.py` | Claude Code → app (MCP) | Plain English prompts to Claude Code with MQTT Panel as its MCP server, against Mosquitto and the built-in broker; each outcome checked by machine (M-19 to M-35, `docs/MCP_PROMPTS.md`) |
 | `external_clients.py` | Paho → `mqttpanel broker` | T-31: the external-client matrix (CA.pem only, issued certificates, revocation, CA rotation, extra names) against the command-line broker on a temporary home; prints PASS / FAIL / SKIP per case |
+| `update_server.py` | app → local update server | U-10: serve a `latest.json` and an archive signed with a throwaway key, so a debug bundle of the direct macOS download finds, downloads and installs an update; modes offer, none, fail, bad-signature (`docs/UPDATER.md`, Tests) |
 
 ## Setup, once
 
@@ -130,6 +131,18 @@ every case gives passwords and files directly in the prompt. Actions that wait f
 (`docs/MCP.md` section 3) are answered by nobody and end as "denied" after 60 s; the current cases write their files
 to temporary folders and need none. A debug app started with `MQTTPANEL_TEST_CONFIRM=allow` (or `deny`) answers every
 confirmation at once, for cases that need one; release builds ignore it.
+
+## E. Self-update of the direct macOS download (U-10)
+
+`update_server.py` needs only Python 3 (no venv). The full run (throwaway key, test overlay, an installed 1.0.1 and a
+1.0.2 archive, both debug bundles) is in its header and in `docs/UPDATER.md`, Tests. Files land in
+`tools/testlab/out/update/` (git-ignored); the throwaway key never leaves that folder.
+
+```
+python3 tools/testlab/update_server.py overlay --pubkey tools/testlab/out/update/test.key.pub
+python3 tools/testlab/update_server.py serve --version 1.0.2 --archive "target/debug/bundle/macos/MQTT Panel.app.tar.gz"
+python3 tools/testlab/update_server.py serve --version 1.0.2 --archive "…" --mode bad-signature   # or none, fail
+```
 
 ## Public brokers
 

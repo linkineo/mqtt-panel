@@ -334,5 +334,13 @@
  "mcp.prompt.chart.given": "The value I mean: {value}.",
  "mcp.prompt.chart.givenConnection": "Look in the connection {connection}.",
  "mcp.prompt.chart.state": "Connected connections and dashboard charts:",
- "mcp.prompt.chart.body": "Help me chart a value in MQTT Panel. Use the app's tools step by step:\n1. Unless I already said so, ask me what value I want to see. Find the topic with list_topics (use a filter) or search_values, and the field with get_topic (its fields list says which ones can be charted). If several match, show me the candidates and let me choose.\n2. Ask me whether I want it on the topic's own chart under the payload (set_topic_chart; it keeps the fields already there, so pass them all) or on a dashboard chart on the Charts screen (an existing one from list_charts, or create_chart, then add_series with the topic and the field path).\n3. Use a unit and a step style when they help (step for on/off states). Never publish anything for this.\n4. Show the result: show_topic for a topic chart, show_chart for a dashboard chart. If I ask for a file, call export_chart (csv or png) and let me choose the place in MQTT Panel."
+ "mcp.prompt.chart.body": "Help me chart a value in MQTT Panel. Use the app's tools step by step:\n1. Unless I already said so, ask me what value I want to see. Find the topic with list_topics (use a filter) or search_values, and the field with get_topic (its fields list says which ones can be charted). If several match, show me the candidates and let me choose.\n2. Ask me whether I want it on the topic's own chart under the payload (set_topic_chart; it keeps the fields already there, so pass them all) or on a dashboard chart on the Charts screen (an existing one from list_charts, or create_chart, then add_series with the topic and the field path).\n3. Use a unit and a step style when they help (step for on/off states). Never publish anything for this.\n4. Show the result: show_topic for a topic chart, show_chart for a dashboard chart. If I ask for a file, call export_chart (csv or png) and let me choose the place in MQTT Panel.",
+ "update.storeBuild": "This copy is updated by the store it was installed from.",
+ "update.unreachable": "Could not reach mqtt-panel.com.",
+ "update.badSignature": "The download is not signed by MQTT Panel. Nothing was installed.",
+ "update.moveFirst": "Move MQTT Panel to Applications first.",
+ "update.notAllowed": "MQTT Panel could not replace itself: permission was refused.",
+ "update.previousKept": "The update failed. The previous version was kept at {path}.",
+ "update.noBuild": "No update is published for this Mac yet.",
+ "update.nothing": "There is no update to install."
 }

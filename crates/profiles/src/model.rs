@@ -323,7 +323,8 @@ pub mod secret_keys {
 
 /// App settings (see the TS type Settings). An old settings file with `skipVerify` still loads; the field
 /// is ignored (skipping verification is per connection since change set 6). The same holds for `updateCheck` and
-/// `updateChannel` (removed 25 Oct 2026: the stores update the app).
+/// `updateChannel` (removed 25 Oct 2026: the stores update the app). `updates` serves the direct macOS download only
+/// (docs/UPDATER.md); store builds keep the defaults and never read it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -343,6 +344,23 @@ pub struct Settings {
     /// The day (YYYY-MM-DD) the user accepted the assistant acknowledgement (docs/MCP.md section 3); until then the
     /// assistant's writing tools are refused.
     pub assistant_acknowledged: Option<String>,
+    /// Self-update of the direct macOS download (docs/UPDATER.md).
+    pub updates: UpdateSettings,
+}
+
+/// Self-update settings (docs/UPDATER.md): the automatic daily check and the time of the last check (RFC 3339, UTC).
+/// The app writes `last_check`; the window changes `auto` only.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdateSettings {
+    pub auto: bool,
+    pub last_check: Option<String>,
+}
+
+impl Default for UpdateSettings {
+    fn default() -> Self {
+        UpdateSettings { auto: true, last_check: None }
+    }
 }
 
 impl Default for Settings {
@@ -361,6 +379,7 @@ impl Default for Settings {
             payload_render_limit_kb: 256,
             broker_log_open: false,
             assistant_acknowledged: None,
+            updates: UpdateSettings::default(),
         }
     }
 }

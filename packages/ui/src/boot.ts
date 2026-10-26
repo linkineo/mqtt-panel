@@ -2,6 +2,7 @@ import type { EngineClient, Platform, Settings } from '@mqttpanel/engine-client'
 import { setServices, engine, platform } from './services';
 import { initI18n, resolveLang, systemLang, type Lang } from './i18n';
 import { applySettings, useApp, SCREENS, type Screen } from './store/app';
+import { startUpdates } from './lib/updates';
 
 export interface BootOverrides {
   lang?: Lang;
@@ -16,7 +17,7 @@ export interface BootOverrides {
 }
 
 /** Reads test and screenshot switches from the URL: ?mock=empty|demo&lang=de&theme=dark&screen=broker&connect=plant */
-export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 'empty'; latency?: number } {
+export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 'empty'; latency?: number; update?: string } {
   const p = new URLSearchParams(search);
   const lang = p.get('lang');
   const theme = p.get('theme');
@@ -33,17 +34,21 @@ export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 
     motion: p.get('motion') === 'off' ? false : undefined,
     // mock only: slower engine steps, so screenshots can catch a flow half-way (02b steps)
     latency: p.get('latency') ? Math.min(20_000, Number(p.get('latency')) || 0) : undefined,
+    // mock only: the direct macOS download with this version offered (docs/UPDATER.md); "none" offers nothing
+    update: p.get('update') ?? undefined,
   };
 }
 
 /** Chooses the engine: the Tauri adapter inside the desktop shell, the in-memory mock everywhere else. */
-export async function createServices(mock: 'demo' | 'empty', lang: Lang, latencyMs?: number): Promise<{ engine: EngineClient; platform: Platform }> {
+export async function createServices(mock: 'demo' | 'empty', lang: Lang, latencyMs?: number, update?: string): Promise<{ engine: EngineClient; platform: Platform }> {
   if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
     const m = await import('@mqttpanel/engine-client/tauri');
     return { engine: m.createTauriEngineClient(), platform: m.createTauriPlatform() };
   }
   const m = await import('@mqttpanel/engine-client/mock');
-  const services = { engine: m.createMockEngineClient({ scenario: mock, lang, latencyMs }), platform: m.createMockPlatform() };
+  const updateOffer = update && update !== 'none' ? { version: update, date: '2026-11-02', notes: null } : null;
+  const engine = m.createMockEngineClient({ scenario: mock, lang, latencyMs, selfUpdate: update !== undefined, updateOffer });
+  const services = { engine, platform: m.createMockPlatform() };
   // browser and e2e only (never in the desktop shell): lets Playwright flows inject messages and read the clipboard and saves
   (window as unknown as { __mqttpanelMock?: typeof services }).__mqttpanelMock = services;
   return services;
@@ -71,7 +76,7 @@ export async function startApp(eng: EngineClient, plat: Platform, o: BootOverrid
     menuHooked = true;
     i18n.on('languageChanged', (l) => relabel(l));
   }
-  useApp.setState({ appInfo, settings });
+  useApp.setState({ appInfo, settings, update: null, updateLater: null });
   void eng
     .keyStoreKind()
     .then((keyStore) => useApp.setState({ keyStore }))
@@ -113,6 +118,8 @@ export async function startApp(eng: EngineClient, plat: Platform, o: BootOverrid
     if (first) useApp.setState({ activeConnId: first, connections: await engine().listConnections(), profiles: await engine().listProfiles() });
   }
   useApp.setState({ ready: true });
+  // the direct macOS download checks for updates once the window is up (docs/UPDATER.md)
+  if (appInfo.selfUpdate) void startUpdates(eng);
 }
 
 export function defaultLang(o: BootOverrides): Lang {

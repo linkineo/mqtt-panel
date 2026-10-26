@@ -9,6 +9,7 @@ import { shortcut } from '../../lib/keys';
 import { ConfirmDialog, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { fmtBytes, fmtNum } from '../../lib/format';
 import { AssistantSettings } from './AssistantSettings';
+import { UpdatesSettings } from './UpdatesSettings';
 
 const PAGES = ['appearance', 'language', 'data', 'security', 'assistant', 'updates', 'shortcuts', 'privacy', 'about'] as const;
 type Page = (typeof PAGES)[number];
@@ -311,10 +312,14 @@ export function SettingsScreen() {
           {sec(
             'updates',
             <>
-              <p className="small muted" data-testid="updates-store" style={{ maxWidth: '90ch', margin: 0 }}>
-                {t('settings.updatesStore')}
-              </p>
-              <p className="small" style={{ margin: '6px 0 0' }}>
+              {info.selfUpdate ? (
+                <UpdatesSettings />
+              ) : (
+                <p className="small muted" data-testid="updates-store" style={{ maxWidth: '90ch', margin: 0 }}>
+                  {t('settings.updatesStore')}
+                </p>
+              )}
+              <p className="small" style={{ margin: info.selfUpdate ? '12px 0 0' : '6px 0 0' }}>
                 <button
                   type="button"
                   className="btn link"
@@ -349,9 +354,16 @@ export function SettingsScreen() {
           )}
           {sec(
             'privacy',
-            <p className="small muted" style={{ maxWidth: '90ch' }}>
-              {t('settings.privacyText')}
-            </p>,
+            <>
+              <p className="small muted" style={{ maxWidth: '90ch' }}>
+                {t('settings.privacyText')}
+              </p>
+              {info.selfUpdate && (
+                <p className="small muted" style={{ maxWidth: '90ch' }} data-testid="privacy-updates">
+                  {t('settings.privacyUpdates')}
+                </p>
+              )}
+            </>,
           )}
           {sec(
             'about',
