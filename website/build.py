@@ -380,9 +380,10 @@ def download_section(t):
         mas_cls = "badge plain"
     ms = f'<img src="/assets/badges/microsoft-store.svg" alt="{e(d["ms"])}" width="175" height="48">'
     gh = f'{GH_MARK}<span>{e(d["gh"])}</span>'
-    badges = dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge")
+    # The direct macOS download sits with the store badges; the GitHub button stays alone under the rule.
     dmg = dl_link(t, MAC_DMG_URL, f'<span>{e(d["dmg"])}</span>', "badge plain", d["dmg_note"])
-    build = dmg + dl_link(t, GITHUB_URL, gh, "badge plain gh", d["gh_note"])
+    badges = dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge") + dmg
+    build = dl_link(t, GITHUB_URL, gh, "badge plain gh", d["gh_note"])
     return f"""<section class="dlband" id="download" aria-labelledby="download-h">
   <h2 id="download-h">{e(d["h"])}</h2>
   <ul class="badges">{badges}</ul>
