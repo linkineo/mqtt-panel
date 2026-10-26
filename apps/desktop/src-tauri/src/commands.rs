@@ -30,7 +30,8 @@ pub fn app_info(app: AppHandle) -> AppInfo {
     } else {
         "linux"
     };
-    AppInfo { version: env!("CARGO_PKG_VERSION").into(), platform: platform.into(), native: true, self_update: crate::updates::enabled(&app) }
+    // The version of the Tauri configuration, the single source for every variant (the updater compares it too).
+    AppInfo { version: app.package_info().version.to_string(), platform: platform.into(), native: true, self_update: crate::updates::enabled(&app) }
 }
 
 /// Where the master key lives in this build: "file" or "keychain" (change set 10; the ⓘ next to the key fields says it).
