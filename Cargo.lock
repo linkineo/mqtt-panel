@@ -2858,7 +2858,7 @@ dependencies = [
 
 [[package]]
 name = "mqttpanel-broker"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "argon2",
  "bytes",
@@ -2887,7 +2887,7 @@ dependencies = [
 
 [[package]]
 name = "mqttpanel-cli"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2908,7 +2908,7 @@ dependencies = [
 
 [[package]]
 name = "mqttpanel-client"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "bytes",
  "futures-util",
@@ -2930,7 +2930,7 @@ dependencies = [
 
 [[package]]
 name = "mqttpanel-desktop"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.22.1",
  "dirs 6.0.0",
@@ -2958,7 +2958,7 @@ dependencies = [
 
 [[package]]
 name = "mqttpanel-engine"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.22.1",
  "ciborium",
@@ -2974,7 +2974,7 @@ dependencies = [
 
 [[package]]
 name = "mqttpanel-profiles"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -2993,7 +2993,7 @@ dependencies = [
 
 [[package]]
 name = "mqttpanel-shim"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "mqttpanel-profiles",
  "tokio",
@@ -3002,7 +3002,7 @@ dependencies = [
 
 [[package]]
 name = "mqttpanel-tls"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.22.1",
  "hex",
