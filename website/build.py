@@ -6,6 +6,7 @@ Deploy: see website/README.md. Static files only: no cookies, no trackers, nothi
 """
 import html
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -14,10 +15,12 @@ import sys
 
 # ---- The owner fills the store links when the listings exist (the GitHub repository is public). Empty: the link goes nowhere (href="#", aria-disabled) and
 # shows "coming soon". They appear in the Download section at the bottom of the home page. The app is distributed
-# through the two stores only (owner, 25 Oct 2026); GitHub holds the source for people who build it themselves.
+# through the two stores and, for macOS, as a signed and notarized DMG attached to the GitHub release (owner,
+# 26 Oct 2026); the asset name never carries the version so the link below always points at the latest release.
 MAC_APP_STORE_URL = ""
 MICROSOFT_STORE_URL = ""
 GITHUB_URL = "https://github.com/linkineo/mqtt-panel"
+MAC_DMG_URL = GITHUB_URL + "/releases/latest/download/MQTT-Panel-macOS.dmg"
 
 ROOT = pathlib.Path(__file__).resolve().parent
 REPO = ROOT.parent
@@ -28,19 +31,22 @@ PREFIX = {"en": "", "fr": "/fr", "de": "/de"}
 ICONS = REPO / "apps" / "desktop" / "src-tauri" / "icons"
 YEAR = 2026
 
-# Words that must never appear on the site: the patterns of scripts/check-forbidden-words.sh (split so the
-# repository guard does not trip on this file), the former brand pattern included.
-FORBIDDEN = [
-    # (pattern removed)
-    # (pattern removed)
-    # (pattern removed)
-    # (pattern removed)
-    # (pattern removed)
-    # (pattern removed)
-    # (pattern removed)
-    # (pattern removed)
-    # (pattern removed)
-]
+# Words that must never appear on the site: the private pattern list of scripts/check-forbidden-words.sh
+# (.forbidden-words.local at the repository root, git-ignored; the prefixes name:/brand: are dropped here).
+# The site is only built and deployed by the maintainer, so a missing list fails the build.
+FORBIDDEN_LIST = pathlib.Path(os.environ.get("MQTTPANEL_FORBIDDEN_WORDS", REPO / ".forbidden-words.local"))
+
+
+def forbidden_patterns():
+    if not FORBIDDEN_LIST.is_file():
+        sys.exit(f"forbidden-words list not found: {FORBIDDEN_LIST} (private to the maintainer)")
+    pats = []
+    for line in FORBIDDEN_LIST.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        pats.append(line.split(":", 1)[1] if line.startswith(("name:", "brand:")) else line)
+    return pats
 
 
 def e(s):
@@ -64,8 +70,9 @@ T = {
         nav_features="Features", nav_privacy="Privacy", lang_label="Language",
         lead="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in. Your AI assistant can drive it too: Claude and ChatGPT connect through MCP to set up brokers, certificates and charts for you.",
         dl=dict(button="Download", h="Download", soon="coming soon", mas="Download on the Mac App Store",
-                ms="Get it from Microsoft", stores="MQTT Panel is installed and updated through the Microsoft Store and the Mac App Store.",
-                gh="Build it yourself", gh_note="Source code for developers; no installers are published there."),
+                ms="Get it from Microsoft", stores="MQTT Panel is installed and updated through the Microsoft Store and the Mac App Store. On macOS you can also download it directly.",
+                dmg="Download for macOS", dmg_note="Universal app for Apple silicon and Intel, macOS 11 or later, signed and notarized. A direct download does not update itself.",
+                gh="Build it yourself", gh_note="Source code and release notes for developers."),
         demo_h="A closer look",
         demo_p="Screens from the app, with demo data.",
         looks=[
@@ -133,8 +140,9 @@ T = {
         nav_features="Fonctions", nav_privacy="Confidentialité", lang_label="Langue",
         lead="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré. Votre assistant IA peut aussi piloter l’app : Claude et ChatGPT s’y connectent par MCP et préparent brokers, certificats et courbes à votre place.",
         dl=dict(button="Télécharger", h="Télécharger", soon="bientôt disponible", mas="Télécharger dans le Mac App Store",
-                ms="Obtenir auprès de Microsoft", stores="MQTT Panel s’installe et se met à jour par le Microsoft Store et le Mac App Store.",
-                gh="Compilez-le vous-même", gh_note="Le code source, pour les développeurs ; aucun programme d’installation n’y est publié."),
+                ms="Obtenir auprès de Microsoft", stores="MQTT Panel s’installe et se met à jour par le Microsoft Store et le Mac App Store. Sur macOS, vous pouvez aussi le télécharger directement.",
+                dmg="Télécharger pour macOS", dmg_note="App universelle (Apple silicon et Intel), macOS 11 ou plus récent, signée et notarisée. Un téléchargement direct ne se met pas à jour tout seul.",
+                gh="Compilez-le vous-même", gh_note="Le code source et les notes de version, pour les développeurs."),
         demo_h="Vu de plus près",
         demo_p="Des écrans de l’app, avec des données de démonstration.",
         looks=[
@@ -202,8 +210,9 @@ T = {
         nav_features="Funktionen", nav_privacy="Datenschutz", lang_label="Sprache",
         lead="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker. Auch dein KI-Assistent kann die App steuern: Claude und ChatGPT verbinden sich über MCP und richten Broker, Zertifikate und Kurven für dich ein.",
         dl=dict(button="Herunterladen", h="Herunterladen", soon="bald verfügbar", mas="Laden im Mac App Store",
-                ms="Bei Microsoft herunterladen", stores="MQTT Panel wird über den Microsoft Store und den Mac App Store installiert und aktualisiert.",
-                gh="Selbst bauen", gh_note="Quellcode für Entwickler; dort werden keine Installationsprogramme veröffentlicht."),
+                ms="Bei Microsoft herunterladen", stores="MQTT Panel wird über den Microsoft Store und den Mac App Store installiert und aktualisiert. Auf dem Mac kannst du es auch direkt herunterladen.",
+                dmg="Für macOS herunterladen", dmg_note="Universelle App für Apple Silicon und Intel, macOS 11 oder neuer, signiert und notarisiert. Ein direkter Download aktualisiert sich nicht selbst.",
+                gh="Selbst bauen", gh_note="Quellcode und Versionshinweise für Entwickler."),
         demo_h="Genauer hingeschaut",
         demo_p="Bildschirme aus der App, mit Demodaten.",
         looks=[
@@ -357,8 +366,8 @@ GH_MARK = '<img src="/assets/badges/github-mark-white.svg" alt="" width="25" hei
 
 def download_section(t):
     """The Download band at the bottom of the home page: the official store badges (black, never recoloured), the
-    sentence that the stores install and update the app, then the GitHub button for people who build it themselves.
-    No installers are offered (owner, 25 Oct 2026)."""
+    sentence that the stores install and update the app, then the direct macOS download (signed and notarized DMG
+    on the GitHub release) and the GitHub button for people who build it themselves."""
     d = t["dl"]
     if (BADGES / MAS_BADGE).exists():
         mas = f'<img src="/assets/badges/{MAS_BADGE}" alt="{e(d["mas"])}" height="48">'
@@ -369,7 +378,8 @@ def download_section(t):
     ms = f'<img src="/assets/badges/microsoft-store.svg" alt="{e(d["ms"])}" width="175" height="48">'
     gh = f'{GH_MARK}<span>{e(d["gh"])}</span>'
     badges = dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge")
-    build = dl_link(t, GITHUB_URL, gh, "badge plain gh", d["gh_note"])
+    dmg = dl_link(t, MAC_DMG_URL, f'<span>{e(d["dmg"])}</span>', "badge plain", d["dmg_note"])
+    build = dmg + dl_link(t, GITHUB_URL, gh, "badge plain gh", d["gh_note"])
     return f"""<section class="dlband" id="download" aria-labelledby="download-h">
   <h2 id="download-h">{e(d["h"])}</h2>
   <ul class="badges">{badges}</ul>
@@ -648,7 +658,7 @@ def refresh_licences():
 # ------------------------------------------------------------------------------------------------ build
 
 def check_forbidden():
-    pats = [re.compile(p, re.I) for p in FORBIDDEN]
+    pats = [re.compile(p, re.I) for p in forbidden_patterns()]
     hits = []
     for f in OUT.rglob("*"):
         if f.suffix not in (".html", ".txt", ".xml", ".js", ".css", ".json"):
