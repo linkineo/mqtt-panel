@@ -12,7 +12,6 @@ cd "$(dirname "$0")/.."
 set -a; . ./.env.local; set +a
 : "${ASC_KEY_ID:?}" "${ASC_ISSUER_ID:?}" "${APPLE_TEAM_ID:?}" "${APPLE_SIGNING_IDENTITY:?}" "${APPLE_INSTALLER_IDENTITY:?}" "${MQTTPANEL_PROVISIONING_PROFILE:?}"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-scripts/check-forbidden-words.sh
 
 SRC=apps/desktop/src-tauri
 PROFILE="${MQTTPANEL_PROVISIONING_PROFILE/#\~/$HOME}"

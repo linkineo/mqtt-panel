@@ -45,7 +45,7 @@ Reporting a vulnerability: open a private security advisory on GitHub (Security,
 | SEC-19 | TLS kit | Untrusted key/PKCS#12 files control KDF cost | `crates/tls/src/parse.rs` | Check iteration counts and scrypt parameters against sane maxima before decrypting; run inspection off the UI thread with a timeout. |
 | SEC-20 | TLS kit | Local CA is unconstrained | `crates/tls/src/kit.rs` | Set pathLen 0 and, where possible, name constraints (localhost, .local, the chosen LAN names); advise trusting it only on test devices. |
 | SEC-21 | Client | Client accepts packets up to 256 MB from the broker | `crates/client/src/session.rs` | Advertise and enforce a configurable maximum (for example 16 MiB) and announce it in CONNECT. |
-| SEC-22 | Supply chain | No CI workflow in the repository | `.github` | Add a workflow running cargo deny check, npm audit --omit=dev, cargo test, clippy and scripts/check-forbidden-words.sh on every push and on a schedule. |
+| SEC-22 | Supply chain | No CI workflow in the repository | `.github` | Add a workflow running cargo deny check, npm audit --omit=dev, cargo test and clippy on every push and on a schedule. |
 | SEC-23 | Supply chain | npm audit: undici high advisories (dev-only, via jsdom) | `package-lock.json` | npm audit fix (or bump jsdom) and keep CI auditing with --omit=dev for the shipped tree. |
 | SEC-24 | Desktop app | Test hooks active in release builds | `crates/cli/src/conn.rs` | Compile these hooks only under cfg(debug_assertions) or a test feature. |
 | SEC-25 | Test lab | Lab writes generated passwords in clear and offers an insecure TLS mode | `tools/testlab/mosquitto_broker.py` | Keep as is for the lab; add a header warning in README and purge results/ before sharing machines. |

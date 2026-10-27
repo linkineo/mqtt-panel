@@ -130,7 +130,6 @@ cargo test --workspace          # Rust crates
 npm test                        # Vitest, UI components
 npm run e2e                     # Playwright flows and the overflow check in EN, FR and DE
 cargo deny check                # licences and advisories
-scripts/check-forbidden-words.sh
 ```
 
 Tests that use public brokers are opt-in: `MQTTPANEL_PUBLIC_BROKERS=1 cargo test --workspace -- --ignored`.

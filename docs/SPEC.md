@@ -95,7 +95,7 @@ mqtt-panel/
     cli/              mqttpanel binary
     profiles/         connection profile storage, keychain, import/export
   docs/               SPEC.md, FEATURES.md, DECISIONS.md, mockups/
-  scripts/            release, signing, visual tests, check-forbidden-words
+  scripts/            release, signing, visual tests
   .github/workflows/  CI matrix (win, mac, linux), release with tauri-action
 ```
 

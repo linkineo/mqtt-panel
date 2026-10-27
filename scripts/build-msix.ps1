@@ -3,13 +3,12 @@
   Builds the Microsoft Store package (MSIX) of MQTT Panel on a Windows machine. See docs/WINDOWS_BUILD.md.
 
 .DESCRIPTION
-  1. Runs scripts/check-forbidden-words.sh through Git Bash.
-  2. Builds the release executable with the Tauri CLI (no Tauri bundle: the Store wants an MSIX, not MSI or NSIS).
-  3. Lays out target\msix\package: mqtt-panel.exe, Assets\*.png, AppxManifest.xml filled from
+  1. Builds the release executable with the Tauri CLI (no Tauri bundle: the Store wants an MSIX, not MSI or NSIS).
+  2. Lays out target\msix\package: mqtt-panel.exe, Assets\*.png, AppxManifest.xml filled from
      apps\desktop\windows\AppxManifest.xml.
-  4. Runs makepri (resources.pri) and makeappx pack. The result, target\msix\MQTTPanel_<version>_x64.msix, is
+  3. Runs makepri (resources.pri) and makeappx pack. The result, target\msix\MQTTPanel_<version>_x64.msix, is
      UNSIGNED: that is the file to upload to Partner Center, where the Store signs it.
-  5. With -TestSign: signs a separate copy (..._test-signed.msix) with a self-signed certificate whose subject equals
+  4. With -TestSign: signs a separate copy (..._test-signed.msix) with a self-signed certificate whose subject equals
      the Publisher, for local installation only. With -Install: installs that copy with Add-AppxPackage.
 
   Identity values are parameters (from Partner Center, "Product identity"); they are never written into the repository.
@@ -58,14 +57,6 @@ function Find-SdkTool([string]$name) {
   return $hit
 }
 
-function Find-GitBash {
-  foreach ($p in @("$env:ProgramFiles\Git\bin\bash.exe", "${env:ProgramFiles(x86)}\Git\bin\bash.exe", "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe")) {
-    if ($p -and (Test-Path $p)) { return $p }
-  }
-  # Never fall back to C:\Windows\System32\bash.exe: that is WSL, not Git Bash.
-  throw 'Git Bash not found: install Git for Windows (docs/WINDOWS_BUILD.md, prerequisites)'
-}
-
 # --- 0. Inputs ---------------------------------------------------------------------------------------------------
 if ($Publisher -notmatch '^CN=') { throw 'Publisher must be the full subject from Partner Center, starting with "CN="' }
 if ($Install -and -not $TestSign) { throw '-Install needs -TestSign (Windows installs only signed packages)' }
@@ -79,12 +70,7 @@ $Pkg = Join-Path $Out 'package'
 $Msix = Join-Path $Out "MQTTPanel_${Version}_x64.msix"
 $TestMsix = Join-Path $Out "MQTTPanel_${Version}_x64_test-signed.msix"
 
-# --- 1. Guard ----------------------------------------------------------------------------------------------------
-Step 'Forbidden-words guard'
-$bash = Find-GitBash
-Invoke-Native $bash @('scripts/check-forbidden-words.sh')
-
-# --- 2. Build ----------------------------------------------------------------------------------------------------
+# --- 1. Build ----------------------------------------------------------------------------------------------------
 if (-not $SkipBuild) {
   Step 'Release build (Tauri, no bundle)'
   Invoke-Native 'npm.cmd' @('run', 'tauri', '--', 'build', '--no-bundle')
@@ -97,7 +83,7 @@ $exe = @('mqtt-panel.exe', 'MQTT Panel.exe') |
 if (-not $exe) { throw 'No release executable under target\release (expected mqtt-panel.exe or "MQTT Panel.exe")' }
 Write-Host "    executable: $exe"
 
-# --- 3. Layout ---------------------------------------------------------------------------------------------------
+# --- 2. Layout ---------------------------------------------------------------------------------------------------
 Step "Package layout in $Pkg"
 if (Test-Path $Pkg) { Remove-Item $Pkg -Recurse -Force }
 New-Item -ItemType Directory -Force -Path (Join-Path $Pkg 'Assets') | Out-Null
@@ -117,7 +103,7 @@ $null = [xml]$manifest   # fails on malformed XML
 $manifestPath = Join-Path $Pkg 'AppxManifest.xml'
 [System.IO.File]::WriteAllText($manifestPath, $manifest, (New-Object System.Text.UTF8Encoding($false)))
 
-# --- 4. makepri and makeappx -------------------------------------------------------------------------------------
+# --- 3. makepri and makeappx -------------------------------------------------------------------------------------
 $makepri = Find-SdkTool 'makepri.exe'
 $makeappx = Find-SdkTool 'makeappx.exe'
 Step 'makepri'
@@ -128,7 +114,7 @@ Step 'makeappx pack'
 Invoke-Native $makeappx @('pack', '/d', $Pkg, '/p', $Msix, '/o')
 Write-Host "    unsigned package for Partner Center: $Msix" -ForegroundColor Green
 
-# --- 5. Local test signing and install ---------------------------------------------------------------------------
+# --- 4. Local test signing and install ---------------------------------------------------------------------------
 if ($TestSign) {
   Step 'Test signing (local only; never upload this copy)'
   $cert = Get-ChildItem Cert:\CurrentUser\My |

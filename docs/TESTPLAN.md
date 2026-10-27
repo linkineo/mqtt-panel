@@ -300,7 +300,6 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | ID | Level | Tag | Test | Expected |
 |---|---|---|---|---|
 | R-01 | U | auto | `cargo deny` licence allow-list and advisories; `npm audit` | Clean. |
-| R-02 | U | auto | `scripts/check-forbidden-words.sh` on the tree and on the built app strings | Clean. |
 | R-03 | M | manual | Beta builds (unsigned): install on each OS with the "how to run it" note | Note is accurate. |
 | R-04 | M | manual | Store builds: the Mac App Store build passes App Store Connect validation and installs from TestFlight; the MSIX passes the Windows App Certification Kit and Partner Center validation; a store update installs over the previous version | Validation clean; the update keeps profiles and secrets. |
 

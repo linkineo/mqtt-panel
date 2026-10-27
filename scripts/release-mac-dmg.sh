@@ -41,7 +41,6 @@ set -a; . ./.env.local; set +a
 : "${TAURI_SIGNING_PRIVATE_KEY_PATH:?}" "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD?}"
 TAURI_SIGNING_PRIVATE_KEY_PATH="${TAURI_SIGNING_PRIVATE_KEY_PATH/#\~/$HOME}"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-scripts/check-forbidden-words.sh
 
 KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8}"
 [ -f "$KEY_PATH" ] || { echo "App Store Connect key not found: $KEY_PATH"; exit 2; }

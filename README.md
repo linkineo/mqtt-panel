@@ -111,7 +111,6 @@ cargo test --workspace            # Rust crates
 npm test                          # Vitest, UI components
 npm run e2e                       # Playwright flows and the overflow check in EN, FR and DE
 cargo deny check                  # licences and advisories
-scripts/check-forbidden-words.sh
 ```
 
 Playwright needs its browser once: `npx --workspace @mqttpanel/ui playwright install chromium`.

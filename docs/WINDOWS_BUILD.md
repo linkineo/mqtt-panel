@@ -15,11 +15,6 @@ Produce the **Microsoft Store package (MSIX)** of MQTT Panel, version from `apps
 - Read `CLAUDE.md` at the repository root first; it applies to you.
 - Never commit secrets: no `.pfx`, `.p12`, `.cer`, private keys, passwords, Partner Center values filled into files, or a filled `AppxManifest.xml`. The Partner Center identity values are passed as script parameters only.
 - Never write personal names, personal e-mail addresses, employer names or local paths (for example `C:\Users\<name>\...`) into any file of the repository, a commit message or a report meant for the repository. No company or other brand name appears anywhere; the app and the docs reference the website **mqtt-panel.com** only. The predecessor tool is never named.
-- Never skip `scripts/check-forbidden-words.sh`. It is a POSIX shell script: run it through **Git Bash**, never through WSL (`C:\Windows\System32\bash.exe` is WSL):
-  ```powershell
-  & "$env:ProgramFiles\Git\bin\bash.exe" scripts/check-forbidden-words.sh
-  ```
-  It must print `check-forbidden-words: OK`. `scripts/build-msix.ps1` runs it too.
 - Do not touch `website/`. Do not change UI texts, the mockups or the specs; report what you think should change instead.
 - Do not run the macOS scripts (`scripts/release-mac-testflight.sh`).
 - Commits: only when asked, never `git add -A`, add files by name. Identity and trailer:
@@ -32,7 +27,7 @@ Produce the **Microsoft Store package (MSIX)** of MQTT Panel, version from `apps
 
 Run in a normal PowerShell unless "elevated" is stated. Close and reopen PowerShell after installs so `PATH` is refreshed.
 
-1. **Git for Windows** (gives Git Bash), if `git --version` fails:
+1. **Git for Windows**, if `git --version` fails:
    ```powershell
    winget install --id Git.Git -e
    ```
@@ -82,7 +77,6 @@ npx --workspace @mqttpanel/ui playwright install chromium
 From the repository root:
 
 ```powershell
-& "$env:ProgramFiles\Git\bin\bash.exe" scripts/check-forbidden-words.sh
 cargo test --workspace
 npm run typecheck
 npm test                      # Vitest (packages/ui)
@@ -128,11 +122,10 @@ powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 `
 
 Add `-SkipBuild` when section 5 already built the executable. The script:
 
-1. runs the forbidden-words guard through Git Bash;
-2. builds the executable (`npm run tauri -- build --no-bundle`) unless `-SkipBuild`;
-3. lays out `target\msix\package\` (executable, `Assets\`, filled `AppxManifest.xml`; `target\` is ignored by git);
-4. runs `makepri createconfig` and `makepri new` (writes `resources.pri`), then `makeappx pack`;
-5. prints the path of the **unsigned** package: `target\msix\MQTTPanel_<version>_x64.msix`.
+1. builds the executable (`npm run tauri -- build --no-bundle`) unless `-SkipBuild`;
+2. lays out `target\msix\package\` (executable, `Assets\`, filled `AppxManifest.xml`; `target\` is ignored by git);
+3. runs `makepri createconfig` and `makepri new` (writes `resources.pri`), then `makeappx pack`;
+4. prints the path of the **unsigned** package: `target\msix\MQTTPanel_<version>_x64.msix`.
 
 The same steps by hand, if the script fails and you need to find out where:
 

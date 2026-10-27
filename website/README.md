@@ -9,7 +9,7 @@ resources.
 
 | File | Role |
 |---|---|
-| `build.py` | Generates `public/` from the texts in the file (EN, FR, DE). Fails if a forbidden word appears in the output. The download links are constants at the top (see Download section below). |
+| `build.py` | Generates `public/` from the texts in the file (EN, FR, DE). The download links are constants at the top (see Download section below). |
 | `style.css`, `site.js`, `theme.js` | Styles (light or dark: the system one until the visitor picks one in the header), the live views, the tabs, the typing terminal, the mock chat, and `theme.js`, which applies a stored choice before the page paints. |
 | `/app/` (built) | The app's own interface in demo mode (`npm run build:site -w @mqttpanel/ui`, copied from `packages/ui/dist-site` by `build.py`). The live views load it in frames from the same site, run a few setup steps (`SCENES` in `build.py`) and show it scaled, without interaction; the screenshots are the posters and the fallback (no script, reduced motion, screens under 700 px except the hero, off screen). |
 | `worker.js`, `wrangler.jsonc` | The Worker, its routes (`mqtt-panel.com`, `www.mqtt-panel.com` as custom domains) and the assets binding. |

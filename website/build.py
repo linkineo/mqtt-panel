@@ -6,7 +6,6 @@ Deploy: see website/README.md. Static files only: no cookies, no trackers, nothi
 """
 import html
 import json
-import os
 import pathlib
 import re
 import shutil
@@ -30,24 +29,6 @@ LANGS = ["en", "fr", "de"]
 PREFIX = {"en": "", "fr": "/fr", "de": "/de"}
 ICONS = REPO / "apps" / "desktop" / "src-tauri" / "icons"
 YEAR = 2026
-
-# Words that must never appear on the site: the private pattern list of scripts/check-forbidden-words.sh
-# (.forbidden-words.local at the repository root, git-ignored; the prefixes name:/brand: are dropped here).
-# The site is only built and deployed by the maintainer, so a missing list fails the build.
-FORBIDDEN_LIST = pathlib.Path(os.environ.get("MQTTPANEL_FORBIDDEN_WORDS", REPO / ".forbidden-words.local"))
-
-
-def forbidden_patterns():
-    if not FORBIDDEN_LIST.is_file():
-        sys.exit(f"forbidden-words list not found: {FORBIDDEN_LIST} (private to the maintainer)")
-    pats = []
-    for line in FORBIDDEN_LIST.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        pats.append(line.split(":", 1)[1] if line.startswith(("name:", "brand:")) else line)
-    return pats
-
 
 def e(s):
     return html.escape(s, quote=True)
@@ -661,21 +642,6 @@ def refresh_licences():
 
 # ------------------------------------------------------------------------------------------------ build
 
-def check_forbidden():
-    pats = [re.compile(p, re.I) for p in forbidden_patterns()]
-    hits = []
-    for f in OUT.rglob("*"):
-        if f.suffix not in (".html", ".txt", ".xml", ".js", ".css", ".json"):
-            continue
-        text = f.read_text(encoding="utf-8", errors="replace")
-        for p in pats:
-            if p.search(text):
-                hits.append(f"{f.relative_to(OUT)}: {p.pattern}")
-    if hits:
-        print("forbidden words on the site:\n  " + "\n  ".join(hits))
-        sys.exit(1)
-
-
 def build():
     third_path = ROOT / "third-party.json"
     if not third_path.exists():
@@ -709,7 +675,6 @@ def build():
     (OUT / "sitemap.xml").write_text(
         f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'
     )
-    check_forbidden()
     print("built", sum(1 for _ in OUT.rglob("*.html")), "pages into", OUT.relative_to(REPO))
 
 

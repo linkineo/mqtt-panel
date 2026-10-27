@@ -26,7 +26,7 @@ Implementation status of MQTT Panel against `docs/SPEC.md` section 12. Version 1
 | Vitest (`npm test`) | 197 passed |
 | Playwright (`npm run e2e`: V-02 overflow in EN, FR, DE, V-01 screenshots light and dark, end-to-end flows with the mock engine) | 348 passed |
 | MCP prompts lab (`tools/testlab/mcp_prompts/run.py`, cases C12a, C12b, C14) | 3 passed |
-| `scripts/check-forbidden-words.sh`, `python3 website/build.py` | OK |
+| `python3 website/build.py` | OK |
 
 Opt-in tests (`-- --ignored`, nightly): public brokers (`MQTTPANEL_PUBLIC_BROKERS=1`), performance (B-14, Q-02).
 

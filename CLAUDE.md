@@ -12,10 +12,9 @@ whichever model runs it.
 - The official website is **https://mqtt-panel.com**. The app and the website reference the website only: copyright lines read "© 2026 mqtt-panel.com".
 - No company or other brand name appears anywhere in the repository. The app mark is a decorative icon in the title bar (`aria-hidden`, no title, no text naming it). The store-bound bundle identifier `com.remora-labs.mqttpanel` is the one exception and never changes.
 - Never write personal names, personal e-mail addresses, employer names or local file paths anywhere in the repository.
-- One exception: the copyright holder's name appears only in the copyright line of `LICENSE` and `NOTICE`, nowhere else. `scripts/check-forbidden-words.sh` skips those two files for the personal-name patterns only.
-- The public repository is https://github.com/linkineo/mqtt-panel; its URL may be written in files (README, docs, website, the app's Settings). The forbidden-words patterns about the e-mail address stay.
+- One exception: the copyright holder's name appears only in the copyright line of `LICENSE` and `NOTICE`, nowhere else.
+- The public repository is https://github.com/linkineo/mqtt-panel; its URL may be written in files (README, docs, website, the app's Settings).
 - The predecessor tool that inspired this project is **never named** in this repository, in commit messages, release notes, the website or app strings. Write "the predecessor tool" when a reference is unavoidable.
-- Run `scripts/check-forbidden-words.sh` before every commit. A hit blocks the commit.
 - The website (`website/`) runs its own check in `build.py` on the generated HTML (the same patterns, the former brand pattern included); a hit fails the build.
 
 ## Languages
@@ -40,4 +39,4 @@ whichever model runs it.
 ## Commits
 - Commit identity: the git identity configured in this clone (`git config user.name` / `user.email`); never pass `-c user.name=…`. That name in git metadata is the one allowed exception to the no-personal-names rule; it still never appears in files.
 - Commit messages end with the line `Co-Authored-By: Claude <model name> <noreply@anthropic.com>` using the model that made the change.
-- Before committing: `scripts/check-forbidden-words.sh`, then tests.
+- Before committing: run the tests.

@@ -159,7 +159,7 @@ Rows: the acknowledgement (accepted date or the button); hosts: "Add to Claude",
 - Hosts: Claude Code configured by the Settings button, one scripted session that connects to the built-in broker,
   charts a value and exports a CSV; ChatGPT checked by hand in the spike. The prompts lab (`docs/MCP_PROMPTS.md`,
   `tools/testlab/mcp_prompts/`) runs 17 plain English prompts through Claude Code and checks each outcome.
-- The forbidden-words guard covers the new strings; FR and DE need the native review like everything else.
+- FR and DE need the native review like everything else.
 
 ## 8. Phases
 

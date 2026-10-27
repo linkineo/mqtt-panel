@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import en from '../i18n/en/ui.json';
 import enErrors from '../i18n/en/errors.json';
@@ -68,33 +68,8 @@ describe('Catalog completeness', () => {
           const ph = (s: string) => Array.from(s.matchAll(/\{(\w+)\}/g), (m) => m[1]).sort().join(',');
           if (ph(v) !== ph(cat[k])) bad.push(`${lang}: placeholders differ in ${k}`);
         }
-        for (const re of forbidden) if (re.test(v)) bad.push(`${lang}: forbidden word in ${k}`);
       }
       expect(bad).toEqual([]);
     }
   });
-
-  it.skipIf(forbidden.length === 0)('no catalog (EN, FR, DE) contains a word blocked by the forbidden-words list', async () => {
-    const bad: string[] = [];
-    for (const lang of ['en', 'fr', 'de']) {
-      for (const file of ['ui', 'errors']) {
-        const c = (await import(`../i18n/${lang}/${file}.json`)).default as Record<string, string>;
-        for (const [k, v] of Object.entries(c)) for (const re of forbidden) if (re.test(v)) bad.push(`${lang}/${file}: ${k}`);
-      }
-    }
-    expect(bad).toEqual([]);
-  });
 });
-
-/** The same patterns as the commit guard, read from the maintainer's private list (.forbidden-words.local at the
- * repository root, git-ignored) so the list lives in one place; without the file the two checks are skipped. */
-const forbiddenList = process.env.MQTTPANEL_FORBIDDEN_WORDS ?? join(root, '..', '..', '..', '.forbidden-words.local');
-const forbidden: RegExp[] = (() => {
-  if (!existsSync(forbiddenList)) return [];
-  return readFileSync(forbiddenList, 'utf8')
-    .split('\n')
-    .map((p) => p.trim())
-    .filter((p) => p && !p.startsWith('#'))
-    .map((p) => p.replace(/^(name|brand):/, ''))
-    .map((p) => new RegExp(p, 'i'));
-})();

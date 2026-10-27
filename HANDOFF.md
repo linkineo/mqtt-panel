@@ -18,7 +18,7 @@ https://github.com/linkineo/mqtt-panel (`git clone https://github.com/linkineo/m
 | `packages/ui` | React UI, i18n catalogs (`src/i18n/{en,fr,de}`), Vitest tests, Playwright suites (`e2e/`) |
 | `packages/engine-client` | `EngineClient` interface, the Tauri adapter and the mock engine used by UI tests and the browser build |
 | `website/` | Static site https://mqtt-panel.com (EN, FR, DE), one Cloudflare Worker |
-| `scripts/` | Forbidden-words guard, app icon, Mac App Store release, MSIX build, App Store Connect scripts (`asc/`) |
+| `scripts/` | App icon, Mac App Store release, MSIX build, App Store Connect scripts (`asc/`) |
 | `tools/testlab/` | Manual test lab: Mosquitto in five security modes, Paho clients against the built-in broker |
 | `tests/fixtures/` | Synthetic fixtures (packets, import files) |
 
@@ -45,7 +45,7 @@ https://github.com/linkineo/mqtt-panel (`git clone https://github.com/linkineo/m
 - Native feel is a requirement (`docs/SPEC.md` 1.2).
 - Plain words in labels; form rows never wrap; every file field is a native picker with drag-and-drop; every security
   option has an ⓘ bubble in EN, FR and DE.
-- Keep the forbidden-words guard green and never commit secrets.
+- Never commit secrets.
 - MQTT Panel is source-available (Apache 2.0 with the Commons Clause); never call it "open source".
 
 ## Build and test
@@ -58,7 +58,6 @@ npm run e2e                                 # Playwright: flows, V-02 overflow c
 npm run dev                                 # UI in a browser with the mock engine (http://localhost:1420)
 npm run tauri dev                           # the desktop app
 cargo deny check                            # licences, advisories, sources
-scripts/check-forbidden-words.sh            # must pass before every commit
 "<app executable>" mcp                      # the MCP stdio shim (or: mqttpanel mcp); docs/RUNNING.md section 10
 MQTTPANEL_PUBLIC_BROKERS=1 cargo test --workspace -- --ignored   # nightly: public brokers, performance
 ```
@@ -84,7 +83,7 @@ diagnostics without payloads.
 ## Website
 
 ```
-python3 website/build.py                    # generate website/public/ (EN, FR, DE); fails on a forbidden word
+python3 website/build.py                    # generate website/public/ (EN, FR, DE)
 python3 website/build.py --licences         # also refresh third-party.json
 WRANGLER=<path to wrangler> website/deploy.sh   # build, then deploy the Worker
 ```
