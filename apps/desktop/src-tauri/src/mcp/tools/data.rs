@@ -278,12 +278,11 @@ async fn get_history(c: Call) -> Result<Outcome, Fail> {
     let before = c.opt_u64("before")?;
     let e = lock(&conn.engine);
     let all = e.history(&topic);
+    // `history` is newest first: the page is the first `limit` entries older than `before`.
     let older: Vec<_> = all.iter().filter(|h| before.is_none_or(|b| h.seq < b)).collect();
-    let start = older.len().saturating_sub(limit);
-    let page = &older[start..];
+    let page = &older[..older.len().min(limit)];
     let rows: Vec<Value> = page
         .iter()
-        .rev()
         .map(|h| {
             let (payload, format, cutoff) = match e.message(&topic, h.seq, PayloadFormat::Auto, false) {
                 Some(m) => payload_value(&m.decoded, ROW_PAYLOAD_MAX),
@@ -293,8 +292,8 @@ async fn get_history(c: Call) -> Result<Outcome, Fail> {
         })
         .collect();
     drop(e);
-    let more = start > 0;
-    let next_before = if more { page.first().map(|h| h.seq) } else { None };
+    let more = older.len() > page.len();
+    let next_before = if more { page.last().map(|h| h.seq) } else { None };
     let text = if rows.is_empty() {
         c.t("data.historyEmpty", &[("topic", json!(topic))])
     } else {

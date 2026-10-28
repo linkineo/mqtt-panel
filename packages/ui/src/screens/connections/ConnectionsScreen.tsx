@@ -135,7 +135,7 @@ function ProfileCard({ p, on, onSelect, dragProps }: { p: Profile; on: boolean; 
         <span className={`chip ${chip.tone}`} data-testid="card-chip">
           {chip.label}
         </span>
-        <CertWarning kind={certWarning(conn, p)} testId="card-warn" />
+        <CertWarning kind={certWarning(conn, p)} always={p.tls.skipVerify} testId="card-warn" />
       </div>
       <div className="s mono" data-testid="card-address">
         <span className="ell">{hostPort(p)}</span>

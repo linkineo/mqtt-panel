@@ -270,6 +270,15 @@ function HistoryPayload({ m, form, actions }: { m: MessageView; form: PayloadFor
   );
 }
 
+/** A History row's value at the filter path as a comparable key ("missing" differs from null). */
+function filterKey(m: MessageView, path: string): string {
+  const v = filterValueOf(m, path);
+  return v === undefined ? '\u0000' : JSON.stringify(v);
+}
+
+const NO_HISTORY: HistoryEntry[] = [];
+const NO_MSGS = new Map<number, MessageView | null>();
+
 /** The value a History row shows for the filter path (change set 9). */
 function filterValueOf(m: MessageView | null, path: string): unknown {
   if (!m) return undefined;
@@ -370,7 +379,8 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   const [format, setFormat] = useState<PayloadFormat>('auto');
   const [forced, setForced] = useState<MessageView | null>(null);
   const [anyway, setAnyway] = useState(false);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // History is kept with the topic it belongs to, so a paused pane never shows another topic's rows
+  const [hist, setHist] = useState<{ key: string; rows: HistoryEntry[] }>({ key: '', rows: NO_HISTORY });
   const [diff, setDiff] = useState<DiffResult | null>(null);
   const [chartData, setChartData] = useState<Record<string, SeriesData>>({});
   const [sent, setSent] = useState<SentEntry[]>([]);
@@ -379,10 +389,11 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   const [menu, setMenu] = useState<FieldClick | null>(null);
   // change set 9: History rows expanded in place, their messages, and the filter popover
   const [expanded, setExpanded] = useState<number[]>([]);
-  const [expMsgs, setExpMsgs] = useState<Record<number, MessageView>>({});
   const [filterPop, setFilterPop] = useState<DOMRect | null>(null);
-  const [, setValsVer] = useState(0);
-  const valCache = useRef<{ key: string; vals: Map<number, unknown>; pending: Set<number> }>({ key: '', vals: new Map(), pending: new Set() });
+  // the messages of History rows (expanded rows, the filter column, and a snapshot while paused), by seq;
+  // null once fetched when the message has already left the ring buffer
+  const [, setMsgsVer] = useState(0);
+  const msgCache = useRef<{ key: string; msgs: Map<number, MessageView | null>; pending: Set<number> }>({ key: '', msgs: new Map(), pending: new Set() });
 
   const tab = st.tab;
   const follow = st.follow;
@@ -391,6 +402,8 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   const form = st.payloadForm;
   const hpath = st.historyFilter[topic] ?? null;
   const fields = prefs.chartFields ?? [];
+  const histKey = `${connId}|${topic}`;
+  const history = hist.key === histKey ? hist.rows : NO_HISTORY;
 
   // latest detail
   useEffect(() => {
@@ -414,7 +427,6 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     setChartData({});
     setMenu(null);
     setExpanded([]);
-    setExpMsgs({});
     setFilterPop(null);
   }, [connId, topic]);
 
@@ -452,13 +464,13 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   }, [connId, topic, shownSeq, format, anyway, viewSeq]);
   const message = forced ?? shown?.last ?? null;
 
-  // history (the History section under the payload, and the diff baseline)
+  // history (the History section under the payload, and the diff baseline), newest first; frozen while paused
   useEffect(() => {
-    if (!follow && history.length) return;
+    if (!follow && hist.key === histKey) return;
     let live = true;
     void engine()
       .history(connId, topic)
-      .then((h) => live && setHistory(h))
+      .then((h) => live && setHist({ key: histKey, rows: h }))
       .catch(() => undefined);
     return () => {
       live = false;
@@ -466,33 +478,18 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connId, topic, follow ? tseq : 0]);
 
-  // change set 9: the messages of the History rows expanded in place
+  // the messages History needs: the expanded rows, every row while a field filter is set, and every row of the
+  // paused pane (the ring buffer keeps moving: a paused row would otherwise lose its message within seconds)
   const expandedKey = expanded.join(',');
   useEffect(() => {
-    const missing = expanded.filter((q) => !expMsgs[q]);
-    if (!missing.length) return;
-    let live = true;
-    void Promise.all(missing.map((q) => engine().message(connId, topic, q, 'auto', false).catch(() => null))).then((list) => {
-      if (!live) return;
-      setExpMsgs((cur) => {
-        const next = { ...cur };
-        list.forEach((m, i) => m && (next[missing[i]] = m));
-        return next;
-      });
-    });
-    return () => {
-      live = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connId, topic, expandedKey]);
-
-  // change set 9: the History filter column, each message's value at the path (messages do not change: cached by seq)
-  useEffect(() => {
-    if (!hpath) return;
-    const key = `${connId}|${topic}|${hpath}`;
-    if (valCache.current.key !== key) valCache.current = { key, vals: new Map(), pending: new Set() };
-    const c = valCache.current;
-    const missing = history.map((h) => h.seq).filter((q) => !c.vals.has(q) && !c.pending.has(q));
+    if (msgCache.current.key !== histKey) msgCache.current = { key: histKey, msgs: new Map(), pending: new Set() };
+    const c = msgCache.current;
+    const want = new Set<number>(expanded);
+    if (hpath || !follow) history.forEach((h) => want.add(h.seq));
+    if (follow) for (const q of [...c.msgs.keys()]) if (!want.has(q)) c.msgs.delete(q);
+    const todo = (q: number) => !c.msgs.has(q) && !c.pending.has(q);
+    // expanded rows first, then the oldest first: they leave the ring buffer first
+    const missing = [...expanded.filter(todo), ...[...want].filter((q) => todo(q) && !expanded.includes(q)).sort((a, b) => a - b)];
     if (!missing.length) return;
     missing.forEach((q) => c.pending.add(q));
     void (async () => {
@@ -500,13 +497,14 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
         const chunk = missing.slice(i, i + 25);
         const list = await Promise.all(chunk.map((q) => engine().message(connId, topic, q, 'auto', false).catch(() => null)));
         chunk.forEach((q, j) => {
-          c.vals.set(q, filterValueOf(list[j], hpath));
+          c.msgs.set(q, list[j] ?? null);
           c.pending.delete(q);
         });
-        if (valCache.current === c) setValsVer((v) => v + 1);
+        if (msgCache.current === c) setMsgsVer((v) => v + 1);
       }
     })();
-  }, [connId, topic, hpath, history]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histKey, hpath, history, follow, expandedKey]);
 
   // "Show diff to previous" (change set 8): the message shown against the one received just before it
   const diffB = shownSeq;
@@ -621,7 +619,23 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
   const structured = message?.decoded.json !== null && typeof message?.decoded.json === 'object';
   const jsonPayload = isJsonPayload(message);
   const toggleExpanded = (q: number) => setExpanded((cur) => (cur.includes(q) ? cur.filter((x) => x !== q) : [...cur, q]));
-  const vals = hpath && valCache.current.key === `${connId}|${topic}|${hpath}` ? valCache.current.vals : null;
+  const msgs = msgCache.current.key === histKey ? msgCache.current.msgs : NO_MSGS;
+  // with a field filter, only the rows where that field changed against the message before, plus the oldest row
+  // as the starting point (rows whose message is not known yet, or gone from the buffer, are left out)
+  let rows = history;
+  if (hpath) {
+    const out: HistoryEntry[] = [];
+    let prev: string | null = null;
+    for (let i = history.length - 1; i >= 0; i--) {
+      const m = msgs.get(history[i].seq);
+      if (!m) continue;
+      const k = filterKey(m, hpath);
+      if (k !== prev) out.push(history[i]);
+      prev = k;
+    }
+    rows = out.reverse();
+  }
+  const [histPre, histPost] = t('payload.history', { n: '\u0001' }).split('\u0001');
   const showDiff = diffOn && canDiff && diff !== null && diffA !== null;
 
   return (
@@ -756,40 +770,43 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                     />
                   )}
                 </div>
-                {jsonPayload && form === 'tree' ? (
-                  <JsonTree
-                    root={(showDiff && diff.mode === 'json' ? treeOfDiff(diff.lines) : null) ?? treeOfJson(message.decoded.json)}
-                    highlight={showDiff && diff.mode === 'json'}
-                    actions={actions}
-                    valueOf={(path, n) => treeValue(message.decoded.json, path, n)}
-                    testId="payload-tree"
-                  />
-                ) : showDiff && diff.mode === 'json' ? (
-                  <DiffView
-                    lines={diff.lines}
-                    highlight
-                    actions={actions}
-                    testId="payload-json"
-                    leafValue={(path) => {
-                      const l = diff.lines.find((x) => x.path === path);
-                      try {
-                        return l?.newValue ? JSON.parse(l.newValue) : null;
-                      } catch {
-                        return l?.newValue;
-                      }
-                    }}
-                  />
-                ) : showDiff && diff.mode === 'text' ? (
-                  <div className="json wrap" data-testid="payload-text">
-                    {diff.textLines.map((l, i) => (
-                      <span key={i} className={`line${l.kind === 'added' ? ' add' : ''}${l.kind === 'removed' ? ' del' : ''}`} data-kind={l.kind}>
-                        {l.text}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <PayloadBody m={message} actions={actions} onFormatAnyway={() => setAnyway(true)} />
-                )}
+                {/* at least two text lines: no jump when the diff goes from one line (same value) to two (old, new) */}
+                <div className="pl-box" data-testid="payload-box">
+                  {jsonPayload && form === 'tree' ? (
+                    <JsonTree
+                      root={(showDiff && diff.mode === 'json' ? treeOfDiff(diff.lines) : null) ?? treeOfJson(message.decoded.json)}
+                      highlight={showDiff && diff.mode === 'json'}
+                      actions={actions}
+                      valueOf={(path, n) => treeValue(message.decoded.json, path, n)}
+                      testId="payload-tree"
+                    />
+                  ) : showDiff && diff.mode === 'json' ? (
+                    <DiffView
+                      lines={diff.lines}
+                      highlight
+                      actions={actions}
+                      testId="payload-json"
+                      leafValue={(path) => {
+                        const l = diff.lines.find((x) => x.path === path);
+                        try {
+                          return l?.newValue ? JSON.parse(l.newValue) : null;
+                        } catch {
+                          return l?.newValue;
+                        }
+                      }}
+                    />
+                  ) : showDiff && diff.mode === 'text' ? (
+                    <div className="json wrap" data-testid="payload-text">
+                      {diff.textLines.map((l, i) => (
+                        <span key={i} className={`line${l.kind === 'added' ? ' add' : ''}${l.kind === 'removed' ? ' del' : ''}`} data-kind={l.kind}>
+                          {l.text}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <PayloadBody m={message} actions={actions} onFormatAnyway={() => setAnyway(true)} />
+                  )}
+                </div>
                 <div className="sec" style={{ marginTop: 14, flexWrap: 'wrap', rowGap: 4 }} data-testid="topic-chart-head">
                   {t('payload.chart')}
                   {fields.map((f) => (
@@ -841,7 +858,13 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                   </>
                 )}
                 <div className="sec" style={{ marginTop: 14 }} data-testid="history-head">
-                  {t('payload.history', { n: fmtNum(history.length) })}
+                  <span>
+                    {histPre}
+                    <button type="button" className="ulink hcount" data-testid="history-count" title={t('history.raiseTitle')} onClick={() => setRaising(true)}>
+                      {fmtNum(history.length)}
+                    </button>
+                    {histPost}
+                  </span>
                   <button
                     type="button"
                     className={`btn sm ico${hpath ? ' on' : ''}`}
@@ -860,7 +883,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                   </button>
                   {hpath && (
                     <span className="chip on mono" data-testid="history-filter-chip" data-path={hpath}>
-                      {pathLabel(hpath)}
+                      {t('history.changesOf', { field: pathLabel(hpath) })}
                       <button
                         type="button"
                         className="x"
@@ -898,10 +921,10 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                     </tr>
                   </thead>
                   <tbody>
-                    {history.map((h) => {
-                      const v = hpath ? filterCell(vals?.get(h.seq)) : structured ? h.changedKeys.join(', ') : h.preview;
+                    {rows.map((h) => {
+                      const m = msgs.get(h.seq);
+                      const v = hpath ? filterCell(m ? filterValueOf(m, hpath) : undefined) : structured ? h.changedKeys.join(', ') : h.preview;
                       const isOpen = expanded.includes(h.seq);
-                      const m = expMsgs[h.seq];
                       return (
                         <Fragment key={h.seq}>
                           <tr className={`click${h.seq === shownSeq ? ' sel' : ''}`} data-testid="history-row" data-seq={h.seq} onClick={() => patch(connId, { viewSeq: h.seq === shown.last?.seq && follow ? null : h.seq })}>
@@ -929,7 +952,15 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
                           </tr>
                           {isOpen && (
                             <tr className="hexp" data-testid="history-payload" data-seq={h.seq}>
-                              <td colSpan={5}>{m ? <HistoryPayload m={m} form={form} actions={actions} /> : null}</td>
+                              <td colSpan={5}>
+                                {m ? (
+                                  <HistoryPayload m={m} form={form} actions={actions} />
+                                ) : m === null ? (
+                                  <div className="json wrap" style={{ fontSize: 11 }} data-testid="history-text">
+                                    {h.preview}
+                                  </div>
+                                ) : null}
+                              </td>
                             </tr>
                           )}
                         </Fragment>

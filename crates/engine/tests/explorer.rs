@@ -109,7 +109,8 @@ fn x02_ring_buffer_sizes() {
         }
         let h = e.history("buf/t");
         assert_eq!(h.len(), size);
-        assert_eq!(h[0].preview, (n - size).to_string(), "oldest dropped");
+        assert_eq!(h[size - 1].preview, (n - size).to_string(), "oldest dropped");
+        assert_eq!(h[0].preview, (n - 1).to_string(), "newest first");
         let d = e.topic_detail("buf/t");
         assert_eq!(d.messages, n as u64, "count since connect keeps growing");
         assert_eq!(d.buffer_size, size as u64);
@@ -126,7 +127,7 @@ fn x02_ring_buffer_sizes() {
     assert_eq!(e.topic_detail("a").buffer_size, 10);
     // Sequence numbers are unique per connection.
     let h = e.history("a");
-    assert!(h.windows(2).all(|w| w[0].seq < w[1].seq));
+    assert!(h.windows(2).all(|w| w[0].seq > w[1].seq), "newest first");
 }
 
 #[test]
@@ -193,7 +194,9 @@ fn x11_diff_json_and_text() {
         r#"{"supply":{"temp":19.5,"fan":false},"mode":"eco","list":[1,5],"new":{"a":1}}"#,
         T0 + 2000,
     ));
-    let h = e.history("ahu/state");
+    let mut h = e.history("ahu/state");
+    assert!(h[0].seq > h[2].seq, "newest first");
+    h.reverse(); // oldest first below
     let d = e.diff("ahu/state", h[0].seq, h[1].seq);
     assert_eq!(d.mode, DiffMode::Json);
     let find = |path: &str| {
@@ -247,8 +250,8 @@ fn x11_diff_json_and_text() {
         T0 + 1,
     ));
     let h = e.history("log/text");
-    assert_eq!(h[1].changed_keys, vec!["payload"]);
-    let d = e.diff("log/text", h[0].seq, h[1].seq);
+    assert_eq!(h[0].changed_keys, vec!["payload"]);
+    let d = e.diff("log/text", h[1].seq, h[0].seq);
     assert_eq!(d.mode, DiffMode::Text);
     assert_eq!(d.changes, 3);
     assert!(d

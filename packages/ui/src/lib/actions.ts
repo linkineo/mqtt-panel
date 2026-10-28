@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { ConnectOutcome, Profile, SaveOutcome, TrustMode, TrustPrompt, UserMessage } from '@mqttpanel/engine-client';
 import { engine } from '../services';
-import { toMessage } from '../i18n';
-import { useApp } from '../store/app';
+import i18next, { toMessage } from '../i18n';
+import { trackConnections, useApp } from '../store/app';
 
 /** The certificate trust prompt (mockup 03) and the action to retry once the user trusts. */
 interface TrustState {
@@ -62,6 +62,7 @@ function takeSkipOnce(id: string): boolean {
 
 async function refresh(): Promise<void> {
   const [profiles, connections] = await Promise.all([engine().listProfiles(), engine().listConnections()]);
+  trackConnections(useApp.getState().connections, connections);
   useApp.setState({ profiles, connections });
 }
 
@@ -145,6 +146,20 @@ export async function trustAndRetry(mode: TrustMode): Promise<void> {
 export async function disconnect(id: string): Promise<void> {
   await engine().disconnect(id);
   await refresh();
+}
+
+/** Right-click on Connect in the rail (owner, 28 Oct 2026): every open connection is disconnected. */
+export async function disconnectAll(): Promise<void> {
+  const open = useApp.getState().connections.filter((c) => c.state === 'connected' || c.state === 'connecting' || c.state === 'reconnecting');
+  await Promise.all(open.map((c) => engine().disconnect(c.id)));
+  await refresh();
+}
+
+/** Right-click on Broker in the rail: every client of this app's broker is disconnected. */
+export async function disconnectBrokerClients(): Promise<void> {
+  const clients = await engine().brokerClients();
+  await Promise.all(clients.map((c) => engine().disconnectClient(c.clientId)));
+  useApp.getState().toast({ kind: 'info', text: i18next.t('toast.clientsDisconnected', { count: clients.length }) });
 }
 
 /** Deletes a profile; an open connection of it is disconnected first (change set 2). */

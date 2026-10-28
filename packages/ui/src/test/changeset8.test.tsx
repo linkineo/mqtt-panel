@@ -230,7 +230,8 @@ describe('Change set 8: tabs, diff to previous, History (X-18, X-20)', () => {
     const h = await engine().history('plant', STATE);
     await waitFor(() => expect(screen.getAllByTestId('history-row')).toHaveLength(h.length));
     expect(h.length).toBeGreaterThan(4);
-    expect(screen.getByText(`History · ${h.length}`)).toBeInTheDocument();
+    expect(screen.getByTestId('history-head')).toHaveTextContent(`History · ${h.length}`);
+    expect(screen.getByTestId('history-count')).toHaveTextContent(String(h.length));
     const rows = screen.getAllByTestId('history-row');
     await act(async () => fireEvent.click(rows[2]));
     expect(useExplorer.getState().get('plant').viewSeq).toBe(h[2].seq);

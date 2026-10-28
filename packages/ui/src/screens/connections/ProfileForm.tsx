@@ -8,7 +8,7 @@ import { Info, Msg, Modal, Popover, Seg, Switch, NO_AUTO } from '../../component
 import { FileField } from './FileField';
 import { DeleteProfileDialog } from './DeleteProfileDialog';
 import { RevealButton, SecretText } from '../../components/Secret';
-import { ClientCertWays } from './ClientCertWays';
+import { ClientCertWays, shortFingerprint } from './ClientCertWays';
 import { FoldHeader, useFold } from '../../components/Fold';
 import { fmtAge, fmtBytes } from '../../lib/format';
 import { applyAddressText, applyScheme, formatAddress, isWebSocket, nameFromHost, type AddressFields } from '../../lib/address';
@@ -289,6 +289,15 @@ export function ProfileForm({ profileId }: { profileId: string }) {
     const parts: React.ReactNode[] = [];
     if (p.tls.caCert) parts.push(t('conn.sum.ca'));
     if (p.tls.clientCert) parts.push(p.tls.clientKeyGenerated ? t('conn.sum.clientCertGenerated') : t('conn.sum.clientCertImported'));
+    // owner, 28 Oct 2026: a certificate trusted by its fingerprint, and "always skip" in bold (the harsher case)
+    if (p.tls.trustedFingerprints.length) parts.push(t('conn.sum.trustedCert', { count: p.tls.trustedFingerprints.length }));
+    if (p.tls.skipVerify) {
+      parts.push(
+        <strong key="skip" className="warn" data-testid="security-skip">
+          {t('conn.sum.skipVerify')}
+        </strong>,
+      );
+    }
     if (lastTest && lastTest.ok && lastTest.verified !== null) {
       parts.push(
         <span key="v" className={lastTest.verified ? 'ok' : 'warn'} data-testid="security-verified">
@@ -313,9 +322,9 @@ export function ProfileForm({ profileId }: { profileId: string }) {
     if (parts.length || p.keepAlive !== 60) parts.unshift(t('conn.sum.keepAlive', { n: p.keepAlive }));
     if (!p.tls.skipVerify) return parts.join(' · ');
     const skip = (
-      <span key="skip" className="warn" data-testid="advanced-skip">
+      <strong key="skip" className="warn" data-testid="advanced-skip">
         {t('conn.sum.skipVerify')}
-      </span>
+      </strong>
     );
     return parts.length ? [parts.join(' · '), ' · ', skip] : [skip];
   };
@@ -488,11 +497,43 @@ export function ProfileForm({ profileId }: { profileId: string }) {
           <FoldHeader id="security" title={t('conn.security')} summary={tls ? securitySummary() : t('conn.securityOff')} off={!tls} />
           {securityOpen && tls && (
             <>
+              {/* owner, 28 Oct 2026: two subheadings separate what checks the broker from what identifies this client */}
+              <div className="sub" data-testid="sub-broker-cert">
+                {t('conn.sub.brokerCert')}
+              </div>
               <div className="f">
                 <span className="lbl">
                   {t('conn.caCert')} <Info id="caCert" title={t('conn.caCert')} />
                 </span>
                 <FileField field="caCert" profile={p} label={t('conn.caCert')} beforeChange={flush} onProfile={fromEngine} />
+              </div>
+              {/* owner, 28 Oct 2026: a certificate trusted at the prompt shows here and can be forgotten */}
+              {p.tls.trustedFingerprints.length > 0 && (
+                <div className="f">
+                  <span className="lbl">
+                    {t('conn.trustedCert')} <Info id="trustedCert" title={t('conn.trustedCert')} />
+                  </span>
+                  <span className="row2">
+                    {p.tls.trustedFingerprints.map((fp) => (
+                      <span key={fp} className="chip mono" title={fp} data-testid="trusted-fp">
+                        {shortFingerprint(fp)}
+                        <button
+                          type="button"
+                          className="x"
+                          aria-label={t('conn.forgetTrusted')}
+                          title={t('conn.forgetTrusted')}
+                          data-testid="forget-trusted"
+                          onClick={() => updateTls({ trustedFingerprints: draft.current!.tls.trustedFingerprints.filter((x) => x !== fp) })}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              )}
+              <div className="sub" data-testid="sub-client-cert">
+                {t('conn.sub.clientCert')}
               </div>
               {/* change set 11: the client certificate in one of two exclusive ways, the CA row above always stays */}
               <ClientCertWays p={p} flush={flush} onProfile={fromEngine} />

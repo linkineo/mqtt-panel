@@ -117,9 +117,9 @@ fn x12_msgpack() {
     let e = engine_with("msgpack.json");
     let h = e.history("lab/msgpack/sensor");
     assert_eq!(h.len(), 2);
-    assert_eq!(h[1].changed_keys, vec!["temp", "fan", "bin"]);
+    assert_eq!(h[0].changed_keys, vec!["temp", "fan", "bin"]);
     let m = e
-        .message("lab/msgpack/sensor", h[0].seq, PayloadFormat::Auto, false)
+        .message("lab/msgpack/sensor", h[1].seq, PayloadFormat::Auto, false)
         .expect("msg");
     assert_eq!(m.decoded.detected, PayloadFormat::Msgpack);
     assert_eq!(
@@ -147,7 +147,7 @@ fn x12_sparkplug_birth_data_and_aliases() {
     let first = e
         .message(
             "spBv1.0/plant/NDATA/edge1",
-            h[0].seq,
+            h[h.len() - 1].seq,
             PayloadFormat::Auto,
             false,
         )

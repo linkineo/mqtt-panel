@@ -103,7 +103,8 @@ impl Engine {
         }
     }
 
-    /// The buffered messages of a topic with the keys that changed against the previous one.
+    /// The buffered messages of a topic, newest first, with the keys that changed against the
+    /// message received just before each one (the client contract the UI and the mock follow).
     pub fn history(&self, topic: &str) -> Vec<HistoryEntry> {
         let Some(buf) = self.buffer_of(topic) else {
             return Vec::new();
@@ -144,6 +145,7 @@ impl Engine {
             });
             prev = Some((m, a.doc, structured));
         }
+        out.reverse();
         out
     }
 

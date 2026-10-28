@@ -17,6 +17,8 @@ import { ChartsScreen } from './screens/charts/ChartsScreen';
 import { BrokerScreen } from './screens/broker/BrokerScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { modHeld } from './lib/keys';
+import { disconnectAll, disconnectBrokerClients, run } from './lib/actions';
+import { platform } from './services';
 import { switchConnectionMenu } from './components/ConnectionBar';
 import { updateWaiting } from './lib/updates';
 import { newConnection } from './lib/actions';
@@ -60,6 +62,16 @@ function Rail() {
   // The AI item (20 Oct 2026) opens Settings on the Assistant page and is lit only there; Settings is lit otherwise.
   const aiOn = screen === 'settings' && settingsPage === 'assistant';
   const isOn = (k: Screen) => screen === k && !(k === 'settings' && aiOn);
+  // Right-click (owner, 28 Oct 2026): Connect offers to disconnect every connection, Broker every broker client.
+  const railMenu = async (k: Screen, x: number, y: number) => {
+    if (k === 'connect') {
+      const id = await platform().showContextMenu([{ id: 'all', label: t('rail.disconnectAll'), enabled: open > 0 }], x, y);
+      if (id === 'all') run(disconnectAll());
+    } else if (k === 'broker') {
+      const id = await platform().showContextMenu([{ id: 'all', label: t('rail.disconnectClients'), enabled: brokerState === 'running' }], x, y);
+      if (id === 'all') run(disconnectBrokerClients());
+    }
+  };
   const item = (k: Screen) => (
     <button
       key={k}
@@ -69,6 +81,11 @@ function Rail() {
       aria-label={label(k)}
       data-testid={`rail-${k}`}
       onClick={() => setScreen(k)}
+      onContextMenu={(e) => {
+        if (k !== 'connect' && k !== 'broker') return;
+        e.preventDefault();
+        void railMenu(k, e.clientX, e.clientY);
+      }}
     >
       <RailIcon name={k} />
       {t(`rail.${k}`)}
@@ -213,7 +230,18 @@ export function App() {
       if (!(e.target as HTMLElement)?.closest?.('[data-draggable]')) e.preventDefault();
     };
     window.addEventListener('dragstart', onDrag);
-    return () => window.removeEventListener('dragstart', onDrag);
+    // No WebView menu ("Reload" and friends, owner 28 Oct 2026): the app's own menus call preventDefault themselves;
+    // text fields keep the editing menu.
+    const onMenu = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest?.('input, textarea, [contenteditable="true"]')) return;
+      e.preventDefault();
+    };
+    window.addEventListener('contextmenu', onMenu);
+    return () => {
+      window.removeEventListener('dragstart', onDrag);
+      window.removeEventListener('contextmenu', onMenu);
+    };
   }, []);
   if (!ready) return null;
   return (

@@ -107,7 +107,7 @@ describe('Change set 6: cards (C-27)', () => {
       const chip = within(c).getByTestId('card-chip');
       expect(chip.textContent).toBe(proto);
       expect(chip.className).toBe(`chip ${tone}`);
-      expect(chip.parentElement!.textContent).toMatch(new RegExp(`^${proto}⚠?$`));
+      expect(chip.parentElement!.textContent).toMatch(new RegExp(`^${proto}(⚠(No verification)?)?$`));
       const a = within(c).getByTestId('card-address');
       expect(a.textContent).toBe(addr);
       expect(a.className).toContain('mono');

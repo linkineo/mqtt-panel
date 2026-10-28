@@ -108,9 +108,12 @@ describe('Change set 4: form folds (C-19)', () => {
     const off = await engine().saveProfile({ ...saved, keepAlive: 30, tls: { ...saved.tls, skipVerify: true } });
     useApp.setState({ profiles: await engine().listProfiles() });
     render(<ProfileForm profileId={off.id} />);
-    expect(screen.queryByTestId('fold-security-summary')).toBeNull();
+    // owner, 28 Oct 2026: "always skip" also shows in the Security summary, in bold in both
+    expect(screen.getByTestId('fold-security-summary').textContent).toBe('skip verification');
+    expect(screen.getByTestId('security-skip').tagName).toBe('STRONG');
     expect(screen.getByTestId('fold-advanced-summary').textContent).toBe('keep-alive 30 s · skip verification');
     expect(screen.getByTestId('advanced-skip').className).toBe('warn');
+    expect(screen.getByTestId('advanced-skip').tagName).toBe('STRONG');
   });
 });
 

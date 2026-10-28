@@ -265,6 +265,8 @@ button.chip:hover { filter: brightness(.97) }
 .json .pick.plot { text-decoration: underline; text-decoration-style: dotted }
 .json .pick.dim { opacity: .5 }
 .json.wrap { white-space: pre-wrap; word-break: break-all }
+/* the payload view keeps at least two text lines: no height jump between a same-value view and a two-line diff */
+.pl-box > .json { min-height: calc(3em + 20px) }
 .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 12px; margin: 0 }
 .kv dt { color: var(--ink-2); white-space: nowrap }
 .kv dd { margin: 0; font-family: var(--mono); word-break: break-all }
@@ -328,6 +330,8 @@ button.chip:hover { filter: brightness(.97) }
 .palette .grp { padding: 6px 14px 2px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); font-weight: 700 }
 .toasts { position: absolute; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 80; max-width: 460px }
 .toast { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--sage); border-radius: 8px; padding: 8px 12px; font-size: 12px; box-shadow: 0 10px 24px rgba(0,0,0,.14); display: flex; gap: 10px; align-items: flex-start }
+.toast.ok { background: var(--sage); border-color: var(--sage); color: var(--on-accent) }
+.toast.ok .iconbtn { color: inherit }
 .toast.err { border-left-color: var(--brick) }
 .toast.warn { border-left-color: var(--clay) }
 
@@ -442,6 +446,7 @@ button.chip:hover { filter: brightness(.97) }
 .fold .sum { font-weight: 500; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0 }
 .fold .sum .ok { color: var(--sage) }
 .fold .sum .warn { color: var(--clay) }
+.fold .sum strong.warn { color: var(--brick); font-weight: 700 }
 .form .sub { font-size: 11px; font-weight: 700; color: var(--ink-2); margin-top: 6px }
 .pnl { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-top: 12px; overflow: hidden }
 .pnl .hd { display: flex; align-items: center; gap: 8px; padding: 6px 12px; min-height: 40px; border-bottom: 1px solid var(--line-2); font-size: 12px; font-weight: 700; background: var(--paper); white-space: nowrap; min-width: 0 }
@@ -462,9 +467,10 @@ button.chip:hover { filter: brightness(.97) }
 .input.w-s { width: 80px } .input.w-m { width: 160px } .input.w-l { width: 240px } .input.w-xl { width: 320px }
 .input.w-s, .input.w-m, .input.w-l, .input.w-xl { flex: 0 1 auto; max-width: 100%; justify-self: start }
 .secretin { display: inline-flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 100%; justify-self: start }
-.warn-i { color: var(--clay); font-size: 13px; cursor: help; line-height: 1; flex: none }
-.warn-i.pin { color: var(--ink-2) }
-.card.live .warn-i, .card.live .warn-i.pin { color: var(--on-accent) }
+.warn-i { color: var(--brick); font-weight: 700; font-size: 13px; cursor: help; line-height: 1; flex: none }
+.warn-i.pin { color: var(--ink-2); font-weight: 400 }
+.warn-l { color: var(--brick); font-weight: 700; font-size: 11px; white-space: nowrap; flex: none; margin-left: -3px }
+.card.live .warn-i, .card.live .warn-i.pin, .card.live .warn-l { color: var(--on-accent) }
 .choice { display: grid; gap: 6px }
 .choice .card { padding: 9px 12px; cursor: default }
 .choice .card .t { font-size: 12px }
@@ -496,6 +502,7 @@ button.chip:hover { filter: brightness(.97) }
 .tbl td.hchev button:hover { color: var(--ink); background: var(--line-2) }
 .tbl tr.hexp td { padding: 0 10px 8px 28px; white-space: normal; max-width: none; background: none }
 .tbl tr.hexp .json { padding: 6px 10px; max-height: 320px }
+.sec .hcount { text-transform: none; letter-spacing: 0; text-decoration-style: dotted; text-underline-offset: 2px }
 .json.jtree { white-space: nowrap }
 .json.jtree .trow { display: block; white-space: pre }
 .json.jtree .tchev { display: inline-block; width: 14px; color: var(--ink-2); text-align: center; flex: none }

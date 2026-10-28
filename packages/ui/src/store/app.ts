@@ -15,14 +15,14 @@ import type {
   UserMessage,
 } from '@mqttpanel/engine-client';
 import { engine, platform } from '../services';
-import { resolveLang, setLanguage } from '../i18n';
+import i18next, { resolveLang, setLanguage } from '../i18n';
 
 export type Screen = 'connect' | 'explore' | 'publish' | 'charts' | 'broker' | 'settings';
 export const SCREENS: Screen[] = ['connect', 'explore', 'publish', 'charts', 'broker', 'settings'];
 
 export interface Toast {
   id: number;
-  kind: 'info' | 'err' | 'warn';
+  kind: 'info' | 'ok' | 'err' | 'warn';
   text?: string;
   msg?: UserMessage | null;
   /** One button next to the text (the update toast: "Open Updates"); pressing it also closes the toast. */
@@ -121,6 +121,30 @@ const menuListeners = new Set<MenuListener>();
 const assistantListeners = new Set<AssistantListener>();
 let toastId = 1;
 
+/** Connections announced as connected (owner, 28 Oct 2026): one toast per connect, in the app colour. */
+const announced = new Set<string>();
+const isOpenConn = (c: ConnectionStatus) => c.state === 'connected' || c.state === 'connecting' || c.state === 'reconnecting';
+
+/**
+ * Reacts to a new connection list (an engine event or a refresh after a command): a toast when a connection becomes
+ * connected, and back to the client list when the last open connection goes while a screen needing one is shown.
+ */
+export function trackConnections(prev: ConnectionStatus[], next: ConnectionStatus[]): void {
+  const st = useApp.getState();
+  for (const c of next) {
+    if (c.state === 'connected') {
+      if (!announced.has(c.id)) {
+        announced.add(c.id);
+        st.toast({ kind: 'ok', text: i18next.t('toast.connected', { name: c.name }) });
+      }
+    } else announced.delete(c.id);
+  }
+  for (const id of Array.from(announced)) if (!next.some((c) => c.id === id)) announced.delete(id);
+  if (prev.some(isOpenConn) && !next.some(isOpenConn) && (st.screen === 'explore' || st.screen === 'publish' || st.screen === 'charts')) {
+    st.setScreen('connect');
+  }
+}
+
 export const useApp = create<AppState>((set, get) => ({
   ready: false,
   appInfo: { version: '', platform: 'web', native: false, selfUpdate: false, storeBuild: true },
@@ -207,6 +231,7 @@ export const useApp = create<AppState>((set, get) => ({
     // Web page prompts are handled by WebOriginLayer.
     if (e.type === 'brokerOrigin' || e.type === 'brokerOriginDone') return;
     const st = get();
+    trackConnections(st.connections, e.connections);
     const patch: Partial<AppState> = {
       connections: e.connections,
       seqs: { ...st.seqs, ...e.changed },

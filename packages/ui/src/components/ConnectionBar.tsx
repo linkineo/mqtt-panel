@@ -23,15 +23,25 @@ export function certWarning(c: ConnectionStatus | null | undefined, p: Profile |
   return null;
 }
 
-/** The ⚠ icon with its tooltip (also its accessible name). */
-export function CertWarning({ kind, testId }: { kind: 'skip' | 'pinned' | null; testId: string }) {
+/**
+ * The ⚠ icon with its tooltip (also its accessible name). Owner, 28 Oct 2026: 'skip' is bold in brick, 'pinned' stays
+ * muted; when the profile always skips the check (`always`), a short bold label follows the icon.
+ */
+export function CertWarning({ kind, testId, always }: { kind: 'skip' | 'pinned' | null; testId: string; always?: boolean }) {
   const { t } = useTranslation();
   if (!kind) return null;
   const text = t(kind === 'skip' ? 'conn.warnSkip' : 'conn.warnPinned');
   return (
-    <span className={`warn-i${kind === 'pinned' ? ' pin' : ''}`} role="img" title={text} aria-label={text} data-testid={testId} data-kind={kind}>
-      ⚠
-    </span>
+    <>
+      <span className={`warn-i${kind === 'pinned' ? ' pin' : ''}`} role="img" title={text} aria-label={text} data-testid={testId} data-kind={kind}>
+        ⚠
+      </span>
+      {kind === 'skip' && always && (
+        <strong className="warn-l" aria-hidden="true" data-testid={`${testId}-label`}>
+          {t('conn.warnSkipLabel')}
+        </strong>
+      )}
+    </>
   );
 }
 
@@ -130,7 +140,7 @@ export function ConnectionBar({ tabs: open }: { tabs: ConnectionStatus[] }) {
             <span className={`dot${dot}`} />
             <span className="nm">{c.name}</span>
             <small>· {figures(c, t, startingId === c.id)}</small>
-            <CertWarning kind={certWarning(c, profiles.find((p) => p.id === c.id))} testId="cbar-warn" />
+            <CertWarning kind={certWarning(c, profiles.find((p) => p.id === c.id))} always={!!profiles.find((p) => p.id === c.id)?.tls.skipVerify} testId="cbar-warn" />
             <button
               type="button"
               className="x"

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FileInspection, FileKind, Profile, UserMessage } from '@mqttpanel/engine-client';
 import { engine, platform } from '../../services';
+import { useApp } from '../../store/app';
 import { toMessage } from '../../i18n';
 import { Modal, Msg, NO_AUTO } from '../../components/ui';
 
@@ -9,8 +10,9 @@ type Field = 'caCert' | 'clientCert' | 'clientKey';
 
 /**
  * A certificate or key field: read-only file name, Browse…, the accepted formats in muted text (change set 11: exactly
- * the picker's filters), drop target, and a plain error when the file is not what the field expects (C3). Nothing
- * parsed is shown next to the name (owner, 13 Oct 2026, change set 4).
+ * the picker's filters), drop target, and a plain error when the file is not what the field expects (C3), shown as a
+ * toast with the field in red (owner, 28 Oct 2026: no error text next to the field). Nothing parsed is shown next to
+ * the name (owner, 13 Oct 2026, change set 4).
  *
  * `kind`, `browseLabel` and `applyPath` serve "Import signed certificate…" of the generated way (change set 11): the
  * picker kind, the button text and the engine call that takes the file.
@@ -38,6 +40,10 @@ export function FileField(props: {
   const [pass, setPass] = useState<{ path: string; fileName: string } | null>(null);
   const [passphrase, setPassphrase] = useState('');
   const [passError, setPassError] = useState<UserMessage | null>(null);
+  const fail = (m: UserMessage) => {
+    setError(m);
+    useApp.getState().toast({ kind: 'err', msg: m });
+  };
 
   const apply = async (path: string | null, passphrase: string | null) => {
     setBusy(true);
@@ -50,7 +56,7 @@ export function FileField(props: {
     } catch (e) {
       const m = toMessage(e);
       if (passphrase !== null) setPassError(m);
-      else setError(m);
+      else fail(m);
       return false;
     } finally {
       setBusy(false);
@@ -59,7 +65,7 @@ export function FileField(props: {
 
   const accept = async (ins: FileInspection) => {
     if (!ins.ok) {
-      setError(ins.error);
+      fail(ins.error);
       return;
     }
     if (ins.summary.kind === 'pkcs12' || ins.summary.encrypted) {
@@ -76,7 +82,7 @@ export function FileField(props: {
       const ins = await engine().pickFile(kind);
       if (ins) await accept(ins);
     } catch (e) {
-      setError(toMessage(e));
+      fail(toMessage(e));
     }
   };
 
@@ -93,7 +99,7 @@ export function FileField(props: {
         void engine()
           .inspectFile(kind, paths[0])
           .then((ins) => acceptRef.current(ins))
-          .catch((e) => setError(toMessage(e)));
+          .catch((e) => fail(toMessage(e)));
       }),
     [kind, props.disabled],
   );
@@ -110,11 +116,6 @@ export function FileField(props: {
         <span className="fmt" data-testid={`formats-${tid}`}>
           {t(`file.formats.${kind}`)}
         </span>
-        {error && (
-          <span className="hint err" data-testid={`file-error-${tid}`}>
-            <Msg msg={error} />
-          </span>
-        )}
         {value && (
           <button type="button" className="iconbtn" aria-label={t('file.clear', { name: props.label })} onClick={() => void apply(null, null)}>
             ✕
