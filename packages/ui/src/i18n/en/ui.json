@@ -32,6 +32,7 @@
  "rail.openCount_other": "{count} connections open",
  "info.aria": "About {name}",
  "info.caCert": "The certificate of the authority that signed the broker's certificate. Needed when the broker uses a private or self-signed certificate; leave empty for brokers with a public certificate.",
+ "info.follow": "On, the pane shows every new message as it arrives. Off, the pane freezes on the last message shown and counts the ones you miss; the connection stays subscribed and keeps recording, so nothing is lost. Turn it on again to catch up.",
  "info.clientCert": "Identifies this computer to the broker, instead of or in addition to a password. Only needed if the broker requires client certificates.",
  "info.clientKey": "The private key belonging to the client certificate. Stored encrypted by MQTT Panel, never in the profile file.",
  "info.keyStore.file": "On this build, the key that protects your saved passwords and keys is in a file only your user account can read.",

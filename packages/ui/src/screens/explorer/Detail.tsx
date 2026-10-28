@@ -25,7 +25,7 @@ import { JsonView, DiffView, FieldMenu, JsonTree, copyField, filterCell, pathLab
 import { RailIcon } from '../../components/icons';
 import { setChartFields, setSparklinePath, useTopicPrefs } from '../../lib/topicPrefs';
 import { UChart } from '../../components/UChart';
-import { Msg, PromptDialog, Seg, Switch, NO_AUTO } from '../../components/ui';
+import { Info, Msg, PromptDialog, Seg, Switch, NO_AUTO } from '../../components/ui';
 import { fmtBytes, fmtNum, fmtTime } from '../../lib/format';
 
 const FORMATS: PayloadFormat[] = ['auto', 'json', 'text', 'hex', 'base64', 'image', 'cbor', 'msgpack', 'sparkplug', 'protobuf'];
@@ -686,6 +686,7 @@ export function Detail(props: { connId: string; topic: string; openDialog(d: Top
             <span className="row" style={{ gap: 6 }}>
               {t('detail.follow')}
               <Switch on={follow} label={t('detail.follow')} testId="follow" onChange={(v) => patch(connId, { follow: v })} />
+              <Info id="follow" title={t('detail.follow')} />
             </span>
             {!follow && <span className="chip clay" data-testid="missed">{t('detail.missed', { count: missed, n: fmtNum(missed) })}</span>}
           </div>

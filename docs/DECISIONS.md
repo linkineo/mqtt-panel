@@ -28,7 +28,7 @@ The standing decisions behind MQTT Panel. The detailed behaviour is in `docs/SPE
 | Topic | Decision |
 |---|---|
 | Mockups | `docs/mockups/mqtt-panel-mockups.html` is the validated UI reference (1280 × 700). The UI must match it; deviations go through a spec change first. |
-| Look | Developer-tool density, identical on all platforms, light and dark, app palette with Sage (default), Slate and Clay accents. Native menus, shortcuts, dialogs and window chrome on each OS. Rail labels are verbs: Connect, Explore, Publish, Charts, Broker, AI, Settings. |
+| Look | Developer-tool density, identical on all platforms, light and dark, app palette with Sage (default), Slate and Clay accents. Native menus on macOS (no menu bar on Windows and Linux, 28 Oct 2026), shortcuts, dialogs and window chrome on each OS. Rail labels are verbs: Connect, Explore, Publish, Charts, Broker, AI, Settings. |
 | Labels | Plain words, never jargon ("New broker…", "Built-in broker", "Server name (SNI)", "Protocol tag (ALPN)"; no "mTLS", no "embedded"). Form rows never wrap: helper text short, the explanation in the ⓘ bubble. |
 | Files | Users never type file paths: every file field has a Browse button (native dialog) and accepts drag-and-drop. |
 | ⓘ bubbles | Every security option has one, in plain words, in EN, FR and DE. |

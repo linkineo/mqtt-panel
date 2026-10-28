@@ -53,21 +53,31 @@ pub fn save_bytes(app: &AppHandle, default_name: &str, data: &[u8]) -> SaveOutco
     }
 }
 
-/// Saves several files into a folder chosen by saving the first one (the others go next to it).
+/// Saves one file through the save dialog, or several into a folder the user picks (owner, 28 Oct 2026: a
+/// certificate with its key and CA.pem). A save dialog names one file, and the sandboxed store build may write only
+/// that one, so the siblings were refused there; a picked folder is writable as a whole. Nothing is overwritten.
 pub fn save_files(app: &AppHandle, files: &[(String, Vec<u8>)]) -> SaveOutcome {
-    let Some((first_name, first)) = files.first() else { return SaveOutcome::Cancelled };
-    let Some(p) = save_path(app, first_name) else { return SaveOutcome::Cancelled };
-    let dir = p.parent().map(Path::to_path_buf).unwrap_or_default();
-    let write = |path: &Path, data: &[u8]| std::fs::write(path, data).map_err(|e| msg!("file.writeFailed", file = file_name(path), detail = e.kind().to_string()));
-    if let Err(error) = write(&p, first) {
-        return SaveOutcome::Failed { error };
+    match files {
+        [] => SaveOutcome::Cancelled,
+        [(name, data)] => save_bytes(app, name, data),
+        _ => match pick_folder(app) {
+            None => SaveOutcome::Cancelled,
+            Some(dir) => save_files_in(&dir, files),
+        },
     }
-    for (name, data) in files.iter().skip(1) {
-        if let Err(error) = write(&dir.join(name), data) {
-            return SaveOutcome::Failed { error };
+}
+
+/// Writes every file into `dir`, refusing to replace a file that is already there.
+pub fn save_files_in(dir: &Path, files: &[(String, Vec<u8>)]) -> SaveOutcome {
+    if let Some((name, _)) = files.iter().find(|(name, _)| dir.join(name).exists()) {
+        return SaveOutcome::Failed { error: msg!("file.exists", file = name.clone(), folder = file_name(dir)) };
+    }
+    for (name, data) in files {
+        if let Err(e) = std::fs::write(dir.join(name), data) {
+            return SaveOutcome::Failed { error: msg!("file.writeFailed", file = name.clone(), detail = e.kind().to_string()) };
         }
     }
-    SaveOutcome::Saved { file_name: file_name(&p) }
+    SaveOutcome::Saved { file_name: files.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", ") }
 }
 
 /// Writes one file (assistant exports to a path picked in the app or given by the host).
@@ -187,4 +197,24 @@ fn collect_protos(root: &Path, dir: &Path, skip: &str, out: &mut Vec<mqttpanel_e
 /// Converts an engine message into the client's message type (same shape).
 pub fn engine_msg(m: mqttpanel_engine::UserMessage) -> UserMessage {
     UserMessage { key: m.key, params: m.params, text: m.text }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn several_files_land_in_the_folder_and_nothing_is_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = vec![("device.pem".to_string(), b"cert".to_vec()), ("device.key".to_string(), b"key".to_vec()), ("CA.pem".to_string(), b"ca".to_vec())];
+        match save_files_in(dir.path(), &files) {
+            SaveOutcome::Saved { file_name } => assert_eq!(file_name, "device.pem, device.key, CA.pem"),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(std::fs::read(dir.path().join("device.key")).unwrap(), b"key");
+        match save_files_in(dir.path(), &files) {
+            SaveOutcome::Failed { error } => assert_eq!(error.key, "file.exists"),
+            other => panic!("{other:?}"),
+        }
+    }
 }

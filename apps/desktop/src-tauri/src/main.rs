@@ -129,11 +129,16 @@ fn main() {
                 charts: Mutex::new(Default::default()),
             });
             let handle = app.handle().clone();
-            let menu = menu::build_menu(&handle, "en")?;
-            app.set_menu(menu)?;
-            app.on_menu_event(|app, event| {
-                let _ = app.emit("engine-event", EngineEvent::Menu { id: event.id().0.clone() });
-            });
+            // The menu bar exists on macOS only (owner, 28 Oct 2026): on Windows and Linux the shortcuts live in the
+            // UI and a native menu bar would sit in the OS colour under the app's title bar.
+            #[cfg(target_os = "macos")]
+            {
+                let menu = menu::build_menu(&handle, "en")?;
+                app.set_menu(menu)?;
+                app.on_menu_event(|app, event| {
+                    let _ = app.emit("engine-event", EngineEvent::Menu { id: event.id().0.clone() });
+                });
+            }
             spawn_ticker(handle.clone());
             // Web pages that want to connect without a login are asked about in the window (SPEC 6).
             let _ = handle.state::<AppState>().broker.origin_prompt.set(broker::origin_prompt(handle.clone()));

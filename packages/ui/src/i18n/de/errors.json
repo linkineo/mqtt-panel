@@ -63,6 +63,7 @@
  "file.unreadable": "{file} kann nicht gelesen werden.",
  "file.unknownImport": "Diese Datei ist kein Verbindungsexport, den MQTT Panel lesen kann.",
  "file.writeFailed": "{file} kann nicht gespeichert werden: {detail}",
+ "file.exists": "{file} liegt schon in {folder}: Wähle einen anderen Ordner oder verschiebe die Datei zuerst.",
  "app.openLinkFailed": "{url} kann nicht im Browser geöffnet werden: {detail}",
  "import.passwordsSkipped": "Passwörter und Schlüssel wurden nicht importiert. Trage sie in jedem Profil ein.",
  "import.unsupportedField": "Übersprungen: {detail}",

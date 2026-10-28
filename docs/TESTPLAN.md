@@ -262,7 +262,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 |---|---|---|---|---|
 | V-01 | E | auto | Visual regression of every mockup screen, light and dark, EN and DE, on macOS, Windows, Linux | Within tolerance; DE (longest) never wraps a form row, never clips a button. |
 | V-02 | E | auto | Automated overflow check: every label, button, chip and helper text has `scrollWidth <= clientWidth` and a single line box | Zero violations in any language. |
-| V-03 | M | manual | Native-feel checklist (SPEC §1.2) walked through per OS: menu bar, shortcuts (⌘/Ctrl), file dialogs, window chrome, scrollbars, theme switch live, focus rings, no text cursor on chrome | Every item ticked. |
+| V-03 | M | manual | Native-feel checklist (SPEC §1.2) walked through per OS: menu bar (macOS only, none on Windows and Linux), shortcuts (⌘/Ctrl), file dialogs, window chrome, scrollbars, theme switch live, focus rings, no text cursor on chrome | Every item ticked. |
 | V-04 | E | auto | Command palette: lists commands, topics, connections; keyboard only | Every command reachable. |
 | V-05 | E | auto | Language switch at runtime EN → FR → DE; French typography (narrow no-break space before `:` `;` `?` `!`), German "du" | Catalog checks plus screenshots. |
 | V-06 | M | manual | Native review of FR and DE by a native reader, logged in `docs/COPY_REVIEW.md` | No literal translations left. |

@@ -32,6 +32,7 @@
  "rail.openCount_other": "{count} connexions ouvertes",
  "info.aria": "À propos de {name}",
  "info.caCert": "Le certificat de l’autorité qui a signé celui du broker. Nécessaire quand le broker utilise un certificat privé ou auto-signé ; laissez vide pour un broker avec un certificat public.",
+ "info.follow": "Activé, le panneau affiche chaque nouveau message dès son arrivée. Désactivé, il reste figé sur le dernier message affiché et compte ceux que vous manquez ; la connexion reste abonnée et continue d’enregistrer, rien n’est perdu. Réactivez-le pour rattraper.",
  "info.clientCert": "Identifie cet ordinateur auprès du broker, à la place ou en plus d’un mot de passe. Utile seulement si le broker exige des certificats client.",
  "info.clientKey": "La clé privée qui va avec le certificat client. Chiffrée par MQTT Panel, jamais dans le fichier du profil.",
  "info.keyStore.file": "Sur cette version, la clé qui protège vos mots de passe et clés enregistrés se trouve dans un fichier que seul votre compte utilisateur peut lire.",

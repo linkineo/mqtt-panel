@@ -38,6 +38,7 @@ fn item<R: Runtime>(app: &AppHandle<R>, id: &str, text: &str, accel: Option<&str
 /// Copyright line of the About dialog: the website only, no company name (owner, 18 Oct 2026).
 pub const ABOUT_COPYRIGHT: &str = "© 2026 mqtt-panel.com · https://mqtt-panel.com · Apache License 2.0 with the Commons Clause";
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>, lang: &str) -> tauri::Result<Menu<R>> {
     let l = |k: &str| label(lang, k);
     let about = AboutMetadataBuilder::new()
@@ -149,7 +150,8 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>, lang: &str) -> tauri::Result<M
     Menu::with_items(app, &[&file, &edit, &view, &connection, &window, &help])
 }
 
-/// Rebuilds the menu bar in the UI's language (en, fr or de); called at start and on every language change.
+/// Rebuilds the menu bar (macOS only) in the UI's language (en, fr or de); called at start and on every language
+/// change. On the other platforms only the assistant's language follows.
 #[tauri::command]
 pub fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
     let lang = match lang.as_str() {
@@ -158,8 +160,11 @@ pub fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
     };
     // The assistant's texts follow the app language too (docs/MCP.md section 5).
     app.state::<crate::state::AppState>().assistant.set_lang(&lang);
-    let menu = build_menu(&app, &lang).map_err(|e| e.to_string())?;
-    app.set_menu(menu).map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        let menu = build_menu(&app, &lang).map_err(|e| e.to_string())?;
+        app.set_menu(menu).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 

@@ -183,7 +183,7 @@ Report in plain text (no local paths with user names, no Partner Center values):
 3. **Data folder under MSIX.** The data folder is `%APPDATA%\<app id>`; MSIX redirects writes under `AppData` to the package's private folder. Does the CLI (`mqttpanel`, run outside the package) still see the same profiles and secrets? Report the folder the packaged app actually writes to (with the user name replaced by `<user>`).
 4. **File dialogs** from the packaged app: open, save and folder pickers, drag-and-drop.
 5. **Broker on Windows**: listeners, firewall prompt, "port in use" message (the process name is not shown on Windows; `crates/broker/src/manager.rs`), stop and restart, TLS with client certificates.
-6. **TestPlan rows that need Windows** (`docs/TESTPLAN.md`): **V-03** (native-feel checklist of SPEC section 1.2 on Windows: menu bar with Settings under Edit and Quit under File, Ctrl shortcuts, file dialogs, window chrome, classic scrollbars, live theme switch, focus rings) and the **Windows part of V-12** (no keychain or credential dialog at install, first start, first secret use, after an update and from the CLI).
+6. **TestPlan rows that need Windows** (`docs/TESTPLAN.md`): **V-03** (native-feel checklist of SPEC section 1.2 on Windows: no menu bar (owner, 28 Oct 2026), Ctrl shortcuts, file dialogs, window chrome, classic scrollbars, live theme switch, focus rings) and the **Windows part of V-12** (no keychain or credential dialog at install, first start, first secret use, after an update and from the CLI).
 7. Anything in this guide that was wrong or missing (command that failed, tool name changed), with the fix you used.
 
 ## 9. Windows installer for the GitHub release
