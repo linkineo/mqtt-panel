@@ -111,7 +111,7 @@ The owner reserved the app name **MQTT Panel** in Partner Center. On the app's *
 - Languages `en-US`, `fr-FR`, `de-DE` (the Store listing is in all three).
 - Capabilities `internetClient`, `internetClientServer`, `privateNetworkClientServer`, plus `runFullTrust`, which every packaged Win32 desktop app needs (Partner Center asks for a one-line justification: "Desktop application built with a Win32 executable").
 - No file type associations, no protocol handlers, no app execution alias, no startup task.
-- Logos from `apps/desktop/src-tauri/icons/`: `StoreLogo.png`, `Square44x44Logo.png`, `Square71x71Logo.png`, `Square150x150Logo.png`, `Square310x310Logo.png`.
+- Logos from `apps/desktop/src-tauri/icons/`: `StoreLogo.png`, `Square44x44Logo.png`, `Square71x71Logo.png`, `Square150x150Logo.png` (no large tile: it would need a wide logo too, and Windows 11 shows neither).
 
 ### 6.3 Build the package
 

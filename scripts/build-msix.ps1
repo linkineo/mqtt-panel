@@ -89,7 +89,7 @@ if (Test-Path $Pkg) { Remove-Item $Pkg -Recurse -Force }
 New-Item -ItemType Directory -Force -Path (Join-Path $Pkg 'Assets') | Out-Null
 Copy-Item $exe (Join-Path $Pkg 'mqtt-panel.exe')
 $icons = Join-Path $Root 'apps\desktop\src-tauri\icons'
-foreach ($icon in @('StoreLogo.png', 'Square44x44Logo.png', 'Square71x71Logo.png', 'Square150x150Logo.png', 'Square310x310Logo.png')) {
+foreach ($icon in @('StoreLogo.png', 'Square44x44Logo.png', 'Square71x71Logo.png', 'Square150x150Logo.png')) {
   Copy-Item (Join-Path $icons $icon) (Join-Path $Pkg "Assets\$icon")
 }
 $escape = { param($s) [System.Security.SecurityElement]::Escape($s) }
@@ -98,7 +98,7 @@ $manifest = $manifest.Replace('{{IDENTITY_NAME}}', (& $escape $IdentityName))
 $manifest = $manifest.Replace('{{PUBLISHER_DISPLAY_NAME}}', (& $escape $PublisherDisplayName))
 $manifest = $manifest.Replace('{{PUBLISHER}}', (& $escape $Publisher))
 $manifest = $manifest.Replace('{{VERSION}}', $Version)
-if ($manifest -match '\{\{') { throw 'A placeholder is left in AppxManifest.xml' }
+if ($manifest -match '\{\{[A-Z_]+\}\}') { throw 'A placeholder is left in AppxManifest.xml' }
 $null = [xml]$manifest   # fails on malformed XML
 $manifestPath = Join-Path $Pkg 'AppxManifest.xml'
 [System.IO.File]::WriteAllText($manifestPath, $manifest, (New-Object System.Text.UTF8Encoding($false)))
