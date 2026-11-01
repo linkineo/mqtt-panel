@@ -30,3 +30,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 tempfile = "3"
 uuid.workspace = true
 mqttpanel-tls.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console", "Win32_System_Threading"] }

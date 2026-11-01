@@ -35,8 +35,8 @@ pub fn endpoint_in(dir: &Path) -> PathBuf {
     {
         let user = std::env::var("USERNAME").unwrap_or_else(|_| "user".into());
         let user: String = user.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
-        // A data folder other than the default one (MQTTPANEL_HOME) gets its own pipe, so tests never meet the app.
-        let suffix = if std::env::var("MQTTPANEL_HOME").map(|h| !h.is_empty()).unwrap_or(false) {
+        // A data folder other than the default one (MQTTPANEL_HOME, tests) gets its own pipe, so tests never meet the app.
+        let suffix = if dir != mqttpanel_profiles::os_default_dir() {
             let mut h: u64 = 0xcbf2_9ce4_8422_2325;
             for b in dir.to_string_lossy().bytes() {
                 h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);

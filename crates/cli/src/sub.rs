@@ -52,7 +52,7 @@ pub async fn run(g: &Global, a: &SubArgs, lang: Lang) -> Result<(), Failure> {
         .map_err(|f| conn::connect_failure(&f, lang))?;
     let ready_hint = std::env::var("MQTTPANEL_READY_HINT").is_ok();
 
-    let ctrl_c = tokio::signal::ctrl_c();
+    let ctrl_c = crate::interrupted();
     tokio::pin!(ctrl_c);
     let mut idle_deadline = idle.map(|d| Instant::now() + d);
     let mut retained_deadline: Option<Instant> = None;

@@ -20,6 +20,11 @@ pub fn default_dir() -> PathBuf {
             return PathBuf::from(h);
         }
     }
+    os_default_dir()
+}
+
+/// The app data folder of the operating system, whatever `MQTTPANEL_HOME` says.
+pub fn os_default_dir() -> PathBuf {
     dirs::data_dir().unwrap_or_else(std::env::temp_dir).join(APP_ID)
 }
 

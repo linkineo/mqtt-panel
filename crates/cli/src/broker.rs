@@ -118,7 +118,7 @@ pub async fn run(g: &Global, a: &BrokerArgs, lang: Lang) -> Result<(), Failure> 
         emit(t(lang, "broker.running", &[]));
     }
 
-    let ctrl_c = tokio::signal::ctrl_c();
+    let ctrl_c = crate::interrupted();
     tokio::pin!(ctrl_c);
     let mut tick = tokio::time::interval(Duration::from_millis(200));
     let mut last = 0u64;

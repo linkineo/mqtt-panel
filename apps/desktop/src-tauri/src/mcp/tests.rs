@@ -91,8 +91,26 @@ async fn env() -> Env {
 
 type Client = RunningService<RoleClient, ClientConfig>;
 
+#[cfg(unix)]
+async fn connect(e: &Env) -> tokio::net::UnixStream {
+    tokio::net::UnixStream::connect(mqttpanel_shim::endpoint_in(e.dir.path())).await.unwrap()
+}
+
+#[cfg(windows)]
+async fn connect(e: &Env) -> tokio::net::windows::named_pipe::NamedPipeClient {
+    const ERROR_PIPE_BUSY: i32 = 231;
+    let ep = mqttpanel_shim::endpoint_in(e.dir.path());
+    for _ in 0..100 {
+        match tokio::net::windows::named_pipe::ClientOptions::new().open(&ep) {
+            Err(err) if err.raw_os_error() == Some(ERROR_PIPE_BUSY) => tokio::time::sleep(Duration::from_millis(20)).await,
+            r => return r.unwrap(),
+        }
+    }
+    panic!("pipe stays busy");
+}
+
 async fn client(e: &Env, name: &str) -> Client {
-    let stream = tokio::net::UnixStream::connect(mqttpanel_shim::endpoint_in(e.dir.path())).await.unwrap();
+    let stream = connect(e).await;
     let mut info = Implementation::new(name, "1.0");
     info.title = Some(name.to_string());
     let cfg = ClientConfig::new(ClientCapabilities::default(), info);
@@ -428,7 +446,7 @@ async fn m07_second_host_refused() {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
     let e = env().await;
     let c = client(&e, "First host").await;
-    let mut s = tokio::net::UnixStream::connect(mqttpanel_shim::endpoint_in(e.dir.path())).await.unwrap();
+    let mut s = connect(&e).await;
     s.write_all(b"{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"second\",\"version\":\"1\"}}}\n").await.unwrap();
     let mut line = String::new();
     tokio::io::BufReader::new(&mut s).read_line(&mut line).await.unwrap();
@@ -864,12 +882,13 @@ async fn m14_chart_tools_resources_and_prompts() {
     let st = &e.link.state;
     let id = builtin(&c).await;
     let conn = conn_of(&e, &id);
-    for v in [20.5, 21.0, 21.5] {
+    // One message after the other has arrived: the chart CSV has one row per millisecond.
+    for (n, v) in [20.5, 21.0, 21.5].into_iter().enumerate() {
         let req = crate::types::PublishRequest { topic: "plant/r204/temp".into(), payload: format!("{{\"t\":{v},\"h\":40}}"), format: "json".into(), qos: 0, retain: false, props: None, request: None };
         crate::commands::do_publish(&conn, &req, "pending", false).unwrap();
+        until(|| lock(&conn.engine).history("plant/r204/temp").len() == n + 1).await;
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
-    until(|| lock(&conn.engine).history("plant/r204/temp").len() == 3).await;
     let (err, text, _) = call(&c, "list_charts", json!({})).await;
     assert!(!err && text.contains("no chart"), "{text}");
     let (err, text, _) = call(&c, "create_chart", json!({ "name": "Room 204" })).await;

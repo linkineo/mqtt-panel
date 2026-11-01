@@ -13,4 +13,4 @@ pub use model::*;
 pub use secrets::{MemorySecrets, SecretError, SecretStore};
 pub use keystore::{FileMasterKey, KeyStoreKind, MigratingMasterKey, KEY_FILE};
 pub use secrets_file::{key_store_kind, open_app_secrets, FileSecrets, FixedMasterKey, KeychainMasterKey, MasterKeySource, SECRETS_FILE};
-pub use store::{default_dir, Store};
+pub use store::{default_dir, os_default_dir, Store};

@@ -894,7 +894,8 @@ fn l04_tls_flags() {
 
 fn spec_help(command: &str) -> String {
     let spec = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/SPEC.md"))
-        .expect("docs/SPEC.md");
+        .expect("docs/SPEC.md")
+        .replace("\r\n", "\n"); // a Windows checkout may convert line endings
     let block = spec
         .split("### Help\n```text\n")
         .nth(1)

@@ -156,7 +156,7 @@ pub async fn run(g: &Global, a: &PubArgs, lang: Lang) -> Result<(), Failure> {
         .await
         .map_err(|f| conn::connect_failure(&f, lang))?;
 
-    let ctrl_c = tokio::signal::ctrl_c();
+    let ctrl_c = crate::interrupted();
     tokio::pin!(ctrl_c);
     let mut pending = HashSet::new();
     let mut c = Counters { sent: 0, done: 0 };

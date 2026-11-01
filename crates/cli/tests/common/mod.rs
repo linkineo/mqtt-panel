@@ -138,6 +138,12 @@ impl Bg {
         cmd.stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null());
+        // Its own process group, so that `interrupt` reaches this program alone.
+        #[cfg(windows)]
+        std::os::windows::process::CommandExt::creation_flags(
+            &mut cmd,
+            windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP,
+        );
         let mut child = cmd.spawn().expect("spawn mqttpanel");
         let (tx, rx) = mpsc::channel();
         let all = Arc::new(Mutex::new(String::new()));
@@ -221,12 +227,21 @@ impl Bg {
         panic!("no stdout line containing {needle:?}");
     }
 
+    #[cfg(unix)]
     pub fn interrupt(&self) {
         let st = Command::new("kill")
             .args(["-INT", &self.child.id().to_string()])
             .status()
             .expect("kill -INT");
         assert!(st.success());
+    }
+
+    /// Ctrl+Break to the child's process group (Ctrl+C cannot be sent to one process group alone).
+    #[cfg(windows)]
+    pub fn interrupt(&self) {
+        use windows_sys::Win32::System::Console::{GenerateConsoleCtrlEvent, CTRL_BREAK_EVENT};
+        let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, self.child.id()) };
+        assert!(ok != 0, "GenerateConsoleCtrlEvent: {}", std::io::Error::last_os_error());
     }
 
     pub fn finish(mut self, timeout: Duration) -> Out {

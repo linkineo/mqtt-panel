@@ -187,6 +187,22 @@ async fn run(cli: Cli, lang: Lang) -> Result<(), Failure> {
     }
 }
 
+/// Ctrl+C, and on Windows also Ctrl+Break (the only console signal another process can send to one program alone).
+async fn interrupted() -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        let mut brk = tokio::signal::windows::ctrl_break()?;
+        tokio::select! {
+            r = tokio::signal::ctrl_c() => r,
+            _ = brk.recv() => Ok(()),
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        tokio::signal::ctrl_c().await
+    }
+}
+
 fn finish(code: u8) -> ! {
     let _ = std::io::stdout().flush();
     // Exit right away: a blocking stdin read (pub --stdin) must not hold the process open.

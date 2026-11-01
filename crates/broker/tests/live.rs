@@ -41,6 +41,16 @@ fn issue(m: &BrokerManager, name: &str) -> mqttpanel_tls::Identity {
 }
 
 /// Log lines written since `seq`.
+/// Another program on the port, IPv4 and IPv6 at once.
+fn dual_stack_blocker(port: u16) -> std::io::Result<std::net::TcpListener> {
+    use socket2::{Domain, Protocol, Socket, Type};
+    let sock = Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP))?;
+    sock.set_only_v6(false)?;
+    sock.bind(&std::net::SocketAddr::from((std::net::Ipv6Addr::UNSPECIFIED, port)).into())?;
+    sock.listen(16)?;
+    Ok(sock.into())
+}
+
 fn lines_since(m: &BrokerManager, seq: u64) -> Vec<String> {
     m.log(LogLevel::Debug, seq)
         .into_iter()
@@ -318,7 +328,8 @@ async fn b15_live_apply_drops_exactly_the_invalidated_sessions() {
     wss.port = taken;
     m.update_listener(wss.clone()).await.unwrap(); // still off: nothing starts
                                                    // Another program on the port, on every interface (dual stack where available).
-    let _blocker = std::net::TcpListener::bind(("::", taken))
+    // Dual stack set explicitly: Windows makes an IPv6 socket IPv6-only by default.
+    let _blocker = dual_stack_blocker(taken)
         .or_else(|_| std::net::TcpListener::bind(("0.0.0.0", taken)))
         .unwrap();
     let seq = m.log_buffer().last_seq();
