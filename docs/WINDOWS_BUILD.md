@@ -48,11 +48,13 @@ Run in a normal PowerShell unless "elevated" is stated. Close and reopen PowerSh
    rustc --version
    ```
    `rustc --version` must show 1.88 or newer; `rustup show` must show `x86_64-pc-windows-msvc`.
-5. **Node.js LTS** (20 or newer):
+5. **Node.js LTS** (22.12 or newer; Vitest refuses older versions, and Node 20.4 fails at start with a `styleText` error):
    ```powershell
    winget install --id OpenJS.NodeJS.LTS -e
    node --version
    ```
+   The installer asks for administrator approval and waits until it is given. Run `npm ci` (section 4) again after
+   changing the Node version: an older npm leaves out the native build tool packages.
 6. **WebView2 runtime**: part of Windows 11 and of updated Windows 10. Check:
    ```powershell
    Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -ErrorAction SilentlyContinue | Select-Object pv
@@ -84,7 +86,7 @@ npm run e2e                   # Playwright against the UI with the mock engine
 npm run tauri -- build --no-bundle
 ```
 
-- `cargo test --workspace`: record the total passed, failed and ignored. Some tests start an external Mosquitto when one is installed and are skipped otherwise; that is expected. The Windows-only test **M-41** (`cargo test -p mqttpanel-shim m41`: the named pipe's access list holds the current user only, and the shim's server check passes for a pipe of this user) runs only here; report its result by name. The pipe code (`crates/shim/src/winsec.rs`, `listen` in `apps/desktop/src-tauri/src/mcp/server.rs`) was written without a Windows machine: a compile error there is expected to be possible, report it with the message.
+- `cargo test --workspace`: record the total passed, failed and ignored. Some tests start an external Mosquitto when one is installed and are skipped otherwise; that is expected. The Windows-only test **M-41** (`cargo test -p mqttpanel-shim m41`: the named pipe's access list holds the current user only, and the shim's server check passes for a pipe of this user) runs only here; report its result by name. Every test passes on Windows; a failure is a finding to report with its message. The CLI tests stop a running `mqttpanel` with Ctrl+Break (the CLI stops on Ctrl+C and on Ctrl+Break), so run them from a console. The MCP tests use a pipe of their own per temporary data folder, so a running MQTT Panel does not disturb them. While the app runs from `npm run tauri dev` it locks `target\debug\mqtt-panel.exe`: stop it first, or test into another folder with `$env:CARGO_TARGET_DIR = "target\wintest"`.
 - `npm run e2e` takes several minutes (the overflow suite renders every state in EN, FR and DE). Record the totals.
 - `npm run tauri -- build --no-bundle` builds the UI and the release executable under `target\release\` (`mqtt-panel.exe`, or `MQTT Panel.exe` when the Tauri CLI applies `mainBinaryName`). **Do not build the MSI or NSIS bundles**: `tauri.conf.json` lists the macOS targets only, and the Store does not want them. If `--no-bundle` is refused by the installed Tauri CLI, report it.
 - Start `target\release\mqtt-panel.exe` (or `MQTT Panel.exe`) once by hand: the window opens, the Settings "Updates" page shows "Updates come from the store this copy was installed from.", no console window appears.

@@ -2,7 +2,8 @@
 //! the argument `mcp`, written into the hosts' configuration files. Everything else in those files is kept.
 //!
 //! - Claude Desktop: `claude_desktop_config.json` (`mcpServers.mqttpanel`) in `~/Library/Application Support/Claude`
-//!   (macOS), `%APPDATA%\Claude` (Windows), `~/.config/Claude` (Linux); written when Claude Desktop is installed (its
+//!   (macOS), `%APPDATA%\Claude` (Windows; the Microsoft Store copy: `%LOCALAPPDATA%\Claude-Data\<package folder>`),
+//!   `~/.config/Claude` (Linux); written when Claude Desktop is installed (its
 //!   app or that folder exists), the file created when missing (Claude Desktop creates it only when its developer
 //!   settings are opened).
 //! - Claude Code: `~/.claude.json` (`mcpServers.mqttpanel`, user scope); written only when the file exists.
@@ -65,6 +66,11 @@ impl Homes {
     }
 
     pub fn claude_desktop(&self) -> PathBuf {
+        if cfg!(windows) {
+            if let Some(dir) = self.claude_desktop_store_dir() {
+                return dir.join("claude_desktop_config.json");
+            }
+        }
         let base = if cfg!(target_os = "macos") {
             self.home.join("Library").join("Application Support")
         } else if cfg!(windows) {
@@ -73,6 +79,17 @@ impl Homes {
             self.home.join(".config")
         };
         base.join("Claude").join("claude_desktop_config.json")
+    }
+
+    /// Windows, Microsoft Store copy of Claude Desktop: it keeps its settings outside its package, in a folder named
+    /// after the package under `%LOCALAPPDATA%\Claude-Data`; `%APPDATA%\Claude` then holds only a marker. The folder
+    /// that has the configuration file wins, else the first one.
+    fn claude_desktop_store_dir(&self) -> Option<PathBuf> {
+        let base = self.home.join("AppData").join("Local").join("Claude-Data");
+        let mut dirs: Vec<PathBuf> = std::fs::read_dir(base).ok()?.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.is_dir()).collect();
+        dirs.sort();
+        let with_file = dirs.iter().position(|d| d.join("claude_desktop_config.json").is_file());
+        with_file.or((!dirs.is_empty()).then_some(0)).map(|i| dirs.swap_remove(i))
     }
 
     /// Claude Desktop is on this computer: its app (macOS) or its settings folder exists. Claude Desktop creates
@@ -430,6 +447,46 @@ mod tests {
         assert_eq!(r.written_hosts, vec!["claudeDesktop"]);
         assert_eq!(r.missing_hosts, vec!["claudeCode"]);
         assert_eq!(read_json(&h.claude_desktop()).unwrap(), json!({ "mcpServers": { "mqttpanel": { "command": EXE, "args": ["mcp"] } } }));
+    }
+
+    /// The Microsoft Store copy of Claude Desktop: its file in `%LOCALAPPDATA%\Claude-Data\<package folder>`, a marker
+    /// only in `%APPDATA%\Claude`.
+    #[cfg(windows)]
+    #[test]
+    fn claude_desktop_store_copy_uses_its_data_folder() {
+        let d = tempfile::tempdir().unwrap();
+        let h = Homes::at(d.path());
+        let roaming = d.path().join("AppData").join("Roaming").join("Claude");
+        std::fs::create_dir_all(&roaming).unwrap();
+        std::fs::write(roaming.join(".user-data-left.pkg"), "").unwrap();
+        let data = d.path().join("AppData").join("Local").join("Claude-Data");
+        std::fs::create_dir_all(data.join("a-other")).unwrap();
+        let pkg = data.join("pkg_1");
+        std::fs::create_dir_all(&pkg).unwrap();
+        std::fs::write(pkg.join("claude_desktop_config.json"), r#"{"preferences": {"x": true}}"#).unwrap();
+        assert_eq!(h.claude_desktop(), pkg.join("claude_desktop_config.json"));
+        let desk = host_files(&h, EXE).into_iter().find(|f| f.host == "claudeDesktop").unwrap();
+        assert!(desk.exists && desk.installed && !desk.configured, "{desk:?}");
+        let r = add_to_claude(&h, EXE);
+        assert_eq!(r.written_hosts, vec!["claudeDesktop"]);
+        let v = read_json(&h.claude_desktop()).unwrap();
+        assert_eq!(v["preferences"]["x"], true);
+        assert_eq!(v["mcpServers"]["mqttpanel"], json!({ "command": EXE, "args": ["mcp"] }));
+        assert!(!roaming.join("claude_desktop_config.json").exists());
+        assert!(host_files(&h, EXE).iter().any(|f| f.host == "claudeDesktop" && f.configured));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn claude_desktop_store_copy_without_its_file_gets_one() {
+        let d = tempfile::tempdir().unwrap();
+        let h = Homes::at(d.path());
+        let pkg = d.path().join("AppData").join("Local").join("Claude-Data").join("pkg_1");
+        std::fs::create_dir_all(&pkg).unwrap();
+        assert!(h.claude_desktop_installed());
+        let r = add_to_claude(&h, EXE);
+        assert_eq!(r.written_hosts, vec!["claudeDesktop"]);
+        assert_eq!(read_json(&pkg.join("claude_desktop_config.json")).unwrap(), json!({ "mcpServers": { "mqttpanel": { "command": EXE, "args": ["mcp"] } } }));
     }
 
     #[test]

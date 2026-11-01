@@ -60,7 +60,7 @@ Built with Tauri 2, a Rust engine and a React interface. No Docker, broker or ac
 
 | Platform | Install |
 |---|---|
-| macOS | Xcode command line tools (`xcode-select --install`), [Rust](https://rustup.rs) 1.88 or newer, [Node.js](https://nodejs.org) LTS (20 or newer) |
+| macOS | Xcode command line tools (`xcode-select --install`), [Rust](https://rustup.rs) 1.88 or newer, [Node.js](https://nodejs.org) LTS (22.12 or newer) |
 | Windows | Rust with the MSVC toolchain (`rustup default stable-x86_64-pc-windows-msvc`), Visual Studio Build Tools with the C++ workload, Node.js LTS, WebView2 (part of Windows 11 and updated Windows 10) |
 | Linux | Rust, Node.js LTS and the Tauri 2 system packages below |
 

@@ -7,7 +7,7 @@ How to start the desktop app, the UI alone and the command line on a development
 | Tool | Version | Notes |
 |---|---|---|
 | Rust (cargo) | 1.88 or newer | https://rustup.rs |
-| Node.js and npm | Node 20 or newer | https://nodejs.org |
+| Node.js and npm | Node 22.12 or newer | https://nodejs.org |
 | Tauri CLI | 2.x | `cargo install tauri-cli --version "^2"` (gives `cargo tauri`); the npm workspace also provides `npm run tauri` |
 | macOS | Xcode command line tools | `xcode-select --install` |
 | Windows | Visual Studio Build Tools (C++ workload), WebView2 | WebView2 is part of Windows 11 and recent Windows 10 |
@@ -88,7 +88,7 @@ cargo build --release -p mqttpanel-cli
 ./target/release/mqttpanel profiles list
 ```
 
-The CLI shares the app's saved profiles and secrets (`secrets.enc` and its master key in the OS keychain).
+The CLI shares the app's saved profiles and secrets (`secrets.enc` and its master key in the OS keychain). `sub`, `pub` and `broker` run until Ctrl+C (on Windows also Ctrl+Break).
 
 ## 6. Where the app stores data
 
@@ -175,7 +175,8 @@ computer; on macOS it is `/Applications/MQTT Panel.app/Contents/MacOS/MQTT Panel
 acknowledgement once (Settings, Assistant) before an assistant may change anything.
 
 **Claude Desktop.** Edit `claude_desktop_config.json` (macOS `~/Library/Application Support/Claude/`, Windows
-`%APPDATA%\Claude\`, Linux `~/.config/Claude/`; Claude Desktop, Settings, Developer, Edit Config opens it) and add:
+`%APPDATA%\Claude\`, or `%LOCALAPPDATA%\Claude-Data\<package folder>\` for the Microsoft Store copy, Linux
+`~/.config/Claude/`; Claude Desktop, Settings, Developer, Edit Config opens it) and add:
 
 ```json
 {
