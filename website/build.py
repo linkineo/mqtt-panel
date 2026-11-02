@@ -54,9 +54,11 @@ T = {
         lead="See what is happening on your MQTT brokers: topics, values, history, charts, publishing, and a broker built in. Your AI assistant can drive it too: Claude and ChatGPT connect through MCP to set up brokers, certificates and charts for you.",
         dl=dict(button="Download", h="Download", soon="coming soon", mas="Download on the Mac App Store",
                 ms="Get it from Microsoft", stores="Installed and updated by the stores.",
-                dmg="Download for macOS", dmg_note="Universal, macOS 11 or later, notarized. Updates itself.",
-                exe="Download for Windows", exe_note="64-bit, no admin rights needed. Updates itself.",
-                gh="Build it yourself", gh_note="Source code and release notes."),
+                direct_h="Other downloads", get="Download", open="GitHub",
+                th=("System", "File", "Details"),
+                rows=(("macOS", "Disk image (.dmg)", "Universal, macOS 11 or later, notarized. Updates itself."),
+                      ("Windows", "Installer (.exe)", "64-bit, no admin rights needed. Updates itself."),
+                      ("Source code", "Repository", "Build it yourself; release notes."))),
         demo_h="A closer look",
         demo_p="Screens from the app, with demo data.",
         looks=[
@@ -126,9 +128,11 @@ T = {
         lead="Voyez ce qui se passe sur vos brokers MQTT : topics, valeurs, historique, courbes, publication, et un broker intégré. Votre assistant IA peut aussi piloter l’app : Claude et ChatGPT s’y connectent par MCP et préparent brokers, certificats et courbes à votre place.",
         dl=dict(button="Télécharger", h="Télécharger", soon="bientôt disponible", mas="Télécharger dans le Mac App Store",
                 ms="Obtenir auprès de Microsoft", stores="Installé et mis à jour par les boutiques.",
-                dmg="Télécharger pour macOS", dmg_note="Universel, macOS 11 ou plus récent, notarisé. Se met à jour tout seul.",
-                exe="Télécharger pour Windows", exe_note="64\u00a0bits, sans droits d’administrateur. Se met à jour tout seul.",
-                gh="Compilez-le vous-même", gh_note="Code source et notes de version."),
+                direct_h="Autres téléchargements", get="Télécharger", open="GitHub",
+                th=("Système", "Fichier", "Détails"),
+                rows=(("macOS", "Image disque (.dmg)", "Universel, macOS\u00a011 ou plus récent, notarisé. Se met à jour tout seul."),
+                      ("Windows", "Programme d’installation (.exe)", "64\u00a0bits, sans droits d’administrateur. Se met à jour tout seul."),
+                      ("Code source", "Dépôt", "Compilez-le vous-même\u00a0; notes de version."))),
         demo_h="Vu de plus près",
         demo_p="Des écrans de l’app, avec des données de démonstration.",
         looks=[
@@ -198,9 +202,11 @@ T = {
         lead="Sieh, was auf deinen MQTT-Brokern passiert: Topics, Werte, Verlauf, Kurven, Senden und ein eingebauter Broker. Auch dein KI-Assistent kann die App steuern: Claude und ChatGPT verbinden sich über MCP und richten Broker, Zertifikate und Kurven für dich ein.",
         dl=dict(button="Herunterladen", h="Herunterladen", soon="bald verfügbar", mas="Laden im Mac App Store",
                 ms="Bei Microsoft herunterladen", stores="Installiert und aktualisiert über die Stores.",
-                dmg="Für macOS herunterladen", dmg_note="Universal, macOS 11 oder neuer, notarisiert. Aktualisiert sich selbst.",
-                exe="Für Windows herunterladen", exe_note="64 Bit, ohne Adminrechte. Aktualisiert sich selbst.",
-                gh="Selbst bauen", gh_note="Quellcode und Versionshinweise."),
+                direct_h="Weitere Downloads", get="Herunterladen", open="GitHub",
+                th=("System", "Datei", "Details"),
+                rows=(("macOS", "Disk-Image (.dmg)", "Universal, macOS 11 oder neuer, notarisiert. Aktualisiert sich selbst."),
+                      ("Windows", "Installer (.exe)", "64 Bit, ohne Adminrechte. Aktualisiert sich selbst."),
+                      ("Quellcode", "Repository", "Selbst bauen; Versionshinweise."))),
         demo_h="Genauer hingeschaut",
         demo_p="Bildschirme aus der App, mit Demodaten.",
         looks=[
@@ -350,13 +356,16 @@ def dl_link(t, url, inner, cls, note=""):
             f'<small class="soon">{e(t["dl"]["soon"])}</small>{note}</li>')
 
 
-GH_MARK = '<img src="/assets/badges/github-mark-white.svg" alt="" width="25" height="24">'
+GH_MARK = '<img src="/assets/badges/github-mark-white.svg" alt="" width="16" height="16">'
+DL_ICON = ('<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M3 13h10" '
+           'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>')
 
 
 def download_section(t):
-    """The Download band at the bottom of the home page: the official store badges (black, never recoloured), the
-    sentence that the stores install and update the app, then the direct downloads on the GitHub release (signed and
-    notarized DMG for macOS, NSIS installer for Windows) and the GitHub button for people who build it themselves."""
+    """The Download band at the bottom of the home page: the two official store badges (black, never recoloured) and
+    the sentence that the stores install and update the app, then a table of the other downloads: the DMG for macOS
+    and the NSIS installer for Windows on the latest GitHub release, and the repository for people who build it
+    themselves (owner, 2 Nov 2026: two buttons only, the rest in a table)."""
     d = t["dl"]
     if (BADGES / MAS_BADGE).exists():
         mas = f'<img src="/assets/badges/{MAS_BADGE}" alt="{e(d["mas"])}" height="48">'
@@ -365,19 +374,20 @@ def download_section(t):
         mas = 'Mac App Store'  # neutral placeholder: no Apple logo until the official badge is in place
         mas_cls = "badge plain"
     ms = f'<img src="/assets/badges/microsoft-store.svg" alt="{e(d["ms"])}" width="175" height="48">'
-    gh = f'{GH_MARK}<span>{e(d["gh"])}</span>'
-    # The direct downloads get their own row under the store badges and their sentence; the GitHub button stays alone
-    # under the rule.
-    dmg = dl_link(t, MAC_DMG_URL, f'<span>{e(d["dmg"])}</span>', "badge plain", d["dmg_note"])
-    exe = dl_link(t, WIN_EXE_URL, f'<span>{e(d["exe"])}</span>', "badge plain", d["exe_note"])
     badges = dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge")
-    build = dl_link(t, GITHUB_URL, gh, "badge plain gh", d["gh_note"])
+    links = ((MAC_DMG_URL, DL_ICON, d["get"]), (WIN_EXE_URL, DL_ICON, d["get"]), (GITHUB_URL, GH_MARK, d["open"]))
+    th = "".join(f'<th scope="col">{e(h)}</th>' for h in d["th"]) + '<td></td>'
+    rows = "".join(
+        f'<tr><th scope="row">{e(sys_)}</th><td class="dtfile">{e(kind)}</td><td class="dtnote">{e(note)}</td>'
+        f'<td class="dtget"><a href="{e(url)}" aria-label="{e(lbl)}: {e(sys_)}, {e(kind)}">{icon}<span>{e(lbl)}</span></a></td></tr>'
+        for (sys_, kind, note), (url, icon, lbl) in zip(d["rows"], links)
+    )
     return f"""<section class="dlband" id="download" aria-labelledby="download-h">
   <h2 id="download-h">{e(d["h"])}</h2>
   <ul class="badges">{badges}</ul>
   <p class="dlnote">{e(d["stores"])}</p>
-  <ul class="badges direct">{dmg}{exe}</ul>
-  <ul class="build">{build}</ul>
+  <h3 class="dth" id="direct-h">{e(d["direct_h"])}</h3>
+  <table class="dltable" aria-labelledby="direct-h"><thead><tr>{th}</tr></thead><tbody>{rows}</tbody></table>
 </section>"""
 
 

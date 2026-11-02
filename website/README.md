@@ -55,9 +55,10 @@ The top bar has one Download button (slate `#56697A`, white text) that scrolls t
 the home page (`#download`). MQTT Panel is distributed through the Microsoft Store and the Mac App Store, plus two
 direct downloads attached to the GitHub release: a signed and notarized universal DMG for macOS (owner, 26 Oct 2026)
 and an unsigned per-user NSIS installer for Windows (owner, 2 Nov 2026), both updating themselves. The band holds
-the two store badges with one sentence that the stores install and update the app, then a row with the two
-direct-download buttons and a short caption each, then, under a rule, the "Build it yourself" button (GitHub mark). Linux packages are not
-mentioned.
+only two buttons, the store badges, with one sentence that the stores install and update the app (owner, 2 Nov
+2026). Under them, "Other downloads" is a table (system, file, details, link): the macOS DMG, the Windows installer
+and the source code on GitHub. On screens under 700 px each row becomes a small block with the link on the right.
+Linux packages are not mentioned.
 
 The targets are constants at the top of `build.py`: `MAC_APP_STORE_URL`, `MICROSOFT_STORE_URL`, `GITHUB_URL`,
 `MAC_DMG_URL` and `WIN_EXE_URL` (the last two use `/releases/latest/download/<asset>`, so they follow each release).

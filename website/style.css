@@ -165,13 +165,36 @@ html:not(.js) .term .cmd::after { content: none }
 .badge { display: block; border-radius: 8px; text-decoration: none }
 .badge img { height: 48px; width: auto }
 .badge.plain { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 18px; background: #000; color: #FFF; border: 1px solid #A6A6A6; font-size: 17px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap }
-.badge.gh img { height: 24px; width: auto }
 .badge:focus-visible { outline: 2px solid var(--slate-ink); outline-offset: 3px }
 a[aria-disabled="true"] { cursor: default }
 .soon { font-size: 13px; color: var(--slate-ink) }
 .dlnote { margin-top: calc(2 * var(--u)); font-size: 16px; color: var(--slate-ink) }
-.build { margin-top: calc(4 * var(--u)) !important; padding-top: calc(3 * var(--u)) !important; border-top: 1px solid rgba(255, 255, 255, .35) }
 .dlcap { font-size: 14px; color: var(--slate-ink) }
+/* Other downloads: a quiet table under the store badges, rules in translucent white on the slate band */
+.dth { margin-top: calc(5 * var(--u)); font-size: 15px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .8 }
+.dltable { width: 100%; margin-top: calc(1.5 * var(--u)); border-collapse: collapse; font-size: 15px }
+.dltable thead th { padding: 0 16px 8px 0; font-size: 13px; font-weight: 500; text-align: left; opacity: .7 }
+.dltable tbody tr { border-top: 1px solid rgba(255, 255, 255, .28) }
+.dltable tbody tr:last-child { border-bottom: 1px solid rgba(255, 255, 255, .28) }
+.dltable tbody th, .dltable td { padding: 14px 16px 14px 0; text-align: left; vertical-align: middle }
+.dltable tbody th { font-weight: 600; white-space: nowrap }
+.dtfile { white-space: nowrap; opacity: .9 }
+.dtnote { opacity: .85 }
+.dtget { padding-right: 0 !important; text-align: right !important; white-space: nowrap }
+.dtget a { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .55); color: var(--slate-ink); font-size: 14px; font-weight: 600; text-decoration: none; transition: background .15s ease }
+.dtget a:hover { background: rgba(255, 255, 255, .14) }
+.dtget a:focus-visible { outline: 2px solid var(--slate-ink); outline-offset: 2px }
+.dtget img, .dtget svg { width: 16px; height: 16px; flex: none }
+@media (max-width: 700px) {
+  /* Narrow screens: each row becomes a small block, system and file on top, details below, the link on the right */
+  .dltable thead { display: none }
+  .dltable tbody tr { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; padding: 12px 0 }
+  .dltable tbody th, .dltable td { padding: 0 }
+  .dltable tbody th { grid-column: 1 }
+  .dtfile { grid-column: 1; font-size: 14px }
+  .dtnote { grid-column: 1; margin-top: 4px; font-size: 14px }
+  .dtget { grid-column: 2; grid-row: 1 / span 3; align-self: center }
+}
 
 /* text pages */
 .doc { max-width: 720px; padding-block: calc(6 * var(--u)) calc(8 * var(--u)); display: grid; gap: calc(3 * var(--u)) }
