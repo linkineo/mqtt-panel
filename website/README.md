@@ -52,14 +52,17 @@ The page shows no video since 18 Oct 2026. The clip recordings still exist on re
 ## Download section
 
 The top bar has one Download button (slate `#56697A`, white text) that scrolls to the Download band at the bottom of
-the home page (`#download`). MQTT Panel is distributed through the Microsoft Store and the Mac App Store only
-(owner, 25 Oct 2026): the band holds the two store badges, one sentence that the stores install and update the app,
-then, under a rule, the "Build it yourself" button (GitHub mark) with the caption "Source code for developers; no
-installers are published there." No installer links are offered, and Linux packages are not mentioned.
+the home page (`#download`). MQTT Panel is distributed through the Microsoft Store and the Mac App Store, plus two
+direct downloads attached to the GitHub release: a signed and notarized universal DMG for macOS (owner, 26 Oct 2026)
+and an unsigned per-user NSIS installer for Windows (owner, 2 Nov 2026), both updating themselves. The band holds
+the two store badges with one sentence that the stores install and update the app, then a row with the two
+direct-download buttons and a short caption each, then, under a rule, the "Build it yourself" button (GitHub mark). Linux packages are not
+mentioned.
 
-The three targets are constants at the top of `build.py`: `MAC_APP_STORE_URL`, `MICROSOFT_STORE_URL`, `GITHUB_URL`
-(the installer constants were removed). While a constant is empty, its link is `href="#"` with
-`aria-disabled="true"` and a "coming soon" caption (EN, FR, DE).
+The targets are constants at the top of `build.py`: `MAC_APP_STORE_URL`, `MICROSOFT_STORE_URL`, `GITHUB_URL`,
+`MAC_DMG_URL` and `WIN_EXE_URL` (the last two use `/releases/latest/download/<asset>`, so they follow each release).
+While a constant is empty, its link is `href="#"` with `aria-disabled="true"` and a "coming soon" caption (EN, FR,
+DE).
 
 The badges stay black, as published: Apple and Microsoft do not allow recolouring. Badge files and sources:
 

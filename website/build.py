@@ -14,12 +14,14 @@ import sys
 
 # ---- The owner fills the store links when the listings exist (the GitHub repository is public). Empty: the link goes nowhere (href="#", aria-disabled) and
 # shows "coming soon". They appear in the Download section at the bottom of the home page. The app is distributed
-# through the two stores and, for macOS, as a signed and notarized DMG attached to the GitHub release (owner,
-# 26 Oct 2026); the asset name never carries the version so the link below always points at the latest release.
+# through the two stores and, on the GitHub release, as a signed and notarized DMG for macOS (owner, 26 Oct 2026) and
+# an unsigned per-user NSIS installer for Windows (owner, 2 Nov 2026); the asset names never carry the version so the
+# links below always point at the latest release.
 MAC_APP_STORE_URL = ""
-MICROSOFT_STORE_URL = ""
+MICROSOFT_STORE_URL = "https://apps.microsoft.com/detail/9PPC6JC4P66V"
 GITHUB_URL = "https://github.com/linkineo/mqtt-panel"
 MAC_DMG_URL = GITHUB_URL + "/releases/latest/download/MQTT-Panel-macOS.dmg"
+WIN_EXE_URL = GITHUB_URL + "/releases/latest/download/MQTT-Panel-Windows-setup.exe"
 
 ROOT = pathlib.Path(__file__).resolve().parent
 REPO = ROOT.parent
@@ -53,6 +55,7 @@ T = {
         dl=dict(button="Download", h="Download", soon="coming soon", mas="Download on the Mac App Store",
                 ms="Get it from Microsoft", stores="Installed and updated by the stores.",
                 dmg="Download for macOS", dmg_note="Universal, macOS 11 or later, notarized. Updates itself.",
+                exe="Download for Windows", exe_note="64-bit, no admin rights needed. Updates itself.",
                 gh="Build it yourself", gh_note="Source code and release notes."),
         demo_h="A closer look",
         demo_p="Screens from the app, with demo data.",
@@ -124,6 +127,7 @@ T = {
         dl=dict(button="Télécharger", h="Télécharger", soon="bientôt disponible", mas="Télécharger dans le Mac App Store",
                 ms="Obtenir auprès de Microsoft", stores="Installé et mis à jour par les boutiques.",
                 dmg="Télécharger pour macOS", dmg_note="Universel, macOS 11 ou plus récent, notarisé. Se met à jour tout seul.",
+                exe="Télécharger pour Windows", exe_note="64\u00a0bits, sans droits d’administrateur. Se met à jour tout seul.",
                 gh="Compilez-le vous-même", gh_note="Code source et notes de version."),
         demo_h="Vu de plus près",
         demo_p="Des écrans de l’app, avec des données de démonstration.",
@@ -195,6 +199,7 @@ T = {
         dl=dict(button="Herunterladen", h="Herunterladen", soon="bald verfügbar", mas="Laden im Mac App Store",
                 ms="Bei Microsoft herunterladen", stores="Installiert und aktualisiert über die Stores.",
                 dmg="Für macOS herunterladen", dmg_note="Universal, macOS 11 oder neuer, notarisiert. Aktualisiert sich selbst.",
+                exe="Für Windows herunterladen", exe_note="64 Bit, ohne Adminrechte. Aktualisiert sich selbst.",
                 gh="Selbst bauen", gh_note="Quellcode und Versionshinweise."),
         demo_h="Genauer hingeschaut",
         demo_p="Bildschirme aus der App, mit Demodaten.",
@@ -350,8 +355,8 @@ GH_MARK = '<img src="/assets/badges/github-mark-white.svg" alt="" width="25" hei
 
 def download_section(t):
     """The Download band at the bottom of the home page: the official store badges (black, never recoloured), the
-    sentence that the stores install and update the app, then the direct macOS download (signed and notarized DMG
-    on the GitHub release) and the GitHub button for people who build it themselves."""
+    sentence that the stores install and update the app, then the direct downloads on the GitHub release (signed and
+    notarized DMG for macOS, NSIS installer for Windows) and the GitHub button for people who build it themselves."""
     d = t["dl"]
     if (BADGES / MAS_BADGE).exists():
         mas = f'<img src="/assets/badges/{MAS_BADGE}" alt="{e(d["mas"])}" height="48">'
@@ -361,14 +366,17 @@ def download_section(t):
         mas_cls = "badge plain"
     ms = f'<img src="/assets/badges/microsoft-store.svg" alt="{e(d["ms"])}" width="175" height="48">'
     gh = f'{GH_MARK}<span>{e(d["gh"])}</span>'
-    # The direct macOS download sits with the store badges; the GitHub button stays alone under the rule.
+    # The direct downloads get their own row under the store badges and their sentence; the GitHub button stays alone
+    # under the rule.
     dmg = dl_link(t, MAC_DMG_URL, f'<span>{e(d["dmg"])}</span>', "badge plain", d["dmg_note"])
-    badges = dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge") + dmg
+    exe = dl_link(t, WIN_EXE_URL, f'<span>{e(d["exe"])}</span>', "badge plain", d["exe_note"])
+    badges = dl_link(t, MAC_APP_STORE_URL, mas, mas_cls) + dl_link(t, MICROSOFT_STORE_URL, ms, "badge")
     build = dl_link(t, GITHUB_URL, gh, "badge plain gh", d["gh_note"])
     return f"""<section class="dlband" id="download" aria-labelledby="download-h">
   <h2 id="download-h">{e(d["h"])}</h2>
   <ul class="badges">{badges}</ul>
   <p class="dlnote">{e(d["stores"])}</p>
+  <ul class="badges direct">{dmg}{exe}</ul>
   <ul class="build">{build}</ul>
 </section>"""
 
