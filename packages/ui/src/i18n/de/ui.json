@@ -810,6 +810,7 @@
  "settings.forget": "Fingerabdruck von {name} vergessen",
  "settings.searchShortcuts": "Kürzel suchen",
  "settings.updatesStore": "Updates kommen aus dem Store, aus dem du diese Kopie installiert hast.",
+ "settings.updatesNone": "Diese Kopie aktualisiert sich nicht selbst. Neue Versionen findest du auf der Releases-Seite auf GitHub.",
  "settings.releaseNotes": "Versionshinweise und Quellcode auf GitHub",
  "settings.privacyText": "MQTT Panel sammelt nichts. Keine Telemetrie, keine Absturzberichte, kein Konto. Die App baut keine Netzwerkverbindungen auf, außer zu den Brokern, die du einrichtest. Passwörter und Schlüssel liegen im Schlüsselbund deines Systems.",
  "settings.licence": "Apache 2.0 mit der Commons Clause · frei nutzbar, nicht zum Verkauf.",
@@ -1045,6 +1046,7 @@
  "updates.ready": "MQTT Panel {version} ist installiert. Starte neu, um es zu verwenden.",
  "updates.restart": "Jetzt neu starten",
  "updates.moveFirst": "Verschiebe MQTT Panel zuerst in den Ordner Programme",
+ "updates.installerOnly": "Nur eine mit dem Installationsprogramm von MQTT Panel installierte Kopie kann sich selbst aktualisieren",
  "updates.open": "Updates öffnen",
  "rail.updateWaiting": "Update verfügbar",
  "settings.privacyUpdates": "Diese Kopie fragt außerdem einmal am Tag bei mqtt-panel.com nach Updates (abschaltbar unter Updates). Die Anfrage enthält nur die App-Version, das System und den Prozessortyp, sonst nichts; die Website speichert nichts."

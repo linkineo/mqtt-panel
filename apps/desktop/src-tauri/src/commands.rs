@@ -31,7 +31,28 @@ pub fn app_info(app: AppHandle) -> AppInfo {
         "linux"
     };
     // The version of the Tauri configuration, the single source for every variant (the updater compares it too).
-    AppInfo { version: app.package_info().version.to_string(), platform: platform.into(), native: true, self_update: crate::updates::enabled(&app) }
+    AppInfo { version: app.package_info().version.to_string(), platform: platform.into(), native: true, self_update: crate::updates::enabled(&app), store_build: store_build() }
+}
+
+/// True in a store copy: the Mac App Store build runs in the App Sandbox, which sets `APP_SANDBOX_CONTAINER_ID`; the
+/// Microsoft Store build runs with a package identity (MSIX). Read once at start-up.
+fn store_build() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some()
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+        const APPMODEL_ERROR_NO_PACKAGE: u32 = 15700;
+        let mut len = 0u32;
+        // SAFETY: asks only for the length; a null buffer with length 0 is the documented query.
+        unsafe { GetCurrentPackageFullName(&mut len, std::ptr::null_mut()) != APPMODEL_ERROR_NO_PACKAGE }
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        false
+    }
 }
 
 /// Where the master key lives in this build: "file" or "keychain" (change set 10; the ⓘ next to the key fields says it).
@@ -1002,4 +1023,13 @@ pub const RELEASES_URL: &str = "https://github.com/linkineo/mqtt-panel/releases"
 pub fn open_release_notes(app: AppHandle) -> Result<(), UserMessage> {
     use tauri_plugin_opener::OpenerExt;
     app.opener().open_url(RELEASES_URL, None::<&str>).map_err(|e| msg!("app.openLinkFailed", url = RELEASES_URL, detail = e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_process_outside_a_store_package_is_no_store_build() {
+        // cargo test runs neither sandboxed (Mac App Store) nor with a package identity (MSIX)
+        assert!(!super::store_build());
+    }
 }

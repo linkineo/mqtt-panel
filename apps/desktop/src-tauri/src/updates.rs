@@ -1,5 +1,5 @@
-//! Self-update of the direct macOS download (docs/UPDATER.md). Only the Developer ID DMG variant is built with the
-//! cargo feature `self-update`; without it not one line of updater code is compiled, `update_status` reports
+//! Self-update of the direct downloads (docs/UPDATER.md). Only the Developer ID DMG variant and the Windows NSIS
+//! installer of the GitHub release are built with the cargo feature `self-update`; without it not one line of updater code is compiled, `update_status` reports
 //! `selfUpdate: false` and the other commands answer a plain error. The window never calls the plugin: it uses these
 //! commands through the engine adapter like every other feature.
 
@@ -13,7 +13,7 @@ use tauri::{AppHandle, Manager};
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateStatus {
-    /// This build updates itself (the DMG variant); false in store and developer builds.
+    /// This build updates itself (the DMG and the NSIS installer); false in store and developer builds.
     pub self_update: bool,
     pub auto: bool,
     /// The last successful check, RFC 3339 (UTC).
@@ -27,8 +27,8 @@ pub struct UpdateStatus {
     /// Download progress in bytes; `total` is null while the server does not say.
     pub downloaded: u64,
     pub total: Option<u64>,
-    /// False when the app cannot replace its own bundle (run from the DMG, translocated, read-only folder): the
-    /// panel then says "Move MQTT Panel to Applications first" instead of offering the install.
+    /// False when the app cannot replace its own bundle (run from the DMG, translocated, read-only folder; on
+    /// Windows a copy the NSIS installer did not put in place): the panel then says "Move MQTT Panel to Applications first" instead of offering the install.
     pub can_install: bool,
     pub error: Option<UserMessage>,
 }
@@ -111,7 +111,8 @@ pub async fn update_check(app: AppHandle, manual: bool) -> Result<UpdateStatus, 
     imp::check(&app, manual).await
 }
 
-/// "Download and install": downloads with progress, the plugin verifies the signature and replaces the bundle.
+/// "Download and install": downloads with progress, the plugin verifies the signature and replaces the bundle
+/// (macOS) or starts the installer, which closes the app and opens the new version (Windows).
 #[tauri::command]
 pub async fn update_install(app: AppHandle) -> Result<UpdateStatus, UserMessage> {
     imp::install(&app).await
@@ -221,11 +222,22 @@ mod imp {
             Some(u) => {
                 let mut st = current(app, &u);
                 if st.state == "available" {
-                    st.can_install = std::env::current_exe().map(|e| can_replace_bundle(&e)).unwrap_or(false);
+                    st.can_install = can_install();
                 }
                 st
             }
             None => store_status(&settings_of(app)),
+        }
+    }
+
+    /// True when this copy can install an update. On Windows the plugin runs the next NSIS installer over the
+    /// installed copy, so only a copy that installer put in place can (the bundler stamps the bundle type into the
+    /// executable); on macOS the bundle is replaced in place ([`can_replace_bundle`]).
+    fn can_install() -> bool {
+        if cfg!(windows) {
+            matches!(tauri::utils::platform::bundle_type(), Some(tauri::utils::config::BundleType::Nsis))
+        } else {
+            std::env::current_exe().map(|e| can_replace_bundle(&e)).unwrap_or(false)
         }
     }
 
@@ -253,7 +265,9 @@ mod imp {
     }
 
     async fn ask(app: &AppHandle) -> Result<Option<Update>, UpdErr> {
-        let mut b = app.updater_builder().timeout(std::time::Duration::from_secs(30));
+        // Windows: the plugin starts the installer and ends the process; close the app's resources first.
+        let handle = app.clone();
+        let mut b = app.updater_builder().timeout(std::time::Duration::from_secs(30)).on_before_exit(move || handle.cleanup_before_exit());
         // Debug and test builds only: the test lab points the check at its own server (docs/UPDATER.md, Tests).
         if cfg!(debug_assertions) {
             if let Ok(url) = std::env::var("MQTTPANEL_UPDATE_ENDPOINT") {
@@ -296,7 +310,7 @@ mod imp {
                     format!("{:04}-{:02}-{:02}", d.year(), u8::from(d.month()), d.day())
                 });
                 st.notes = update.body.clone().filter(|b| !b.trim().is_empty());
-                st.can_install = std::env::current_exe().map(|e| can_replace_bundle(&e)).unwrap_or(false);
+                st.can_install = can_install();
                 st.error = None;
                 *lock(&u.pending) = Some(update);
             }
@@ -328,10 +342,10 @@ mod imp {
         if st.state == "downloading" || st.state == "ready" {
             return Ok(st);
         }
-        if !std::env::current_exe().map(|e| can_replace_bundle(&e)).unwrap_or(false) {
+        if !can_install() {
             st.can_install = false;
             set(app, &u, &st);
-            return Err(msg!("update.moveFirst"));
+            return Err(if cfg!(windows) { msg!("update.installerOnly") } else { msg!("update.moveFirst") });
         }
         st.state = "downloading".into();
         st.downloaded = 0;

@@ -315,8 +315,8 @@ export function SettingsScreen() {
               {info.selfUpdate ? (
                 <UpdatesSettings />
               ) : (
-                <p className="small muted" data-testid="updates-store" style={{ maxWidth: '90ch', margin: 0 }}>
-                  {t('settings.updatesStore')}
+                <p className="small muted" data-testid={info.storeBuild ? 'updates-store' : 'updates-none'} style={{ maxWidth: '90ch', margin: 0 }}>
+                  {t(info.storeBuild ? 'settings.updatesStore' : 'settings.updatesNone')}
                 </p>
               )}
               <p className="small" style={{ margin: info.selfUpdate ? '12px 0 0' : '6px 0 0' }}>

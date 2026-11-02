@@ -51,7 +51,7 @@ Source legend: **Requested** by the owner, **Parity** with the predecessor tool,
 | S2 | Keyboard-first: command palette, shortcuts for search, publish, pin, follow, next changed topic | Proposed | 1.0 |
 | S3 | Accessibility: full keyboard navigation of tree and table, screen-reader labels, WCAG AA contrast in both themes, reduced motion | Proposed | 1.0 |
 | W1 | Web version: deferred. The engine stays I/O-free so a browser build remains possible | Deferred | later |
-| U1 | Distribution: Mac App Store (sandboxed variant) and Microsoft Store (MSIX, signed by the Store) only; the stores update the app. No downloadable installers, no auto-updater, no Linux packages; the GitHub repository is for building from source. Beta builds are unsigned | Requested | 1.0 |
+| U1 | Distribution: Mac App Store (sandboxed variant) and Microsoft Store (MSIX, signed by the Store); the stores update the app. On GitHub releases: the macOS DMG (updates itself, docs/UPDATER.md) and an unsigned per-user NSIS installer for Windows (updates itself the same way, 2 Nov 2026). No MSI, no sideloaded MSIX, no Linux packages; the GitHub repository is for building from source. Beta builds are unsigned | Requested | 1.0 |
 | N1 | Native feel on each OS: native menu bar, context menus, shortcuts, dialogs, window chrome, scrollbars, theme following the OS (SPEC.md section 1.2) | Requested | 1.0 |
 
 ## Functional requirements

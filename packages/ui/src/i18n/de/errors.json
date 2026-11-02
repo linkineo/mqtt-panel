@@ -339,8 +339,9 @@
  "update.unreachable": "mqtt-panel.com ist nicht erreichbar.",
  "update.badSignature": "Der Download ist nicht von MQTT Panel signiert. Es wurde nichts installiert.",
  "update.moveFirst": "Verschiebe MQTT Panel zuerst in den Ordner Programme.",
+ "update.installerOnly": "Nur eine mit dem Installationsprogramm von MQTT Panel installierte Kopie kann sich selbst aktualisieren.",
  "update.notAllowed": "MQTT Panel konnte sich nicht ersetzen: Die Berechtigung wurde verweigert.",
  "update.previousKept": "Das Update ist fehlgeschlagen. Die vorherige Version liegt unter {path}.",
- "update.noBuild": "Für diesen Mac ist noch kein Update veröffentlicht.",
+ "update.noBuild": "Für diesen Computer ist noch kein Update veröffentlicht.",
  "update.nothing": "Es gibt kein Update zum Installieren."
 }

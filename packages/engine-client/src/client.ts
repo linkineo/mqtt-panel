@@ -66,7 +66,7 @@ export interface EngineClient {
   /** Saves everything except `updates`, which belongs to the update methods below. */
   saveSettings(settings: Settings): Promise<Settings>;
 
-  // self-update, direct macOS download only (docs/UPDATER.md); store builds answer selfUpdate false and errors
+  // self-update, direct downloads only (docs/UPDATER.md); store builds answer selfUpdate false and errors
   updateStatus(): Promise<UpdateStatus>;
   /** manual: "Check now". Otherwise the launch check, which runs only when it is on and due (24 h). */
   updateCheck(manual: boolean): Promise<UpdateStatus>;

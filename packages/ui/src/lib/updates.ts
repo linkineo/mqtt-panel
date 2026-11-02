@@ -1,4 +1,4 @@
-// Self-update of the direct macOS download (docs/UPDATER.md). Store builds never get here (AppInfo selfUpdate false).
+// Self-update of the direct download (macOS DMG, Windows installer) (docs/UPDATER.md). Store builds never get here (AppInfo selfUpdate false).
 import type { EngineClient, UpdateStatus } from '@mqttpanel/engine-client';
 import i18next from '../i18n';
 import { useApp } from '../store/app';

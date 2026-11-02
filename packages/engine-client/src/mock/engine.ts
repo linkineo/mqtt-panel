@@ -63,9 +63,11 @@ export interface MockOptions {
   now?: () => number;
   /** What `keyStoreKind` answers (default "keychain", as a signed build). */
   keyStore?: 'file' | 'keychain';
-  /** The direct macOS download (docs/UPDATER.md): AppInfo selfUpdate and the update commands (default false, a
+  /** The direct downloads, macOS DMG and Windows installer (docs/UPDATER.md): AppInfo selfUpdate and the update commands (default false, a
    * store build). */
   selfUpdate?: boolean;
+  /** AppInfo storeBuild (default true unless selfUpdate is on: a store build). */
+  storeBuild?: boolean;
   /** What the update server offers (default: nothing newer). */
   updateOffer?: MockUpdateOffer | null;
 }
@@ -197,6 +199,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
   const dataset = buildDataset(lang);
   // self-update (docs/UPDATER.md)
   let selfUpdate = options.selfUpdate ?? false;
+  const storeBuild = options.storeBuild ?? !selfUpdate;
   let updateOffer: MockUpdateOffer | null = options.updateOffer ?? null;
   let updateUnreachable = false;
   let updateCanInstall = true;
@@ -776,7 +779,7 @@ export function createMockEngineClient(options: MockOptions = {}): MockEngineCli
 
   const client: MockEngineClient = {
     async appInfo() {
-      return { version: '1.0.1', platform: detectPlatform(), native: false, selfUpdate };
+      return { version: '1.0.1', platform: detectPlatform(), native: false, selfUpdate, storeBuild };
     },
     async keyStoreKind() {
       return options.keyStore ?? 'keychain';

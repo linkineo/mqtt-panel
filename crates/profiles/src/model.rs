@@ -323,7 +323,7 @@ pub mod secret_keys {
 
 /// App settings (see the TS type Settings). An old settings file with `skipVerify` still loads; the field
 /// is ignored (skipping verification is per connection since change set 6). The same holds for `updateCheck` and
-/// `updateChannel` (removed 25 Oct 2026: the stores update the app). `updates` serves the direct macOS download only
+/// `updateChannel` (removed 25 Oct 2026: the stores update the app). `updates` serves the direct download (macOS DMG, Windows installer) only
 /// (docs/UPDATER.md); store builds keep the defaults and never read it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -344,7 +344,7 @@ pub struct Settings {
     /// The day (YYYY-MM-DD) the user accepted the assistant acknowledgement (docs/MCP.md section 3); until then the
     /// assistant's writing tools are refused.
     pub assistant_acknowledged: Option<String>,
-    /// Self-update of the direct macOS download (docs/UPDATER.md).
+    /// Self-update of the direct download (macOS DMG, Windows installer) (docs/UPDATER.md).
     pub updates: UpdateSettings,
 }
 

@@ -12,7 +12,7 @@ Target users: automation and IoT engineers commissioning devices (building autom
 
 | Deliverable | Form | Capabilities |
 |---|---|---|
-| Desktop app | Microsoft Store (Windows, MSIX) and Mac App Store (macOS); Linux from source only | Everything: TCP, TLS, mTLS, WebSocket, keychain, embedded broker, export, CLI companion |
+| Desktop app | Microsoft Store (Windows, MSIX) and Mac App Store (macOS); on the GitHub release a notarized DMG (macOS) and an unsigned NSIS installer (Windows); Linux from source only | Everything: TCP, TLS, mTLS, WebSocket, keychain, embedded broker, export, CLI companion |
 | CLI | Single binary `mqttpanel`, bundled with the desktop app; built from source when wanted alone | `sub`, `pub`, `broker`, `profiles`, using the same saved connection profiles |
 | Web app | Deferred | Not in v1.0. The engine stays I/O-free so a browser build remains possible later (section 9). |
 
@@ -131,7 +131,7 @@ mqtt-panel/
   - **Unsigned builds** (dev, CI, an unsigned beta; on macOS detected at the first secret use by the absence of a Developer ID team identifier in the code signature, i.e. ad-hoc or none) keep the key in an owner-only file, `master.key` (mode 0600, folder 0700) in the app data folder, so no dialog ever appears in a test cycle. The ⓘ next to the password and key fields says where the key lives.
   - **Moving the key** (first start after this change, or the first signed start later): the key is read once from the old place, written to the new one and the old item deleted; nobody is asked twice. On an unsigned build with an existing login-keychain item this is the last dialog that build family ever shows; a refused keychain keeps the `keychain.refused` behaviour and the move is tried again at the next start. The CLI follows the same rule on the same data folder. `MQTTPANEL_SECRETS=memory` is unchanged; `MQTTPANEL_KEYSTORE=file|keychain` forces the store for tests.
   - **Security trade-off, stated plainly:** the key file is readable by any program running as the user, the same level as an ssh key without a passphrase, a kubeconfig or the AWS CLI credentials; the OS stores restrict access to the app. That is why the release keeps the OS store and the file is for unsigned builds only.
-- **Shell hardening (Tauri):** strict Content Security Policy, capabilities limited to the commands the UI needs, no shell or arbitrary file access from the WebView, no updater (the stores update the app).
+- **Shell hardening (Tauri):** strict Content Security Policy, capabilities limited to the commands the UI needs, no shell or arbitrary file access from the WebView, no updater in store builds (the stores update the app; the direct downloads update themselves, `docs/UPDATER.md`).
 - **Embedded broker:** anonymous access off by default, TLS listener generated with a local CA on first start, client certificates optionally required. The broker binds to all interfaces by default (one broker-wide choice, "This computer only / Whole network") so devices on the network can connect without extra steps; the Broker screen shows a clear warning and an explainer, and every listener can be switched to localhost in one click. The plain TCP listener carries an extra warning when reachable from the network.
 - **Broker limits:** the embedded broker bounds what one client, or one address that has not logged in, can cost the app:
 
@@ -306,7 +306,7 @@ Facts verified on 12 Oct 2026 from the projects' own pages are marked Verified. 
 | Code and payload editor | CodeMirror 6 | MIT | Standard |
 | i18n | Lingui or i18next with ICU messages | MIT | Pick one |
 | State | Zustand | MIT | Standard |
-| Windows signing | Microsoft Store (signs the MSIX) | n/a | No code-signing certificate; a self-signed certificate only for local MSIX tests (`docs/WINDOWS_BUILD.md`). |
+| Windows signing | Microsoft Store (signs the MSIX) | n/a | No code-signing certificate; a self-signed certificate only for local MSIX tests (`docs/WINDOWS_BUILD.md`). The GitHub NSIS installer is unsigned. |
 
 ## 11. Quality and release
 
@@ -317,10 +317,12 @@ Facts verified on 12 Oct 2026 from the projects' own pages are marked Verified. 
 - **Performance gate:** a benchmark fixture with 100k topics and a 5k msg/s replay; the UI must keep frame time under 16 ms on the CI runner's baseline.
 - **Native-feel review:** the section 1.2 checklist walked through on each OS before every release.
 - **Secrets gate (release):** the signed macOS build stores the master key in the Data Protection keychain and shows no keychain dialog at install, first start, first secret use, after an update or from the CLI, checked on a fresh user account; Windows uses DPAPI and Linux Secret Service with the file fallback, checked the same way. A build that shows a keychain dialog to an end user does not ship (TESTPLAN V-12).
-- **Release:** two stores and the source, nothing else.
+- **Release:** two stores, the direct downloads on the GitHub release (macOS DMG, Windows NSIS installer) and the source, nothing else.
   - **Mac App Store:** the sandboxed variant (`tauri.mas.conf.json`, `Entitlements.mas.plist`), built, signed with the Apple distribution identity and uploaded to App Store Connect by `scripts/release-mac-testflight.sh`; TestFlight first, then review.
   - **Microsoft Store:** an MSIX package built on a Windows machine from the Tauri release executable and `apps/desktop/windows/AppxManifest.xml` by `scripts/build-msix.ps1`, uploaded unsigned to Partner Center; the Store signs it, so no code-signing certificate is bought. Steps in `docs/WINDOWS_BUILD.md`.
-  - **GitHub:** the repository is the source for people who build MQTT Panel themselves. No downloadable installers (no DMG, MSI, NSIS, AppImage, deb or rpm, no Homebrew cask or winget manifest), no auto-updater, no Linux packages; Linux users build from source. A local `.dmg` or `.app` from `cargo tauri build` stays a developer build for the owner's own testing.
+  - **GitHub:** the repository is the source for people who build MQTT Panel themselves. The release carries two direct downloads: the signed and notarized macOS DMG, which updates itself (`docs/UPDATER.md`), and, since 2 Nov 2026, the Windows installer `MQTT-Panel-Windows-setup.exe` with its `.sha256`, built by `scripts/release-windows-nsis.ps1` (Tauri NSIS bundle, overlay `tauri.nsis.conf.json`).
+    - **Windows installer:** per-user (no administrator rights, installs under `%LOCALAPPDATA%`), installer texts in EN, FR and DE following the system language, Start menu entry and uninstaller; the installer downloads WebView2 only when it is missing. **Unsigned:** SmartScreen asks once (More info, Run anyway); Smart App Control and company policies may block it, and the Microsoft Store copy is the answer there. **Updates itself** like the DMG (`docs/UPDATER.md`): cargo feature `self-update`, the installer signed with the updater key, `windows-x86_64` entries in `latest.json`; the plugin runs the next installer in passive mode, which closes the app, replaces it in place and starts the new version. It holds the same executable as the MSIX, with the data folder and the DPAPI key store of any unpackaged build.
+    - No MSI, no sideloaded MSIX (it would need a certificate trusted on the user's machine), no AppImage, deb or rpm, no Homebrew cask or winget manifest; Linux users build from source. A local bundle from `cargo tauri build` stays a developer build for the owner's own testing.
   - **Signing:** beta builds are not signed; signing is the final step before a store upload. Signing keys stay in the OS keychain or the CI secret store, never in the repository.
 - **Licence:** Apache License 2.0 with the Commons Clause License Condition v1.0, for every version and commit: free to use, copy, modify and build, including in companies; not for resale. Source-available, not OSI open source. Manifests point to `LICENSE` (`license-file` in Cargo, `SEE LICENSE IN` in npm). Dependencies keep their own licences (allow-list above).
 - **Website:** https://mqtt-panel.com, one Cloudflare Worker, EN/FR/DE, no cookies or third-party resources (built in `website/`).
@@ -331,4 +333,4 @@ Facts verified on 12 Oct 2026 from the projects' own pages are marked Verified. 
 2. **Core desktop:** profiles + keychain, connection form with TLS, Explorer tree and table, inspection with JSON, diff, properties, and the decoders (Sparkplug B, CBOR, MessagePack, Protobuf with user .proto files).
 3. **Publish and history:** composer, templates, sent log, delete retained, series and chart screen, export.
 4. **Broker:** embedded broker screen, Add listener flow with presets, client certificates, authentication, clients, log. CLI.
-5. **Polish and release:** FR and DE catalogs with native review, accessibility pass, native-feel review, Mac App Store and Microsoft Store packages (no installers, no auto-update), website.
+5. **Polish and release:** FR and DE catalogs with native review, accessibility pass, native-feel review, Mac App Store and Microsoft Store packages, the direct downloads on the GitHub release (section 11), website.

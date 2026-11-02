@@ -76,8 +76,10 @@ diagnostics without payloads.
   name, the website links `releases/latest/download/`). This variant alone carries the updater (`docs/UPDATER.md`):
   built with the cargo feature `self-update` and the overlay `tauri.dmg.conf.json`, its archive signed with the
   updater key from `.env.local`; the script also writes `MQTT-Panel-macOS.app.tar.gz`, its `.sig` and `latest.json`,
-  all five files go on the release. The Worker sends `/update/` to that `latest.json`. No Windows installer outside
-  the store, no Linux packages. Release gate: a signed macOS build shows no keychain dialog (`docs/TESTPLAN.md` V-12);
+  all five files go on the release. The Worker sends `/update/` to that `latest.json`. The Windows installer of the
+  GitHub release, `MQTT-Panel-Windows-setup.exe` and its `.sha256`, comes from `scripts/release-windows-nsis.ps1`
+  (unsigned, per-user); like the DMG it carries the updater, the installer signed with the same updater key, and the
+  script merges the `windows-x86_64` entries into the release's `latest.json`; no other Windows installer, no Linux packages. Release gate: a signed macOS build shows no keychain dialog (`docs/TESTPLAN.md` V-12);
   the published DMG finds and installs the next version (U-09).
 
 ## Website

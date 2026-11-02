@@ -10,8 +10,11 @@ pub struct AppInfo {
     pub version: String,
     pub platform: String,
     pub native: bool,
-    /// This build updates itself (the direct macOS download, docs/UPDATER.md); false in store and developer builds.
+    /// This build updates itself (the direct downloads: macOS DMG, Windows installer; docs/UPDATER.md); false in store and developer builds.
     pub self_update: bool,
+    /// A store copy (Mac App Store, Microsoft Store): Settings → Updates says the store updates it. False in the direct
+    /// downloads and in builds from source, which say that this copy does not update itself.
+    pub store_build: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

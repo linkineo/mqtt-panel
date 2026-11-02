@@ -108,7 +108,8 @@ fn main() {
     }
     let context = tauri::generate_context!();
     let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init()).plugin(tauri_plugin_opener::init());
-    // The direct macOS download only (docs/UPDATER.md): store and developer builds compile no updater code.
+    // The direct downloads only (macOS DMG, Windows NSIS; docs/UPDATER.md): store and developer builds compile no
+    // updater code.
     #[cfg(feature = "self-update")]
     let builder = updates::register(builder, &context);
     builder

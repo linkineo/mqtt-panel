@@ -44,7 +44,7 @@ describe('Settings, Updates and licence (25 Oct 2026)', () => {
     });
   }
 
-  // The direct macOS download has its own Updates panel (docs/UPDATER.md, keys updates.*, test updates.test.tsx);
+  // The direct download (macOS DMG, Windows installer) has its own Updates panel (docs/UPDATER.md, keys updates.*, test updates.test.tsx);
   // the store build keeps none of the removed settings.* switches.
   it('no update feed, channel or "Check now" string is left among the settings.* keys', () => {
     for (const lang of LANGS) {

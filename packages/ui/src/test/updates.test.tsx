@@ -7,7 +7,7 @@ import { useApp } from '../store/app';
 import { App } from '../App';
 import { resources } from '../i18n';
 
-// docs/UPDATER.md (26 Oct 2026): the direct macOS download checks mqtt-panel.com for updates; store builds do not
+// docs/UPDATER.md (26 Oct 2026): the direct download (macOS DMG, Windows installer) checks mqtt-panel.com for updates; store builds do not
 // (TESTPLAN U-01 to U-09).
 const OFFER: MockUpdateOffer = { version: '1.0.2', date: '2026-11-02', notes: 'Release notes: https://github.com/linkineo/mqtt-panel/releases/tag/v1.0.2' };
 
@@ -38,9 +38,28 @@ describe('Self-update, store build (U-01)', () => {
     expect(screen.queryByTestId('rail-settings-dot')).toBeNull();
     expect(useApp.getState().update).toBeNull();
   });
+
+  it('a build from source says it does not update itself instead of naming a store (EN, FR, DE)', async () => {
+    const NONE = {
+      en: 'This copy does not update itself. New versions are on the Releases page on GitHub.',
+      fr: 'Cette copie ne se met pas à jour d’elle-même. Les nouvelles versions sont sur la page Releases de GitHub.',
+      de: 'Diese Kopie aktualisiert sich nicht selbst. Neue Versionen findest du auf der Releases-Seite auf GitHub.',
+    };
+    for (const lang of ['en', 'fr', 'de'] as const) {
+      cleanup();
+      const engine = createMockEngineClient({ scenario: 'demo', lang, live: false, latencyMs: 0, storeBuild: false });
+      await startApp(engine, createMockPlatform(), { lang });
+      expect((await engine.appInfo()).storeBuild).toBe(false);
+      useApp.setState({ screen: 'settings' });
+      render(<App />);
+      expect(screen.getByTestId('updates-none').textContent).toBe(NONE[lang]);
+      expect(screen.queryByTestId('updates-store')).toBeNull();
+      expect(screen.queryByTestId('updates-self')).toBeNull();
+    }
+  });
 });
 
-describe('Self-update, direct macOS download', () => {
+describe('Self-update, direct download', () => {
   it('U-02 idle: the switch with its ⓘ, the last check, "Check now" says the version is the latest', async () => {
     const engine = await bootDmg();
     await waitFor(() => expect(useApp.getState().update?.lastCheck).not.toBeNull()); // the launch check ran
@@ -137,6 +156,17 @@ describe('Self-update, direct macOS download', () => {
     expect(screen.getByTestId('updates-move-first').textContent).toBe('Move MQTT Panel to Applications first');
     expect(screen.queryByTestId('updates-install')).toBeNull();
     await expect(engine.updateInstall()).rejects.toMatchObject({ key: 'update.moveFirst' });
+  });
+
+  it('U-06 on Windows: a copy the installer did not put in place names the installer, not Applications', async () => {
+    const engine = await bootDmg({ offer: null });
+    engine.setUpdateOffer(OFFER);
+    engine.setUpdateCanInstall(false);
+    useApp.setState({ update: await engine.updateCheck(true), appInfo: { ...useApp.getState().appInfo, platform: 'windows' } });
+    render(<App />);
+    act(() => useApp.getState().openSettings('updates'));
+    expect(screen.getByTestId('updates-move-first').textContent).toBe('Only a copy installed with the MQTT Panel installer can update itself');
+    expect(screen.queryByTestId('updates-install')).toBeNull();
   });
 
   it('U-07 French and German strings (« vous », "du")', async () => {

@@ -34,7 +34,7 @@ export function readOverrides(search: string): BootOverrides & { mock: 'demo' | 
     motion: p.get('motion') === 'off' ? false : undefined,
     // mock only: slower engine steps, so screenshots can catch a flow half-way (02b steps)
     latency: p.get('latency') ? Math.min(20_000, Number(p.get('latency')) || 0) : undefined,
-    // mock only: the direct macOS download with this version offered (docs/UPDATER.md); "none" offers nothing
+    // mock only: the direct download (macOS DMG, Windows installer) with this version offered (docs/UPDATER.md); "none" offers nothing
     update: p.get('update') ?? undefined,
   };
 }
@@ -118,7 +118,7 @@ export async function startApp(eng: EngineClient, plat: Platform, o: BootOverrid
     if (first) useApp.setState({ activeConnId: first, connections: await engine().listConnections(), profiles: await engine().listProfiles() });
   }
   useApp.setState({ ready: true });
-  // the direct macOS download checks for updates once the window is up (docs/UPDATER.md)
+  // the direct download (macOS DMG, Windows installer) checks for updates once the window is up (docs/UPDATER.md)
   if (appInfo.selfUpdate) void startUpdates(eng);
 }
 

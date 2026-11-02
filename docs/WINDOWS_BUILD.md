@@ -6,7 +6,7 @@ Written for an implementing model (a Claude instance) running on a Windows PC wi
 
 Produce the **Microsoft Store package (MSIX)** of MQTT Panel, version from `apps/desktop/src-tauri/tauri.conf.json` (1.0.0 gives package version `1.0.0.0`), and check it on this machine.
 
-- Distribution is the Microsoft Store and the Mac App Store only. No MSI, no NSIS installer, no winget, no updater.
+- Windows distribution: the Microsoft Store (MSIX) and an unsigned per-user NSIS installer on the GitHub release (section 9). No MSI, no sideloaded MSIX, no winget; only the NSIS installer carries the updater (`docs/UPDATER.md`).
 - **No code-signing certificate is needed.** The MSIX is uploaded **unsigned** to Partner Center; the Store signs it. A self-signed certificate is used only to install the package on this machine for testing.
 - The package is built from the Tauri release executable plus `apps/desktop/windows/AppxManifest.xml`, by `scripts/build-msix.ps1`.
 
@@ -88,8 +88,8 @@ npm run tauri -- build --no-bundle
 
 - `cargo test --workspace`: record the total passed, failed and ignored. Some tests start an external Mosquitto when one is installed and are skipped otherwise; that is expected. The Windows-only test **M-41** (`cargo test -p mqttpanel-shim m41`: the named pipe's access list holds the current user only, and the shim's server check passes for a pipe of this user) runs only here; report its result by name. Every test passes on Windows; a failure is a finding to report with its message. The CLI tests stop a running `mqttpanel` with Ctrl+Break (the CLI stops on Ctrl+C and on Ctrl+Break), so run them from a console. The MCP tests use a pipe of their own per temporary data folder, so a running MQTT Panel does not disturb them. While the app runs from `npm run tauri dev` it locks `target\debug\mqtt-panel.exe`: stop it first, or test into another folder with `$env:CARGO_TARGET_DIR = "target\wintest"`.
 - `npm run e2e` takes several minutes (the overflow suite renders every state in EN, FR and DE). Record the totals.
-- `npm run tauri -- build --no-bundle` builds the UI and the release executable under `target\release\` (`mqtt-panel.exe`, or `MQTT Panel.exe` when the Tauri CLI applies `mainBinaryName`). **Do not build the MSI or NSIS bundles**: `tauri.conf.json` lists the macOS targets only, and the Store does not want them. If `--no-bundle` is refused by the installed Tauri CLI, report it.
-- Start `target\release\mqtt-panel.exe` (or `MQTT Panel.exe`) once by hand: the window opens, the Settings "Updates" page shows "Updates come from the store this copy was installed from.", no console window appears.
+- `npm run tauri -- build --no-bundle` builds the UI and the release executable under `target\release\` (`mqtt-panel.exe`, or `MQTT Panel.exe` when the Tauri CLI applies `mainBinaryName`). **Do not build the MSI bundle**: `tauri.conf.json` lists the macOS targets only; the NSIS installer is built only by `scripts/release-windows-nsis.ps1` (section 9). If `--no-bundle` is refused by the installed Tauri CLI, report it.
+- Start `target\release\mqtt-panel.exe` (or `MQTT Panel.exe`) once by hand: the window opens, the Settings "Updates" page shows "This copy does not update itself. New versions are on the Releases page on GitHub." (the bare executable is no store copy; the installed MSIX shows "Updates come from the store this copy was installed from."), no console window appears.
 
 ## 6. Produce the MSIX
 
@@ -185,3 +185,36 @@ Report in plain text (no local paths with user names, no Partner Center values):
 5. **Broker on Windows**: listeners, firewall prompt, "port in use" message (the process name is not shown on Windows; `crates/broker/src/manager.rs`), stop and restart, TLS with client certificates.
 6. **TestPlan rows that need Windows** (`docs/TESTPLAN.md`): **V-03** (native-feel checklist of SPEC section 1.2 on Windows: menu bar with Settings under Edit and Quit under File, Ctrl shortcuts, file dialogs, window chrome, classic scrollbars, live theme switch, focus rings) and the **Windows part of V-12** (no keychain or credential dialog at install, first start, first secret use, after an update and from the CLI).
 7. Anything in this guide that was wrong or missing (command that failed, tool name changed), with the fix you used.
+
+## 9. Windows installer for the GitHub release
+
+The GitHub release carries, next to the macOS assets, an unsigned per-user installer for Windows (SPEC section 11,
+GitHub). It is the Tauri NSIS bundle with the overlay `apps/desktop/src-tauri/tauri.nsis.conf.json`:
+
+- per-user install under `%LOCALAPPDATA%`, no administrator rights; Start menu entry and uninstaller;
+- installer texts in English, French and German, following the system language;
+- WebView2 is downloaded by the installer only when it is missing;
+- publisher shown by Windows: `mqtt-panel.com`;
+- built with the cargo feature `self-update`: it updates itself like the macOS DMG (`docs/UPDATER.md`). The installer is
+  signed with the updater's minisign key (`.env.local`: `TAURI_SIGNING_PRIVATE_KEY_PATH` and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, the same key as the DMG; see `.env.example`).
+
+Build it, after section 5 passes:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\release-windows-nsis.ps1
+```
+
+The script checks that the executable has the version of `tauri.conf.json` and the updater endpoint, then writes the
+release assets to `target\release-nsis\`: `MQTT-Panel-Windows-setup.exe`, its `.sha256` and `.sig`, and `latest.json`
+with the `windows-x86_64-nsis` and `windows-x86_64` entries merged into the release's own (the macOS entries of the
+same version are kept; the macOS script keeps the Windows ones in turn). Fixed names: the README and the updater use
+`releases/latest/download/`. Upload them to the release of that version:
+
+```powershell
+gh release upload v<version> --clobber target\release-nsis\MQTT-Panel-Windows-setup.exe target\release-nsis\MQTT-Panel-Windows-setup.exe.sha256 target\release-nsis\MQTT-Panel-Windows-setup.exe.sig target\release-nsis\latest.json
+```
+
+What users see, because the installer is not signed: SmartScreen shows "Windows protected your PC" once (More info,
+Run anyway); Smart App Control or company policies may block it, and the Microsoft Store copy is the answer there.
+Check it with `docs/TESTPLAN.md` R-05.

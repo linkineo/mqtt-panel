@@ -7,13 +7,14 @@ import { Info, Msg, Switch } from '../../components/ui';
 import { fmtDate, fmtHm } from '../../lib/format';
 
 /**
- * Settings → Updates of the direct macOS download (docs/UPDATER.md): the automatic check, the last check, "Check now",
+ * Settings → Updates of the direct downloads, macOS DMG and Windows installer (docs/UPDATER.md): the automatic check, the last check, "Check now",
  * and the state of an update (found, downloading, ready to restart). Store builds show the store sentence instead.
  */
 export function UpdatesSettings() {
   const { t } = useTranslation();
   const u = useApp((s) => s.update);
   const later = useApp((s) => s.updateLater);
+  const windows = useApp((s) => s.appInfo.platform === 'windows');
   if (!u) return null;
   const apply = (p: Promise<UpdateStatus>) =>
     void p
@@ -92,7 +93,7 @@ export function UpdatesSettings() {
                 </>
               ) : (
                 <span className="small" data-testid="updates-move-first" style={{ color: 'var(--clay)' }}>
-                  {t('updates.moveFirst')}
+                  {t(windows ? 'updates.installerOnly' : 'updates.moveFirst')}
                 </span>
               )}
             </div>

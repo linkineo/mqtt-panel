@@ -11,9 +11,10 @@ See what is happening on your MQTT brokers: topics, values, history, charts, pub
 - [Mac App Store](#) · coming soon
 - [Microsoft Store](#) · coming soon
 - [Download for macOS (.dmg)](https://github.com/linkineo/mqtt-panel/releases/latest/download/MQTT-Panel-macOS.dmg) · universal (Apple silicon and Intel), macOS 11 or later, signed and notarized, updates itself
+- [Download for Windows (installer)](https://github.com/linkineo/mqtt-panel/releases/latest/download/MQTT-Panel-Windows-setup.exe) · x64, Windows 10 or later, installs for the current user, not signed (SmartScreen asks once: More info, Run anyway), updates itself
 - Source code, release notes and issues: [github.com/linkineo/mqtt-panel](https://github.com/linkineo/mqtt-panel)
 
-MQTT Panel is installed and updated through the Mac App Store and the Microsoft Store. On macOS the same app is also available as a direct download from the [Releases](https://github.com/linkineo/mqtt-panel/releases) page; the direct download updates itself through the app: once a day at most it asks mqtt-panel.com whether a newer version exists (version, system and processor type only; switch it off in Settings, Updates) and installs it when you ask ([docs/UPDATER.md](docs/UPDATER.md)). Linux users and developers build it themselves (see below). Website: [mqtt-panel.com](https://mqtt-panel.com).
+MQTT Panel is installed and updated through the Mac App Store and the Microsoft Store. On macOS the same app is also available as a direct download from the [Releases](https://github.com/linkineo/mqtt-panel/releases) page; the direct download updates itself through the app: once a day at most it asks mqtt-panel.com whether a newer version exists (version, system and processor type only; switch it off in Settings, Updates) and installs it when you ask ([docs/UPDATER.md](docs/UPDATER.md)). On Windows the same app is available as an installer from the Releases page; it is not code-signed and updates itself the same way. Linux users and developers build it themselves (see below). Website: [mqtt-panel.com](https://mqtt-panel.com).
 
 ## Features
 
@@ -102,7 +103,7 @@ cd apps/desktop/src-tauri
 cargo tauri build
 ```
 
-The bundle lands under `target/release/bundle/` at the repository root: `macos/MQTT Panel.app` and a `.dmg` on macOS, `appimage/`, `deb/` and `rpm/` on Linux. On Windows build the executable with `npm run tauri -- build --no-bundle`; the Microsoft Store package (MSIX) is made by `scripts/build-msix.ps1` as described in [docs/WINDOWS_BUILD.md](docs/WINDOWS_BUILD.md). Developer builds are not signed.
+The bundle lands under `target/release/bundle/` at the repository root: `macos/MQTT Panel.app` and a `.dmg` on macOS, `appimage/`, `deb/` and `rpm/` on Linux. On Windows build the executable with `npm run tauri -- build --no-bundle`; the Microsoft Store package (MSIX) is made by `scripts/build-msix.ps1` and the installer for the GitHub release by `scripts/release-windows-nsis.ps1`, as described in [docs/WINDOWS_BUILD.md](docs/WINDOWS_BUILD.md). Developer builds are not signed.
 
 ### Tests
 

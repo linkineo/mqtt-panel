@@ -93,13 +93,22 @@ shasum -a 256 "$OUT" | sed "s#$OUT_DIR/##" > "$OUT.sha256"
 
 # latest.json for the updater (docs/UPDATER.md). The plugin looks up darwin-<arch>-app, then darwin-<arch>, where
 # <arch> is the slice that runs (aarch64 or x86_64 in the universal binary); every key points to the same archive.
+# The windows-* entries of the same version, written by scripts/release-windows-nsis.ps1, are kept.
+rm -f "$OUT_DIR/latest.release.json"
+gh release download "v$VERSION" --pattern latest.json --output "$OUT_DIR/latest.release.json" 2>/dev/null || true
 python3 - "$OUT_DIR" "$ASSET" "$VERSION" "$SUFFIX" <<'PY'
-import datetime, json, sys
+import datetime, json, os, sys
 out, asset, version, suffix = sys.argv[1:5]
 signature = open(f"{out}/{asset}.app.tar.gz.sig").read().strip()
 url = f"https://github.com/linkineo/mqtt-panel/releases/download/v{version}/{asset}.app.tar.gz"
 archs = ["aarch64", "x86_64"] if suffix == "universal" else ["aarch64"]
 platforms = {f"darwin-{a}{kind}": {"signature": signature, "url": url} for a in archs for kind in ("-app", "")}
+released = f"{out}/latest.release.json"
+if os.path.exists(released):
+    old = json.load(open(released))
+    if old.get("version") == version:
+        platforms.update({k: v for k, v in old.get("platforms", {}).items() if k.startswith("windows-")})
+    os.remove(released)
 manifest = {
     "version": version,
     "notes": f"Release notes: https://github.com/linkineo/mqtt-panel/releases/tag/v{version}",

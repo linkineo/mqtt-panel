@@ -85,7 +85,7 @@ T = {
             ("The app", [
                 "MQTT Panel has no telemetry, no crash reporting, no analytics and no account.",
                 "The app makes no network connections except to the brokers you configure. Copies from the Microsoft Store or the Mac App Store are updated by the store.",
-                "The macOS download from this website also checks for updates: once a day at most, plus when you choose Check now, it asks mqtt-panel.com whether a newer version exists. The request carries only the app version, the system and the processor type: no identifier, no cookie. The website keeps nothing and sends the app on to the release file on GitHub, which sees your IP address as for any download. You can switch the check off in Settings, Updates; nothing is installed until you ask.",
+                "The direct downloads for macOS and Windows (not the store copies) also check for updates: once a day at most, plus when you choose Check now, they ask mqtt-panel.com whether a newer version exists. The request carries only the app version, the system and the processor type: no identifier, no cookie. The website keeps nothing and sends the app on to the release file on GitHub, which sees your IP address as for any download. You can switch the check off in Settings, Updates; nothing is installed until you ask.",
                 "Profiles, templates, views and the message history stay on your computer.",
             ]),
             ("Secrets", [
@@ -156,7 +156,7 @@ T = {
             ("L’app", [
                 "MQTT Panel n’a ni télémétrie, ni rapport de plantage, ni mesure d’audience, ni compte.",
                 "L’app ne se connecte qu’aux brokers que vous configurez. Les copies du Microsoft Store ou du Mac App Store sont mises à jour par la boutique.",
-                "La version macOS téléchargée sur ce site vérifie aussi les mises à jour : au plus une fois par jour, et quand vous choisissez Vérifier maintenant, elle demande à mqtt-panel.com si une version plus récente existe. La requête ne contient que la version de l’app, le système et le type de processeur : aucun identifiant, aucun cookie. Le site ne conserve rien et renvoie l’app vers le fichier de la version sur GitHub, qui voit votre adresse IP comme pour tout téléchargement. Vous pouvez désactiver la vérification dans Réglages, Mises à jour ; rien n’est installé sans votre accord.",
+                "Les versions macOS et Windows téléchargées directement (hors boutiques) vérifient aussi les mises à jour : au plus une fois par jour, et quand vous choisissez Vérifier maintenant, elles demandent à mqtt-panel.com si une version plus récente existe. La requête ne contient que la version de l’app, le système et le type de processeur : aucun identifiant, aucun cookie. Le site ne conserve rien et renvoie l’app vers le fichier de la version sur GitHub, qui voit votre adresse IP comme pour tout téléchargement. Vous pouvez désactiver la vérification dans Réglages, Mises à jour ; rien n’est installé sans votre accord.",
                 "Profils, modèles, vues et historique des messages restent sur votre ordinateur.",
             ]),
             ("Secrets", [
@@ -227,7 +227,7 @@ T = {
             ("Die App", [
                 "MQTT Panel hat keine Telemetrie, keine Absturzberichte, keine Nutzungsstatistik und kein Konto.",
                 "Die App verbindet sich nur mit den Brokern, die du einrichtest. Kopien aus dem Microsoft Store oder dem Mac App Store aktualisiert der Store.",
-                "Der macOS-Download von dieser Website sucht außerdem nach Updates: höchstens einmal am Tag und wenn du Jetzt prüfen wählst, fragt er bei mqtt-panel.com nach, ob es eine neuere Version gibt. Die Anfrage enthält nur die App-Version, das System und den Prozessortyp: keine Kennung, kein Cookie. Die Website speichert nichts und leitet die App zur Release-Datei auf GitHub weiter, das deine IP-Adresse wie bei jedem Download sieht. Du kannst die Prüfung unter Einstellungen, Updates abschalten; installiert wird nur, wenn du es möchtest.",
+                "Die direkten Downloads für macOS und Windows (nicht die Store-Versionen) suchen außerdem nach Updates: höchstens einmal am Tag und wenn du Jetzt prüfen wählst, fragen sie bei mqtt-panel.com nach, ob es eine neuere Version gibt. Die Anfrage enthält nur die App-Version, das System und den Prozessortyp: keine Kennung, kein Cookie. Die Website speichert nichts und leitet die App zur Release-Datei auf GitHub weiter, das deine IP-Adresse wie bei jedem Download sieht. Du kannst die Prüfung unter Einstellungen, Updates abschalten; installiert wird nur, wenn du es möchtest.",
                 "Profile, Vorlagen, Ansichten und der Nachrichtenverlauf bleiben auf deinem Computer.",
             ]),
             ("Geheimnisse", [

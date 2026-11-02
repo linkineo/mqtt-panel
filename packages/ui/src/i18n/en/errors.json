@@ -339,8 +339,9 @@
  "update.unreachable": "Could not reach mqtt-panel.com.",
  "update.badSignature": "The download is not signed by MQTT Panel. Nothing was installed.",
  "update.moveFirst": "Move MQTT Panel to Applications first.",
+ "update.installerOnly": "Only a copy installed with the MQTT Panel installer can update itself.",
  "update.notAllowed": "MQTT Panel could not replace itself: permission was refused.",
  "update.previousKept": "The update failed. The previous version was kept at {path}.",
- "update.noBuild": "No update is published for this Mac yet.",
+ "update.noBuild": "No update is published for this computer yet.",
  "update.nothing": "There is no update to install."
 }

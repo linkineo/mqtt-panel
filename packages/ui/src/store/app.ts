@@ -123,7 +123,7 @@ let toastId = 1;
 
 export const useApp = create<AppState>((set, get) => ({
   ready: false,
-  appInfo: { version: '', platform: 'web', native: false, selfUpdate: false },
+  appInfo: { version: '', platform: 'web', native: false, selfUpdate: false, storeBuild: true },
   keyStore: null,
   settings: DEFAULT_SETTINGS,
   screen: 'connect',

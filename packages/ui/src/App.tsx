@@ -34,7 +34,7 @@ function Rail() {
   const openSettings = useApp((s) => s.openSettings);
   const brokerState = useApp((s) => s.broker?.state ?? 'stopped');
   const open = useOpenTabs().length;
-  // docs/UPDATER.md: a dot on Settings while an update waits (the direct macOS download only)
+  // docs/UPDATER.md: a dot on Settings while an update waits (the direct download (macOS DMG, Windows installer) only)
   const waiting = useApp((s) => updateWaiting(s.update, s.updateLater));
   const badge = (k: Screen) => {
     if (k === 'settings' && waiting) return <span className="upd" data-testid="rail-settings-dot" aria-hidden="true" />;

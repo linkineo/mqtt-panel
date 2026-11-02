@@ -1,6 +1,6 @@
 # Running MQTT Panel from source
 
-How to start the desktop app, the UI alone and the command line on a development machine. MQTT Panel is distributed through the Mac App Store and the Microsoft Store, and for macOS as a signed and notarized DMG on the Releases page; only that DMG updates itself (`docs/UPDATER.md`). Anyone else builds it from the public repository https://github.com/linkineo/mqtt-panel as described here; Linux users always do. Release notes are on its Releases page, which Settings, Updates links to.
+How to start the desktop app, the UI alone and the command line on a development machine. MQTT Panel is distributed through the Mac App Store and the Microsoft Store, for macOS as a signed and notarized DMG and for Windows as an unsigned installer on the Releases page; only the DMG updates itself (`docs/UPDATER.md`). Anyone else builds it from the public repository https://github.com/linkineo/mqtt-panel as described here; Linux users always do. Release notes are on its Releases page, which Settings, Updates links to.
 
 ## Requirements
 
@@ -49,7 +49,7 @@ cd apps/desktop/src-tauri
 cargo tauri build
 ```
 
-The bundle lands under `target/release/bundle/` at the repository root. These are developer builds for your own machine, not distributed; the Microsoft Store package is made by `scripts/build-msix.ps1` (`docs/WINDOWS_BUILD.md`):
+The bundle lands under `target/release/bundle/` at the repository root. These are developer builds for your own machine, not distributed; the Microsoft Store package is made by `scripts/build-msix.ps1` and the Windows installer for the GitHub release by `scripts/release-windows-nsis.ps1` (`docs/WINDOWS_BUILD.md`):
 
 | OS | Result |
 |---|---|
@@ -145,7 +145,7 @@ covered on both sides:
 
 ```
 cargo build -p mqttpanel-desktop                          # store and developer builds: no updater code
-cargo build -p mqttpanel-desktop --features self-update   # the direct macOS download
+cargo build -p mqttpanel-desktop --features self-update   # the direct downloads (macOS DMG, Windows installer)
 cargo test -p mqttpanel-desktop --features self-update
 ```
 

@@ -33,7 +33,7 @@ export interface Settings {
   brokerLogOpen: boolean;
   /** The day (YYYY-MM-DD) the assistant acknowledgement was accepted (docs/MCP.md section 3); null until then. */
   assistantAcknowledged: string | null;
-  /** Self-update of the direct macOS download (docs/UPDATER.md). The window changes `auto` through updateSetAuto
+  /** Self-update of the direct download (macOS DMG, Windows installer) (docs/UPDATER.md). The window changes `auto` through updateSetAuto
    * only; the app writes `lastCheck` (RFC 3339, UTC). Store builds keep the defaults. */
   updates: { auto: boolean; lastCheck: string | null };
 }
@@ -46,8 +46,10 @@ export interface AppInfo {
   platform: 'macos' | 'windows' | 'linux' | 'web';
   /** True when running inside the desktop shell (native dialogs, menus, keychain). */
   native: boolean;
-  /** This build updates itself (the direct macOS download, docs/UPDATER.md); false in store and developer builds. */
+  /** This build updates itself (the direct downloads: macOS DMG, Windows installer; docs/UPDATER.md); false in store and developer builds. */
   selfUpdate: boolean;
+  /** A store copy (Mac App Store, Microsoft Store); false in the direct downloads and in builds from source. */
+  storeBuild: boolean;
 }
 
 /** What Settings → Updates shows (docs/UPDATER.md). */
@@ -64,7 +66,8 @@ export interface UpdateStatus {
   /** Download progress in bytes; total is null while the server does not say. */
   downloaded: number;
   total: number | null;
-  /** False when the app cannot replace its own bundle (run from the DMG, translocated, read-only folder). */
+  /** False when the app cannot replace its own bundle (run from the DMG, translocated, read-only folder; on Windows a
+   * copy the installer did not put in place). */
   canInstall: boolean;
   error: UserMessage | null;
 }

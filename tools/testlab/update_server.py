@@ -52,6 +52,7 @@ def write_overlay(pubkey_file: pathlib.Path, port: int) -> pathlib.Path:
                 "endpoints": [f"http://127.0.0.1:{port}/update/{{{{target}}}}/{{{{arch}}}}/{{{{current_version}}}}"],
                 "pubkey": pubkey,
                 "requireSignedVersion": True,
+                "windows": {"installMode": "passive"},
             }
         },
     }
@@ -60,9 +61,10 @@ def write_overlay(pubkey_file: pathlib.Path, port: int) -> pathlib.Path:
     return path
 
 
-def manifest(version: str, signature: str, port: int) -> dict:
-    url = f"http://127.0.0.1:{port}/{ARCHIVE_NAME}"
+def manifest(version: str, signature: str, port: int, name: str = ARCHIVE_NAME) -> dict:
+    url = f"http://127.0.0.1:{port}/{name}"
     keys = [f"darwin-{arch}{kind}" for arch in ("aarch64", "x86_64") for kind in ("-app", "")]
+    keys += ["windows-x86_64-nsis", "windows-x86_64"]  # the Windows NSIS installer (docs/UPDATER.md)
     return {
         "version": version,
         "notes": f"Test lab build {version}",
@@ -82,7 +84,9 @@ def serve(args: argparse.Namespace) -> None:
         raw = bytearray(base64.b64decode(signature))
         raw[-8] ^= 0xFF
         signature = base64.b64encode(bytes(raw)).decode()
-    body = json.dumps(manifest(args.version, signature, args.port), indent=2).encode()
+    # served under its own file name: the macOS .app.tar.gz or the Windows ...-setup.exe
+    name = archive.name.replace(" ", "-")
+    body = json.dumps(manifest(args.version, signature, args.port, name), indent=2).encode()
     data = archive.read_bytes()
 
     class Handler(http.server.BaseHTTPRequestHandler):
@@ -105,9 +109,9 @@ def serve(args: argparse.Namespace) -> None:
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
-            elif self.path == f"/{ARCHIVE_NAME}":
+            elif self.path == f"/{name}":
                 self.send_response(200)
-                self.send_header("Content-Type", "application/gzip")
+                self.send_header("Content-Type", "application/octet-stream" if name.endswith(".exe") else "application/gzip")
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
@@ -131,7 +135,7 @@ def main() -> None:
     o.add_argument("--pubkey", required=True, help="the .pub file written by cargo tauri signer generate")
     o.add_argument("--port", type=int, default=8765)
     s = sub.add_parser("serve", help="serve latest.json and the signed archive")
-    s.add_argument("--archive", required=True, help="the .app.tar.gz made by the bundler")
+    s.add_argument("--archive", required=True, help="the .app.tar.gz (macOS) or ...-setup.exe (Windows) made by the bundler")
     s.add_argument("--signature", help="the .sig file (default: <archive>.sig)")
     s.add_argument("--version", required=True, help="the version announced, newer than the installed one")
     s.add_argument("--port", type=int, default=8765)

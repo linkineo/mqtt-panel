@@ -291,7 +291,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | S-01 | E | auto | Export selected topic, subtree, visible rows; last hour, session, custom; CSV, JSON, NDJSON; MQTT 5 properties on/off; base64 raw | Files parse; row counts match the estimate ± 0; CSV expands numeric JSON fields. |
 | S-02 | E | auto | Nothing is written to disk by default: run a session, inspect the app data folder | Only profiles, templates, views, settings and broker config present; no message data. |
 | S-03 | E | auto | Clear all history; memory estimate drops | As specified. |
-| S-04 | E | auto | Store builds, Updates page and network calls (the stores update the app): the page shows the one store sentence in EN, FR, DE with no switch, channel or button; network calls observed with a proxy | Only broker traffic; no update check. The direct macOS download is section 14. |
+| S-04 | E | auto | Store builds, Updates page and network calls (the stores update the app): the page shows the one store sentence in EN, FR, DE with no switch, channel or button; network calls observed with a proxy | Only broker traffic; no update check. A build from source (no store, no updater) shows "This copy does not update itself…" instead of the store sentence. The direct downloads are section 14. |
 | S-06 | U | auto | Master key store selection: unsigned signature → file store, Developer ID signature → OS store, `MQTTPANEL_KEYSTORE` override wins; the file store creates `master.key` with 0600 and its folder 0700, round-trips the key, refuses a world-readable file with a plain error; the move from a fake keychain source reads once, writes the file, deletes the item, and keeps the old behaviour when the source refuses | As specified. |
 | S-05 | E | auto | No app-wide "Skip verification" in Settings; an old settings file with `skipVerify: true` loads and the flag is ignored; an old profile with `verifyServer: false` loads with the skip switch on | As specified. |
 
@@ -302,6 +302,7 @@ Each case asserts the exact user-facing sentence (EN) and that FR and DE exist i
 | R-01 | U | auto | `cargo deny` licence allow-list and advisories; `npm audit` | Clean. |
 | R-03 | M | manual | Beta builds (unsigned): install on each OS with the "how to run it" note | Note is accurate. |
 | R-04 | M | manual | Store builds: the Mac App Store build passes App Store Connect validation and installs from TestFlight; the MSIX passes the Windows App Certification Kit and Partner Center validation; a store update installs over the previous version | Validation clean; the update keeps profiles and secrets. |
+| R-05 | M | manual | Windows installer of the GitHub release (`scripts/release-windows-nsis.ps1`): on a user account without administrator rights, SmartScreen asks once (More info, Run anyway); the installer speaks the system language (EN, FR, DE), installs under `%LOCALAPPDATA%`, adds the Start menu entry; the app starts, profiles and secrets work with no credential dialog; running the next version's installer replaces the old one and keeps the data; the uninstaller removes the app and keeps the data unless its box is ticked; Settings, Updates shows the update panel, and a throwaway next version announced in `latest.json` (`windows-x86_64-nsis`) is found, downloaded, installed in passive mode and started | As specified; no network call except brokers and the update check. |
 
 ## 13. Assistant
 
@@ -353,7 +354,7 @@ The assistant interface (`docs/MCP.md`). Rust tests in `apps/desktop/src-tauri/s
 | M-34 | E | lab | Claude Code prompt C14, history and export to a file (`tools/testlab/mcp_prompts/run.py`, prompt in `docs/MCP_PROMPTS.md`): get_history, export_data with a file path | get_history on the topic; the CSV file exists with a header and rows. |
 | M-35 | E | lab | Claude Code prompt C15, before the acknowledgement (`tools/testlab/mcp_prompts/run.py`, prompt in `docs/MCP_PROMPTS.md`): writing tools refused until the user accepts in the app | Writing calls refused; no connection; the answer tells the user to accept the acknowledgement in MQTT Panel, Settings, Assistant. |
 
-## 14. Self-update (direct macOS download)
+## 14. Self-update (direct downloads: macOS DMG, Windows installer)
 
 `docs/UPDATER.md`. Rust tests in `apps/desktop/src-tauri/src/updates.rs` and `crates/profiles/tests/profiles_c.rs`,
 Vitest in `packages/ui/src/test/updates.test.tsx`, the end-to-end run with `tools/testlab/update_server.py`.
